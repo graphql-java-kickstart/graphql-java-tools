@@ -19,6 +19,10 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 
 ## Usage
 
+### Maven
+
+*Coming soon!*
+
 ### Examples
 
 A working [Java Spring-Boot application](example) is provided, based off the [Star Wars API](https://github.com/graphql-java/graphql-java/blob/master/src/test/groovy/graphql/StarWarsSchema.java) tests and [test data](https://github.com/graphql-java/graphql-java/blob/master/src/test/groovy/graphql/StarWarsData.groovy).
