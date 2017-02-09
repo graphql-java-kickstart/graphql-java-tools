@@ -7,7 +7,9 @@
     <version>0.1.7-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>graphql-java-tools</name>
+    <name>GraphQL Java Tools</name>
+    <description>Tools to help map a GraphQL schema to existing Java objects.</description>
+    <url>http://github.com/Cox-Automotive/graphql-java-tools</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -158,4 +160,24 @@
             </plugin>
         </plugins>
     </build>
+
+    <developers>
+        <developer>
+            <name>Andrew Potter</name>
+            <email>apottere@gmail.com</email>
+            <organization>Cox Automotive</organization>
+            <organizationUrl>http://www.coxautoinc.com</organizationUrl>
+        </developer>
+    </developers>
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+        </license>
+    </licenses>
+    <scm>
+        <connection>scm:git:git://github.com/Cox-Automotive/graphql-java-tools.git</connection>
+        <developerConnection>scm:git:git@github.com:Cox-Automotive/graphql-java-tools.git</developerConnection>
+        <url>http://github.com/Cox-Automotive/graphql-java-tools</url>
+    </scm>
 </project>
