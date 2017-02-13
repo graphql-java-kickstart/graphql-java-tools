@@ -138,6 +138,7 @@
                 <version>2.5.3</version>
                 <configuration>
                     <tagNameFormat>@{project.version}</tagNameFormat>
+                    <generateReleasePoms>false</generateReleasePoms>
                 </configuration>
             </plugin>
         </plugins>
@@ -208,12 +209,6 @@
             <url>http://www.opensource.org/licenses/mit-license.php</url>
         </license>
     </licenses>
-    <scm>
-        <connection>scm:git:git://github.com/Cox-Automotive/graphql-java-tools.git</connection>
-        <developerConnection>scm:git:git@github.com:Cox-Automotive/graphql-java-tools.git</developerConnection>
-        <url>http://github.com/Cox-Automotive/graphql-java-tools</url>
-      <tag>HEAD</tag>
-  </scm>
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
@@ -226,4 +221,10 @@
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
+    <scm>
+        <connection>scm:git:git://github.com/Cox-Automotive/graphql-java-tools.git</connection>
+        <developerConnection>scm:git:git@github.com:Cox-Automotive/graphql-java-tools.git</developerConnection>
+        <url>http://github.com/Cox-Automotive/graphql-java-tools</url>
+      <tag>HEAD</tag>
+  </scm>
 </project>
