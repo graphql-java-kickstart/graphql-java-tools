@@ -34,7 +34,7 @@ class ResolverDataFetcher(
         private fun shouldPassSource(resolver: GraphQLResolver?) = resolver != null && resolver.graphQLResolverDataType() != null
 
         private fun shouldPassEnvironment(effectiveArgs: Int, method: Method): Boolean {
-            val diff = method.parameterCount - effectiveArgs
+            val diff = method.parameterTypes.size - effectiveArgs
 
             if (diff < 0) throw ResolverError("Method '${method.name}' has too few parameters!")
             if (diff > 1) throw ResolverError("Method '${method.name}' has too many parameters!")
