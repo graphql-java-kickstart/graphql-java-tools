@@ -4,7 +4,7 @@
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
 Inspired by [graphql-tools](https://github.com/apollographql/graphql-tools), it parses the given GraphQL schema and allows you to BYOO (bring your own object) to fill in the implementations.
-
+GraphQL Java Tools works extremely well if you already have domain POJOs that hold your data (e.g. for RPC, ORM, etc) by allowing you to map these magically to GraphQL objects.
 
 GraphQL Java Tools aims for seamless integration with Java, but works for any JVM language.  Try it with Kotlin!
 
