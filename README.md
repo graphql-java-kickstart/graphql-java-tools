@@ -21,9 +21,15 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 
 ## Usage
 
-### Maven
+### Maven/Gradle
 
-*Coming soon!*
+```
+<dependency>
+    <groupId>com.coxautodev</groupId>
+    <artifactId>graphql-java-tools</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
 
 ### Examples
 
