@@ -23,7 +23,7 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 
 ### Maven/Gradle
 
-```
+```xml
 <dependency>
     <groupId>com.coxautodev</groupId>
     <artifactId>graphql-java-tools</artifactId>
