@@ -37,7 +37,7 @@
         <dependency>
             <groupId>com.coxautodev</groupId>
             <artifactId>graphql-java-tools</artifactId>
-            <version>1.0.1-SNAPSHOT</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.graphql-java</groupId>
