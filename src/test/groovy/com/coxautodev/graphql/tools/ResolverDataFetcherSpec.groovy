@@ -59,12 +59,23 @@ class ResolverDataFetcherSpec extends Specification {
             resolver.get(createEnvironment(new DataClass())) == name
     }
 
-    def "data fetcher uses 'is' prefix for booleans"() {
+    def "data fetcher uses 'is' prefix for booleans (primitive type)"() {
         setup:
-            def resolver = createResolver("active", new GraphQLResolver(DataClass) {
-                boolean isActive(DataClass dataClass) { true }
-                boolean getActive(DataClass dataClass) { false }
-            })
+        def resolver = createResolver("active", new GraphQLResolver(DataClass) {
+            boolean isActive(DataClass dataClass) { true }
+            boolean getActive(DataClass dataClass) { true }
+        })
+
+        expect:
+            resolver.get(createEnvironment(new DataClass()))
+    }
+
+    def "data fetcher uses 'is' prefix for Booleans (Object type)"() {
+        setup:
+        def resolver = createResolver("active", new GraphQLResolver(DataClass) {
+            Boolean isActive(DataClass dataClass) { Boolean.TRUE }
+            Boolean getActive(DataClass dataClass) { Boolean.TRUE }
+        })
 
         expect:
             resolver.get(createEnvironment(new DataClass()))

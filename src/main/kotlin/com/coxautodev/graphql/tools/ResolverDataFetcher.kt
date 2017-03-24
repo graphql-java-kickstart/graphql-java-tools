@@ -26,9 +26,14 @@ class ResolverDataFetcher(
             return ResolverDataFetcher(resolver, method, shouldPassEnvironment(if (shouldPassSource(resolver)) arguments + 1 else arguments, method))
         }
 
+        private fun isBoolean(method: Method):Boolean =
+            method.returnType.isAssignableFrom(Boolean::class.java) ||
+            method.returnType.isPrimitive && method.returnType.javaClass.name == "boolean"
+
         private fun getMethod(clazz: Class<*>, name: String): Method? =
-            clazz.methods.find { it.name == name } ?: clazz.methods.find {
-                it.name == (if (it.returnType.isAssignableFrom(Boolean::class.java)) "is" else "get") + name.capitalize()
+            clazz.methods.find { it.name == name ||
+              (isBoolean(it) && it.name == "is${name.capitalize()}") ||
+              it.name == "get${name.capitalize()}"
             }
 
         private fun shouldPassSource(resolver: GraphQLResolver?) = resolver != null && resolver.graphQLResolverDataType() != null
