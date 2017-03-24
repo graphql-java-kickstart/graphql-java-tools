@@ -7,9 +7,9 @@ import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
 
 class ResolverDataFetcher(
-  val resolver: GraphQLResolver?,
-  val method: Method,
-  val passEnvironment: Boolean) : DataFetcher {
+    val resolver: GraphQLResolver?,
+    val method: Method,
+    val passEnvironment: Boolean) : DataFetcher {
 
     companion object {
         val mapper = ObjectMapper().registerKotlinModule()
