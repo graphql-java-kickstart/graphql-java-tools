@@ -197,13 +197,13 @@
     </licenses>
     <distributionManagement>
         <snapshotRepository>
-            <id>-repo-maven-example</id>
+            <id>bintray</id>
             <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools</url>
         </snapshotRepository>
 
         <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Pbintray -->
         <repository>
-            <id>-repo-maven-example</id>
+            <id>bintray</id>
             <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools</url>
         </repository>
     </distributionManagement>
