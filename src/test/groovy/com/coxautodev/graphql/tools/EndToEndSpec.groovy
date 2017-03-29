@@ -101,17 +101,17 @@ class EndToEndSpec extends Specification {
 
     def "generated schema should handle scalar types"() {
         when:
-        def data = Utils.assertNoGraphQlErrors(gql) {
-            '''
-                {
-                    itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
-                        uuid
-                    }
-                }
+            def data = Utils.assertNoGraphQlErrors(gql) {
                 '''
-        }
+                    {
+                        itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
+                            uuid
+                        }
+                    }
+                    '''
+            }
 
         then:
-        data.itemByUUID
+            data.itemByUUID
     }
 }

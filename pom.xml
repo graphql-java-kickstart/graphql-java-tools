@@ -14,7 +14,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <kotlin.version>1.0.6</kotlin.version>
+        <kotlin.version>1.1.1</kotlin.version>
         <jackson.version>2.8.4</jackson.version>
     </properties>
 
@@ -146,7 +146,7 @@
 
     <profiles>
         <profile>
-            <id>ossrh</id>
+            <id>bintray</id>
             <build>
                 <plugins>
                     <plugin>
@@ -176,20 +176,6 @@
                             </execution>
                         </executions>
                     </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
                 </plugins>
             </build>
         </profile>
@@ -211,14 +197,14 @@
     </licenses>
     <distributionManagement>
         <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <id>-repo-maven-example</id>
+            <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools</url>
         </snapshotRepository>
 
-        <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Possrh -->
+        <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Pbintray -->
         <repository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <id>-repo-maven-example</id>
+            <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools</url>
         </repository>
     </distributionManagement>
     <scm>
