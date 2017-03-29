@@ -4,7 +4,7 @@
 
     <groupId>com.coxautodev</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>

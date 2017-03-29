@@ -16,6 +16,7 @@ class EndToEndSpec extends Specification {
         gql = new GraphQL(SchemaParser.newParser()
             .schemaString(EndToEndSpecKt.schemaDefinition)
             .resolvers(new Query(), new Mutation(), new ItemResolver())
+            .scalars(EndToEndSpecKt.CustomUUIDScalar)
             .enums(Type)
             .dataClasses(Tag, OtherItem)
             .build()
@@ -96,5 +97,21 @@ class EndToEndSpec extends Specification {
 
         then:
             data.allItems
+    }
+
+    def "generated schema should handle scalar types"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
+                        uuid
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.itemByUUID
     }
 }
