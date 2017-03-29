@@ -36,6 +36,7 @@ import graphql.schema.GraphQLList
 import graphql.schema.GraphQLNonNull
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLOutputType
+import graphql.schema.GraphQLScalarType
 import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
@@ -50,12 +51,16 @@ import java.io.InputStreamReader
  *
  * @author Andrew Potter
  */
-class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver>, dataClasses: List<Class<*>>) {
+class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver>,
+                                       dataClasses: List<Class<*>>,
+                                       scalars: List<GraphQLScalarType>) {
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
         private val resolvers: MutableList<GraphQLResolver> = mutableListOf(),
-        private val dataClasses: MutableList<Class<*>> = mutableListOf()) {
+        private val dataClasses: MutableList<Class<*>> = mutableListOf(),
+        private val scalars: MutableList<GraphQLScalarType> = mutableListOf()) {
+
 
         /**
          * Add GraphQL schema files from the classpath.
@@ -108,11 +113,16 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
             this.dataClasses.addAll(enums)
         }
 
+        fun scalars(vararg scalars: GraphQLScalarType) = this.apply {
+            this.scalars.addAll(scalars)
+        }
+
         /**
          * Build the parser with the supplied schema and dictionary.
          */
         fun build(): SchemaParser {
-            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.dataClasses)
+            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.dataClasses,
+              this.scalars)
         }
     }
 
@@ -122,6 +132,13 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
 
     private val resolvers = resolvers.associateBy { it.graphQLResolverDataName() }
     private val dataClasses = dataClasses.map(::NoopResolver).associateBy { it.graphQLResolverDataName() }
+    private val scalars = mutableMapOf<String, GraphQLScalarType>().apply {
+        // forcing java name (!!) as it had better be there or we need to fail. The java class enforces
+        // the non-null value by throwing an exception when attempting to construct the scalar,
+        // so this should be quite safe.
+        putAll(scalars.associateBy { it.name!! })
+        putAll(scalarTypes)
+    }
 
     private val allDefinitions: List<Definition> = doc.definitions
     private val schemaDefinitions: List<SchemaDefinition> = getDefinitions()
@@ -279,7 +296,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(typeDefinition.type))
             is NonNullType -> GraphQLNonNull(determineType(typeDefinition.type))
-            is TypeName -> scalarTypes[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
+            is TypeName -> scalars[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
             else -> throw SchemaError("Unknown type: $typeDefinition")
         }
 
