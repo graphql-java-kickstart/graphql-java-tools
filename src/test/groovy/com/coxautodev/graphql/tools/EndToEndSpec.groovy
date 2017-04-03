@@ -17,11 +17,10 @@ class EndToEndSpec extends Specification {
             .schemaString(EndToEndSpecKt.schemaDefinition)
             .resolvers(new Query(), new Mutation(), new ItemResolver())
             .scalars(EndToEndSpecKt.CustomUUIDScalar)
-            .enums(Type)
             .dataClasses(Tag, OtherItem)
+            .enums(Type)
             .build()
-            .parseSchemaObjects()
-            .toSchema())
+            .makeExecutableSchema())
     }
 
     def "generated schema should respond to simple queries"() {

@@ -74,14 +74,14 @@ val otherItems = mutableListOf(
     OtherItem(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
-class Query : GraphQLRootResolver() {
+class Query: GraphQLRootResolver {
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
     fun allItems(): List<Any> = items + otherItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
 }
 
-class Mutation: GraphQLRootResolver() {
+class Mutation: GraphQLRootResolver {
     fun addItem(input: NewItemInput): Item {
         return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()).apply {
             items.add(this)
@@ -89,7 +89,7 @@ class Mutation: GraphQLRootResolver() {
     }
 }
 
-class ItemResolver : GraphQLResolver(Item::class.java) {
+class ItemResolver : GraphQLResolver<Item> {
     fun tags(item: Item, names: List<String>?): List<Tag> = item.tags.filter { names?.contains(it.name) ?: true }
 }
 

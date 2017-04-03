@@ -17,10 +17,12 @@ import graphql.language.Document
 import graphql.language.EnumTypeDefinition
 import graphql.language.FieldDefinition
 import graphql.language.InputObjectTypeDefinition
+import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
+import graphql.language.ScalarTypeDefinition
 import graphql.language.SchemaDefinition
 import graphql.language.StringValue
 import graphql.language.Type
@@ -42,6 +44,7 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
+import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.io.BufferedReader
 import java.io.FileNotFoundException
 import java.io.InputStreamReader
@@ -51,28 +54,25 @@ import java.io.InputStreamReader
  *
  * @author Andrew Potter
  */
-class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver>,
-                                       dataClasses: List<Class<*>>,
-                                       scalars: List<GraphQLScalarType>) {
+class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<Any>>, userScalars: List<GraphQLScalarType>, dictionary: List<Class<*>>) {
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
-        private val resolvers: MutableList<GraphQLResolver> = mutableListOf(),
-        private val dataClasses: MutableList<Class<*>> = mutableListOf(),
+        private val resolvers: MutableList<GraphQLResolver<Any>> = mutableListOf(),
+        private val dictionary: MutableList<Class<*>> = mutableListOf(),
         private val scalars: MutableList<GraphQLScalarType> = mutableListOf()) {
-
 
         /**
          * Add GraphQL schema files from the classpath.
          */
-        fun files(vararg files: String): Builder = this.apply {
+        fun files(vararg files: String) = this.apply {
             files.forEach { this.file(it) }
         }
 
         /**
          * Add a GraphQL Schema file from the classpath.
          */
-        fun file(filename: String): Builder = this.apply {
+        fun file(filename: String) = this.apply {
             this.schemaString(java.io.BufferedReader(java.io.InputStreamReader(
                 object : Any() {}.javaClass.classLoader.getResourceAsStream(filename) ?: throw java.io.FileNotFoundException("classpath:$filename")
             )).readText())
@@ -88,31 +88,48 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         /**
          * Add GraphQLResolvers to the parser's dictionary.
          */
-        fun resolvers(vararg resolvers: GraphQLResolver): Builder = this.apply {
+        fun resolvers(vararg resolvers: GraphQLResolver<Any>) = this.apply {
             this.resolvers.addAll(resolvers)
         }
 
         /**
          * Add GraphQLResolvers to the parser's dictionary.
          */
-        fun resolvers(resolvers: List<GraphQLResolver>): Builder = this.apply {
+        fun resolvers(resolvers: List<GraphQLResolver<Any>>) = this.apply {
             this.resolvers.addAll(resolvers)
         }
 
         /**
          * Add data classes to the parser's dictionary.
          */
-        fun dataClasses(vararg dataClasses: Class<*>): Builder = this.apply {
-            this.dataClasses.addAll(dataClasses)
+        fun dataClasses(vararg dataClasses: Class<*>) = this.apply {
+            this.dictionary.addAll(dataClasses)
         }
 
         /**
          * Add enums to the parser's dictionary.
          */
-        fun enums(vararg enums: Class<*>): Builder = this.apply {
-            this.dataClasses.addAll(enums)
+        fun enums(vararg enums: Class<*>) = this.apply {
+            this.dictionary.addAll(enums)
         }
 
+        /**
+         * Add arbitrary classes to the parser's dictionary.
+         */
+        fun dictionary(vararg dictionary: Class<*>) = this.apply {
+            this.dictionary.addAll(dictionary)
+        }
+
+        /**
+         * Add arbitrary classes to the parser's dictionary.
+         */
+        fun dictionary(dictionary: List<Class<*>>) = this.apply {
+            this.dictionary.addAll(dictionary)
+        }
+
+        /**
+         * Add scalars to the parser's dictionary.
+         */
         fun scalars(vararg scalars: GraphQLScalarType) = this.apply {
             this.scalars.addAll(scalars)
         }
@@ -121,8 +138,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
          * Build the parser with the supplied schema and dictionary.
          */
         fun build(): SchemaParser {
-            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.dataClasses,
-              this.scalars)
+            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.scalars, this.dictionary)
         }
     }
 
@@ -130,14 +146,13 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         @JvmStatic fun newParser() = Builder()
     }
 
-    private val resolvers = resolvers.associateBy { it.graphQLResolverDataName() }
-    private val dataClasses = dataClasses.map(::NoopResolver).associateBy { it.graphQLResolverDataName() }
-    private val scalars = mutableMapOf<String, GraphQLScalarType>().apply {
+    private val resolvers = resolvers.map { Resolver(it) }.associateBy { it.name }
+    private val dictionary = dictionary.associateBy { it.simpleName }
+    private val userScalars = userScalars.associateBy {
         // forcing java name (!!) as it had better be there or we need to fail. The java class enforces
         // the non-null value by throwing an exception when attempting to construct the scalar,
         // so this should be quite safe.
-        putAll(scalars.associateBy { it.name!! })
-        putAll(scalarTypes)
+        it.name!!
     }
 
     private val allDefinitions: List<Definition> = doc.definitions
@@ -147,6 +162,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
     private val enumDefinitions: List<EnumTypeDefinition> = getDefinitions()
     private val interfaceDefinitions: List<InterfaceTypeDefinition> = getDefinitions()
     private val unionDefinitions: List<UnionTypeDefinition> = getDefinitions()
+    private val scalarDefinitions: List<ScalarTypeDefinition> = getDefinitions()
 
     private inline fun <reified T> getDefinitions(): List<T> = allDefinitions.filter { it is T }.map { it as T }
 
@@ -160,6 +176,9 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val mutationType = schemaDefinitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "mutation" }?.type as TypeName?
         val queryName = queryType?.name ?: "Query"
         val mutationName = mutationType?.name ?: "Mutation"
+
+        // Validate user-defined scalars
+        scalarDefinitions.forEach { assertScalarDefinition(it) }
 
         // Create GraphQL objects
         val interfaces = interfaceDefinitions.map { createInterfaceObject(it) }
@@ -179,13 +198,24 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         return SchemaObjects(query, mutation, (objects + inputObjects + enums + interfaces + unions).toSet())
     }
 
+    private fun assertScalarDefinition(scalarDefinition: ScalarTypeDefinition) {
+        val name = scalarDefinition.name
+        if(!userScalars.containsKey(name)) {
+            throw SchemaError("Expected a user-defined GraphQL scalar type with name '$name' but found none!")
+        }
+    }
+
     /**
      * Parses the given schema with respect to the given dictionary and returns a GraphQLSchema
      */
     fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema()
 
-    private fun getResolver(name: String): GraphQLResolver {
-        return resolvers[name] ?: dataClasses[name] ?: throw SchemaError("Expected resolver or data class with name '$name' but found none!")
+    private fun getResolver(name: String): Resolver {
+        return resolvers[name] ?: getDataClassResolver(name) ?: throw SchemaError("Expected resolver or data class with name '$name' but found none!")
+    }
+
+    private fun  getDataClassResolver(name: String): Resolver? {
+        return NoResolver(dictionary[name] ?: return null)
     }
 
     private fun createObject(definition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {
@@ -203,7 +233,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         definition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field ->
                 createFieldDefinition(field, fieldDefinition)
-                field.dataFetcher(ResolverDataFetcher.create(resolver, fieldDefinition.name, fieldDefinition.inputValueDefinitions.size))
+                field.dataFetcher(ResolverDataFetcher.create(resolver, fieldDefinition.name, fieldDefinition.inputValueDefinitions.map(InputValueDefinition::getName)))
             }
         }
 
@@ -229,8 +259,8 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
         val name = definition.name
-        val type = (dataClasses[name] ?: throw SchemaError("Expected enum with name '$name' but found none!")).graphQLResolverDataType()!!
-        if (!type.isEnum) throw SchemaError("Expected type '$name' to be an enum but it isn't!")
+        val type = dictionary[name] ?: throw SchemaError("Expected enum with name '$name' but found none!")
+        if (!type.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
         val builder = GraphQLEnumType.newEnum()
             .name(name)
@@ -296,7 +326,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(typeDefinition.type))
             is NonNullType -> GraphQLNonNull(determineType(typeDefinition.type))
-            is TypeName -> scalars[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
+            is TypeName -> graphQLScalars[typeDefinition.name] ?: userScalars[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
             else -> throw SchemaError("Unknown type: $typeDefinition")
         }
 
@@ -312,9 +342,8 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
 }
 
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
-class NoopResolver(dataType: Class<*>) : GraphQLResolver(dataType)
 
-val scalarTypes = listOf(
+val graphQLScalars = listOf(
     GraphQLInt,
     GraphQLLong,
     GraphQLFloat,

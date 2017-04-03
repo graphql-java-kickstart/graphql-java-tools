@@ -81,10 +81,10 @@ class SchemaParserSpec extends Specification {
     }
 }
 
-class QueryResolverMissing extends GraphQLRootResolver {
+class QueryResolverMissing implements GraphQLRootResolver {
 
 }
 
-class QueryResolver extends GraphQLRootResolver {
+class QueryResolver implements GraphQLRootResolver {
     def int get(int i) { return i }
 }
