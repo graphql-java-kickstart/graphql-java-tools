@@ -54,11 +54,11 @@ import java.io.InputStreamReader
  *
  * @author Andrew Potter
  */
-class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<Any>>, userScalars: List<GraphQLScalarType>, dictionary: List<Class<*>>) {
+class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: List<GraphQLScalarType>, dictionary: List<Class<*>>) {
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
-        private val resolvers: MutableList<GraphQLResolver<Any>> = mutableListOf(),
+        private val resolvers: MutableList<GraphQLResolver<*>> = mutableListOf(),
         private val dictionary: MutableList<Class<*>> = mutableListOf(),
         private val scalars: MutableList<GraphQLScalarType> = mutableListOf()) {
 
@@ -88,14 +88,14 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         /**
          * Add GraphQLResolvers to the parser's dictionary.
          */
-        fun resolvers(vararg resolvers: GraphQLResolver<Any>) = this.apply {
+        fun resolvers(vararg resolvers: GraphQLResolver<*>) = this.apply {
             this.resolvers.addAll(resolvers)
         }
 
         /**
          * Add GraphQLResolvers to the parser's dictionary.
          */
-        fun resolvers(resolvers: List<GraphQLResolver<Any>>) = this.apply {
+        fun resolvers(resolvers: List<GraphQLResolver<*>>) = this.apply {
             this.resolvers.addAll(resolvers)
         }
 
