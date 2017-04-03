@@ -4,7 +4,7 @@
 
     <groupId>com.coxautodev</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>2.0.1-SNAPSHOT</version>
+    <version>2.0.1</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -221,6 +221,6 @@
         <connection>scm:git:git://github.com/Cox-Automotive/graphql-java-tools.git</connection>
         <developerConnection>scm:git:git@github.com:Cox-Automotive/graphql-java-tools.git</developerConnection>
         <url>http://github.com/Cox-Automotive/graphql-java-tools</url>
-      <tag>HEAD</tag>
+      <tag>2.0.1</tag>
   </scm>
 </project>
