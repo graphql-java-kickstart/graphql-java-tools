@@ -166,7 +166,7 @@ SchemaParser.newParser()
 If you had a property "status" on your GraphQL object, a method named "status" on your resolver would take precedence over "getStatus" (or "isStatus" for a boolean type).
 If neither of those can be found, the data class (if it exists) is then inspected for the same methods.
 
-### Enums
+### Enum Types
 
 Any enums in your java classes that map to GraphQL enums must be provided to the schema parser:
 ```java
@@ -203,6 +203,20 @@ class AdditionInput {
 
 GraphQL interface/union types are automatically resolved from the schema and the list of provided classes, and require no extra work outside of the schema.
 Although not necessary, it's generally a good idea to have java interfaces that correspond to your GraphQL interfaces to keep your code understandable.
+
+### Scalar Types
+
+It's possible to create custom scalar types in GraphQL-Java by creating a new instance of the `GraphQLScalarType` class.  To use a custom scalar with GraphQL Java Tools, add the scalar to your GraphQL schema:
+```graphql
+scalar UUID
+```
+
+Then pass the schema instance to the parser:
+```java
+SchemaParser.newParser()
+    // ...
+    .scalars(myUuidScalar)
+```
 
 ### Making the graphql-java Schema Instance
 
