@@ -28,7 +28,7 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 <dependency>
     <groupId>com.coxautodev</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.1</version>
 </dependency>
 ```
 
@@ -119,12 +119,11 @@ These are handled by "Resolvers".  Resolvers are object instances that reference
 
 The BookResolver might look something like this:
 ```java
-class BookResolver extends GraphQLResolver {
+class BookResolver implements GraphQLResolver<Book> /* This class is a resolver for the Book "Data Class" */ {
     
     private AuthorRepostory authorRepostory;
     
     public BookResolver(AuthorRepository authorRepository) {
-        super(Book.class); // This class is a resolver for the Book "Data Class"
         this.authorRepostory = authorRepository;
     }
     
@@ -139,12 +138,11 @@ If there is a matching method on the resolver, the data class instance is passed
 
 Since the Query object is a root GraphQL object, it doesn't have an associated data class:
 ```java
-class Query extends GraphQLRootResolver {
+class Query implements GraphQLRootResolver {
     
     private BookRepository bookRepository;
     
     public Query(BookRepository bookRepository) {
-        super();
         this.bookRepository = bookRepository;
     }
     
