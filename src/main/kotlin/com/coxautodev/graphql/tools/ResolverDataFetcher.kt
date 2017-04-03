@@ -15,7 +15,6 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
         @JvmStatic fun create(resolver: Resolver, name: String, argumentNames: List<String>): ResolverDataFetcher {
 
             val (method, methodClass, isResolverMethod) = resolver.getMethod(name)
-            val sourceResolver: SourceResolver = if(isResolverMethod) ({ resolver.resolver }) else ({ it: DataFetchingEnvironment -> it.source })
             val args = mutableListOf<ArgumentPlaceholder>()
 
             val shouldPassSource = isResolverMethod && resolver.dataClassType != null
@@ -66,6 +65,15 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
                 }
                 args.add({ environment -> environment })
             }
+
+            // Add source resolver depending on whether or not this is a resolver method
+            val sourceResolver: SourceResolver = if(isResolverMethod) ({ resolver.resolver }) else ({ environment ->
+                if(!methodClass.isAssignableFrom(environment.source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${methodClass.name}' but instead got '${environment.source.javaClass.name}'")
+                }
+
+                environment.source
+            })
 
             return ResolverDataFetcher(sourceResolver, method, args)
         }
