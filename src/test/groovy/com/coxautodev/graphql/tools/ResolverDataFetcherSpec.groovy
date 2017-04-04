@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import com.google.common.collect.HashBiMap
 import graphql.schema.DataFetchingEnvironment
 import spock.lang.Specification
 
@@ -124,7 +125,7 @@ class ResolverDataFetcherSpec extends Specification {
 
     private
     static ResolverDataFetcher createResolver(String methodName, List<String> arguments = [], GraphQLResolver<?> resolver) {
-        ResolverDataFetcher.create(new Resolver(resolver), methodName, arguments)
+        ResolverDataFetcher.create(new Resolver(resolver, HashBiMap.create()), methodName, arguments)
     }
 
     private static DataFetchingEnvironment createEnvironment(Object source, Map<String, Object> arguments = [:]) {
