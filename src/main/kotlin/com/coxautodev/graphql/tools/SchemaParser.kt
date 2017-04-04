@@ -1,5 +1,7 @@
 package com.coxautodev.graphql.tools
 
+import com.google.common.collect.BiMap
+import com.google.common.collect.HashBiMap
 import graphql.Scalars.GraphQLBigDecimal
 import graphql.Scalars.GraphQLBigInteger
 import graphql.Scalars.GraphQLBoolean
@@ -44,22 +46,18 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
-import ru.vyarus.java.generics.resolver.GenericsResolver
-import java.io.BufferedReader
-import java.io.FileNotFoundException
-import java.io.InputStreamReader
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
  *
  * @author Andrew Potter
  */
-class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: List<GraphQLScalarType>, dictionary: List<Class<*>>) {
+class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: List<GraphQLScalarType>, val dictionary: BiMap<String, Class<*>>) {
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
         private val resolvers: MutableList<GraphQLResolver<*>> = mutableListOf(),
-        private val dictionary: MutableList<Class<*>> = mutableListOf(),
+        private val dictionary: BiMap<String, Class<*>> = HashBiMap.create(),
         private val scalars: MutableList<GraphQLScalarType> = mutableListOf()) {
 
         /**
@@ -103,28 +101,49 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
          * Add data classes to the parser's dictionary.
          */
         fun dataClasses(vararg dataClasses: Class<*>) = this.apply {
-            this.dictionary.addAll(dataClasses)
+            this.dictionary(*dataClasses)
         }
 
         /**
          * Add enums to the parser's dictionary.
          */
         fun enums(vararg enums: Class<*>) = this.apply {
-            this.dictionary.addAll(enums)
+            this.dictionary(*enums)
+        }
+
+        /**
+         * Add arbitrary classes to the parser's dictionary.
+         */
+        fun dictionary(name: String, clazz: Class<*>): Builder = this.apply {
+            this.dictionary.put(name, clazz)
+        }
+
+        /**
+         * Add arbitrary classes to the parser's dictionary.
+         */
+        fun dictionary(dictionary: Map<String, Class<*>>) = this.apply {
+            this.dictionary.putAll(dictionary)
+        }
+
+        /**
+         * Add arbitrary classes to the parser's dictionary.
+         */
+        fun dictionary(clazz: Class<*>) = this.apply {
+            this.dictionary(clazz.simpleName, clazz)
         }
 
         /**
          * Add arbitrary classes to the parser's dictionary.
          */
         fun dictionary(vararg dictionary: Class<*>) = this.apply {
-            this.dictionary.addAll(dictionary)
+            dictionary.forEach { this.dictionary(it) }
         }
 
         /**
          * Add arbitrary classes to the parser's dictionary.
          */
         fun dictionary(dictionary: List<Class<*>>) = this.apply {
-            this.dictionary.addAll(dictionary)
+            dictionary.forEach { this.dictionary(it) }
         }
 
         /**
@@ -146,8 +165,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         @JvmStatic fun newParser() = Builder()
     }
 
-    private val resolvers = resolvers.map { Resolver(it) }.associateBy { it.name }
-    private val dictionary = dictionary.associateBy { it.simpleName }
+    private val resolvers = resolvers.map { Resolver(it, dictionary) }.associateBy { it.name }
     private val userScalars = userScalars.associateBy {
         // forcing java name (!!) as it had better be there or we need to fail. The java class enforces
         // the non-null value by throwing an exception when attempting to construct the scalar,
@@ -188,8 +206,8 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val enums = enumDefinitions.map { createEnumObject(it) }
 
         // Assign type resolver to interfaces now that we know all of the object types
-        interfaces.forEach { (it.typeResolver as TypeResolverProxy).typeResolver = InterfaceTypeResolver(it, objects) }
-        unions.forEach { (it.typeResolver as TypeResolverProxy).typeResolver = UnionTypeResolver(it, objects) }
+        interfaces.forEach { (it.typeResolver as TypeResolverProxy).typeResolver = InterfaceTypeResolver(dictionary.inverse(), it, objects) }
+        unions.forEach { (it.typeResolver as TypeResolverProxy).typeResolver = UnionTypeResolver(dictionary.inverse(), it, objects) }
 
         // Find query type and mutation type (if mutation type exists)
         val query = objects.find { it.name == queryName } ?: throw SchemaError("Expected a Query object with name '$queryName' but found none!")
@@ -215,7 +233,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
     }
 
     private fun  getDataClassResolver(name: String): Resolver? {
-        return NoResolver(dictionary[name] ?: return null)
+        return NoResolver(dictionary[name] ?: return null, dictionary)
     }
 
     private fun createObject(definition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {

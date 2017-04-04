@@ -70,8 +70,8 @@ val items = mutableListOf(
 )
 
 val otherItems = mutableListOf(
-    OtherItem(0, "otherItem1", Type.TYPE_1, UUID.fromString("38f685f1-b460-4a54-c17f-7fd69e8cf3f8")),
-    OtherItem(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
+    OtherItemWithWrongName(0, "otherItem1", Type.TYPE_1, UUID.fromString("38f685f1-b460-4a54-c17f-7fd69e8cf3f8")),
+    OtherItemWithWrongName(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
 class Query: GraphQLRootResolver {
@@ -101,7 +101,7 @@ interface ItemInterface {
 
 enum class Type { TYPE_1, TYPE_2 }
 data class Item(val id: Int, override val name: String, override val type: Type, override val uuid:UUID, val tags: List<Tag>) : ItemInterface
-data class OtherItem(val id: Int, override val name: String, override val type: Type, override val uuid:UUID) : ItemInterface
+data class OtherItemWithWrongName(val id: Int, override val name: String, override val type: Type, override val uuid:UUID) : ItemInterface
 data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)

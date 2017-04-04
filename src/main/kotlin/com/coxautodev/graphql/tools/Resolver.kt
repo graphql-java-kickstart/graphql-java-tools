@@ -1,13 +1,14 @@
 package com.coxautodev.graphql.tools
 
+import com.google.common.collect.BiMap
 import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.Method
 
-open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dataClass: Class<*>? = null) {
+open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dictionary: BiMap<String, Class<*>>, dataClass: Class<*>? = null) {
 
     val resolverType = resolver.javaClass
     val dataClassType = dataClass ?: findDataClass()
-    val name = dataClassType?.simpleName ?: resolverType.simpleName!!
+    val name = if(dataClassType != null) dictionary.inverse()[dataClassType] ?: dataClassType.simpleName!! else resolverType.simpleName!!
 
     private fun findDataClass(): Class<*>? {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
@@ -85,7 +86,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
     data class GetMethodResult(val method: Method, val methodClass: Class<*>, val resolverMethod: Boolean)
 }
 
-class NoResolver(dataClass: Class<*>): Resolver(NoopResolver(), dataClass) {
+class NoResolver(dataClass: Class<*>, dictionary: BiMap<String, Class<*>>): Resolver(NoopResolver(), dictionary, dataClass) {
     override fun getMethod(name: String): GetMethodResult {
         return super.getDataClassMethod(name)
     }
