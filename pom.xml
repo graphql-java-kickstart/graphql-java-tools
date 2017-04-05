@@ -222,7 +222,7 @@
         <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Pbintray -->
         <repository>
             <id>bintray</id>
-            <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools/;publish</url>
+            <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools/;publish=1</url>
         </repository>
     </distributionManagement>
     <scm>
