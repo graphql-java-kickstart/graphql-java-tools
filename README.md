@@ -22,6 +22,18 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 
 ## Usage
 
+### Contents
+* [Examples](examples)
+* [Defining a Schema](defining-a-schema)
+* [Resolvers and Data Classes](resolvers-and-data-classes)
+* [Enum Types](enum-types)
+* [Input Objects](input-objects)
+* [Interfaces and Union Types](interfaces-and-union-types)
+* [Scalar Types](scalar-types)
+* [Renaming Types](renaming-types)
+* [Making the graphql-java Schema Instance](making-the-graphql-java-schema-instance)
+* [GraphQL Descriptions](graphql-descriptions)
+
 ### Maven/Gradle
 
 ```xml
