@@ -1,6 +1,10 @@
 package com.coxautodev.graphql.tools
 
 import com.google.common.collect.HashBiMap
+import graphql.Scalars
+import graphql.language.InputValueDefinition
+import graphql.language.NonNullType
+import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import spock.lang.Specification
 
@@ -21,7 +25,7 @@ class ResolverDataFetcherSpec extends Specification {
 
     def "data fetcher throws exception if resolver has too few arguments"() {
         when:
-            createResolver("active", ["doesNotExist"], new GraphQLRootResolver() {
+            createResolver("active", [new InputValueDefinition("doesNotExist")], new GraphQLRootResolver() {
                 boolean active() { true }
             })
 
@@ -100,32 +104,62 @@ class ResolverDataFetcherSpec extends Specification {
     def "data fetcher marshalls input object if required"() {
         setup:
             def name = "correct name"
-            def resolver = createResolver("active", ["input"], new GraphQLRootResolver() {
+            def resolver = createResolver("active", [new InputValueDefinition("input")], new GraphQLRootResolver() {
                 boolean active(InputClass input) {
                     input instanceof InputClass && input.name == name
                 }
             })
 
         expect:
-            resolver.get(createEnvironment(new DataClass(), [input: [name: name]]))
+            resolver.get(createEnvironment([input: [name: name]]))
     }
 
     def "data fetcher doesn't marshall input object if not required"() {
         setup:
             def name = "correct name"
-            def resolver = createResolver("active", ["input"], new GraphQLRootResolver() {
+            def resolver = createResolver("active", [new InputValueDefinition("input")], new GraphQLRootResolver() {
                 boolean active(Map input) {
                     input instanceof Map && input.name == name
                 }
             })
 
         expect:
-            resolver.get(createEnvironment(new DataClass(), [input: [name: name]]))
+            resolver.get(createEnvironment([input: [name: name]]))
     }
 
-    private
-    static ResolverDataFetcher createResolver(String methodName, List<String> arguments = [], GraphQLResolver<?> resolver) {
+    def "data fetcher returns null if nullable argument is passed null"() {
+        setup:
+            def resolver = createResolver("echo", [new InputValueDefinition("message", new TypeName("String"))], new GraphQLRootResolver() {
+                String echo(String message) {
+                    return message
+                }
+            })
+
+        expect:
+            resolver.get(createEnvironment()) == null
+    }
+
+    def "data fetcher throws exception if non-null argument is passed null"() {
+        setup:
+            def resolver = createResolver("echo", [new InputValueDefinition("message", new NonNullType(new TypeName("String")))], new GraphQLRootResolver() {
+                String echo(String message) {
+                    return message
+                }
+            })
+
+        when:
+            resolver.get(createEnvironment())
+
+        then:
+            thrown(ResolverError)
+    }
+
+    private static ResolverDataFetcher createResolver(String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
         ResolverDataFetcher.create(new Resolver(resolver, HashBiMap.create()), methodName, arguments)
+    }
+
+    private static DataFetchingEnvironment createEnvironment(Map<String, Object> arguments = [:]) {
+        createEnvironment(new Object(), arguments)
     }
 
     private static DataFetchingEnvironment createEnvironment(Object source, Map<String, Object> arguments = [:]) {

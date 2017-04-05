@@ -4,6 +4,7 @@ import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import graphql.language.InputValueDefinition
+import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLNonNull
@@ -45,7 +46,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             val methodParameters = method.parameterTypes
             argumentDefinitions.forEachIndexed { index, definition ->
                 args.add({ environment ->
-                    val value = environment.arguments[definition.name] ?: if(definition.type is GraphQLNonNull) {
+                    val value = environment.arguments[definition.name] ?: if(definition.type is NonNullType) {
                         throw ResolverError("Missing required argument with name '$name', this is most likely a bug with graphql-java-tools")
                     } else {
                         return@add null
