@@ -28,7 +28,7 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 <dependency>
     <groupId>com.coxautodev</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>2.0.1</version>
+    <version>2.1.2</version>
 </dependency>
 ```
 
@@ -157,7 +157,7 @@ Resolvers and data classes must be provided to the schema parser:
 SchemaParser.newParser()
     // ...
     .resolvers(new Query(bookRepository), new BookResolver(authorRepository))
-    .dataClasses(Author.class)
+    .dictionary(Author.class)
 ```
 
 *Note:* Data classes that have resolvers don't also need to be passed to `dataClasses`, such as `BookResolver` above.
@@ -172,7 +172,7 @@ Any enums in your java classes that map to GraphQL enums must be provided to the
 ```java
 SchemaParser.newParser()
     // ...
-    .enums(Type.class, MyOtherEnum.class)
+    .dictionary(Type.class, MyOtherEnum.class)
 ```
 
 Enum values are automatically mapped by class name and `toString()`.
@@ -216,6 +216,16 @@ Then pass the schema instance to the parser:
 SchemaParser.newParser()
     // ...
     .scalars(myUuidScalar)
+```
+
+### Renaming Types
+
+Sometimes your Java classes don't line up perfectly with your GraphQL schema, so GraphQL Java Tools allows you to "rename" your classes:
+```java
+SchemaParser.newParser()
+    // ...
+    .dictionary(Author.class)
+    .dictionary("Book", BookClassWithIncorrectName.class)
 ```
 
 ### Making the graphql-java Schema Instance
