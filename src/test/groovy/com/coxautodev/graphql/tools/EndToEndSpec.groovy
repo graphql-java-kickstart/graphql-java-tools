@@ -102,15 +102,31 @@ class EndToEndSpec extends Specification {
         when:
             def data = Utils.assertNoGraphQlErrors(gql) {
                 '''
-                    {
-                        itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
-                            uuid
-                        }
+                {
+                    itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
+                        uuid
                     }
-                    '''
+                }
+                '''
             }
 
         then:
             data.itemByUUID
+    }
+
+    def "generated schema should handle optional arguments"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    itemsWithOptionalInput {
+                        id
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.itemsWithOptionalInput
     }
 }

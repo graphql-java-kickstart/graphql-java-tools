@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
-public class Query extends GraphQLRootResolver {
+public class Query implements GraphQLRootResolver {
 
     @Autowired
     private CharacterRepository characterRepository;

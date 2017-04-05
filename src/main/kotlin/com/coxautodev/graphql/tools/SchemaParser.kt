@@ -251,7 +251,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         definition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field ->
                 createFieldDefinition(field, fieldDefinition)
-                field.dataFetcher(ResolverDataFetcher.create(resolver, fieldDefinition.name, fieldDefinition.inputValueDefinitions.map(InputValueDefinition::getName)))
+                field.dataFetcher(ResolverDataFetcher.create(resolver, fieldDefinition.name, fieldDefinition.inputValueDefinitions))
             }
         }
 

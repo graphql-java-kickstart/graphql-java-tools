@@ -3,8 +3,10 @@ package com.coxautodev.graphql.tools
 import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import graphql.language.InputValueDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLNonNull
 import java.lang.reflect.Method
 
 class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher {
@@ -12,7 +14,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
     companion object {
         val mapper = ObjectMapper().registerKotlinModule()
 
-        @JvmStatic fun create(resolver: Resolver, name: String, argumentNames: List<String>): ResolverDataFetcher {
+        @JvmStatic fun create(resolver: Resolver, name: String, argumentDefinitions: List<InputValueDefinition>): ResolverDataFetcher {
 
             val (method, methodClass, isResolverMethod) = resolver.getMethod(name)
             val args = mutableListOf<ArgumentPlaceholder>()
@@ -20,7 +22,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             val shouldPassSource = isResolverMethod && resolver.dataClassType != null
             val argumentOffset = if(shouldPassSource) 1 else 0
 
-            val expectedArgCount = argumentNames.size + argumentOffset
+            val expectedArgCount = argumentDefinitions.size + argumentOffset
             val actualArgCount = method.parameterTypes.size
             val argumentDiff = actualArgCount - (expectedArgCount)
             if (argumentDiff < 0) throw ResolverError("Method '${method.name}' of class '${methodClass.name}' has too few parameters!  Expected: $expectedArgCount or ${expectedArgCount + 1}, actual: $actualArgCount")
@@ -41,9 +43,13 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
 
             // Add an argument for each argument defined in the GraphQL schema
             val methodParameters = method.parameterTypes
-            argumentNames.forEachIndexed { index, name ->
+            argumentDefinitions.forEachIndexed { index, definition ->
                 args.add({ environment ->
-                    val value = environment.arguments[name] ?: throw ResolverError("Missing required argument with name '$name', this is most likely a bug with graphql-java-tools")
+                    val value = environment.arguments[definition.name] ?: if(definition.type is GraphQLNonNull) {
+                        throw ResolverError("Missing required argument with name '$name', this is most likely a bug with graphql-java-tools")
+                    } else {
+                        return@add null
+                    }
 
                     // Convert to specific type if actual argument value is Map<?, ?> and method parameter type is not Map<?, ?>
                     if (value is Map<*, *>) {
@@ -92,4 +98,4 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
 
 class ResolverError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 typealias SourceResolver = (DataFetchingEnvironment) -> Any
-typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any
+typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
