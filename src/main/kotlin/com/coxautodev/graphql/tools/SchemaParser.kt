@@ -13,6 +13,7 @@ import graphql.Scalars.GraphQLInt
 import graphql.Scalars.GraphQLLong
 import graphql.Scalars.GraphQLShort
 import graphql.Scalars.GraphQLString
+import graphql.language.AbstractNode
 import graphql.language.Definition
 import graphql.language.Directive
 import graphql.language.Document
@@ -52,7 +53,7 @@ import graphql.schema.TypeResolverProxy
  *
  * @author Andrew Potter
  */
-class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: List<GraphQLScalarType>, val dictionary: BiMap<String, Class<*>>) {
+class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: Map<String, GraphQLScalarType>, val dictionary: BiMap<String, Class<*>>) {
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
@@ -157,7 +158,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
          * Build the parser with the supplied schema and dictionary.
          */
         fun build(): SchemaParser {
-            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.scalars, this.dictionary)
+            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.scalars.associateBy { it.name }, this.dictionary)
         }
     }
 
@@ -165,15 +166,9 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         @JvmStatic fun newParser() = Builder()
     }
 
-    private val resolvers = resolvers.map { Resolver(it, dictionary) }.associateBy { it.name }
-    private val userScalars = userScalars.associateBy {
-        // forcing java name (!!) as it had better be there or we need to fail. The java class enforces
-        // the non-null value by throwing an exception when attempting to construct the scalar,
-        // so this should be quite safe.
-        it.name!!
-    }
-
     private val allDefinitions: List<Definition> = doc.definitions
+    private inline fun <reified T> getDefinitions(): List<T> = allDefinitions.filter { it is T }.map { it as T }
+
     private val schemaDefinitions: List<SchemaDefinition> = getDefinitions()
     private val objectDefinitions: List<ObjectTypeDefinition> = getDefinitions()
     private val inputObjectDefinitions: List<InputObjectTypeDefinition> = getDefinitions()
@@ -182,7 +177,13 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
     private val unionDefinitions: List<UnionTypeDefinition> = getDefinitions()
     private val scalarDefinitions: List<ScalarTypeDefinition> = getDefinitions()
 
-    private inline fun <reified T> getDefinitions(): List<T> = allDefinitions.filter { it is T }.map { it as T }
+    private val resolvers = resolvers.map { Resolver(it, dictionary) }.associateBy { it.name }
+
+    // Ensure all scalar definitions have implementations and add the definition to those.
+    private val userScalars = scalarDefinitions.map { definition ->
+        val provided = userScalars[definition.name] ?: throw SchemaError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
+        GraphQLScalarType(provided.name, getDocumentation(definition), provided.coercing, definition)
+    }.associateBy { it.name!! }
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -194,9 +195,6 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val mutationType = schemaDefinitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "mutation" }?.type as TypeName?
         val queryName = queryType?.name ?: "Query"
         val mutationName = mutationType?.name ?: "Mutation"
-
-        // Validate user-defined scalars
-        scalarDefinitions.forEach { assertScalarDefinition(it) }
 
         // Create GraphQL objects
         val interfaces = interfaceDefinitions.map { createInterfaceObject(it) }
@@ -214,13 +212,6 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val mutation = objects.find { it.name == mutationName } ?: if(mutationType != null) throw SchemaError("Expected a Mutation object with name '$mutationName' but found none!") else null
 
         return SchemaObjects(query, mutation, (objects + inputObjects + enums + interfaces + unions).toSet())
-    }
-
-    private fun assertScalarDefinition(scalarDefinition: ScalarTypeDefinition) {
-        val name = scalarDefinition.name
-        if(!userScalars.containsKey(name)) {
-            throw SchemaError("Expected a user-defined GraphQL scalar type with name '$name' but found none!")
-        }
     }
 
     /**
@@ -241,7 +232,8 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val resolver = getResolver(name)
         val builder = GraphQLObjectType.newObject()
             .name(name)
-            .description(getDocumentation(definition.directives))
+            .definition(definition)
+            .description(getDocumentation(definition))
 
         definition.implements.forEach { implementsDefinition ->
             val interfaceName = (implementsDefinition as TypeName).name
@@ -261,12 +253,14 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
     private fun createInputObject(definition: InputObjectTypeDefinition): GraphQLInputObjectType {
         val builder = GraphQLInputObjectType.newInputObject()
             .name(definition.name)
-            .description(getDocumentation(definition.directives))
+            .definition(definition)
+            .description(getDocumentation(definition))
 
         definition.inputValueDefinitions.forEach { inputDefinition ->
             builder.field { field ->
                 field.name(inputDefinition.name)
-                field.description(getDocumentation(inputDefinition.directives))
+                field.definition(inputDefinition)
+                field.description(getDocumentation(inputDefinition))
                 field.defaultValue(inputDefinition.defaultValue)
                 field.type(determineInputType(inputDefinition.type))
             }
@@ -282,12 +276,13 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
 
         val builder = GraphQLEnumType.newEnum()
             .name(name)
-            .description(getDocumentation(definition.directives))
+            .definition(definition)
+            .description(getDocumentation(definition))
 
         definition.enumValueDefinitions.forEach { enumDefinition ->
             val enumName = enumDefinition.name
             val enumValue = type.enumConstants.find { it.toString() == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.simpleName}' but found none!")
-            builder.value(enumName, enumValue, getDocumentation(enumDefinition.directives))
+            builder.value(enumName, enumValue, getDocumentation(enumDefinition))
         }
 
         return builder.build()
@@ -297,7 +292,8 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val name = definition.name
         val builder = GraphQLInterfaceType.newInterface()
             .name(name)
-            .description(getDocumentation(definition.directives))
+            .definition(definition)
+            .description(getDocumentation(definition))
             .typeResolver(TypeResolverProxy())
 
         definition.fieldDefinitions.forEach { fieldDefinition ->
@@ -311,7 +307,8 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val name = definition.name
         val builder = GraphQLUnionType.newUnionType()
             .name(name)
-            .description(getDocumentation(definition.directives))
+            .definition(definition)
+            .description(getDocumentation(definition))
             .typeResolver(TypeResolverProxy())
 
         definition.memberTypes.forEach {
@@ -324,12 +321,14 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
 
     private fun createFieldDefinition(field: GraphQLFieldDefinition.Builder, fieldDefinition : FieldDefinition): GraphQLFieldDefinition.Builder {
         field.name(fieldDefinition.name)
-        field.description(getDocumentation(fieldDefinition.directives))
+        field.definition(fieldDefinition)
+        field.description(getDocumentation(fieldDefinition))
         field.type(determineOutputType(fieldDefinition.type))
         fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
             field.argument { argument ->
                 argument.name(argumentDefinition.name)
-                argument.description(getDocumentation(argumentDefinition.directives))
+                argument.definition(argumentDefinition)
+                argument.description(getDocumentation(argumentDefinition))
                 argument.defaultValue(argumentDefinition.defaultValue)
                 argument.type(determineInputType(argumentDefinition.type))
             }
@@ -348,15 +347,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
             else -> throw SchemaError("Unknown type: $typeDefinition")
         }
 
-    private fun getDocumentation(directives: List<Directive>): String? {
-        return (getDirective(directives, "doc")?.arguments?.find {
-            "description".startsWith(it.name) && it.value is StringValue
-        }?.value as StringValue?)?.value
-    }
-
-    private fun getDirective(directives: List<Directive>, name: String): Directive? = directives.find {
-        it.name == name
-    }
+    private fun getDocumentation(node: AbstractNode): String = node.comments.map { it.content.trim() }.joinToString("\n")
 }
 
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

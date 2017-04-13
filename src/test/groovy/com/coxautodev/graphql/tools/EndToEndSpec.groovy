@@ -23,6 +23,11 @@ class EndToEndSpec extends Specification {
             .makeExecutableSchema())
     }
 
+    def "schema comments are used as descriptions"() {
+        expect:
+            gql.graphQLSchema.dictionary.find { it.name == 'Type' }?.valueDefinitionMap?.TYPE_1?.description == "Item type 1"
+    }
+
     def "generated schema should respond to simple queries"() {
         when:
             def data = Utils.assertNoGraphQlErrors(gql) {

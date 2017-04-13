@@ -10,7 +10,7 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLNonNull
 import java.lang.reflect.Method
 
-class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher {
+class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
 
     companion object {
         val mapper = ObjectMapper().registerKotlinModule()
@@ -33,7 +33,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             if(shouldPassSource) {
                 val expectedType = resolver.dataClassType!! // We've already checked this when setting shouldPassSource
                 args.add({ environment ->
-                    val source = environment.source
+                    val source = environment.getSource<Any>()
                     if (expectedType != source.javaClass) {
                         throw ResolverError("Source type (${source.javaClass.name}) is not expected type (${expectedType.name})!")
                     }
@@ -75,11 +75,12 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
 
             // Add source resolver depending on whether or not this is a resolver method
             val sourceResolver: SourceResolver = if(isResolverMethod) ({ resolver.resolver }) else ({ environment ->
-                if(!methodClass.isAssignableFrom(environment.source.javaClass)) {
-                    throw ResolverError("Expected source object to be an instance of '${methodClass.name}' but instead got '${environment.source.javaClass.name}'")
+                val source = environment.getSource<Any>()
+                if(!methodClass.isAssignableFrom(source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${methodClass.name}' but instead got '${source.javaClass.name}'")
                 }
 
-                environment.source
+                source
             })
 
             return ResolverDataFetcher(sourceResolver, method, args)
