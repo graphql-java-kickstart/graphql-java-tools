@@ -223,7 +223,7 @@ It's possible to create custom scalar types in GraphQL-Java by creating a new in
 scalar UUID
 ```
 
-Then pass the schema instance to the parser:
+Then pass the scalar instance to the parser:
 ```java
 SchemaParser.newParser()
     // ...
