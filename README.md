@@ -54,6 +54,7 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 ### Examples
 
 A working [Java Spring-Boot application](example) is provided, based off the [Star Wars API](https://github.com/graphql-java/graphql-java/blob/master/src/test/groovy/graphql/StarWarsSchema.java) tests and [test data](https://github.com/graphql-java/graphql-java/blob/master/src/test/groovy/graphql/StarWarsData.groovy).
+If you're using Spring Boot, check out the [graphql-spring-boot-starter](https://github.com/graphql-java/graphql-spring-boot)!
 
 A working [Kotlin example](src/test/kotlin/com/coxautodev/graphql/tools/EndToEndSpec.kt) can be found in the tests.
 
