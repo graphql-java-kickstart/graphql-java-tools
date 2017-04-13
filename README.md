@@ -23,7 +23,7 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+**Table of Contents**
 
 - [Maven/Gradle](#mavengradle)
 - [Examples](#examples)
