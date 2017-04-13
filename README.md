@@ -19,20 +19,26 @@ If you're using an IOC container (like Spring), this forces you to write a bunch
 GraphQL Java Tools gives you a simple, portable way to describe your GraphQL schema, and fill in implementations with your own object instances.
 Since your GraphQL schema is independent of your data model, this makes your classes simple and extremely testable.
 
-
 ## Usage
 
-### Contents
-* [Examples](#examples)
-* [Defining a Schema](#defining-a-schema)
-* [Resolvers and Data Classes](#resolvers-and-data-classes)
-* [Enum Types](#enum-types)
-* [Input Objects](#input-objects)
-* [Interfaces and Union Types](#interfaces-and-union-types)
-* [Scalar Types](#scalar-types)
-* [Renaming Types](#renaming-types)
-* [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
-* [GraphQL Descriptions](#graphql-descriptions)
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Maven/Gradle](#mavengradle)
+- [Examples](#examples)
+- [Defining a Schema](#defining-a-schema)
+- [Resolvers and Data Classes](#resolvers-and-data-classes)
+- [Enum Types](#enum-types)
+- [Input Objects](#input-objects)
+- [Interfaces and Union Types](#interfaces-and-union-types)
+- [Scalar Types](#scalar-types)
+- [Renaming Types](#renaming-types)
+- [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
+- [GraphQL Descriptions](#graphql-descriptions)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 ### Maven/Gradle
 
