@@ -1,7 +1,8 @@
 # GraphQL Java Tools
 
-![TravisCI Build](https://travis-ci.org/Cox-Automotive/graphql-java-tools.svg?branch=master)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coxautodev/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.coxautodev/graphql-java-tools)
+[![TravisCI Build](https://travis-ci.org/graphql-java/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java/graphql-java-tools)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java/graphql-java-tools)
+[![Chat on Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/graphql-java/graphql-java)
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
 Inspired by [graphql-tools](https://github.com/apollographql/graphql-tools), it parses the given GraphQL schema and allows you to BYOO (bring your own object) to fill in the implementations.
@@ -19,34 +20,41 @@ If you're using an IOC container (like Spring), this forces you to write a bunch
 GraphQL Java Tools gives you a simple, portable way to describe your GraphQL schema, and fill in implementations with your own object instances.
 Since your GraphQL schema is independent of your data model, this makes your classes simple and extremely testable.
 
-
 ## Usage
 
-### Contents
-* [Examples](#examples)
-* [Defining a Schema](#defining-a-schema)
-* [Resolvers and Data Classes](#resolvers-and-data-classes)
-* [Enum Types](#enum-types)
-* [Input Objects](#input-objects)
-* [Interfaces and Union Types](#interfaces-and-union-types)
-* [Scalar Types](#scalar-types)
-* [Renaming Types](#renaming-types)
-* [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
-* [GraphQL Descriptions](#graphql-descriptions)
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Maven/Gradle](#mavengradle)
+- [Examples](#examples)
+- [Defining a Schema](#defining-a-schema)
+- [Resolvers and Data Classes](#resolvers-and-data-classes)
+- [Enum Types](#enum-types)
+- [Input Objects](#input-objects)
+- [Interfaces and Union Types](#interfaces-and-union-types)
+- [Scalar Types](#scalar-types)
+- [Renaming Types](#renaming-types)
+- [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
+- [GraphQL Descriptions](#graphql-descriptions)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 ### Maven/Gradle
 
 ```xml
 <dependency>
-    <groupId>com.coxautodev</groupId>
+    <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>2.1.2</version>
+    <version>2.1.3</version>
 </dependency>
 ```
 
 ### Examples
 
 A working [Java Spring-Boot application](example) is provided, based off the [Star Wars API](https://github.com/graphql-java/graphql-java/blob/master/src/test/groovy/graphql/StarWarsSchema.java) tests and [test data](https://github.com/graphql-java/graphql-java/blob/master/src/test/groovy/graphql/StarWarsData.groovy).
+If you're using Spring Boot, check out the [graphql-spring-boot-starter](https://github.com/graphql-java/graphql-spring-boot)!
 
 A working [Kotlin example](src/test/kotlin/com/coxautodev/graphql/tools/EndToEndSpec.kt) can be found in the tests.
 
@@ -223,7 +231,7 @@ It's possible to create custom scalar types in GraphQL-Java by creating a new in
 scalar UUID
 ```
 
-Then pass the schema instance to the parser:
+Then pass the scalar instance to the parser:
 ```java
 SchemaParser.newParser()
     // ...
