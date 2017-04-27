@@ -26,8 +26,8 @@ input ItemSearchInput {
 }
 
 input NewItemInput {
-    name: String!
-    type: Type!
+    name: String! @deprecated
+    type: Type! @deprecated(reason: "This is a reason")
 }
 
 enum Type {

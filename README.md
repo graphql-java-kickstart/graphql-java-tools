@@ -270,12 +270,27 @@ SchemaParser.newParser()
 
 ### GraphQL Descriptions
 
-GraphQL object/field/argument descriptions can be provided by the `@doc` decorator, and are added to the generated schema:
+GraphQL object/field/argument descriptions can be provided by the `@doc` directive, and are added to the generated schema:
 
 ```graphql
 enum Episode @doc(d: "One of the films in the Star Wars Trilogy") {
     NEWHOPE @doc(d: "Released in 1977"),
     EMPIRE @doc(d: "Released in 1980"),
     JEDI @doc(d: "Released in 1983")
+}
+```
+### GraphQL Deprecations
+
+GraphQL field/enum deprecations can be provided by the `@deprecated(reason: String)` directive, and are added to the 
+generated schema. You can either supply a **reason** argument with a string value or not supply one and receive
+a "No longer supported" message when introspected:
+
+```graphql
+enum Episode @doc(d: "One of the films in the Star Wars Trilogy") {
+    NEWHOPE @doc(d: "Released in 1977"),
+    EMPIRE @doc(d: "Released in 1980"),
+    JEDI @doc(d: "Released in 1983"),
+    FANTOM @doc(d: "Released in 1999") @deprecated(reason: "Not worth referencing"),
+    CLONES @doc(d: "Released in 2002") @deprecated  
 }
 ```
