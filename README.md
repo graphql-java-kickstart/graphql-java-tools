@@ -290,7 +290,7 @@ enum Episode @doc(d: "One of the films in the Star Wars Trilogy") {
     NEWHOPE @doc(d: "Released in 1977"),
     EMPIRE @doc(d: "Released in 1980"),
     JEDI @doc(d: "Released in 1983"),
-    FANTOM @doc(d: "Released in 1999") @deprecated(reason: "Not worth referencing"),
+    PHANTOM @doc(d: "Released in 1999") @deprecated(reason: "Not worth referencing"),
     CLONES @doc(d: "Released in 2002") @deprecated  
 }
 ```
