@@ -7,7 +7,6 @@ import graphql.language.InputValueDefinition
 import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLNonNull
 import java.lang.reflect.Method
 
 class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher {
@@ -34,7 +33,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
                 val expectedType = resolver.dataClassType!! // We've already checked this when setting shouldPassSource
                 args.add({ environment ->
                     val source = environment.source
-                    if (expectedType != source.javaClass) {
+                    if (!(expectedType.isAssignableFrom(source.javaClass))) {
                         throw ResolverError("Source type (${source.javaClass.name}) is not expected type (${expectedType.name})!")
                     }
 
