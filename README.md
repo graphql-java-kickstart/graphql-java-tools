@@ -47,7 +47,7 @@ Since your GraphQL schema is independent of your data model, this makes your cla
 <dependency>
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>2.1.3</version>
+    <version>2.2.0</version>
 </dependency>
 ```
 
