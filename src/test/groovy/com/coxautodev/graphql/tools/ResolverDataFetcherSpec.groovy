@@ -6,6 +6,7 @@ import graphql.language.InputValueDefinition
 import graphql.language.NonNullType
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.DataFetchingEnvironmentImpl
 import spock.lang.Specification
 
 /**
@@ -163,7 +164,7 @@ class ResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetchingEnvironment createEnvironment(Object source, Map<String, Object> arguments = [:]) {
-        new DataFetchingEnvironment(source, arguments, null, null, null, null, null)
+        new DataFetchingEnvironmentImpl(source, arguments, null, null, null, null, null)
     }
 }
 

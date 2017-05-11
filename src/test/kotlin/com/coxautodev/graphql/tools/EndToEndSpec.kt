@@ -108,7 +108,7 @@ data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
 
-val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing {
+val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<Any, Any> {
 
     override fun parseValue(input: Any?): Any? = serialize(input)
 
