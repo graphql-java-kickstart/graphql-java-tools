@@ -20,7 +20,6 @@ import graphql.language.Document
 import graphql.language.EnumTypeDefinition
 import graphql.language.FieldDefinition
 import graphql.language.InputObjectTypeDefinition
-import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ListType
 import graphql.language.NonNullType
@@ -54,6 +53,8 @@ import graphql.schema.TypeResolverProxy
  * @author Andrew Potter
  */
 class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: Map<String, GraphQLScalarType>, val dictionary: BiMap<String, Class<*>>) {
+
+    val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
@@ -282,7 +283,12 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         definition.enumValueDefinitions.forEach { enumDefinition ->
             val enumName = enumDefinition.name
             val enumValue = type.enumConstants.find { it.toString() == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.simpleName}' but found none!")
-            builder.value(enumName, enumValue, getDocumentation(enumDefinition))
+            getDeprecated(enumDefinition.directives).let {
+                when (it) {
+                    is String -> builder.value(enumName, enumValue, getDocumentation(enumDefinition), it)
+                    else -> builder.value(enumName, enumValue, getDocumentation(enumDefinition))
+                }
+            }
         }
 
         return builder.build()
@@ -321,8 +327,9 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
 
     private fun createFieldDefinition(field: GraphQLFieldDefinition.Builder, fieldDefinition : FieldDefinition): GraphQLFieldDefinition.Builder {
         field.name(fieldDefinition.name)
-        field.definition(fieldDefinition)
         field.description(getDocumentation(fieldDefinition))
+        field.definition(fieldDefinition)
+        getDeprecated(fieldDefinition.directives)?.let { field.deprecate(it) }
         field.type(determineOutputType(fieldDefinition.type))
         fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
             field.argument { argument ->
@@ -348,6 +355,23 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         }
 
     private fun getDocumentation(node: AbstractNode): String = node.comments.map { it.content.trim() }.joinToString("\n")
+
+    /**
+     * Returns an optional [String] describing a deprecated field/enum.
+     * If a deprecation directive was defined using the @deprecated directive,
+     * then a String containing either the contents of the 'reason' argument, if present, or a default
+     * message defined in [DEFAULT_DEPRECATION_MESSAGE] will be returned. Otherwise, [null] will be returned
+     * indicating no deprecation directive was found within the directives list.
+     */
+    private fun getDeprecated(directives: List<Directive>): String? =
+        getDirective(directives, "deprecated")?.let { directive ->
+            (directive.arguments.find { it.name == "reason" }?.value as? StringValue)?.value ?:
+                DEFAULT_DEPRECATION_MESSAGE
+        }
+
+    private fun getDirective(directives: List<Directive>, name: String): Directive? = directives.find {
+        it.name == name
+    }
 }
 
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
