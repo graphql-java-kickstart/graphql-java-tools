@@ -1,6 +1,7 @@
 package com.coxautodev.graphql.tools
 
 import com.google.common.collect.BiMap
+import graphql.TypeResolutionEnvironment
 import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLUnionType
@@ -11,8 +12,8 @@ import graphql.schema.TypeResolver
  */
 abstract class DictionaryTypeResolver(private val dictionary: BiMap<Class<*>, String>, private val types: Map<String, GraphQLObjectType>) : TypeResolver {
 
-    override fun getType(`object`: Any): GraphQLObjectType {
-        val clazz = `object`.javaClass
+    override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
+        val clazz = env.`object`.javaClass
         val name = dictionary[clazz] ?: clazz.simpleName
 
         return types[name] ?: throw TypeResolverError(getError(name))

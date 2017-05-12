@@ -30,7 +30,7 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
-            <version>2017-04-12T22-29-40</version>
+            <version>2017-05-12T09-07-52</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

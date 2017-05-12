@@ -25,7 +25,7 @@ class EndToEndSpec extends Specification {
 
     def "schema comments are used as descriptions"() {
         expect:
-            gql.graphQLSchema.dictionary.find { it.name == 'Type' }?.valueDefinitionMap?.TYPE_1?.description == "Item type 1"
+            gql.graphQLSchema.allTypesAsList.find { it.name == 'Type' }?.valueDefinitionMap?.TYPE_1?.description == "Item type 1"
     }
 
     def "generated schema should respond to simple queries"() {
