@@ -45,14 +45,14 @@
         </dependency>
 
         <dependency>
-            <groupId>com.coxautodev</groupId>
-            <artifactId>graphql-java-tools</artifactId>
-            <version>2.1.2</version>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-spring-boot-starter</artifactId>
+            <version>3.3.0</version>
         </dependency>
         <dependency>
             <groupId>com.graphql-java</groupId>
-            <artifactId>graphql-java-servlet</artifactId>
-            <version>2.1.0</version>
+            <artifactId>graphql-java-tools</artifactId>
+            <version>2.3.0</version>
         </dependency>
     </dependencies>
 
