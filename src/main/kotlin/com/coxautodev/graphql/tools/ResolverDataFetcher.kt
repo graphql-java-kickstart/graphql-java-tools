@@ -9,7 +9,7 @@ import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
 
-class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any?> {
+class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
 
     companion object {
         val mapper = ObjectMapper().registerKotlinModule()

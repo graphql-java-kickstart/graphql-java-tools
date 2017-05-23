@@ -270,13 +270,17 @@ SchemaParser.newParser()
 
 ### GraphQL Descriptions
 
-GraphQL object/field/argument descriptions can be provided by the `@doc` directive, and are added to the generated schema:
+GraphQL object/field/argument descriptions can be provided by comments in the schema:
 
 ```graphql
-enum Episode @doc(d: "One of the films in the Star Wars Trilogy") {
-    NEWHOPE @doc(d: "Released in 1977"),
-    EMPIRE @doc(d: "Released in 1980"),
-    JEDI @doc(d: "Released in 1983")
+# One of the films in the Star Wars Trilogy
+enum Episode {
+    # Released in 1977
+    NEWHOPE
+    # Released in 1980
+    EMPIRE
+    # Released in 1983
+    JEDI
 }
 ```
 ### GraphQL Deprecations

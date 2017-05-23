@@ -10,7 +10,8 @@ val schemaDefinition = """
 scalar UUID
 
 type Query {
-    items(itemsInput: ItemSearchInput!): [Item!] @doc(d: "Get items by name")
+    # Get items by name
+    items(itemsInput: ItemSearchInput!): [Item!]
     allItems: [AllItems!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
@@ -22,7 +23,8 @@ type Mutation {
 }
 
 input ItemSearchInput {
-    name: String! @doc(d: "The item name to look for")
+    # The item name to look for
+    name: String!
 }
 
 input NewItemInput {
@@ -31,8 +33,10 @@ input NewItemInput {
 }
 
 enum Type {
-    TYPE_1 @doc(d: "Item type 1")
-    TYPE_2 @doc(d: "Item type 2")
+    # Item type 1
+    TYPE_1
+    # Item type 2
+    TYPE_2
 }
 
 type Item implements ItemInterface {
@@ -108,18 +112,18 @@ data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
 
-val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<Any, Any> {
+val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
 
-    override fun parseValue(input: Any?): Any? = serialize(input)
-
-    override fun parseLiteral(input: Any?): Any? = when (input) {
-        is StringValue -> UUID.fromString(input.value)
+    override fun serialize(input: Any): String? = when (input) {
+        is String -> input
+        is UUID -> input.toString()
         else -> null
     }
 
-    override fun serialize(input: Any?): Any? = when (input) {
-        is String -> UUID.fromString(input)
-        is UUID -> input
+    override fun parseValue(input: Any): UUID? = parseLiteral(input)
+
+    override fun parseLiteral(input: Any): UUID? = when (input) {
+        is StringValue -> UUID.fromString(input.value)
         else -> null
     }
 })
