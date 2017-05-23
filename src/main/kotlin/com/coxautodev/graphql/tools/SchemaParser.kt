@@ -183,7 +183,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
     // Ensure all scalar definitions have implementations and add the definition to those.
     private val userScalars = scalarDefinitions.map { definition ->
         val provided = userScalars[definition.name] ?: throw SchemaError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
-        GraphQLScalarType(provided.name, getDocumentation(definition), provided.coercing, definition)
+        GraphQLScalarType(provided.name, getDocumentation(definition) ?: provided.description, provided.coercing, definition)
     }.associateBy { it.name!! }
 
     /**
@@ -354,7 +354,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
             else -> throw SchemaError("Unknown type: $typeDefinition")
         }
 
-    private fun getDocumentation(node: AbstractNode): String = node.comments.map { it.content.trim() }.joinToString("\n")
+    private fun getDocumentation(node: AbstractNode): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
 
     /**
      * Returns an optional [String] describing a deprecated field/enum.
