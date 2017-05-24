@@ -52,9 +52,7 @@ import graphql.schema.TypeResolverProxy
  *
  * @author Andrew Potter
  */
-class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, userScalars: Map<String, GraphQLScalarType>, val dictionary: BiMap<String, Class<*>>) {
-
-    val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
+class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLResolver<*>>, scalars: List<GraphQLScalarType>, private val dictionary: BiMap<String, Class<*>>) {
 
     class Builder(
         private val schemaString: StringBuilder = StringBuilder(),
@@ -159,11 +157,13 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
          * Build the parser with the supplied schema and dictionary.
          */
         fun build(): SchemaParser {
-            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.scalars.associateBy { it.name }, this.dictionary)
+            return SchemaParser(Parser().parseDocument(this.schemaString.toString()), this.resolvers, this.scalars, this.dictionary)
         }
     }
 
     companion object {
+        val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
+
         @JvmStatic fun newParser() = Builder()
     }
 
@@ -178,13 +178,15 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
     private val unionDefinitions: List<UnionTypeDefinition> = getDefinitions()
     private val scalarDefinitions: List<ScalarTypeDefinition> = getDefinitions()
 
-    private val resolvers = resolvers.map { Resolver(it, dictionary) }.associateBy { it.name }
+    private val userScalars = scalars.associateBy { it.name }
 
     // Ensure all scalar definitions have implementations and add the definition to those.
-    private val userScalars = scalarDefinitions.map { definition ->
+    private val scalars = scalarDefinitions.map { definition ->
         val provided = userScalars[definition.name] ?: throw SchemaError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
         GraphQLScalarType(provided.name, getDocumentation(definition) ?: provided.description, provided.coercing, definition)
     }.associateBy { it.name!! }
+
+    val resolvers = resolvers.map { Resolver(it) }
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -197,9 +199,14 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val queryName = queryType?.name ?: "Query"
         val mutationName = mutationType?.name ?: "Mutation"
 
+        val typeDictionary = TypeDictionary(dictionary, allDefinitions, resolvers, scalars)
+        typeDictionary.compileDictionary(queryName, mutationName, mutationType != null)
+
+        val resolvers = resolvers.associateBy { it.getName(dictionary) }
+
         // Create GraphQL objects
         val interfaces = interfaceDefinitions.map { createInterfaceObject(it) }
-        val objects = objectDefinitions.map { createObject(it, interfaces) }
+        val objects = objectDefinitions.map { createObject(it, resolvers, interfaces) }
         val unions = unionDefinitions.map { createUnionObject(it, objects) }
         val inputObjects = inputObjectDefinitions.map { createInputObject(it) }
         val enums = enumDefinitions.map { createEnumObject(it) }
@@ -220,17 +227,17 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
      */
     fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema()
 
-    private fun getResolver(name: String): Resolver {
+    private fun getResolver(resolvers: Map<String, Resolver>, name: String): Resolver {
         return resolvers[name] ?: getDataClassResolver(name) ?: throw SchemaError("Expected resolver or data class with name '$name' but found none!")
     }
 
     private fun  getDataClassResolver(name: String): Resolver? {
-        return NoResolver(dictionary[name] ?: return null, dictionary)
+        return NoResolver(dictionary[name] ?: return null)
     }
 
-    private fun createObject(definition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {
+    private fun createObject(definition: ObjectTypeDefinition, resolvers: Map<String, Resolver>, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {
         val name = definition.name
-        val resolver = getResolver(name)
+        val resolver = getResolver(resolvers, name)
         val builder = GraphQLObjectType.newObject()
             .name(name)
             .definition(definition)
@@ -350,7 +357,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(typeDefinition.type))
             is NonNullType -> GraphQLNonNull(determineType(typeDefinition.type))
-            is TypeName -> graphQLScalars[typeDefinition.name] ?: userScalars[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
+            is TypeName -> graphQLScalars[typeDefinition.name] ?: scalars[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
             else -> throw SchemaError("Unknown type: $typeDefinition")
         }
 
