@@ -1,6 +1,7 @@
 package com.coxautodev.graphql.tools
 
 import com.google.common.collect.BiMap
+import com.google.common.collect.HashBiMap
 import graphql.language.Definition
 import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
@@ -19,10 +20,10 @@ import java.lang.reflect.ParameterizedType
 /**
  * @author Andrew Potter
  */
-class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
+class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
 
     companion object {
-        val log = LoggerFactory.getLogger(TypeClassDictionary::class.java)
+        val log = LoggerFactory.getLogger(TypeClassDictionaryCompiler::class.java)
     }
 
     private val definitionsByName = allDefinitions.filterIsInstance<TypeDefinition>().associateBy { it.name }
@@ -36,7 +37,6 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
 
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val queue = linkedSetOf<QueueItem>()
-    private val observedDefinitions = mutableListOf<TypeDefinition>()
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
 
@@ -51,7 +51,7 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
     /**
      * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
      */
-    fun compileDictionary(queryName: String, mutationName: String, mutationRequired: Boolean): TypeClassDictionary {
+    fun compileDictionary(queryName: String, mutationName: String, mutationRequired: Boolean): TypeClassDictionaryCompiler {
         val queryDefinition = definitionsByName[queryName] ?: throw TypeClassDictionaryError("Type definition for root query type '$queryName' not found!")
         val mutationDefinition = definitionsByName[mutationName]
 
@@ -98,6 +98,8 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
 
         return this
     }
+
+    fun getDictionary(): BiMap<TypeDefinition, Class<*>> = dictionary.mapValuesTo(HashBiMap.create()) { it.value.typeClass }
 
     fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
@@ -166,8 +168,6 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
      * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
      */
     private fun handleNewType(type: TypeDefinition, clazz: Class<*>) {
-        observedDefinitions.add(type)
-
         when(type) {
             is ObjectTypeDefinition -> queue.add(QueueItem(type, clazz))
         }
@@ -253,4 +253,4 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
 }
 
 typealias JavaType = java.lang.reflect.Type
-
+typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>

@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import com.google.common.collect.BiMap
 import graphql.language.FieldDefinition
+import graphql.language.TypeDefinition
 import graphql.schema.DataFetchingEnvironment
 import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.Method
@@ -90,8 +91,8 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         return msg
     }
 
-    fun getName(dictionary: BiMap<String, Class<*>>): String {
-        return if(dataClassType != null) dictionary.inverse()[dataClassType] ?: dataClassType.simpleName!! else resolverType.simpleName!!
+    fun getName(dictionary: BiMap<TypeDefinition, Class<*>>): String {
+        return if(dataClassType != null) dictionary.inverse()[dataClassType]?.name ?: dataClassType.simpleName!! else resolverType.simpleName!!
     }
 
     protected class NoopResolver: GraphQLRootResolver
