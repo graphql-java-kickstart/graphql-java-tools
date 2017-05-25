@@ -3,12 +3,14 @@ package com.coxautodev.graphql.tools
 import com.google.common.collect.BiMap
 import graphql.language.Definition
 import graphql.language.FieldDefinition
+import graphql.language.InterfaceTypeDefinition
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.Type
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
+import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import java.lang.reflect.ParameterizedType
@@ -16,9 +18,13 @@ import java.lang.reflect.ParameterizedType
 /**
  * @author Andrew Potter
  */
-class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
+class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
 
     private val definitionsByName = allDefinitions.filterIsInstance<TypeDefinition>().associateBy { it.name }
+
+    private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>()
+    private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
+
     private val rootResolvers = resolvers.filter { it.dataClassType == null }
     private val rootResolversByResolverClass = rootResolvers.associateBy { it.resolverType }
     private val resolversByDataClass = resolvers.filter { it.dataClassType != null }.associateBy { it.dataClassType }
@@ -29,8 +35,9 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
 
     init {
         initialDictionary.forEach { (name, clazz) ->
-            val definition = definitionsByName[name] ?: throw TypeClassDictionaryError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
-            dictionary.put(definition, DictionaryEntry(clazz).also { it.addReference(DictionaryReference()) })
+            if(!definitionsByName.containsKey(name)) {
+                throw TypeClassDictionaryError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
+            }
         }
     }
 
@@ -61,11 +68,42 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
             handleFoundType(mutationDefinition, mutationResolver.resolverType, RootResolverReference("mutation"))
         }
 
-        while (queue.isNotEmpty()) {
-            scanObjectForDictionaryItems(queue.iterator().run { val item = next(); remove(); item })
+        while(queue.isNotEmpty()) {
+            while (queue.isNotEmpty()) {
+                while (queue.isNotEmpty()) {
+                    scanObjectForDictionaryItems(queue.iterator().run { val item = next(); remove(); item })
+                }
+
+                // Require all implementors of discovered interfaces to be discovered or provided.
+                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces(), { "Object type '${it.name}' implements a known interface, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+            }
+
+            // Require all members of discovered unions to be discovered.
+            handleInterfaceOrUnionSubTypes(getAllObjectTypesMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
         }
 
         return this
+    }
+
+    fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
+        return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
+            objectDefinitions.filter { obj -> obj.implements.filterIsInstance<TypeName>().any { it.name == iface.name } }
+        }.flatten().distinct()
+    }
+
+    fun getAllObjectTypesMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
+        return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
+            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw TypeClassDictionaryError("TODO") }
+        }.flatten().distinct()
+    }
+
+    fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
+        types.forEach { type ->
+            if(!dictionary.containsKey(type)) {
+                val clazz = initialDictionary[type.name] ?: throw TypeClassDictionaryError(failureMessage(type))
+                handleFoundType(type, clazz, DictionaryReference())
+            }
+        }
     }
 
     /**
