@@ -199,8 +199,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val queryName = queryType?.name ?: "Query"
         val mutationName = mutationType?.name ?: "Mutation"
 
-        val typeDictionary = TypeClassDictionary(dictionary, allDefinitions, resolvers, scalars)
-        typeDictionary.compileDictionary(queryName, mutationName, mutationType != null)
+        val typeDictionary = TypeClassDictionary(dictionary, allDefinitions, resolvers, scalars).compileDictionary(queryName, mutationName, mutationType != null)
 
         val resolvers = resolvers.associateBy { it.getName(dictionary) }
 

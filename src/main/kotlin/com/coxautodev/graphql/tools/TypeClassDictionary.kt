@@ -11,7 +11,6 @@ import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
-import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.ParameterizedType
 
 /**
@@ -35,7 +34,10 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         }
     }
 
-    fun compileDictionary(queryName: String, mutationName: String, mutationRequired: Boolean) {
+    /**
+     * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
+     */
+    fun compileDictionary(queryName: String, mutationName: String, mutationRequired: Boolean): TypeClassDictionary {
         val queryDefinition = definitionsByName[queryName] ?: throw TypeClassDictionaryError("Type definition for root query type '$queryName' not found!")
         val mutationDefinition = definitionsByName[mutationName]
 
@@ -60,11 +62,16 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         }
 
         while (queue.isNotEmpty()) {
-            scanForDictionaryItems(queue.iterator().run { val item = next(); remove(); item })
+            scanObjectForDictionaryItems(queue.iterator().run { val item = next(); remove(); item })
         }
+
+        return this
     }
 
-    private fun scanForDictionaryItems(item: QueueItem) {
+    /**
+     * Scan a new object for types that haven't been mapped yet.
+     */
+    private fun scanObjectForDictionaryItems(item: QueueItem) {
         val fields = item.type.fieldDefinitions
 
         fields.forEach { field ->
@@ -73,6 +80,9 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         }
     }
 
+    /**
+     * Match types from a single field (return value and input values).
+     */
     private fun handleFieldMethod(field: FieldDefinition, method: Resolver.ResolverMethod) {
         handleFoundType(getWrappedType(field.type), getWrappedClass(method.javaMethod.genericReturnType), ReturnValueReference(method))
 
@@ -81,31 +91,9 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         }
     }
 
-    private fun getWrappedType(type: Type): TypeDefinition {
-        return when(type) {
-            is NonNullType -> getWrappedType(type.type)
-            is ListType -> getWrappedType(type.type)
-            is TypeName -> ScalarInfo.STANDARD_SCALAR_DEFINITIONS[type.name] ?: definitionsByName[type.name] ?: throw TypeClassDictionaryError("No ${TypeDefinition::class.java.simpleName} for type name ${type.name}")
-            is TypeDefinition -> type
-            else -> throw TypeClassDictionaryError("Unknown type: ${type.javaClass.name}")
-        }
-    }
-
-    private fun getWrappedClass(type: JavaType): Class<*> {
-        return when(type) {
-            is ParameterizedType -> getWrappedGenericClass(type.rawType as Class<*>, type.actualTypeArguments)
-            is Class<*> -> type
-            else -> throw TypeClassDictionaryError("Unable to unwrap class: $type")
-        }
-    }
-
-    private fun getWrappedGenericClass(type: Class<*>, actualTypeArguments: Array<JavaType>): Class<*> {
-        return when(type) {
-            List::class.java -> getWrappedClass(actualTypeArguments.first())
-            else -> type
-        }
-    }
-
+    /**
+     * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
+     */
     private fun handleFoundType(type: TypeDefinition, clazz: Class<*>, reference: Reference) {
         val newEntry = DictionaryEntry(clazz)
         val realEntry = dictionary.getOrPut(type, { newEntry })
@@ -122,6 +110,9 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         }
     }
 
+    /**
+     * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
+     */
     private fun handleNewType(type: TypeDefinition, clazz: Class<*>) {
         observedDefinitions.add(type)
 
@@ -129,6 +120,38 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
             is ObjectTypeDefinition -> queue.add(QueueItem(type, clazz))
         }
     }
+
+    /**
+     * Unwrap GraphQL List and NonNull types to find the "real" type.
+     */
+    private fun getWrappedType(type: Type): TypeDefinition {
+        return when(type) {
+            is NonNullType -> getWrappedType(type.type)
+            is ListType -> getWrappedType(type.type)
+            is TypeName -> ScalarInfo.STANDARD_SCALAR_DEFINITIONS[type.name] ?: definitionsByName[type.name] ?: throw TypeClassDictionaryError("No ${TypeDefinition::class.java.simpleName} for type name ${type.name}")
+            is TypeDefinition -> type
+            else -> throw TypeClassDictionaryError("Unknown type: ${type.javaClass.name}")
+        }
+    }
+
+    /**
+     * Unwrap Java List type to find the "real" class.
+     */
+    private fun getWrappedClass(type: JavaType): Class<*> {
+        return when(type) {
+            is ParameterizedType -> getWrappedGenericClass(type.rawType as Class<*>, type.actualTypeArguments)
+            is Class<*> -> type
+            else -> throw TypeClassDictionaryError("Unable to unwrap class: $type")
+        }
+    }
+
+    private fun getWrappedGenericClass(type: Class<*>, actualTypeArguments: Array<JavaType>): Class<*> {
+        return when(type) {
+            List::class.java -> getWrappedClass(actualTypeArguments.first())
+            else -> type
+        }
+    }
+
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 
