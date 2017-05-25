@@ -5,6 +5,7 @@ import graphql.language.FieldDefinition
 import graphql.schema.DataFetchingEnvironment
 import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.Method
+import java.lang.reflect.Type
 
 open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dataClass: Class<*>? = null) {
 
@@ -26,7 +27,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         return returnType.isAssignableFrom(Boolean::class.java) || returnType.isPrimitive && returnType.javaClass.name == "boolean"
     }
 
-    private fun getMethod(clazz: Class<*>, name: String, argumentCount: Int): Method? {
+    private fun getMethod(clazz: Class<*>, name: String, argumentCount: Int, firstParameterType: Class<*>? = null): Method? {
         val methods = clazz.methods
 
         // Check for the following one by one:
@@ -34,42 +35,39 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         //   2. Method that returns a boolean with "is" style getter
         //   3. Method with "get" style getter
         return methods.find {
-            it.name == name && verifyMethodArguments(it, argumentCount)
+            it.name == name && verifyMethodArguments(it, argumentCount, firstParameterType)
         } ?: methods.find {
-            (isBoolean(it.returnType) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount)
+            (isBoolean(it.returnType) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, firstParameterType)
         } ?: methods.find {
-            it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount)
+            it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, firstParameterType)
         }
     }
 
-    private fun verifyMethodArguments(method: Method, requiredCount: Int): Boolean {
-        return method.parameterCount == requiredCount &&
-            (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
+    private fun verifyMethodArguments(method: Method, requiredCount: Int, firstParameterType: Class<*>?): Boolean {
+        val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
+        val appropriateFirstParameter = if(firstParameterType != null) method.parameterTypes.firstOrNull() == firstParameterType else true
+        return correctParameterCount && appropriateFirstParameter
     }
 
-    fun getMethod(field: FieldDefinition): GetMethodResult {
-        return getMethod(field.name, field.inputValueDefinitions.size)
-    }
-
-    open fun getMethod(name: String, argumentCount: Int): GetMethodResult {
-        val method = getMethod(resolverType, name, argumentCount + 1)
+    open fun getMethod(field: FieldDefinition): ResolverMethod {
+        val method = getMethod(resolverType, field.name, field.inputValueDefinitions.size + if(dataClassType != null) 1 else 0, dataClassType)
 
         if(method != null) {
-            return GetMethodResult(method, resolverType, true)
+            return ResolverMethod(field, method, resolverType, true, dataClassType != null)
         }
 
-        return getDataClassMethod(name, argumentCount)
+        return getDataClassMethod(field)
     }
 
-    protected fun getDataClassMethod(name: String, argumentCount: Int): GetMethodResult {
+    protected fun getDataClassMethod(field: FieldDefinition): ResolverMethod {
         if(dataClassType != null) {
-            val method = getMethod(dataClassType, name, argumentCount)
+            val method = getMethod(dataClassType, field.name, field.inputValueDefinitions.size)
             if(method != null) {
-                return GetMethodResult(method, dataClassType, false)
+                return ResolverMethod(field, method, dataClassType, false, false)
             }
         }
 
-        throw ResolverError(getMissingMethodMessage(name, argumentCount))
+        throw ResolverError(getMissingMethodMessage(field.name, field.inputValueDefinitions.size))
     }
 
     fun getMissingMethodMessage(name: String, argumentCount: Int): String {
@@ -97,12 +95,29 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
     }
 
     protected class NoopResolver: GraphQLRootResolver
-    data class GetMethodResult(val method: Method, val methodClass: Class<*>, val resolverMethod: Boolean)
+
+    data class ResolverMethod(val field: FieldDefinition, val javaMethod: Method, val methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
+
+        val dataFetchingEnvironment = field.inputValueDefinitions.size == (javaMethod.parameterCount + getIndexOffset() + 1)
+
+        private fun getIndexOffset() = if(sourceArgument) 1 else 0
+        fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
+
+        fun getJavaMethodParameterType(index: Int): Type? {
+            val methodIndex = getJavaMethodParameterIndex(index)
+            val parameters = javaMethod.parameterTypes
+            if(parameters.size > methodIndex) {
+                return javaMethod.genericParameterTypes[getJavaMethodParameterIndex(index)]
+            } else {
+                return null
+            }
+        }
+    }
 }
 
 class NoResolver(dataClass: Class<*>): Resolver(NoopResolver(), dataClass) {
-    override fun getMethod(name: String, argumentCount: Int): GetMethodResult {
-        return super.getDataClassMethod(name, argumentCount)
+    override fun getMethod(field: FieldDefinition): ResolverMethod {
+        return super.getDataClassMethod(field)
     }
 }
 

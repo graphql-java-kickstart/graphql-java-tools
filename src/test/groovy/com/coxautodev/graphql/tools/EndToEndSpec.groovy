@@ -17,7 +17,6 @@ class EndToEndSpec extends Specification {
             .schemaString(EndToEndSpecKt.schemaDefinition)
             .resolvers(new Query(), new Mutation(), new ItemResolver())
             .scalars(EndToEndSpecKt.CustomUUIDScalar)
-            .dictionary(Tag, Type)
             .dictionary("OtherItem", OtherItemWithWrongName)
             .build()
             .makeExecutableSchema())

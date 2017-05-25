@@ -199,7 +199,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         val queryName = queryType?.name ?: "Query"
         val mutationName = mutationType?.name ?: "Mutation"
 
-        val typeDictionary = TypeDictionary(dictionary, allDefinitions, resolvers, scalars)
+        val typeDictionary = TypeClassDictionary(dictionary, allDefinitions, resolvers, scalars)
         typeDictionary.compileDictionary(queryName, mutationName, mutationType != null)
 
         val resolvers = resolvers.associateBy { it.getName(dictionary) }
@@ -251,7 +251,7 @@ class SchemaParser private constructor(doc: Document, resolvers: List<GraphQLRes
         definition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field ->
                 createFieldDefinition(field, fieldDefinition)
-                field.dataFetcher(ResolverDataFetcher.create(resolver, fieldDefinition.name, fieldDefinition.inputValueDefinitions))
+                field.dataFetcher(ResolverDataFetcher.create(resolver, fieldDefinition))
             }
         }
 
