@@ -13,12 +13,17 @@ import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
+import org.slf4j.LoggerFactory
 import java.lang.reflect.ParameterizedType
 
 /**
  * @author Andrew Potter
  */
-class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
+class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
+
+    companion object {
+        val log = LoggerFactory.getLogger(TypeClassDictionary::class.java)
+    }
 
     private val definitionsByName = allDefinitions.filterIsInstance<TypeDefinition>().associateBy { it.name }
 
@@ -32,6 +37,8 @@ class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val queue = linkedSetOf<QueueItem>()
     private val observedDefinitions = mutableListOf<TypeDefinition>()
+
+    private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
 
     init {
         initialDictionary.forEach { (name, clazz) ->
@@ -56,6 +63,7 @@ class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>
             throw TypeClassDictionaryError("Type definition for root mutation type '$mutationName' not found!")
         }
 
+        // Find query resolver class
         val queryResolver = rootResolvers.find { it.resolverType.simpleName == queryName } ?: throw TypeClassDictionaryError("Root resolver for query type '$queryName' not found!")
         handleFoundType(queryDefinition, queryResolver.resolverType, RootResolverReference("query"))
 
@@ -64,10 +72,12 @@ class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>
                 throw TypeClassDictionaryError("Expected root mutation type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${mutationDefinition.javaClass.simpleName}")
             }
 
+            // Find mutation resolver class (if required)
             val mutationResolver = rootResolvers.find { it.resolverType.simpleName == mutationName } ?: throw TypeClassDictionaryError("Root resolver for mutation type '$mutationName' not found!")
             handleFoundType(mutationDefinition, mutationResolver.resolverType, RootResolverReference("mutation"))
         }
 
+        // Loop over all objects scanning each one only once for more objects to discover.
         while(queue.isNotEmpty()) {
             while (queue.isNotEmpty()) {
                 while (queue.isNotEmpty()) {
@@ -80,6 +90,10 @@ class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>
 
             // Require all members of discovered unions to be discovered.
             handleInterfaceOrUnionSubTypes(getAllObjectTypesMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+        }
+
+        initialDictionary.filter { !it.value.accessed }.forEach {
+            log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
         }
 
         return this
@@ -100,8 +114,8 @@ class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>
     fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
         types.forEach { type ->
             if(!dictionary.containsKey(type)) {
-                val clazz = initialDictionary[type.name] ?: throw TypeClassDictionaryError(failureMessage(type))
-                handleFoundType(type, clazz, DictionaryReference())
+                val initialEntry = initialDictionary[type.name] ?: throw TypeClassDictionaryError(failureMessage(type))
+                handleFoundType(type, initialEntry.get(), DictionaryReference())
             }
         }
     }
@@ -223,6 +237,16 @@ class TypeClassDictionary(private val initialDictionary: BiMap<String, Class<*>>
 
     private class MethodParameterReference(private val method: Resolver.ResolverMethod, private val index: Int): Reference() {
         override fun getDescription() = "parameter $index of method ${method.javaMethod}"
+    }
+
+    private class InitialDictionaryEntry(private val clazz: Class<*>) {
+        var accessed = false
+            private set
+
+        fun get(): Class<*> {
+            accessed = true
+            return clazz
+        }
     }
 
     class TypeClassDictionaryError(message: String) : RuntimeException(message)
