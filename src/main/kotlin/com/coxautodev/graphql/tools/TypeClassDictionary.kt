@@ -50,7 +50,7 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         }
 
         val queryResolver = rootResolvers.find { it.resolverType.simpleName == queryName } ?: throw TypeClassDictionaryError("Root resolver for query type '$queryName' not found!")
-        handleNewType(queryDefinition, queryResolver.resolverType)
+        handleFoundType(queryDefinition, queryResolver.resolverType, RootResolverReference("query"))
 
         if(mutationDefinition != null) {
             if(mutationDefinition !is ObjectTypeDefinition) {
@@ -58,7 +58,7 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
             }
 
             val mutationResolver = rootResolvers.find { it.resolverType.simpleName == mutationName } ?: throw TypeClassDictionaryError("Root resolver for mutation type '$mutationName' not found!")
-            handleNewType(mutationDefinition, mutationResolver.resolverType)
+            handleFoundType(mutationDefinition, mutationResolver.resolverType, RootResolverReference("mutation"))
         }
 
         while (queue.isNotEmpty()) {
@@ -165,19 +165,25 @@ class TypeClassDictionary(initialDictionary: BiMap<String, Class<*>>, allDefinit
         fun joinReferences() = "- $typeClass:\n|   " + references.map { it.getDescription() }.joinToString("\n|   ")
     }
 
-    private interface Reference {
-        fun getDescription(): String // TODO
+    private abstract class Reference {
+        abstract fun getDescription(): String
+        override fun toString() = getDescription()
     }
 
-    private class DictionaryReference: Reference {
+    private class RootResolverReference(val type: String): Reference() {
+        override fun getDescription() = "root $type type"
+
+    }
+
+    private class DictionaryReference: Reference() {
         override fun getDescription() = "provided dictionary"
     }
 
-    private class ReturnValueReference(private val method: Resolver.ResolverMethod): Reference {
+    private class ReturnValueReference(private val method: Resolver.ResolverMethod): Reference() {
         override fun getDescription() = "return type of method ${method.javaMethod}"
     }
 
-    private class MethodParameterReference(private val method: Resolver.ResolverMethod, private val index: Int): Reference {
+    private class MethodParameterReference(private val method: Resolver.ResolverMethod, private val index: Int): Reference() {
         override fun getDescription() = "parameter $index of method ${method.javaMethod}"
     }
 
