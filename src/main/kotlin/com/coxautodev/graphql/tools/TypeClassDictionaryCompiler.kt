@@ -2,12 +2,15 @@ package com.coxautodev.graphql.tools
 
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
+import com.google.common.collect.Maps
 import graphql.language.Definition
 import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
+import graphql.language.ScalarTypeDefinition
+import graphql.language.SchemaDefinition
 import graphql.language.Type
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
@@ -20,25 +23,25 @@ import java.lang.reflect.ParameterizedType
 /**
  * @author Andrew Potter
  */
-class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<Resolver>, private val scalars: Map<String, GraphQLScalarType>) {
+class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, private val allDefinitions: List<Definition>, private val resolvers: List<Resolver>, private val scalars: CustomScalarMap) {
 
     companion object {
-        val log = LoggerFactory.getLogger(TypeClassDictionaryCompiler::class.java)
+        val log = LoggerFactory.getLogger(TypeClassDictionaryCompiler::class.java)!!
     }
+
+    private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
 
     private val definitionsByName = allDefinitions.filterIsInstance<TypeDefinition>().associateBy { it.name }
 
     private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>()
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
 
-    private val rootResolvers = resolvers.filter { it.dataClassType == null }
+    private val rootResolvers = resolvers.filter { it.isRootResolver() }
     private val rootResolversByResolverClass = rootResolvers.associateBy { it.resolverType }
-    private val resolversByDataClass = resolvers.filter { it.dataClassType != null }.associateBy { it.dataClassType }
+    private val resolversByDataClass = resolvers.filter { !it.isRootResolver() }.associateBy { it.dataClassType }
 
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val queue = linkedSetOf<QueueItem>()
-
-    private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
 
     init {
         initialDictionary.forEach { (name, clazz) ->
@@ -51,7 +54,14 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
      */
-    fun compileDictionary(queryName: String, mutationName: String, mutationRequired: Boolean): TypeClassDictionaryCompiler {
+    fun compileDictionary(): SchemaParser {
+
+        val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
+
+        // Figure out what query and mutation types are called
+        val queryName = rootInfo.getQueryName()
+        val mutationName = rootInfo.getMutationName()
+
         val queryDefinition = definitionsByName[queryName] ?: throw TypeClassDictionaryError("Type definition for root query type '$queryName' not found!")
         val mutationDefinition = definitionsByName[mutationName]
 
@@ -59,7 +69,7 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, al
             throw TypeClassDictionaryError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${queryDefinition.javaClass.simpleName}")
         }
 
-        if(mutationDefinition == null && mutationRequired) {
+        if(mutationDefinition == null && rootInfo.isMutationRequired()) {
             throw TypeClassDictionaryError("Type definition for root mutation type '$mutationName' not found!")
         }
 
@@ -89,17 +99,35 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, al
             }
 
             // Require all members of discovered unions to be discovered.
-            handleInterfaceOrUnionSubTypes(getAllObjectTypesMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
         }
 
+        return validateAndCreateParser(rootInfo)
+    }
+
+    private fun validateAndCreateParser(rootInfo: RootTypeInfo): SchemaParser {
         initialDictionary.filter { !it.value.accessed }.forEach {
             log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
         }
 
-        return this
-    }
+        val dictionary = Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
+            dictionary.mapValuesTo(it) { it.value.typeClass }
+        })
+        val observedDefinitions = dictionary.keys.toSet()
+        val observedClasses = dictionary.values.toSet()
 
-    fun getDictionary(): BiMap<TypeDefinition, Class<*>> = dictionary.mapValuesTo(HashBiMap.create()) { it.value.typeClass }
+        val scalarDefinitions = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
+
+        // Ensure all scalar definitions have implementations and add the definition to those.
+        val scalars = scalarDefinitions.filter { !graphQLScalars.containsKey(it.name) }.map { definition ->
+            val provided = scalars[definition.name] ?: throw SchemaError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
+            GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition) ?: provided.description, provided.coercing, definition)
+        }.associateBy { it.name!! }
+
+        val resolvers = observedClasses.map { rootResolversByResolverClass[it] ?: resolversByDataClass[it] }.filterNotNull()
+
+        return SchemaParser(dictionary, observedDefinitions, resolvers, scalars, rootInfo)
+    }
 
     fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
@@ -107,7 +135,7 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, al
         }.flatten().distinct()
     }
 
-    fun getAllObjectTypesMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
+    fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
             union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw TypeClassDictionaryError("TODO") }
         }.flatten().distinct()
@@ -203,7 +231,6 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, al
             else -> type
         }
     }
-
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 

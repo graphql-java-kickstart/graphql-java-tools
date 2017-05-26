@@ -13,7 +13,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
     val resolverType = resolver.javaClass
     val dataClassType = dataClass ?: findDataClass()
 
-    private fun findDataClass(): Class<*>? {
+    private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
         val type = GenericsResolver.resolve(resolverType).type(GraphQLResolver::class.java)?.genericTypes()?.first()
 
@@ -21,14 +21,14 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
             throw ResolverError("Unable to determine data class for resolver '${resolverType.name}' from generic interface!  This is most likely a bug with graphql-java-tools.")
         }
 
-        return if(type != Void::class.java) type else null
+        return type
     }
 
     private fun isBoolean(returnType: Class<*>): Boolean {
         return returnType.isAssignableFrom(Boolean::class.java) || returnType.isPrimitive && returnType.javaClass.name == "boolean"
     }
 
-    private fun getMethod(clazz: Class<*>, name: String, argumentCount: Int, firstParameterType: Class<*>? = null): Method? {
+    private fun getMethod(clazz: Class<*>, name: String, argumentCount: Int, isResolverMethod: Boolean = false): Method? {
         val methods = clazz.methods
 
         // Check for the following one by one:
@@ -36,32 +36,32 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         //   2. Method that returns a boolean with "is" style getter
         //   3. Method with "get" style getter
         return methods.find {
-            it.name == name && verifyMethodArguments(it, argumentCount, firstParameterType)
+            it.name == name && verifyMethodArguments(it, argumentCount, isResolverMethod)
         } ?: methods.find {
-            (isBoolean(it.returnType) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, firstParameterType)
+            (isBoolean(it.returnType) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, isResolverMethod)
         } ?: methods.find {
-            it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, firstParameterType)
+            it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, isResolverMethod)
         }
     }
 
-    private fun verifyMethodArguments(method: Method, requiredCount: Int, firstParameterType: Class<*>?): Boolean {
+    private fun verifyMethodArguments(method: Method, requiredCount: Int, isResolverMethod: Boolean): Boolean {
         val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
-        val appropriateFirstParameter = if(firstParameterType != null) method.parameterTypes.firstOrNull() == firstParameterType else true
+        val appropriateFirstParameter = if(isResolverMethod && !isRootResolver()) method.parameterTypes.firstOrNull() == dataClassType else true
         return correctParameterCount && appropriateFirstParameter
     }
 
     open fun getMethod(field: FieldDefinition): ResolverMethod {
-        val method = getMethod(resolverType, field.name, field.inputValueDefinitions.size + if(dataClassType != null) 1 else 0, dataClassType)
+        val method = getMethod(resolverType, field.name, field.inputValueDefinitions.size + if(!isRootResolver()) 1 else 0, true)
 
         if(method != null) {
-            return ResolverMethod(field, method, resolverType, true, dataClassType != null)
+            return ResolverMethod(field, method, resolverType, true, !isRootResolver())
         }
 
         return getDataClassMethod(field)
     }
 
     protected fun getDataClassMethod(field: FieldDefinition): ResolverMethod {
-        if(dataClassType != null) {
+        if(!isRootResolver()) {
             val method = getMethod(dataClassType, field.name, field.inputValueDefinitions.size)
             if(method != null) {
                 return ResolverMethod(field, method, dataClassType, false, false)
@@ -80,7 +80,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
             hadResolver = true
         }
 
-        if(dataClassType != null) {
+        if(!isRootResolver()) {
             if(hadResolver) {
                 msg += " or its "
             }
@@ -92,8 +92,10 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
     }
 
     fun getName(dictionary: BiMap<TypeDefinition, Class<*>>): String {
-        return if(dataClassType != null) dictionary.inverse()[dataClassType]?.name ?: dataClassType.simpleName!! else resolverType.simpleName!!
+        return if(!isRootResolver()) dictionary.inverse()[dataClassType]?.name ?: dataClassType.simpleName!! else resolverType.simpleName!!
     }
+
+    fun isRootResolver() = dataClassType == Void::class.java
 
     protected class NoopResolver: GraphQLRootResolver
 

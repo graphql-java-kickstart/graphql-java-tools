@@ -7,7 +7,7 @@ import spock.lang.Specification
  */
 class SchemaParserSpec extends Specification {
 
-    SchemaParser.Builder builder
+    SchemaParserBuilder builder
 
     def setup() {
         builder = SchemaParser.newParser()
