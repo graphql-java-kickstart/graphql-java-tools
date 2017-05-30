@@ -36,7 +36,7 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 - [Input Objects](#input-objects)
 - [Interfaces and Union Types](#interfaces-and-union-types)
 - [Scalar Types](#scalar-types)
-- [Renaming Types](#renaming-types)
+- [Type Dictionary](#type-dictionary)
 - [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
 - [GraphQL Descriptions](#graphql-descriptions)
 
@@ -156,7 +156,8 @@ class BookResolver implements GraphQLResolver<Book> /* This class is a resolver 
 ```
 
 When given a BookResolver instance, GraphQL Java Tools first attempts to map methods on the resolver before mapping them on the data class.
-If there is a matching method on the resolver, the data class instance is passed as the first argument to the resolver function.
+If there is a matching method on the resolver, the data class instance is passed as the first argument to the resolver function.  This does not apply to root resolvers, since those don't have a data class to resolve for.
+An optional argument can be defined to inject the `DataFetchingEnvironment`, and must be the last argument.
 
 Since the Query object is a root GraphQL object, it doesn't have an associated data class:
 ```java
@@ -174,30 +175,29 @@ class Query implements GraphQLRootResolver {
 }
 ```
 
-Resolvers and data classes must be provided to the schema parser:
+Resolvers must be provided to the schema parser:
 ```java
 SchemaParser.newParser()
     // ...
     .resolvers(new Query(bookRepository), new BookResolver(authorRepository))
-    .dictionary(Author.class)
 ```
 
-*Note:* Data classes that have resolvers don't also need to be passed to `dataClasses`, such as `BookResolver` above.
+*Note:* The method mapping is done by name, with the following priority:
 
-*Note:* The method mapping is done by name, with unprefixed methods taking priority.
-If you had a property "status" on your GraphQL object, a method named "status" on your resolver would take precedence over "getStatus" (or "isStatus" for a boolean type).
-If neither of those can be found, the data class (if it exists) is then inspected for the same methods.
+
+First on the resolver or root resolver (note that dataClassInstance doesn't apply for root resolvers):
+1. <name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])
+2. is<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment]), only if the field returns a `Boolean`
+3. get<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])
+
+Then on the data class:
+1. <name>(*fieldArgs [, DataFetchingEnvironment])
+2. is<Name>(*fieldArgs [, DataFetchingEnvironment]), only if the field returns a `Boolean`
+3. get<Name>(*fieldArgs [, DataFetchingEnvironment])
 
 ### Enum Types
 
-Any enums in your java classes that map to GraphQL enums must be provided to the schema parser:
-```java
-SchemaParser.newParser()
-    // ...
-    .dictionary(Type.class, MyOtherEnum.class)
-```
-
-Enum values are automatically mapped by class name and `toString()`.
+Enum values are automatically mapped by `toString()`.
 
 ### Input Objects
 
@@ -240,9 +240,9 @@ SchemaParser.newParser()
     .scalars(myUuidScalar)
 ```
 
-### Renaming Types
+### Type Dictionary
 
-Sometimes your Java classes don't line up perfectly with your GraphQL schema, so GraphQL Java Tools allows you to "rename" your classes:
+Sometimes GraphQL Java Tools can't find classes when it scans your objects, usually because of limitations with interface and union types.  Sometimes your Java classes don't line up perfectly with your GraphQL schema, either. GraphQL Java Tools allows you to provide additional classes manually and "rename" them if desired:
 ```java
 SchemaParser.newParser()
     // ...
