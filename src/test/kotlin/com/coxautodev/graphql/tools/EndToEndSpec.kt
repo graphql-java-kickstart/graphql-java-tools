@@ -18,6 +18,8 @@ type Query {
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
+
+    listList: [[String!]!]!
 }
 
 type Mutation {
@@ -81,13 +83,17 @@ val otherItems = mutableListOf(
     OtherItemWithWrongName(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
-class Query: GraphQLRootResolver {
+class Query: GraphQLRootResolver, ListListResolver<String>() {
     fun isEmpty() = items.isEmpty()
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
     fun allItems(): List<Any> = items + otherItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
+}
+
+abstract class ListListResolver<out E> {
+    fun listList(): List<List<E>> = listOf(listOf())
 }
 
 class Mutation: GraphQLRootResolver {

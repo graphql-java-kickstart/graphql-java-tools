@@ -8,7 +8,6 @@ import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import ru.vyarus.java.generics.resolver.GenericsResolver
-import java.lang.reflect.Method
 
 open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dataClass: Class<*>? = null) {
 
@@ -35,7 +34,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         }
     }
 
-    private fun getMethod(clazz: Class<*>, field: FieldDefinition, isResolverMethod: Boolean = false): Method? {
+    private fun getMethod(clazz: Class<*>, field: FieldDefinition, isResolverMethod: Boolean = false): java.lang.reflect.Method? {
         val methods = clazz.methods
         val argumentCount = field.inputValueDefinitions.size + if(isResolverMethod && !isRootResolver()) 1 else 0
         val name = field.name
@@ -55,27 +54,27 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         }
     }
 
-    private fun verifyMethodArguments(method: Method, requiredCount: Int, isResolverMethod: Boolean): Boolean {
+    private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, isResolverMethod: Boolean): Boolean {
         val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
         val appropriateFirstParameter = if(isResolverMethod && !isRootResolver()) method.parameterTypes.firstOrNull() == dataClassType else true
         return correctParameterCount && appropriateFirstParameter
     }
 
-    open fun getMethod(field: FieldDefinition): ResolverMethod {
+    open fun getMethod(field: FieldDefinition): Method {
         val method = getMethod(resolverType, field, true)
 
         if(method != null) {
-            return ResolverMethod(this, field, method, resolverType, true, !isRootResolver())
+            return Method(this, field, method, resolverType, true, !isRootResolver())
         }
 
         return getDataClassMethod(field)
     }
 
-    protected fun getDataClassMethod(field: FieldDefinition): ResolverMethod {
+    protected fun getDataClassMethod(field: FieldDefinition): Method {
         if(!isRootResolver()) {
             val method = getMethod(dataClassType, field)
             if(method != null) {
-                return ResolverMethod(this, field, method, dataClassType, false, false)
+                return Method(this, field, method, dataClassType, false, false)
             }
         }
 
@@ -124,7 +123,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 
     protected class NoopResolver: GraphQLRootResolver
 
-    data class ResolverMethod(val resolver: Resolver, val field: FieldDefinition, val javaMethod: Method, val methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
+    class Method(val resolver: Resolver, val field: FieldDefinition, val javaMethod: java.lang.reflect.Method, val methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
 
         val dataFetchingEnvironment = javaMethod.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
@@ -144,7 +143,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 }
 
 class NoResolver(dataClass: Class<*>): Resolver(NoopResolver(), dataClass) {
-    override fun getMethod(field: FieldDefinition): ResolverMethod {
+    override fun getMethod(field: FieldDefinition): Method {
         return super.getDataClassMethod(field)
     }
 }

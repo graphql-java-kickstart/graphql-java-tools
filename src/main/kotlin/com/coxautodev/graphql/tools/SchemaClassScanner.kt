@@ -18,7 +18,9 @@ import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.LoggerFactory
+import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.TypeVariable
 
 /**
  * @author Andrew Potter
@@ -43,7 +45,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val queue = linkedSetOf<QueueItem>()
 
-    private val methodsByField = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.ResolverMethod>>()
+    private val methodsByField = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.Method>>()
 
     init {
         initialDictionary.forEach { (name, clazz) ->
@@ -175,11 +177,11 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     /**
      * Match types from a single field (return value and input values).
      */
-    private fun handleFieldMethod(field: FieldDefinition, method: Resolver.ResolverMethod) {
-        handleFoundType(getWrappedType(field.type), getWrappedClass(method.javaMethod.genericReturnType), ReturnValueReference(method))
+    private fun handleFieldMethod(field: FieldDefinition, method: Resolver.Method) {
+        handleFoundType(getWrappedType(field.type), getWrappedClass(method, method.javaMethod.genericReturnType), ReturnValueReference(method))
 
         field.inputValueDefinitions.map { getWrappedType(it.type) }.forEachIndexed { i, type ->
-            handleFoundType(type, getWrappedClass(method.getJavaMethodParameterType(i)!!), MethodParameterReference(method, i))
+            handleFoundType(type, getWrappedClass(method, method.getJavaMethodParameterType(i)!!), MethodParameterReference(method, i))
         }
     }
 
@@ -227,17 +229,18 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     /**
      * Unwrap Java List type to find the "real" class.
      */
-    private fun getWrappedClass(type: JavaType): Class<*> {
+    private fun getWrappedClass(method: Resolver.Method, type: JavaType): Class<*> {
         return when(type) {
-            is ParameterizedType -> getWrappedGenericClass(type.rawType as Class<*>, type.actualTypeArguments)
+            is ParameterizedType -> getWrappedGenericClass(method, type.rawType as Class<*>, type.actualTypeArguments)
             is Class<*> -> type
+            is TypeVariable<*> -> GenericsResolver.resolve(method.methodClass).method(method.javaMethod).generic(type.name) ?: throw SchemaClassScannerError("Unable to lookup generic argument '${type.name}' of class '${method.methodClass}' while resolving types for method: ${method.javaMethod}")
             else -> throw SchemaClassScannerError("Unable to unwrap class: $type")
         }
     }
 
-    private fun getWrappedGenericClass(type: Class<*>, actualTypeArguments: Array<JavaType>): Class<*> {
+    private fun getWrappedGenericClass(method: Resolver.Method, type: Class<*>, actualTypeArguments: Array<JavaType>): Class<*> {
         return when(type) {
-            List::class.java -> getWrappedClass(actualTypeArguments.first())
+            List::class.java -> getWrappedClass(method, actualTypeArguments.first())
             else -> type
         }
     }
@@ -268,11 +271,11 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         override fun getDescription() = "provided dictionary"
     }
 
-    private class ReturnValueReference(private val method: Resolver.ResolverMethod): Reference() {
+    private class ReturnValueReference(private val method: Resolver.Method): Reference() {
         override fun getDescription() = "return type of method ${method.javaMethod}"
     }
 
-    private class MethodParameterReference(private val method: Resolver.ResolverMethod, private val index: Int): Reference() {
+    private class MethodParameterReference(private val method: Resolver.Method, private val index: Int): Reference() {
         override fun getDescription() = "parameter $index of method ${method.javaMethod}"
     }
 
