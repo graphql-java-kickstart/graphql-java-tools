@@ -120,11 +120,19 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
 
         // Ensure all scalar definitions have implementations and add the definition to those.
         val scalars = scalarDefinitions.filter { !graphQLScalars.containsKey(it.name) }.map { definition ->
-            val provided = scalars[definition.name] ?: throw SchemaError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
+            val provided = scalars[definition.name] ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
             GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition) ?: provided.description, provided.coercing, definition)
         }.associateBy { it.name!! }
 
-        return SchemaParser(dictionary, observedDefinitions, scalars, rootInfo, methodsByField)
+        (definitionsByName.values - observedDefinitions).forEach { definition ->
+            log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
+        }
+
+        (resolvers - methodsByField.flatMap { it.value.map { it.value.resolver } }.distinct()).forEach { resolver ->
+            log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolver.resolver}")
+        }
+
+        return SchemaParser(dictionary, observedDefinitions, scalars, rootInfo, methodsByField.toMap())
     }
 
     fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {

@@ -46,7 +46,7 @@ import graphql.schema.TypeResolverProxy
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val methodsByObjectField: MutableMap<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.ResolverMethod>>) {
+class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val methodsByObjectField: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.ResolverMethod>>) {
 
     companion object {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
