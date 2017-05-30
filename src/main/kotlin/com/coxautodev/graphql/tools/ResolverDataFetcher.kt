@@ -4,26 +4,23 @@ import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import graphql.language.FieldDefinition
 import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
-import java.lang.reflect.Type
 
 class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
 
     companion object {
         val mapper = ObjectMapper().registerKotlinModule()
 
-        @JvmStatic fun create(resolver: Resolver, field: FieldDefinition): ResolverDataFetcher {
+        @JvmStatic fun create(method: Resolver.ResolverMethod): ResolverDataFetcher {
 
-            val method = resolver.getMethod(field)
             val args = mutableListOf<ArgumentPlaceholder>()
 
             // Add source argument if this is a resolver (but not a root resolver)
             if(method.sourceArgument) {
-                val expectedType = resolver.dataClassType!! // We've already checked this when setting shouldPassSource
+                val expectedType = method.resolver.dataClassType
                 args.add({ environment ->
                     val source = environment.getSource<Any>()
                     if (!(expectedType.isAssignableFrom(source.javaClass))) {
@@ -35,7 +32,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             }
 
             // Add an argument for each argument defined in the GraphQL schema
-            field.inputValueDefinitions.forEachIndexed { index, definition ->
+            method.field.inputValueDefinitions.forEachIndexed { index, definition ->
                 args.add({ environment ->
                     val value = environment.arguments[definition.name] ?: if(definition.type is NonNullType) {
                         throw ResolverError("Missing required argument with name '${definition.name}', this is most likely a bug with graphql-java-tools")
@@ -65,7 +62,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             }
 
             // Add source resolver depending on whether or not this is a resolver method
-            val sourceResolver: SourceResolver = if(method.resolverMethod) ({ resolver.resolver }) else ({ environment ->
+            val sourceResolver: SourceResolver = if(method.resolverMethod) ({ method.resolver.resolver }) else ({ environment ->
                 val source = environment.getSource<Any>()
 
                 if(!method.methodClass.isAssignableFrom(source.javaClass)) {

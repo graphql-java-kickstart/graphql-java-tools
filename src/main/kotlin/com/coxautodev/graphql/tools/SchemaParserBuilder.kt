@@ -117,7 +117,7 @@ class SchemaParserBuilder(
         val resolvers = resolvers.map { Resolver(it) }
         val customScalars = scalars.associateBy { it.name }
 
-        return TypeClassDictionaryCompiler(dictionary, definitions, resolvers, customScalars).compileDictionary()
+        return SchemaClassScanner(dictionary, definitions, resolvers, customScalars).scanForClasses()
     }
 }
 

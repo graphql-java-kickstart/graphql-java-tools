@@ -23,10 +23,10 @@ import java.lang.reflect.ParameterizedType
 /**
  * @author Andrew Potter
  */
-class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, private val allDefinitions: List<Definition>, private val resolvers: List<Resolver>, private val scalars: CustomScalarMap) {
+class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val allDefinitions: List<Definition>, private val resolvers: List<Resolver>, private val scalars: CustomScalarMap) {
 
     companion object {
-        val log = LoggerFactory.getLogger(TypeClassDictionaryCompiler::class.java)!!
+        val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
     }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
@@ -43,10 +43,12 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val queue = linkedSetOf<QueueItem>()
 
+    private val methodsByField = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.ResolverMethod>>()
+
     init {
         initialDictionary.forEach { (name, clazz) ->
             if(!definitionsByName.containsKey(name)) {
-                throw TypeClassDictionaryError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
+                throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
             }
         }
     }
@@ -54,7 +56,7 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
     /**
      * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
      */
-    fun compileDictionary(): SchemaParser {
+    fun scanForClasses(): SchemaParser {
 
         val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
 
@@ -62,28 +64,28 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
         val queryName = rootInfo.getQueryName()
         val mutationName = rootInfo.getMutationName()
 
-        val queryDefinition = definitionsByName[queryName] ?: throw TypeClassDictionaryError("Type definition for root query type '$queryName' not found!")
+        val queryDefinition = definitionsByName[queryName] ?: throw SchemaClassScannerError("Type definition for root query type '$queryName' not found!")
         val mutationDefinition = definitionsByName[mutationName]
 
         if(queryDefinition !is ObjectTypeDefinition) {
-            throw TypeClassDictionaryError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${queryDefinition.javaClass.simpleName}")
+            throw SchemaClassScannerError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${queryDefinition.javaClass.simpleName}")
         }
 
         if(mutationDefinition == null && rootInfo.isMutationRequired()) {
-            throw TypeClassDictionaryError("Type definition for root mutation type '$mutationName' not found!")
+            throw SchemaClassScannerError("Type definition for root mutation type '$mutationName' not found!")
         }
 
         // Find query resolver class
-        val queryResolver = rootResolvers.find { it.resolverType.simpleName == queryName } ?: throw TypeClassDictionaryError("Root resolver for query type '$queryName' not found!")
+        val queryResolver = rootResolvers.find { it.resolverType.simpleName == queryName } ?: throw SchemaClassScannerError("Root resolver for query type '$queryName' not found!")
         handleFoundType(queryDefinition, queryResolver.resolverType, RootResolverReference("query"))
 
         if(mutationDefinition != null) {
             if(mutationDefinition !is ObjectTypeDefinition) {
-                throw TypeClassDictionaryError("Expected root mutation type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${mutationDefinition.javaClass.simpleName}")
+                throw SchemaClassScannerError("Expected root mutation type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${mutationDefinition.javaClass.simpleName}")
             }
 
             // Find mutation resolver class (if required)
-            val mutationResolver = rootResolvers.find { it.resolverType.simpleName == mutationName } ?: throw TypeClassDictionaryError("Root resolver for mutation type '$mutationName' not found!")
+            val mutationResolver = rootResolvers.find { it.resolverType.simpleName == mutationName } ?: throw SchemaClassScannerError("Root resolver for mutation type '$mutationName' not found!")
             handleFoundType(mutationDefinition, mutationResolver.resolverType, RootResolverReference("mutation"))
         }
 
@@ -114,8 +116,6 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
             dictionary.mapValuesTo(it) { it.value.typeClass }
         })
         val observedDefinitions = dictionary.keys.toSet()
-        val observedClasses = dictionary.values.toSet()
-
         val scalarDefinitions = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
         // Ensure all scalar definitions have implementations and add the definition to those.
@@ -124,9 +124,7 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
             GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition) ?: provided.description, provided.coercing, definition)
         }.associateBy { it.name!! }
 
-        val resolvers = observedClasses.map { rootResolversByResolverClass[it] ?: resolversByDataClass[it] }.filterNotNull()
-
-        return SchemaParser(dictionary, observedDefinitions, resolvers, scalars, rootInfo)
+        return SchemaParser(dictionary, observedDefinitions, scalars, rootInfo, methodsByField)
     }
 
     fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
@@ -137,14 +135,14 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
 
     fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
-            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw TypeClassDictionaryError("TODO") }
+            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("TODO") }
         }.flatten().distinct()
     }
 
     fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
         types.forEach { type ->
             if(!dictionary.containsKey(type)) {
-                val initialEntry = initialDictionary[type.name] ?: throw TypeClassDictionaryError(failureMessage(type))
+                val initialEntry = initialDictionary[type.name] ?: throw SchemaClassScannerError(failureMessage(type))
                 handleFoundType(type, initialEntry.get(), DictionaryReference())
             }
         }
@@ -156,9 +154,13 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
     private fun scanObjectForDictionaryItems(item: QueueItem) {
         val fields = item.type.fieldDefinitions
 
+        val methodMap = methodsByField.getOrPut(item.type, { mutableMapOf() })
         fields.forEach { field ->
             val resolver = rootResolversByResolverClass[item.clazz] ?: resolversByDataClass[item.clazz] ?: NoResolver(item.clazz)
-            handleFieldMethod(field, resolver.getMethod(field))
+            val method = resolver.getMethod(field)
+
+            methodMap[field] = method
+            handleFieldMethod(field, method)
         }
     }
 
@@ -181,7 +183,7 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
         val realEntry = dictionary.getOrPut(type, { newEntry })
 
         if(realEntry.typeClass != clazz) {
-            throw TypeClassDictionaryError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${newEntry.typeClass}:\n|   ${reference.getDescription()}")
+            throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${newEntry.typeClass}:\n|   ${reference.getDescription()}")
         }
 
         realEntry.addReference(reference)
@@ -208,9 +210,9 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
         return when(type) {
             is NonNullType -> getWrappedType(type.type)
             is ListType -> getWrappedType(type.type)
-            is TypeName -> ScalarInfo.STANDARD_SCALAR_DEFINITIONS[type.name] ?: definitionsByName[type.name] ?: throw TypeClassDictionaryError("No ${TypeDefinition::class.java.simpleName} for type name ${type.name}")
+            is TypeName -> ScalarInfo.STANDARD_SCALAR_DEFINITIONS[type.name] ?: definitionsByName[type.name] ?: throw SchemaClassScannerError("No ${TypeDefinition::class.java.simpleName} for type name ${type.name}")
             is TypeDefinition -> type
-            else -> throw TypeClassDictionaryError("Unknown type: ${type.javaClass.name}")
+            else -> throw SchemaClassScannerError("Unknown type: ${type.javaClass.name}")
         }
     }
 
@@ -221,7 +223,7 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
         return when(type) {
             is ParameterizedType -> getWrappedGenericClass(type.rawType as Class<*>, type.actualTypeArguments)
             is Class<*> -> type
-            else -> throw TypeClassDictionaryError("Unable to unwrap class: $type")
+            else -> throw SchemaClassScannerError("Unable to unwrap class: $type")
         }
     }
 
@@ -275,9 +277,9 @@ class TypeClassDictionaryCompiler(initialDictionary: BiMap<String, Class<*>>, pr
             return clazz
         }
     }
-
-    class TypeClassDictionaryError(message: String) : RuntimeException(message)
 }
+
+class SchemaClassScannerError(message: String) : RuntimeException(message)
 
 typealias JavaType = java.lang.reflect.Type
 typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>

@@ -1,8 +1,6 @@
 package com.coxautodev.graphql.tools
 
-import com.google.common.collect.BiMap
 import graphql.language.FieldDefinition
-import graphql.language.TypeDefinition
 import graphql.schema.DataFetchingEnvironment
 import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.Method
@@ -54,7 +52,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         val method = getMethod(resolverType, field.name, field.inputValueDefinitions.size + if(!isRootResolver()) 1 else 0, true)
 
         if(method != null) {
-            return ResolverMethod(field, method, resolverType, true, !isRootResolver())
+            return ResolverMethod(this, field, method, resolverType, true, !isRootResolver())
         }
 
         return getDataClassMethod(field)
@@ -64,7 +62,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         if(!isRootResolver()) {
             val method = getMethod(dataClassType, field.name, field.inputValueDefinitions.size)
             if(method != null) {
-                return ResolverMethod(field, method, dataClassType, false, false)
+                return ResolverMethod(this, field, method, dataClassType, false, false)
             }
         }
 
@@ -91,17 +89,13 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         return msg
     }
 
-    fun getName(dictionary: BiMap<TypeDefinition, Class<*>>): String {
-        return if(!isRootResolver()) dictionary.inverse()[dataClassType]?.name ?: dataClassType.simpleName!! else resolverType.simpleName!!
-    }
-
     fun isRootResolver() = dataClassType == Void::class.java
 
     protected class NoopResolver: GraphQLRootResolver
 
-    data class ResolverMethod(val field: FieldDefinition, val javaMethod: Method, val methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
+    data class ResolverMethod(val resolver: Resolver, val field: FieldDefinition, val javaMethod: Method, val methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
 
-        val dataFetchingEnvironment = field.inputValueDefinitions.size == (javaMethod.parameterCount + getIndexOffset() + 1)
+        val dataFetchingEnvironment = javaMethod.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
         private fun getIndexOffset() = if(sourceArgument) 1 else 0
         fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()

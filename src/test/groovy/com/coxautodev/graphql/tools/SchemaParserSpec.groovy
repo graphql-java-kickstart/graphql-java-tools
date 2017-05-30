@@ -39,7 +39,7 @@ class SchemaParserSpec extends Specification {
             builder.build().makeExecutableSchema()
 
         then:
-            thrown(SchemaError)
+            thrown(SchemaClassScannerError)
     }
 
     def "parser throws ResolverError when Query resolver is given without correct method"() {
