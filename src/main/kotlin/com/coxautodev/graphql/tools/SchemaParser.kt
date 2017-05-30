@@ -1,16 +1,5 @@
 package com.coxautodev.graphql.tools
 
-import graphql.Scalars.GraphQLBigDecimal
-import graphql.Scalars.GraphQLBigInteger
-import graphql.Scalars.GraphQLBoolean
-import graphql.Scalars.GraphQLByte
-import graphql.Scalars.GraphQLChar
-import graphql.Scalars.GraphQLFloat
-import graphql.Scalars.GraphQLID
-import graphql.Scalars.GraphQLInt
-import graphql.Scalars.GraphQLLong
-import graphql.Scalars.GraphQLShort
-import graphql.Scalars.GraphQLString
 import graphql.language.AbstractNode
 import graphql.language.Directive
 import graphql.language.EnumTypeDefinition
@@ -40,6 +29,7 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
+import graphql.schema.idl.ScalarInfo
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
@@ -237,18 +227,6 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
 
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
-val graphQLScalars = listOf(
-    GraphQLInt,
-    GraphQLLong,
-    GraphQLFloat,
-    GraphQLString,
-    GraphQLBoolean,
-    GraphQLID,
-    GraphQLBigInteger,
-    GraphQLBigDecimal,
-    GraphQLByte,
-    GraphQLShort,
-    GraphQLChar
-).associateBy { it.name }
+val graphQLScalars = ScalarInfo.STANDARD_SCALARS.associateBy { it.name }
 
 typealias CustomScalarMap = Map<String, GraphQLScalarType>

@@ -119,7 +119,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         val scalarDefinitions = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
         // Ensure all scalar definitions have implementations and add the definition to those.
-        val scalars = scalarDefinitions.filter { !graphQLScalars.containsKey(it.name) }.map { definition ->
+        val scalars = scalarDefinitions.filter { !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name) }.map { definition ->
             val provided = scalars[definition.name] ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
             GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition) ?: provided.description, provided.coercing, definition)
         }.associateBy { it.name!! }
