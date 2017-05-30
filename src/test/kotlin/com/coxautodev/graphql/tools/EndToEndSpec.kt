@@ -10,6 +10,8 @@ val schemaDefinition = """
 scalar UUID
 
 type Query {
+    # Check if items list is empty
+    empty: Boolean!
     # Get items by name
     items(itemsInput: ItemSearchInput!): [Item!]
     allItems: [AllItems!]
@@ -80,6 +82,7 @@ val otherItems = mutableListOf(
 )
 
 class Query: GraphQLRootResolver {
+    fun isEmpty() = items.isEmpty()
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
     fun allItems(): List<Any> = items + otherItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
