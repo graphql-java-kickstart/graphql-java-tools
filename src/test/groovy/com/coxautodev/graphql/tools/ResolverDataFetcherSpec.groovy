@@ -155,7 +155,7 @@ class ResolverDataFetcherSpec extends Specification {
     }
 
     private static ResolverDataFetcher createResolver(String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
-        ResolverDataFetcher.create(new Resolver(resolver).getMethod(new FieldDefinition(methodName).with { getInputValueDefinitions().addAll(arguments); it }))
+        ResolverDataFetcher.create(new Resolver(resolver).getMethod(new FieldDefinition(methodName, new TypeName('Boolean')).with { getInputValueDefinitions().addAll(arguments); it }))
     }
 
     private static DataFetchingEnvironment createEnvironment(Map<String, Object> arguments = [:]) {
