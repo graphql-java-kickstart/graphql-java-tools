@@ -2,17 +2,18 @@ package com.coxautodev.graphql.tools
 
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
+import com.google.common.collect.Maps
 import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
 
 /**
  * @author Andrew Potter
  */
-class SchemaParserBuilder(
-    private val schemaString: StringBuilder = StringBuilder(),
-    private val resolvers: MutableList<GraphQLResolver<*>> = mutableListOf(),
-    private val dictionary: BiMap<String, Class<*>> = HashBiMap.create(),
-    private val scalars: MutableList<GraphQLScalarType> = mutableListOf()) {
+class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictionary = SchemaParserDictionary()): SchemaParserDictionaryMethods by dictionary {
+
+    private val schemaString = StringBuilder()
+    private val resolvers = mutableListOf<GraphQLResolver<*>>()
+    private val scalars = mutableListOf<GraphQLScalarType>()
 
     /**
      * Add GraphQL schema files from the classpath.
@@ -52,55 +53,6 @@ class SchemaParserBuilder(
     }
 
     /**
-     * Add data classes to the parser's dictionary.
-     */
-    fun dataClasses(vararg dataClasses: Class<*>) = this.apply {
-        this.dictionary(*dataClasses)
-    }
-
-    /**
-     * Add enums to the parser's dictionary.
-     */
-    fun enums(vararg enums: Class<*>) = this.apply {
-        this.dictionary(*enums)
-    }
-
-    /**
-     * Add arbitrary classes to the parser's dictionary.
-     */
-    fun dictionary(name: String, clazz: Class<*>) = this.apply {
-        this.dictionary.put(name, clazz)
-    }
-
-    /**
-     * Add arbitrary classes to the parser's dictionary.
-     */
-    fun dictionary(dictionary: Map<String, Class<*>>) = this.apply {
-        this.dictionary.putAll(dictionary)
-    }
-
-    /**
-     * Add arbitrary classes to the parser's dictionary.
-     */
-    fun dictionary(clazz: Class<*>) = this.apply {
-        this.dictionary(clazz.simpleName, clazz)
-    }
-
-    /**
-     * Add arbitrary classes to the parser's dictionary.
-     */
-    fun dictionary(vararg dictionary: Class<*>) = this.apply {
-        dictionary.forEach { this.dictionary(it) }
-    }
-
-    /**
-     * Add arbitrary classes to the parser's dictionary.
-     */
-    fun dictionary(dictionary: List<Class<*>>) = this.apply {
-        dictionary.forEach { this.dictionary(it) }
-    }
-
-    /**
      * Add scalars to the parser's dictionary.
      */
     fun scalars(vararg scalars: GraphQLScalarType) = this.apply {
@@ -117,7 +69,62 @@ class SchemaParserBuilder(
         val resolvers = resolvers.map { Resolver(it) }
         val customScalars = scalars.associateBy { it.name }
 
-        return SchemaClassScanner(dictionary, definitions, resolvers, customScalars).scanForClasses()
+        return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars).scanForClasses()
+    }
+}
+
+interface SchemaParserDictionaryMethods {
+
+    /**
+     * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
+     */
+    fun add(name: String, clazz: Class<*>): SchemaParserDictionary
+
+    /**
+     * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
+     */
+    fun add(dictionary: Map<String, Class<*>>): SchemaParserDictionary
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun add(clazz: Class<*>): SchemaParserDictionary
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun add(vararg dictionary: Class<*>): SchemaParserDictionary
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun add(dictionary: List<Class<*>>): SchemaParserDictionary
+}
+
+class SchemaParserDictionary: SchemaParserDictionaryMethods {
+
+    private val dictionary: BiMap<String, Class<*>> = HashBiMap.create()
+
+    fun getDictionary(): BiMap<String, Class<*>> = Maps.unmodifiableBiMap(dictionary)
+
+    override fun add(name: String, clazz: Class<*>) = this.apply {
+        this.dictionary.put(name, clazz)
+    }
+
+    override fun add(dictionary: Map<String, Class<*>>) = this.apply {
+        this.dictionary.putAll(dictionary)
+    }
+
+    override fun add(clazz: Class<*>) = this.apply {
+        this.add(clazz.simpleName, clazz)
+    }
+
+    override fun add(vararg dictionary: Class<*>) = this.apply {
+        dictionary.forEach { this.add(it) }
+    }
+
+    override fun add(dictionary: List<Class<*>>) = this.apply {
+        dictionary.forEach { this.add(it) }
     }
 }
 
