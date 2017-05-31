@@ -39,6 +39,7 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 - [Type Dictionary](#type-dictionary)
 - [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
 - [GraphQL Descriptions](#graphql-descriptions)
+- [GraphQL Deprecations](#graphql-deprecations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -186,14 +187,16 @@ SchemaParser.newParser()
 
 
 First on the resolver or root resolver (note that dataClassInstance doesn't apply for root resolvers):
-1. <name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])
-2. is<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment]), only if the field returns a `Boolean`
-3. get<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])
+1. `<name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
+2. `is<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
+3. `get<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
 
 Then on the data class:
-1. <name>(*fieldArgs [, DataFetchingEnvironment])
-2. is<Name>(*fieldArgs [, DataFetchingEnvironment]), only if the field returns a `Boolean`
-3. get<Name>(*fieldArgs [, DataFetchingEnvironment])
+1. `<name>(*fieldArgs [, DataFetchingEnvironment])`
+2. `is<Name>(*fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
+3. `get<Name>(*fieldArgs [, DataFetchingEnvironment])`
+
+All reflection discovery is done on startup, and runtime reflection calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
 
 ### Enum Types
 
