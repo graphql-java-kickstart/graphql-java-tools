@@ -8,8 +8,8 @@ import graphql.language.TypeName
  */
 class RootTypeInfo private constructor(val queryType: TypeName?, val mutationType: TypeName?) {
     companion object {
-        @JvmStatic val defaultQueryName = "Query"
-        @JvmStatic val defaultMutationName = "Mutation"
+        const val DEFAULT_QUERY_NAME = "Query"
+        const val DEFAULT_MUTATION_NAME = "Mutation"
 
         fun fromSchemaDefinitions(definitions: List<SchemaDefinition>): RootTypeInfo {
             val queryType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "query" }?.type as TypeName?
@@ -19,8 +19,8 @@ class RootTypeInfo private constructor(val queryType: TypeName?, val mutationTyp
         }
     }
 
-    fun getQueryName() = queryType?.name ?: defaultQueryName
-    fun getMutationName() = mutationType?.name ?: defaultMutationName
+    fun getQueryName() = queryType?.name ?: DEFAULT_QUERY_NAME
+    fun getMutationName() = mutationType?.name ?: DEFAULT_MUTATION_NAME
 
     fun isMutationRequired() = mutationType != null
 }

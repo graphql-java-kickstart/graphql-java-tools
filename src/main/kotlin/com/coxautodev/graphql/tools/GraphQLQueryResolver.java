@@ -6,6 +6,6 @@ package com.coxautodev.graphql.tools;
 public interface GraphQLQueryResolver extends GraphQLRootResolver {
     @Override
     default String getResolverName() {
-        return RootTypeInfo.getDefaultQueryName();
+        return RootTypeInfo.DEFAULT_QUERY_NAME;
     }
 }
