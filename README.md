@@ -50,7 +50,7 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>2.3.0</version>
+    <version>3.0.2</version>
 </dependency>
 ```
 
