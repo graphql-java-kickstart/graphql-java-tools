@@ -53,6 +53,9 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
     <version>3.0.2</version>
 </dependency>
 ```
+```groovy
+compile 'com.graphql-java:graphql-java-tools:3.0.2'
+```
 
 ### Examples
 
