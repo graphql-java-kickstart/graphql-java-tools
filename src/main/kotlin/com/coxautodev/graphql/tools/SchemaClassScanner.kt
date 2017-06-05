@@ -3,6 +3,7 @@ package com.coxautodev.graphql.tools
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
+import com.google.common.primitives.Primitives
 import graphql.language.Definition
 import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory
 import ru.vyarus.java.generics.resolver.GenericsResolver
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
+import java.util.concurrent.CompletableFuture
 
 /**
  * @author Andrew Potter
@@ -78,7 +80,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         }
 
         // Find query resolver class
-        val queryResolver = rootResolvers.find { it.resolverType.simpleName == queryName } ?: throw SchemaClassScannerError("Root resolver for query type '$queryName' not found!")
+        val queryResolver = rootResolvers.find { it.getName() == queryName } ?: throw SchemaClassScannerError("Root resolver for query type '$queryName' not found!")
         handleFoundType(queryDefinition, queryResolver.resolverType, RootResolverReference("query"))
 
         if(mutationDefinition != null) {
@@ -87,7 +89,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
             }
 
             // Find mutation resolver class (if required)
-            val mutationResolver = rootResolvers.find { it.resolverType.simpleName == mutationName } ?: throw SchemaClassScannerError("Root resolver for mutation type '$mutationName' not found!")
+            val mutationResolver = rootResolvers.find { it.getName() == mutationName } ?: throw SchemaClassScannerError("Root resolver for mutation type '$mutationName' not found!")
             handleFoundType(mutationDefinition, mutationResolver.resolverType, RootResolverReference("mutation"))
         }
 
@@ -232,7 +234,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     private fun getWrappedClass(method: Resolver.Method, type: JavaType): Class<*> {
         return when(type) {
             is ParameterizedType -> getWrappedGenericClass(method, type.rawType as Class<*>, type.actualTypeArguments)
-            is Class<*> -> type
+            is Class<*> -> if(type.isPrimitive) Primitives.wrap(type) else type
             is TypeVariable<*> -> GenericsResolver.resolve(method.methodClass).method(method.javaMethod).generic(type.name) ?: throw SchemaClassScannerError("Unable to lookup generic argument '${type.name}' of class '${method.methodClass}' while resolving types for method: ${method.javaMethod}")
             else -> throw SchemaClassScannerError("Unable to unwrap class: $type")
         }
@@ -241,6 +243,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     private fun getWrappedGenericClass(method: Resolver.Method, type: Class<*>, actualTypeArguments: Array<JavaType>): Class<*> {
         return when(type) {
             List::class.java -> getWrappedClass(method, actualTypeArguments.first())
+            CompletableFuture::class.java -> getWrappedClass(method, actualTypeArguments.first())
             else -> type
         }
     }

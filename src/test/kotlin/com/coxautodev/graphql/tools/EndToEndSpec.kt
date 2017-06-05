@@ -4,6 +4,7 @@ import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 
 val schemaDefinition = """
 
@@ -20,6 +21,7 @@ type Query {
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
 
     listList: [[String!]!]!
+    futureItems: [Item!]!
 }
 
 type Mutation {
@@ -90,6 +92,8 @@ class Query: GraphQLRootResolver, ListListResolver<String>() {
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
+
+    fun futureItems() = CompletableFuture.completedFuture(items)
 }
 
 abstract class ListListResolver<out E> {

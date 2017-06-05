@@ -14,6 +14,8 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
     val resolverType = resolver.javaClass
     val dataClassType = dataClass ?: findDataClass()
 
+    fun getName(): String = (if(resolver is GraphQLRootResolver) resolver.resolverName else null) ?: if(isResolver()) resolverType.simpleName else dataClassType.simpleName
+
     private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
         val type = GenericsResolver.resolve(resolverType).type(GraphQLResolver::class.java)?.genericTypes()?.first()
@@ -86,7 +88,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         val isBoolean = isBoolean(field.type)
         val sep = "\n  "
 
-        if(resolverType != NoopResolver::class.java) {
+        if(isResolver()) {
             signatures.addAll(getMissingMethodSignatures(resolverType, field, isBoolean, true))
         }
 
@@ -119,6 +121,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         return signatures
     }
 
+    fun isResolver() = resolverType != NoopResolver::class.java
     fun isRootResolver() = dataClassType == Void::class.java
 
     protected class NoopResolver: GraphQLRootResolver
