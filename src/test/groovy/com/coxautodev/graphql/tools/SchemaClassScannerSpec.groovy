@@ -1,6 +1,7 @@
 package com.coxautodev.graphql.tools
 
 import spock.lang.Specification
+import spock.lang.Unroll
 
 import java.util.concurrent.CompletableFuture
 
@@ -9,7 +10,7 @@ import java.util.concurrent.CompletableFuture
  */
 class SchemaClassScannerSpec extends Specification {
 
-    def "test scanning futures and immediate return types"() {
+    def "scanner handles futures and immediate return types"() {
         when:
             SchemaParser.newParser()
                 .resolvers(new FutureImmediateQuery())
@@ -20,7 +21,6 @@ class SchemaClassScannerSpec extends Specification {
                     }
                 """)
                 .build()
-                .makeExecutableSchema()
         then:
             noExceptionThrown()
     }
@@ -35,7 +35,7 @@ class SchemaClassScannerSpec extends Specification {
         }
     }
 
-    def "test scanning primitive and boxed return types"() {
+    def "scanner handles primitive and boxed return types"() {
         when:
             SchemaParser.newParser()
                 .resolvers(new PrimitiveBoxedQuery())
@@ -46,7 +46,6 @@ class SchemaClassScannerSpec extends Specification {
                 }
             """)
                 .build()
-                .makeExecutableSchema()
         then:
             noExceptionThrown()
     }
@@ -59,5 +58,26 @@ class SchemaClassScannerSpec extends Specification {
         Integer boxed() {
             1
         }
+    }
+
+    def "scanner handles different scalars with same java class"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new ScalarDuplicateQuery())
+                .schemaString("""
+                type Query {
+                    string: String!
+                    id: ID!
+                }
+            """)
+                .build()
+
+        then:
+            noExceptionThrown()
+    }
+
+    private class ScalarDuplicateQuery implements GraphQLQueryResolver {
+        String string() { "" }
+        String id() { "" }
     }
 }

@@ -116,10 +116,17 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
             log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
         }
 
-        val dictionary = Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
-            dictionary.mapValuesTo(it) { it.value.typeClass }
-        })
         val observedDefinitions = dictionary.keys.toSet()
+
+        // The dictionary doesn't need to know what classes are used with scalars.
+        // In addition, scalars can have duplicate classes so that breaks the bi-map.
+        val dictionary = try {
+            Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
+                dictionary.filter { it.key !is ScalarTypeDefinition }.mapValuesTo(it) { it.value.typeClass }
+            })
+        } catch (t: Throwable) {
+            throw SchemaClassScannerError("Error creating bimap of type => class", t)
+        }
         val scalarDefinitions = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
         // Ensure all scalar definitions have implementations and add the definition to those.
@@ -293,7 +300,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     }
 }
 
-class SchemaClassScannerError(message: String) : RuntimeException(message)
+class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
 
 typealias JavaType = java.lang.reflect.Type
 typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>
