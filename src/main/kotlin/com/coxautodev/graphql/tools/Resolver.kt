@@ -8,6 +8,8 @@ import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import ru.vyarus.java.generics.resolver.GenericsResolver
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.TypeVariable
 
 open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dataClass: Class<*>? = null) {
 
@@ -142,6 +144,24 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
                 return null
             }
         }
+
+        fun getRawClass(type: JavaType): Class<*> {
+            return when(type) {
+                is ParameterizedType -> getRawClass(type.rawType)
+                is TypeVariable<*> -> getRawClass(resolveTypeVariable(type))
+                is Class<*> -> type
+                else -> throw ResolverError("Unable to unwrap base class: $type")
+            }
+        }
+
+        fun resolveTypeVariable(variable: TypeVariable<*>): JavaType {
+            return GenericsResolver.resolve(methodClass).method(javaMethod).genericsInfo.getTypeGenerics(javaMethod.declaringClass)[variable.name] ?: throw ResolverError("Unable to lookup generic argument '${variable.name}' of class '$methodClass' while resolving types for method: $javaMethod")
+        }
+
+        fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>): Boolean {
+            return clazz.isAssignableFrom(getRawClass(type.rawType))
+        }
+
     }
 }
 

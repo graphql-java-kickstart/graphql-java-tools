@@ -3,6 +3,7 @@ package com.coxautodev.graphql.tools
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
+import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
@@ -15,10 +16,12 @@ type Query {
     empty: Boolean!
     # Get items by name
     items(itemsInput: ItemSearchInput!): [Item!]
+    optionalItem(itemsInput: ItemSearchInput!): Item
     allItems: [AllItems!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
+    itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
 
     listList: [[String!]!]!
     futureItems: [Item!]!
@@ -85,13 +88,15 @@ val otherItems = mutableListOf(
     OtherItemWithWrongName(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
-class Query: GraphQLRootResolver, ListListResolver<String>() {
+class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun isEmpty() = items.isEmpty()
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
+    fun optionalItem(input: ItemSearchInput) = items(input).firstOrNull()?.let { Optional.of(it) } ?: Optional.empty()
     fun allItems(): List<Any> = items + otherItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
+    fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
 
     fun futureItems() = CompletableFuture.completedFuture(items)
 }
@@ -100,7 +105,7 @@ abstract class ListListResolver<out E> {
     fun listList(): List<List<E>> = listOf(listOf())
 }
 
-class Mutation: GraphQLRootResolver {
+class Mutation: GraphQLMutationResolver {
     fun addItem(input: NewItemInput): Item {
         return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()).apply {
             items.add(this)

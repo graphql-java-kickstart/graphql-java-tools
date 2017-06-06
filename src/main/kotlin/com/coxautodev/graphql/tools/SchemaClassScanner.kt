@@ -3,12 +3,9 @@ package com.coxautodev.graphql.tools
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
-import com.google.common.primitives.Primitives
 import graphql.language.Definition
 import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
-import graphql.language.ListType
-import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
 import graphql.language.SchemaDefinition
@@ -19,10 +16,6 @@ import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.LoggerFactory
-import ru.vyarus.java.generics.resolver.GenericsResolver
-import java.lang.reflect.ParameterizedType
-import java.lang.reflect.TypeVariable
-import java.util.concurrent.CompletableFuture
 
 /**
  * @author Andrew Potter
@@ -187,11 +180,15 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
      * Match types from a single field (return value and input values).
      */
     private fun handleFieldMethod(field: FieldDefinition, method: Resolver.Method) {
-        handleFoundType(getWrappedType(field.type), getWrappedClass(method, method.javaMethod.genericReturnType), ReturnValueReference(method))
+        handleFoundType(matchTypeToClass(field.type, method.javaMethod.genericReturnType, method, true), ReturnValueReference(method))
 
-        field.inputValueDefinitions.map { getWrappedType(it.type) }.forEachIndexed { i, type ->
-            handleFoundType(type, getWrappedClass(method, method.getJavaMethodParameterType(i)!!), MethodParameterReference(method, i))
+        field.inputValueDefinitions.forEachIndexed { i, inputDefinition ->
+            handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method), MethodParameterReference(method, i))
         }
+    }
+
+    private fun handleFoundType(match: TypeClassMatcher.Match, reference: Reference) {
+        handleFoundType(match.type, match.clazz, reference)
     }
 
     /**
@@ -222,38 +219,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         }
     }
 
-    /**
-     * Unwrap GraphQL List and NonNull types to find the "real" type.
-     */
-    private fun getWrappedType(type: Type): TypeDefinition {
-        return when(type) {
-            is NonNullType -> getWrappedType(type.type)
-            is ListType -> getWrappedType(type.type)
-            is TypeName -> ScalarInfo.STANDARD_SCALAR_DEFINITIONS[type.name] ?: definitionsByName[type.name] ?: throw SchemaClassScannerError("No ${TypeDefinition::class.java.simpleName} for type name ${type.name}")
-            is TypeDefinition -> type
-            else -> throw SchemaClassScannerError("Unknown type: ${type.javaClass.name}")
-        }
-    }
-
-    /**
-     * Unwrap Java List type to find the "real" class.
-     */
-    private fun getWrappedClass(method: Resolver.Method, type: JavaType): Class<*> {
-        return when(type) {
-            is ParameterizedType -> getWrappedGenericClass(method, type.rawType as Class<*>, type.actualTypeArguments)
-            is Class<*> -> if(type.isPrimitive) Primitives.wrap(type) else type
-            is TypeVariable<*> -> GenericsResolver.resolve(method.methodClass).method(method.javaMethod).generic(type.name) ?: throw SchemaClassScannerError("Unable to lookup generic argument '${type.name}' of class '${method.methodClass}' while resolving types for method: ${method.javaMethod}")
-            else -> throw SchemaClassScannerError("Unable to unwrap class: $type")
-        }
-    }
-
-    private fun getWrappedGenericClass(method: Resolver.Method, type: Class<*>, actualTypeArguments: Array<JavaType>): Class<*> {
-        return when(type) {
-            List::class.java -> getWrappedClass(method, actualTypeArguments.first())
-            CompletableFuture::class.java -> getWrappedClass(method, actualTypeArguments.first())
-            else -> type
-        }
-    }
+    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, method: Resolver.Method, returnValue: Boolean = false) = TypeClassMatcher(typeDefinition, type, method, returnValue, definitionsByName).match()
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 

@@ -123,7 +123,11 @@ class EndToEndSpec extends Specification {
             def data = Utils.assertNoGraphQlErrors(gql) {
                 '''
                 {
-                    itemsWithOptionalInput {
+                    missing: itemsWithOptionalInput {
+                        id
+                    }
+                    
+                    present: itemsWithOptionalInput(itemsInput: {name: "item1"}) {
                         id
                     }
                 }
@@ -131,6 +135,49 @@ class EndToEndSpec extends Specification {
             }
 
         then:
-            data.itemsWithOptionalInput
+            data.missing?.size > 1
+            data.present?.size == 1
+    }
+
+    def "generated schema should handle optional arguments using java.util.Optional"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    missing: itemsWithOptionalInputExplicit {
+                        id
+                    }
+                    
+                    present: itemsWithOptionalInputExplicit(itemsInput: {name: "item1"}) {
+                        id
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.missing?.size > 1
+            data.present?.size == 1
+    }
+
+    def "generated schema should handle optional return types using java.util.Optional"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    missing: optionalItem(itemsInput: {name: "item?"}) {
+                        id
+                    }
+                    
+                    present: optionalItem(itemsInput: {name: "item1"}) {
+                        id
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.missing == null
+            data.present
     }
 }

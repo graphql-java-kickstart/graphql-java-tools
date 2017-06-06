@@ -1,7 +1,6 @@
 package com.coxautodev.graphql.tools
 
 import spock.lang.Specification
-import spock.lang.Unroll
 
 import java.util.concurrent.CompletableFuture
 
@@ -40,11 +39,11 @@ class SchemaClassScannerSpec extends Specification {
             SchemaParser.newParser()
                 .resolvers(new PrimitiveBoxedQuery())
                 .schemaString("""
-                type Query {
-                    primitive: Int!
-                    boxed: Int!
-                }
-            """)
+                    type Query {
+                        primitive: Int!
+                        boxed: Int!
+                    }
+                """)
                 .build()
         then:
             noExceptionThrown()
@@ -65,11 +64,11 @@ class SchemaClassScannerSpec extends Specification {
             SchemaParser.newParser()
                 .resolvers(new ScalarDuplicateQuery())
                 .schemaString("""
-                type Query {
-                    string: String!
-                    id: ID!
-                }
-            """)
+                    type Query {
+                        string: String!
+                        id: ID!
+                    }
+                """)
                 .build()
 
         then:
