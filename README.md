@@ -50,11 +50,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>3.0.2</version>
+    <version>3.1.0</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java:graphql-java-tools:3.0.2'
+compile 'com.graphql-java:graphql-java-tools:3.1.0'
 ```
 
 ### Examples
@@ -199,7 +199,9 @@ Then on the data class:
 2. `is<Name>(*fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
 3. `get<Name>(*fieldArgs [, DataFetchingEnvironment])`
 
-All reflection discovery is done on startup, and runtime reflection calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
+*Note:* All reflection discovery is done on startup, and runtime reflection calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
+
+*Note:* `java.util.Optional` can be used for nullable field arguments and nullable return values, and the schema parser will verify that it's not used with non-null field arguments and return values.
 
 ### Enum Types
 
