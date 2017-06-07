@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools.example.resolvers;
 
+import com.coxautodev.graphql.tools.GraphQLQueryResolver;
 import com.coxautodev.graphql.tools.GraphQLRootResolver;
 import com.coxautodev.graphql.tools.example.CharacterRepository;
 import com.coxautodev.graphql.tools.example.types.Character;
@@ -10,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
-public class Query implements GraphQLRootResolver {
+public class Query implements GraphQLQueryResolver {
 
     @Autowired
     private CharacterRepository characterRepository;
