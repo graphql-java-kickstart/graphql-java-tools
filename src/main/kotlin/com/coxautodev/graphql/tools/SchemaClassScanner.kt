@@ -33,6 +33,8 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>()
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
 
+    private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
+
     private val rootResolvers = resolvers.filter { it.isRootResolver() }
     private val rootResolversByResolverClass = rootResolvers.associateBy { it.resolverType }
     private val resolversByDataClass = resolvers.filter { !it.isRootResolver() }.associateBy { it.dataClassType }
@@ -194,18 +196,23 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
-    private fun handleFoundType(type: TypeDefinition, clazz: Class<*>, reference: Reference) {
-        val newEntry = DictionaryEntry(clazz)
+    private fun handleFoundType(type: TypeDefinition, clazz: Class<*>?, reference: Reference) {
+        val newEntry = DictionaryEntry()
         val realEntry = dictionary.getOrPut(type, { newEntry })
+        var typeWasSet = false
 
-        if(realEntry.typeClass != clazz) {
-            throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${newEntry.typeClass}:\n|   ${reference.getDescription()}")
+        if(clazz != null) {
+            typeWasSet = realEntry.setTypeIfMissing(clazz)
+
+            if(realEntry.typeClass != clazz) {
+                throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${newEntry.typeClass}:\n|   ${reference.getDescription()}")
+            }
         }
 
         realEntry.addReference(reference)
 
         // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
-        if(newEntry === realEntry) {
+        if(typeWasSet && clazz != null) {
             handleNewType(type, clazz)
         }
     }
@@ -215,7 +222,14 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
      */
     private fun handleNewType(type: TypeDefinition, clazz: Class<*>) {
         when(type) {
-            is ObjectTypeDefinition -> queue.add(QueueItem(type, clazz))
+            is ObjectTypeDefinition -> {
+                queue.add(QueueItem(type, clazz))
+                type.implements.forEach {
+                    if(it is TypeName) {
+                        handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${type.name} decalred interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(type))
+                    }
+                }
+            }
         }
     }
 
@@ -223,8 +237,19 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 
-    private class DictionaryEntry(val typeClass: Class<*>) {
+    private class DictionaryEntry {
         private val references = mutableListOf<Reference>()
+        var typeClass: Class<*>? = null
+            private set
+
+        fun setTypeIfMissing(typeClass: Class<*>): Boolean {
+            if(this.typeClass == null) {
+                this.typeClass = typeClass
+                return true
+            }
+
+            return false
+        }
 
         fun addReference(reference: Reference) {
             references.add(reference)
@@ -253,6 +278,10 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
 
     private class MethodParameterReference(private val method: Resolver.Method, private val index: Int): Reference() {
         override fun getDescription() = "parameter $index of method ${method.javaMethod}"
+    }
+
+    private class InterfaceReference(private val type: ObjectTypeDefinition): Reference() {
+        override fun getDescription() = "interface declarations of ${type.name}"
     }
 
     private class InitialDictionaryEntry(private val clazz: Class<*>) {

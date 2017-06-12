@@ -79,4 +79,28 @@ class SchemaClassScannerSpec extends Specification {
         String string() { "" }
         String id() { "" }
     }
+
+    def "scanner handles interfaces referenced by objects that aren't explicitly used"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new InterfaceMissingQuery())
+                .schemaString("""
+                    interface Interface {
+                        id: ID!
+                    }
+                    
+                    type Query implements Interface {
+                        id: ID!
+                    }
+                """)
+                .build()
+                .parseSchemaObjects()
+
+        then:
+            noExceptionThrown()
+    }
+
+    private class InterfaceMissingQuery implements GraphQLQueryResolver {
+        String id() { "" }
+    }
 }
