@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>3.1.1-SNAPSHOT</version>
+    <version>3.1.1</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -239,6 +239,6 @@
         <connection>scm:git:git://github.com/graphql-java/graphql-java-tools.git</connection>
         <developerConnection>scm:git:git@github.com:graphql-java/graphql-java-tools.git</developerConnection>
         <url>http://github.com/graphql-java/graphql-java-tools</url>
-      <tag>HEAD</tag>
+      <tag>3.1.1</tag>
   </scm>
 </project>
