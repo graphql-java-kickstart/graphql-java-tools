@@ -50,11 +50,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>3.1.0</version>
+    <version>3.1.2</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java:graphql-java-tools:3.1.0'
+compile 'com.graphql-java:graphql-java-tools:3.1.2'
 ```
 
 ### Examples
@@ -300,11 +300,17 @@ generated schema. You can either supply a **reason** argument with a string valu
 a "No longer supported" message when introspected:
 
 ```graphql
-enum Episode @doc(d: "One of the films in the Star Wars Trilogy") {
-    NEWHOPE @doc(d: "Released in 1977"),
-    EMPIRE @doc(d: "Released in 1980"),
-    JEDI @doc(d: "Released in 1983"),
-    PHANTOM @doc(d: "Released in 1999") @deprecated(reason: "Not worth referencing"),
-    CLONES @doc(d: "Released in 2002") @deprecated  
+# One of the films in the Star Wars Trilogy
+enum Episode {
+    # Released in 1977
+    NEWHOPE,
+    # Released in 1980
+    EMPIRE,
+    # Released in 1983
+    JEDI,
+    # Released in 1999
+    PHANTOM @deprecated(reason: "Not worth referencing"),
+    # Released in 2002
+    CLONES @deprecated  
 }
 ```
