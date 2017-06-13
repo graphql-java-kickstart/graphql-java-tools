@@ -11,8 +11,8 @@ import groovy.transform.CompileStatic
 class Utils {
     private static ObjectMapper mapper = new ObjectMapper()
 
-    static Map<String, Object> assertNoGraphQlErrors(GraphQL gql, Map<String, Object> args = [:], Closure<String> closure) {
-        def result = gql.execute(closure(), new Object(), args)
+    static Map<String, Object> assertNoGraphQlErrors(GraphQL gql, Map<String, Object> args = [:], Object context = new Object(), Closure<String> closure) {
+        def result = gql.execute(closure(), context, args)
         if(!result.errors.isEmpty()) {
             throw new AssertionError("GraphQL result contained errors!\n${result.errors.collect { mapper.writeValueAsString(it) }.join("\n")}")
         }

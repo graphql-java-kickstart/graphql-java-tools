@@ -15,7 +15,7 @@ class EndToEndSpec extends Specification {
     def setupSpec() {
         gql = new GraphQL(SchemaParser.newParser()
             .schemaString(EndToEndSpecKt.schemaDefinition)
-            .resolvers(new Query(), new Mutation(), new ItemResolver())
+            .resolvers(new Query(), new Mutation(), new Subscription(), new ItemResolver())
             .scalars(EndToEndSpecKt.CustomUUIDScalar)
             .dictionary("OtherItem", OtherItemWithWrongName)
             .build()
@@ -60,6 +60,23 @@ class EndToEndSpec extends Specification {
 
         then:
             data.addItem
+    }
+
+    def "generated schema should execute the subscription query"() {
+        when:
+            def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+            def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
+                '''
+                subscription {
+                    onItemCreated {
+                        id
+                    }
+                } 
+                '''
+            }
+
+        then:
+            data.onItemCreated
     }
 
     def "generated schema should handle interface types"() {

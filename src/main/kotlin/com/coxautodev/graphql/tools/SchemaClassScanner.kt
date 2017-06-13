@@ -59,12 +59,14 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
 
         val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
 
-        // Figure out what query and mutation types are called
+        // Figure out what query, mutation and subscription types are called
         val queryName = rootInfo.getQueryName()
         val mutationName = rootInfo.getMutationName()
+        val subscriptionName = rootInfo.getSubscriptionName()
 
         val queryDefinition = definitionsByName[queryName] ?: throw SchemaClassScannerError("Type definition for root query type '$queryName' not found!")
         val mutationDefinition = definitionsByName[mutationName]
+        val subscriptionDefinition = definitionsByName[subscriptionName]
 
         if(queryDefinition !is ObjectTypeDefinition) {
             throw SchemaClassScannerError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${queryDefinition.javaClass.simpleName}")
@@ -72,6 +74,10 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
 
         if(mutationDefinition == null && rootInfo.isMutationRequired()) {
             throw SchemaClassScannerError("Type definition for root mutation type '$mutationName' not found!")
+        }
+
+        if (subscriptionDefinition == null && rootInfo.isSubscriptionRequired()) {
+            throw SchemaClassScannerError("Type definition for root subscription type '$subscriptionName' not found!")
         }
 
         // Find query resolver class
@@ -86,6 +92,16 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
             // Find mutation resolver class (if required)
             val mutationResolver = rootResolvers.find { it.getName() == mutationName } ?: throw SchemaClassScannerError("Root resolver for mutation type '$mutationName' not found!")
             handleFoundType(mutationDefinition, mutationResolver.resolverType, RootResolverReference("mutation"))
+        }
+
+        if(subscriptionDefinition != null) {
+            if(subscriptionDefinition !is ObjectTypeDefinition) {
+                throw SchemaClassScannerError("Expected root subscription type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${subscriptionDefinition.javaClass.simpleName}")
+            }
+
+            // Find subscription resolver class (if required)
+            val subscriptionResolver = rootResolvers.find { it.getName() == subscriptionName } ?: throw SchemaClassScannerError("Root resolver for subscription type '$subscriptionName' not found!")
+            handleFoundType(subscriptionDefinition, subscriptionResolver.resolverType, RootResolverReference("subscription"))
         }
 
         // Loop over all objects scanning each one only once for more objects to discover.
