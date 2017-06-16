@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import graphql.language.StringValue
 import graphql.schema.Coercing
+import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import java.util.Optional
 import java.util.UUID
@@ -29,6 +30,10 @@ type Query {
 
 type Mutation {
     addItem(newItem: NewItemInput!): Item!
+}
+
+type Subscription {
+    onItemCreated: Item!
 }
 
 input ItemSearchInput {
@@ -110,6 +115,14 @@ class Mutation: GraphQLMutationResolver {
         return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()).apply {
             items.add(this)
         }
+    }
+}
+
+class OnItemCreatedContext(val newItem: Item)
+
+class Subscription : GraphQLSubscriptionResolver {
+    fun onItemCreated(env: DataFetchingEnvironment): Item {
+        return env.getContext<OnItemCreatedContext>().newItem
     }
 }
 

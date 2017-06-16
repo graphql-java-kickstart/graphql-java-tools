@@ -67,14 +67,16 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         interfaces.forEach { (it.typeResolver as TypeResolverProxy).typeResolver = InterfaceTypeResolver(dictionary.inverse(), it, objects) }
         unions.forEach { (it.typeResolver as TypeResolverProxy).typeResolver = UnionTypeResolver(dictionary.inverse(), it, objects) }
 
-        // Find query type and mutation type (if mutation type exists)
+        // Find query type and mutation/subscription type (if mutation/subscription type exists)
         val queryName = rootInfo.getQueryName()
         val mutationName = rootInfo.getMutationName()
+        val subscriptionName = rootInfo.getSubscriptionName()
 
         val query = objects.find { it.name == queryName } ?: throw SchemaError("Expected a Query object with name '$queryName' but found none!")
         val mutation = objects.find { it.name == mutationName } ?: if(rootInfo.isMutationRequired()) throw SchemaError("Expected a Mutation object with name '$mutationName' but found none!") else null
+        val subscription = objects.find { it.name == subscriptionName } ?: if (rootInfo.isSubscriptionRequired()) throw SchemaError("Expected a Subscription object with name '$subscriptionName' but found none!") else null
 
-        return SchemaObjects(query, mutation, (objects + inputObjects + enums + interfaces + unions).toSet())
+        return SchemaObjects(query, mutation, subscription, (objects + inputObjects + enums + interfaces + unions).toSet())
     }
 
     /**
