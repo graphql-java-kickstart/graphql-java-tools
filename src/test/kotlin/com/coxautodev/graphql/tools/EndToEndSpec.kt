@@ -24,6 +24,8 @@ type Query {
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
 
+    defaultArgument(arg: Boolean = true): Boolean!
+
     listList: [[String!]!]!
     futureItems: [Item!]!
 }
@@ -102,6 +104,8 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
+
+    fun defaultArgument(arg: Boolean) = arg
 
     fun futureItems() = CompletableFuture.completedFuture(items)
 }

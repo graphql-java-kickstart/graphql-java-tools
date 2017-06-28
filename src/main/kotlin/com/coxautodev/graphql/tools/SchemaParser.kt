@@ -1,19 +1,26 @@
 package com.coxautodev.graphql.tools
 
 import graphql.language.AbstractNode
+import graphql.language.ArrayValue
+import graphql.language.BooleanValue
 import graphql.language.Directive
 import graphql.language.EnumTypeDefinition
+import graphql.language.EnumValue
 import graphql.language.FieldDefinition
+import graphql.language.FloatValue
 import graphql.language.InputObjectTypeDefinition
+import graphql.language.IntValue
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
+import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.language.Type
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
+import graphql.language.Value
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLInputObjectType
@@ -30,6 +37,7 @@ import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
 import graphql.schema.idl.ScalarInfo
+import java.util.LinkedHashMap
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
@@ -191,11 +199,25 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
                 argument.name(argumentDefinition.name)
                 argument.definition(argumentDefinition)
                 argument.description(getDocumentation(argumentDefinition))
-                argument.defaultValue(argumentDefinition.defaultValue)
+                argument.defaultValue(buildDefaultValue(argumentDefinition.defaultValue))
                 argument.type(determineInputType(argumentDefinition.type))
             }
         }
         return field
+    }
+
+    private fun buildDefaultValue(value: Value?): Any? {
+        return when(value) {
+            null -> null
+            is IntValue -> value.value
+            is FloatValue -> value.value
+            is StringValue -> value.value
+            is EnumValue -> value.name
+            is BooleanValue -> value.isValue
+            is ArrayValue -> value.values.map { buildDefaultValue(it) }.toTypedArray()
+            is ObjectValue -> value.objectFields.associate { it.name to buildDefaultValue(it.value) }
+            else -> throw SchemaError("Unrecognized default value: $value")
+        }
     }
 
     private fun determineOutputType(typeDefinition: Type) = determineType(typeDefinition) as GraphQLOutputType

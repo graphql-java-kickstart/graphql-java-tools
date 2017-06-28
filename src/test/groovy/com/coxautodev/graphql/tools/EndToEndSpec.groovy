@@ -197,4 +197,18 @@ class EndToEndSpec extends Specification {
             data.missing == null
             data.present
     }
+
+    def "generated schema should pass default arguments"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    defaultArgument
+                }
+                '''
+            }
+
+        then:
+            data.defaultArgument == true
+    }
 }
