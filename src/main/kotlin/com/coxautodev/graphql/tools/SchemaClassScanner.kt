@@ -244,7 +244,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
                 queue.add(QueueItem(type, clazz))
                 type.implements.forEach {
                     if(it is TypeName) {
-                        handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${type.name} decalred interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(type))
+                        handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${type.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(type))
                     }
                 }
             }
