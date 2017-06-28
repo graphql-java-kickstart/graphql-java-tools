@@ -5,6 +5,8 @@ import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
 import graphql.language.Definition
 import graphql.language.FieldDefinition
+import graphql.language.InputObjectTypeDefinition
+import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
@@ -198,10 +200,10 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
      * Match types from a single field (return value and input values).
      */
     private fun handleFieldMethod(field: FieldDefinition, method: Resolver.Method) {
-        handleFoundType(matchTypeToClass(field.type, method.javaMethod.genericReturnType, method, true), ReturnValueReference(method))
+        handleFoundType(matchTypeToClass(field.type, method.genericMethod.javaMethod.genericReturnType, method.genericMethod, true), ReturnValueReference(method))
 
         field.inputValueDefinitions.forEachIndexed { i, inputDefinition ->
-            handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method), MethodParameterReference(method, i))
+            handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method.genericMethod), MethodParameterReference(method, i))
         }
     }
 
@@ -246,10 +248,33 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
                     }
                 }
             }
+
+            is InputObjectTypeDefinition -> {
+                type.inputValueDefinitions.forEach { inputValueDefinition ->
+                    findInputValueType(inputValueDefinition.name, clazz)?.let { inputType ->
+                        val inputGraphQLType = inputValueDefinition.type.unwrap()
+                        if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                            handleFoundType(matchTypeToClass(inputGraphQLType, inputType, GenericType.GenericClass(clazz)), InputObjectReference(inputValueDefinition))
+                        }
+                    }
+                }
+            }
         }
     }
 
-    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, method: Resolver.Method, returnValue: Boolean = false) = TypeClassMatcher(typeDefinition, type, method, returnValue, definitionsByName).match()
+    private fun findInputValueType(name: String, clazz: Class<*>): JavaType? {
+        val methods = clazz.methods
+
+        return (methods.find {
+            it.name == name
+        } ?: methods.find {
+            it.name == "get${name.capitalize()}"
+        })?.genericReturnType ?: clazz.fields.find {
+            it.name == name
+        }?.genericType
+    }
+
+    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, generic: GenericType, returnValue: Boolean = false) = TypeClassMatcher(typeDefinition, type, generic, returnValue, definitionsByName).match()
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 
@@ -289,15 +314,19 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     }
 
     private class ReturnValueReference(private val method: Resolver.Method): Reference() {
-        override fun getDescription() = "return type of method ${method.javaMethod}"
+        override fun getDescription() = "return type of method ${method.genericMethod.javaMethod}"
     }
 
     private class MethodParameterReference(private val method: Resolver.Method, private val index: Int): Reference() {
-        override fun getDescription() = "parameter $index of method ${method.javaMethod}"
+        override fun getDescription() = "parameter $index of method ${method.genericMethod.javaMethod}"
     }
 
     private class InterfaceReference(private val type: ObjectTypeDefinition): Reference() {
         override fun getDescription() = "interface declarations of ${type.name}"
+    }
+
+    private class InputObjectReference(private val type: InputValueDefinition): Reference() {
+        override fun getDescription() = "input object ${type}"
     }
 
     private class InitialDictionaryEntry(private val clazz: Class<*>) {

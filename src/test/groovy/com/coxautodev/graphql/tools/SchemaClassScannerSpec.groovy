@@ -103,4 +103,50 @@ class SchemaClassScannerSpec extends Specification {
     private class InterfaceMissingQuery implements GraphQLQueryResolver {
         String id() { "" }
     }
+
+    def "scanner handles input types that reference other input types"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new MultipleInputTypeQuery())
+                .schemaString("""
+                    input FirstInput {
+                        id: String!
+                        second: SecondInput!
+                        third: ThirdInput!
+                    }
+                    input SecondInput {
+                        id: String!
+                    }
+                    input ThirdInput {
+                        id: String!
+                    }
+                    
+                    type Query {
+                        test(input: FirstInput): String!
+                    }
+                """)
+                .build()
+                .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+    }
+
+    private class MultipleInputTypeQuery implements GraphQLQueryResolver {
+
+        String test(FirstInput input) { "" }
+
+        class FirstInput {
+            String id
+            SecondInput second() { new SecondInput() }
+            ThirdInput third
+        }
+
+        class SecondInput {
+            String id
+        }
+        class ThirdInput {
+            String id
+        }
+    }
 }

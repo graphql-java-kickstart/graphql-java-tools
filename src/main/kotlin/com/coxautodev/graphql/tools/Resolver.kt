@@ -8,15 +8,13 @@ import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import ru.vyarus.java.generics.resolver.GenericsResolver
-import java.lang.reflect.ParameterizedType
-import java.lang.reflect.TypeVariable
 
 open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dataClass: Class<*>? = null) {
 
     val resolverType = resolver.javaClass
     val dataClassType = dataClass ?: findDataClass()
 
-    fun getName(): String = (if(resolver is GraphQLRootResolver) resolver.resolverName else null) ?: if(isResolver()) resolverType.simpleName else dataClassType.simpleName
+    fun getName(): String = ((resolver as? GraphQLRootResolver)?.resolverName) ?: if(isResolver()) resolverType.simpleName else dataClassType.simpleName
 
     private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
@@ -29,14 +27,7 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
         return type
     }
 
-    private fun isBoolean(type: Type): Boolean {
-        return when(type) {
-            is NonNullType -> isBoolean(type.type)
-            is ListType -> isBoolean(type.type)
-            is TypeName -> type.name == Scalars.GraphQLBoolean.name
-            else -> false
-        }
-    }
+    private fun isBoolean(type: Type) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
 
     private fun getMethod(clazz: Class<*>, field: FieldDefinition, isResolverMethod: Boolean = false): java.lang.reflect.Method? {
         val methods = clazz.methods
@@ -128,8 +119,9 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 
     protected class NoopResolver: GraphQLRootResolver
 
-    class Method(val resolver: Resolver, val field: FieldDefinition, val javaMethod: java.lang.reflect.Method, val methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
+    class Method(val resolver: Resolver, val field: FieldDefinition, javaMethod: java.lang.reflect.Method, methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
 
+        val genericMethod = GenericType.GenericMethod(methodClass, javaMethod)
         val dataFetchingEnvironment = javaMethod.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
         private fun getIndexOffset() = if(sourceArgument) 1 else 0
@@ -137,31 +129,13 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 
         fun getJavaMethodParameterType(index: Int): JavaType? {
             val methodIndex = getJavaMethodParameterIndex(index)
-            val parameters = javaMethod.parameterTypes
+            val parameters = genericMethod.javaMethod.parameterTypes
             if(parameters.size > methodIndex) {
-                return javaMethod.genericParameterTypes[getJavaMethodParameterIndex(index)]
+                return genericMethod.javaMethod.genericParameterTypes[getJavaMethodParameterIndex(index)]
             } else {
                 return null
             }
         }
-
-        fun getRawClass(type: JavaType): Class<*> {
-            return when(type) {
-                is ParameterizedType -> getRawClass(type.rawType)
-                is TypeVariable<*> -> getRawClass(resolveTypeVariable(type))
-                is Class<*> -> type
-                else -> throw ResolverError("Unable to unwrap base class: $type")
-            }
-        }
-
-        fun resolveTypeVariable(variable: TypeVariable<*>): JavaType {
-            return GenericsResolver.resolve(methodClass).method(javaMethod).genericsInfo.getTypeGenerics(javaMethod.declaringClass)[variable.name] ?: throw ResolverError("Unable to lookup generic argument '${variable.name}' of class '$methodClass' while resolving types for method: $javaMethod")
-        }
-
-        fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>): Boolean {
-            return clazz.isAssignableFrom(getRawClass(type.rawType))
-        }
-
     }
 }
 

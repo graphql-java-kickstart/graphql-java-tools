@@ -38,8 +38,8 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             method.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
                 val genericType = method.getJavaMethodParameterType(index) ?: throw ResolverError("Missing method type at position ${method.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
-                val rawType = method.getRawClass(genericType)
-                val rawTypeWithoutOptional = if(genericType is ParameterizedType && method.isTypeAssignableFromRawClass(genericType, Optional::class.java)) method.getRawClass(genericType.actualTypeArguments.first()) else rawType
+                val rawType = method.genericMethod.getRawClass(genericType)
+                val rawTypeWithoutOptional = if(genericType is ParameterizedType && method.genericMethod.isTypeAssignableFromRawClass(genericType, Optional::class.java)) method.genericMethod.getRawClass(genericType.actualTypeArguments.first()) else rawType
 
                 val isNonNull = definition.type is NonNullType
                 val isOptional = rawType == Optional::class.java
@@ -82,14 +82,14 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             val sourceResolver: SourceResolver = if(method.resolverMethod) ({ method.resolver.resolver }) else ({ environment ->
                 val source = environment.getSource<Any>()
 
-                if(!method.methodClass.isAssignableFrom(source.javaClass)) {
-                    throw ResolverError("Expected source object to be an instance of '${method.methodClass.name}' but instead got '${source.javaClass.name}'")
+                if(!method.genericMethod.baseType.isAssignableFrom(source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${method.genericMethod.baseType.name}' but instead got '${source.javaClass.name}'")
                 }
 
                 source
             })
 
-            return ResolverDataFetcher(sourceResolver, method.javaMethod, args)
+            return ResolverDataFetcher(sourceResolver, method.genericMethod.javaMethod, args)
         }
     }
 

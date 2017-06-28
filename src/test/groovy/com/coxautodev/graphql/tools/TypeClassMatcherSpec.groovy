@@ -24,7 +24,7 @@ class TypeClassMatcherSpec extends Specification {
 
     private TypeClassMatcher createReturnValueMatcher(String methodName, graphql.language.Type graphQLType) {
         def method = resolver.getMethod(new FieldDefinition(methodName, graphQLType))
-        new TypeClassMatcher(graphQLType, method.javaMethod.genericReturnType, method, true, [CustomType: customDefinition])
+        new TypeClassMatcher(graphQLType, method.genericMethod.javaMethod.genericReturnType, method.genericMethod, true, [CustomType: customDefinition])
     }
 
     private graphql.language.Type list(graphql.language.Type other = customType) {
