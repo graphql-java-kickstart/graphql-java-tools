@@ -1,5 +1,7 @@
 package com.coxautodev.graphql.tools
 
+import graphql.schema.Coercing
+import graphql.schema.GraphQLScalarType
 import spock.lang.Specification
 
 import java.util.concurrent.CompletableFuture
@@ -148,5 +150,44 @@ class SchemaClassScannerSpec extends Specification {
         class ThirdInput {
             String id
         }
+    }
+
+    def "scanner allows multiple return types for custom scalars"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new ScalarsWithMultipleTypes())
+                .scalars(new GraphQLScalarType("UUID", "Test scalars with duplicate types", new Coercing() {
+                    @Override
+                    Object serialize(Object input) {
+                        return null
+                    }
+
+                    @Override
+                    Object parseValue(Object input) {
+                        return null
+                    }
+
+                    @Override
+                    Object parseLiteral(Object input) {
+                        return null
+                    }
+                }))
+                .schemaString("""
+                    scalar UUID
+                    
+                    type Query {
+                        first: UUID
+                        second: UUID
+                    }
+                """)
+                .build()
+
+        then:
+            noExceptionThrown()
+    }
+
+    class ScalarsWithMultipleTypes implements GraphQLQueryResolver {
+        Object first() { null }
+        String second() { null }
     }
 }

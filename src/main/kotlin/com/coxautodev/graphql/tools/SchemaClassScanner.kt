@@ -215,15 +215,14 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
     private fun handleFoundType(type: TypeDefinition, clazz: Class<*>?, reference: Reference) {
-        val newEntry = DictionaryEntry()
-        val realEntry = dictionary.getOrPut(type, { newEntry })
+        val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
         var typeWasSet = false
 
         if(clazz != null) {
             typeWasSet = realEntry.setTypeIfMissing(clazz)
 
             if(realEntry.typeClass != clazz) {
-                throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${newEntry.typeClass}:\n|   ${reference.getDescription()}")
+                throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
             }
         }
 
