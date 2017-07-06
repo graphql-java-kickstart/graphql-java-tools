@@ -221,7 +221,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         if(clazz != null) {
             typeWasSet = realEntry.setTypeIfMissing(clazz)
 
-            if(realEntry.typeClass != clazz) {
+            if(realEntry.typeClass != clazz && type !is ScalarTypeDefinition) {
                 throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
             }
         }
