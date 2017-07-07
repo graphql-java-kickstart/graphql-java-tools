@@ -28,6 +28,13 @@ type Query {
 
     listList: [[String!]!]!
     futureItems: [Item!]!
+    complexNullType: ComplexNull
+}
+
+type ComplexNull {
+    first: String!
+    second: String!
+    third: String!
 }
 
 type Mutation {
@@ -108,6 +115,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun defaultArgument(arg: Boolean) = arg
 
     fun futureItems() = CompletableFuture.completedFuture(items)
+    fun complexNullType(): ComplexNull? = null
 }
 
 abstract class ListListResolver<out E> {
@@ -146,6 +154,7 @@ data class OtherItemWithWrongName(val id: Int, override val name: String, overri
 data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
+data class ComplexNull(val first: String, val second: String, val third: String)
 
 val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
 

@@ -211,4 +211,23 @@ class EndToEndSpec extends Specification {
         then:
             data.defaultArgument == true
     }
+
+    def "generated schema should return null without errors for null value with nested fields"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    complexNullType {
+                        first
+                        second
+                        third
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.containsKey('complexNullType')
+            data.complexNullType == null
+    }
 }
