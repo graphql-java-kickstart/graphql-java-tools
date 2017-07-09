@@ -253,7 +253,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
                     findInputValueType(inputValueDefinition.name, clazz)?.let { inputType ->
                         val inputGraphQLType = inputValueDefinition.type.unwrap()
                         if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                            handleFoundType(matchTypeToClass(inputGraphQLType, inputType, GenericType.GenericClass(clazz)), InputObjectReference(inputValueDefinition))
+                            handleFoundType(matchTypeToClass(inputValueDefinition.type, inputType, GenericType.GenericClass(clazz)), InputObjectReference(inputValueDefinition))
                         }
                     }
                 }

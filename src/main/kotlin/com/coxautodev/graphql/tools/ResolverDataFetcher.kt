@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -44,6 +45,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
                 val isNonNull = definition.type is NonNullType
                 val isOptional = rawType == Optional::class.java
                 val isMap = Map::class.java.isAssignableFrom(rawTypeWithoutOptional)
+                val isList = definition.type is ListType
 
                 val typeReference = object: TypeReference<Any>() {
                     override fun getType() = genericType
@@ -66,6 +68,10 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
                             return@add value
                         }
 
+                        return@add mapper.convertValue(value, typeReference)
+                    }
+                    
+                    if (isList) {
                         return@add mapper.convertValue(value, typeReference)
                     }
 
