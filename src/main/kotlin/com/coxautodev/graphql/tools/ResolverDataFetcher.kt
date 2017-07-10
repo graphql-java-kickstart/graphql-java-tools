@@ -39,11 +39,9 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
 
                 val genericType = method.getJavaMethodParameterType(index) ?: throw ResolverError("Missing method type at position ${method.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
                 val rawType = method.genericMethod.getRawClass(genericType)
-                val rawTypeWithoutOptional = if(genericType is ParameterizedType && method.genericMethod.isTypeAssignableFromRawClass(genericType, Optional::class.java)) method.genericMethod.getRawClass(genericType.actualTypeArguments.first()) else rawType
 
                 val isNonNull = definition.type is NonNullType
                 val isOptional = rawType == Optional::class.java
-                val isMap = Map::class.java.isAssignableFrom(rawTypeWithoutOptional)
 
                 val typeReference = object: TypeReference<Any>() {
                     override fun getType() = genericType
@@ -60,16 +58,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
                         return@add Optional.empty<Any>()
                     }
 
-                    // Convert to specific type if actual argument value is Map<?, ?> and method parameter type is not Map<?, ?>
-                    if (value is Map<*, *>) {
-                        if (isMap) {
-                            return@add value
-                        }
-
-                        return@add mapper.convertValue(value, typeReference)
-                    }
-
-                    value
+                    return@add mapper.convertValue(value, typeReference)
                 })
             }
 

@@ -230,4 +230,18 @@ class EndToEndSpec extends Specification {
             data.containsKey('complexNullableType')
             data.complexNullableType == null
     }
+
+    def "generated schema handles nested lists in input type fields"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    complexInputType(complexInput: [[{first: "foo", second: [[{first: "bar"}]]}]])
+                }
+                '''
+            }
+
+        then:
+            data.complexInputType
+    }
 }

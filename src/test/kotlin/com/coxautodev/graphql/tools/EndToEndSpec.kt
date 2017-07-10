@@ -30,7 +30,7 @@ type Query {
     futureItems: [Item!]!
     complexNullableType: ComplexNullable
 
-    complexInputType(complexInput: [[[ComplexInputType!]]]): String!
+    complexInputType(complexInput: [[ComplexInputType!]]): String!
 }
 
 type ComplexNullable {
@@ -39,12 +39,12 @@ type ComplexNullable {
     third: String!
 }
 
-type ComplexInputType {
+input ComplexInputType {
     first: String!
-    second: ComplexInputTypeTwo!
+    second: [[ComplexInputTypeTwo!]]
 }
 
-type ComplexInputTypeTwo {
+input ComplexInputTypeTwo {
     first: String!
 }
 
@@ -128,7 +128,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun futureItems() = CompletableFuture.completedFuture(items)
     fun complexNullableType(): ComplexNullable? = null
 
-    fun complexInputType(input: List<List<List<ComplexInputType>>?>?) = ""
+    fun complexInputType(input: List<List<ComplexInputType>?>?) = input?.firstOrNull()?.firstOrNull()?.let { it.first == "foo" && it.second?.firstOrNull()?.firstOrNull()?.first == "bar" } ?: false
 }
 
 abstract class ListListResolver<out E> {
@@ -168,7 +168,7 @@ data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
 data class ComplexNullable(val first: String, val second: String, val third: String)
-data class ComplexInputType(val first: String, val second: ComplexInputTypeTwo)
+data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
 
 val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
