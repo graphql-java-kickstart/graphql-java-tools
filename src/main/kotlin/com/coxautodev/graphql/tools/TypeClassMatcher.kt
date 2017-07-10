@@ -2,7 +2,6 @@ package com.coxautodev.graphql.tools
 
 import graphql.language.ListType
 import graphql.language.NonNullType
-import graphql.language.Type
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.schema.idl.ScalarInfo
@@ -12,13 +11,13 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-class TypeClassMatcher(private val graphQLType: Type, private val javaType: JavaType, private val generic: GenericType, private val returnValue: Boolean, private val definitionsByName: Map<String, TypeDefinition>) {
+class TypeClassMatcher(private val graphQLType: GraphQLLangType, private val javaType: JavaType, private val generic: GenericType, private val location: Location, private val definitionsByName: Map<String, TypeDefinition>) {
 
     private fun error(msg: String) = SchemaClassScannerError("Unable to match type definition ($graphQLType) with java type ($javaType): $msg")
 
     fun match() = match(graphQLType, javaType, true)
 
-    private fun match(graphQLType: Type, javaType: JavaType, root: Boolean = false): Match {
+    private fun match(graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
 
         var realType = generic.unwrapGenericWrapper(javaType)
         var optional = false
@@ -27,7 +26,7 @@ class TypeClassMatcher(private val graphQLType: Type, private val javaType: Java
         if(realType is ParameterizedType && generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
             optional = true
 
-            if(returnValue && !root) {
+            if(location == Location.RETURN_TYPE && !root) {
                 throw error("${Optional::class.java.name} can only be used at the top level of a return type")
             }
 
@@ -66,4 +65,8 @@ class TypeClassMatcher(private val graphQLType: Type, private val javaType: Java
     }
 
     data class Match(val type: TypeDefinition, val clazz: Class<*>)
+    enum class Location {
+        RETURN_TYPE,
+        PARAMETER_TYPE,
+    }
 }

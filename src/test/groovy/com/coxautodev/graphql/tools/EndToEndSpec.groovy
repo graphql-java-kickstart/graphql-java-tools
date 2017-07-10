@@ -217,7 +217,7 @@ class EndToEndSpec extends Specification {
             def data = Utils.assertNoGraphQlErrors(gql) {
                 '''
                 {
-                    complexNullType {
+                    complexNullableType {
                         first
                         second
                         third
@@ -227,7 +227,7 @@ class EndToEndSpec extends Specification {
             }
 
         then:
-            data.containsKey('complexNullType')
-            data.complexNullType == null
+            data.containsKey('complexNullableType')
+            data.complexNullableType == null
     }
 }

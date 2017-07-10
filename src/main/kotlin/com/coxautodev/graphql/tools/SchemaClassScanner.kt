@@ -200,7 +200,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
      * Match types from a single field (return value and input values).
      */
     private fun handleFieldMethod(field: FieldDefinition, method: Resolver.Method) {
-        handleFoundType(matchTypeToClass(field.type, method.genericMethod.javaMethod.genericReturnType, method.genericMethod, true), ReturnValueReference(method))
+        handleFoundType(matchTypeToClass(field.type, method.genericMethod.javaMethod.genericReturnType, method.genericMethod, TypeClassMatcher.Location.RETURN_TYPE), ReturnValueReference(method))
 
         field.inputValueDefinitions.forEachIndexed { i, inputDefinition ->
             handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method.genericMethod), MethodParameterReference(method, i))
@@ -253,7 +253,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
                     findInputValueType(inputValueDefinition.name, clazz)?.let { inputType ->
                         val inputGraphQLType = inputValueDefinition.type.unwrap()
                         if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                            handleFoundType(matchTypeToClass(inputGraphQLType, inputType, GenericType.GenericClass(clazz)), InputObjectReference(inputValueDefinition))
+                            handleFoundType(matchTypeToClass(inputValueDefinition.type, inputType, GenericType.GenericClass(clazz)), InputObjectReference(inputValueDefinition))
                         }
                     }
                 }
@@ -273,7 +273,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         }?.genericType
     }
 
-    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, generic: GenericType, returnValue: Boolean = false) = TypeClassMatcher(typeDefinition, type, generic, returnValue, definitionsByName).match()
+    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, generic: GenericType, location: TypeClassMatcher.Location = TypeClassMatcher.Location.PARAMETER_TYPE) = TypeClassMatcher(typeDefinition, type, generic, location, definitionsByName).match()
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 
@@ -341,5 +341,4 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
 
 class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
 
-typealias JavaType = java.lang.reflect.Type
 typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>

@@ -13,3 +13,6 @@ fun Type.unwrap(): Type = when(this) {
     is ListType -> this.type.unwrap()
     else -> this
 }
+
+typealias JavaType = java.lang.reflect.Type
+typealias GraphQLLangType = graphql.language.Type

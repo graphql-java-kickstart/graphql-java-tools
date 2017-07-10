@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import com.google.common.primitives.Primitives
 import ru.vyarus.java.generics.resolver.GenericsResolver
+import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
@@ -44,6 +45,7 @@ abstract class GenericType(val baseType: Class<*>) {
             }
             is Class<*> -> if(type.isPrimitive) Primitives.wrap(type) else type
             is TypeVariable<*> -> resolveTypeVariable(type)
+            is WildcardTypeImpl -> type.upperBounds.firstOrNull() ?: throw error("Unable to unwrap type, wildcard has no upper bound: $type")
             else -> throw error("Unable to unwrap type: $type")
         }
     }
