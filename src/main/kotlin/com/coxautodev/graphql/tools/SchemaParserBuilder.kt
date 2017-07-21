@@ -5,6 +5,8 @@ import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
 import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
+import org.antlr.v4.runtime.RecognitionException
+import org.antlr.v4.runtime.misc.ParseCancellationException
 
 /**
  * @author Andrew Potter
@@ -98,7 +100,16 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
      * Build the parser with the supplied schema and dictionary.
      */
     fun build(): SchemaParser {
-        val document = Parser().parseDocument(this.schemaString.toString())
+        val document = try {
+            Parser().parseDocument(this.schemaString.toString())
+        } catch (pce: ParseCancellationException) {
+            val cause = pce.cause
+            if(cause != null && cause is RecognitionException) {
+                throw InvalidSchemaError(pce, cause)
+            } else {
+                throw pce
+            }
+        }
         val definitions = document.definitions
 
         val resolvers = resolvers.map { Resolver(it) }
@@ -106,6 +117,11 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
 
         return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars).scanForClasses()
     }
+}
+
+class InvalidSchemaError(pce: ParseCancellationException, val recognitionException: RecognitionException): RuntimeException(pce) {
+    override val message: String?
+        get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }
 
 class SchemaParserDictionary {

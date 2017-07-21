@@ -71,6 +71,13 @@
             <version>1.7.25</version>
         </dependency>
 
+        <!-- Required till graphql-java 4.0.0 is released with correct scoping -->
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4-runtime</artifactId>
+            <version>4.5.1</version>
+        </dependency>
+
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
