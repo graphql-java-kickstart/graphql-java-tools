@@ -190,4 +190,38 @@ class SchemaClassScannerSpec extends Specification {
         Object first() { null }
         String second() { null }
     }
+
+    def "scanner allows multiple instances of generic type with different type arguments"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new GenericWithDifferentTypes())
+                .schemaString("""
+                    type Query {
+                        type1: Type1!
+                        type2: Type2!
+                    }
+                    
+                    type Type1 {
+                        value: String!
+                    }
+                    
+                    type Type2 {
+                        value: Int!
+                    }
+                """)
+                .build()
+        then:
+            noExceptionThrown()
+    }
+
+    class GenericWithDifferentTypes implements GraphQLQueryResolver {
+        GenericType<String> type1() { null }
+        GenericType<Integer> type2() { null }
+    }
+
+    class GenericType<E> {
+        E value() {
+            null
+        }
+    }
 }
