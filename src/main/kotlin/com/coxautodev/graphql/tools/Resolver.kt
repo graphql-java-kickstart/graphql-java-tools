@@ -2,12 +2,11 @@ package com.coxautodev.graphql.tools
 
 import graphql.Scalars
 import graphql.language.FieldDefinition
-import graphql.language.ListType
-import graphql.language.NonNullType
 import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
-import ru.vyarus.java.generics.resolver.GenericsResolver
+import org.apache.commons.lang3.reflect.TypeUtils
+import java.lang.reflect.ParameterizedType
 
 open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, dataClass: Class<*>? = null) {
 
@@ -18,7 +17,12 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 
     private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
-        val type = GenericsResolver.resolve(resolverType).type(GraphQLResolver::class.java)?.genericTypes()?.first()
+        val interfaceType = GenericType(resolverType).getGenericInterface(GraphQLResolver::class.java)
+        if(interfaceType == null || interfaceType !is ParameterizedType) {
+            error("${GraphQLResolver::class.java.simpleName} interface was not parameterized for: ${resolverType.name}")
+        }
+
+        val type = TypeUtils.determineTypeArguments(resolverType, interfaceType)[GraphQLResolver::class.java.typeParameters[0]]
 
         if(type == null || type !is Class<*>) {
             throw ResolverError("Unable to determine data class for resolver '${resolverType.name}' from generic interface!  This is most likely a bug with graphql-java-tools.")
@@ -119,9 +123,9 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 
     protected class NoopResolver: GraphQLRootResolver
 
-    class Method(val resolver: Resolver, val field: FieldDefinition, javaMethod: java.lang.reflect.Method, methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
+    class Method(val resolver: Resolver, val field: FieldDefinition, val javaMethod: java.lang.reflect.Method, methodClass: Class<*>, val resolverMethod: Boolean, val sourceArgument: Boolean) {
 
-        val genericMethod = GenericType.GenericMethod(methodClass, javaMethod)
+        val genericType = GenericType(methodClass)
         val dataFetchingEnvironment = javaMethod.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
         private fun getIndexOffset() = if(sourceArgument) 1 else 0
@@ -129,9 +133,9 @@ open class Resolver @JvmOverloads constructor(val resolver: GraphQLResolver<*>, 
 
         fun getJavaMethodParameterType(index: Int): JavaType? {
             val methodIndex = getJavaMethodParameterIndex(index)
-            val parameters = genericMethod.javaMethod.parameterTypes
+            val parameters = javaMethod.parameterTypes
             if(parameters.size > methodIndex) {
-                return genericMethod.javaMethod.genericParameterTypes[getJavaMethodParameterIndex(index)]
+                return javaMethod.genericParameterTypes[getJavaMethodParameterIndex(index)]
             } else {
                 return null
             }

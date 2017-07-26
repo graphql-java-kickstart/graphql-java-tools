@@ -9,7 +9,6 @@ import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
-import java.lang.reflect.ParameterizedType
 import java.util.Optional
 
 class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
@@ -37,14 +36,13 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             // Add an argument for each argument defined in the GraphQL schema
             method.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
-                val genericType = method.getJavaMethodParameterType(index) ?: throw ResolverError("Missing method type at position ${method.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
-                val rawType = method.genericMethod.getRawClass(genericType)
+                val genericParameterType = method.getJavaMethodParameterType(index) ?: throw ResolverError("Missing method type at position ${method.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
                 val isNonNull = definition.type is NonNullType
-                val isOptional = rawType == Optional::class.java
+                val isOptional = method.genericType.getRawClass(genericParameterType) == Optional::class.java
 
                 val typeReference = object: TypeReference<Any>() {
-                    override fun getType() = genericType
+                    override fun getType() = genericParameterType
                 }
 
                 args.add({ environment ->
@@ -71,14 +69,14 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             val sourceResolver: SourceResolver = if(method.resolverMethod) ({ method.resolver.resolver }) else ({ environment ->
                 val source = environment.getSource<Any>()
 
-                if(!method.genericMethod.baseType.isAssignableFrom(source.javaClass)) {
-                    throw ResolverError("Expected source object to be an instance of '${method.genericMethod.baseType.name}' but instead got '${source.javaClass.name}'")
+                if(!method.genericType.isAssignableFrom(source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${method.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
                 }
 
                 source
             })
 
-            return ResolverDataFetcher(sourceResolver, method.genericMethod.javaMethod, args)
+            return ResolverDataFetcher(sourceResolver, method.javaMethod, args)
         }
     }
 
