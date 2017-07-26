@@ -200,10 +200,10 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
      * Match types from a single field (return value and input values).
      */
     private fun handleFieldMethod(field: FieldDefinition, method: Resolver.Method) {
-        handleFoundType(matchTypeToClass(field.type, method.genericMethod.javaMethod.genericReturnType, method.genericMethod, TypeClassMatcher.Location.RETURN_TYPE), ReturnValueReference(method))
+        handleFoundType(matchTypeToClass(field.type, method.javaMethod.genericReturnType, method.genericType.relativeTo(method.javaMethod.declaringClass), TypeClassMatcher.Location.RETURN_TYPE), ReturnValueReference(method))
 
         field.inputValueDefinitions.forEachIndexed { i, inputDefinition ->
-            handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method.genericMethod), MethodParameterReference(method, i))
+            handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method.genericType.relativeTo(method.javaMethod.declaringClass)), MethodParameterReference(method, i))
         }
     }
 
@@ -237,23 +237,23 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     /**
      * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
      */
-    private fun handleNewType(type: TypeDefinition, clazz: Class<*>) {
-        when(type) {
+    private fun handleNewType(graphQLType: TypeDefinition, javaType: Class<*>) {
+        when(graphQLType) {
             is ObjectTypeDefinition -> {
-                queue.add(QueueItem(type, clazz))
-                type.implements.forEach {
+                queue.add(QueueItem(graphQLType, javaType))
+                graphQLType.implements.forEach {
                     if(it is TypeName) {
-                        handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${type.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(type))
+                        handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
                     }
                 }
             }
 
             is InputObjectTypeDefinition -> {
-                type.inputValueDefinitions.forEach { inputValueDefinition ->
-                    findInputValueType(inputValueDefinition.name, clazz)?.let { inputType ->
+                graphQLType.inputValueDefinitions.forEach { inputValueDefinition ->
+                    findInputValueType(inputValueDefinition.name, javaType)?.let { inputValueJavaType ->
                         val inputGraphQLType = inputValueDefinition.type.unwrap()
                         if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                            handleFoundType(matchTypeToClass(inputValueDefinition.type, inputType, GenericType.GenericClass(clazz)), InputObjectReference(inputValueDefinition))
+                            handleFoundType(matchTypeToClass(inputValueDefinition.type, inputValueJavaType, GenericType(javaType).relativeTo(inputValueJavaType)), InputObjectReference(inputValueDefinition))
                         }
                     }
                 }
@@ -273,7 +273,7 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
         }?.genericType
     }
 
-    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, generic: GenericType, location: TypeClassMatcher.Location = TypeClassMatcher.Location.PARAMETER_TYPE) = TypeClassMatcher(typeDefinition, type, generic, location, definitionsByName).match()
+    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, generic: GenericType.RelativeTo, location: TypeClassMatcher.Location = TypeClassMatcher.Location.PARAMETER_TYPE) = TypeClassMatcher(typeDefinition, type, generic, location, definitionsByName).match()
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 
@@ -313,11 +313,11 @@ class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val
     }
 
     private class ReturnValueReference(private val method: Resolver.Method): Reference() {
-        override fun getDescription() = "return type of method ${method.genericMethod.javaMethod}"
+        override fun getDescription() = "return type of method ${method.javaMethod}"
     }
 
     private class MethodParameterReference(private val method: Resolver.Method, private val index: Int): Reference() {
-        override fun getDescription() = "parameter $index of method ${method.genericMethod.javaMethod}"
+        override fun getDescription() = "parameter $index of method ${method.javaMethod}"
     }
 
     private class InterfaceReference(private val type: ObjectTypeDefinition): Reference() {

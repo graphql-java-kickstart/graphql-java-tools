@@ -24,7 +24,7 @@ class TypeClassMatcherSpec extends Specification {
 
     private TypeClassMatcher createReturnValueMatcher(String methodName, graphql.language.Type graphQLType) {
         def method = resolver.getMethod(new FieldDefinition(methodName, graphQLType))
-        new TypeClassMatcher(graphQLType, method.genericMethod.javaMethod.genericReturnType, method.genericMethod, TypeClassMatcher.Location.RETURN_TYPE, [CustomType: customDefinition])
+        new TypeClassMatcher(graphQLType, method.javaMethod.genericReturnType, method.getGenericType().relativeTo(method.javaMethod.declaringClass), TypeClassMatcher.Location.RETURN_TYPE, [CustomType: customDefinition])
     }
 
     private graphql.language.Type list(graphql.language.Type other = customType) {
@@ -89,6 +89,13 @@ class TypeClassMatcherSpec extends Specification {
             "listNullableType"     | list(customType)
     }
 
+    def "matcher does not allow parameterized types as root types"() {
+        when:
+            createReturnValueMatcher("genericCustomType", customType).match()
+        then:
+            thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
+    }
+
     private class Super<Unused, Type, ListFutureType> implements GraphQLQueryResolver {
         Type superType() { null }
         ListFutureType superListFutureType() { null }
@@ -108,7 +115,10 @@ class TypeClassMatcherSpec extends Specification {
         Optional<List<CustomType>> nullableListType() { null }
         Optional<Optional<CustomType>> nullableNullableType() { null }
         List<Optional<CustomType>> listNullableType() { null }
+
+        GenericCustomType<String> genericCustomType() { null }
     }
 
     private class CustomType {}
+    private class GenericCustomType<T> {}
 }

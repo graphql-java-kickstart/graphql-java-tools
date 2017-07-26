@@ -18,6 +18,7 @@ import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.language.Type
 import graphql.language.TypeDefinition
+import graphql.language.TypeExtensionDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.language.Value
@@ -58,6 +59,7 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
+    private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
