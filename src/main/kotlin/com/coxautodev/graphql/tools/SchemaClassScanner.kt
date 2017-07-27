@@ -151,7 +151,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
         rootType.resolvers.forEach { resolver ->
             if(resolver.javaClass !in observedRootTypes) {
-                log.warn("Root ${rootType.name} resolver was provided but no methods on it were used in data fetchers for GraphQL type '${rootType.type}'")
+                log.warn("Root ${rootType.name} resolver was provided but no methods on it were used in data fetchers for GraphQL type '${rootType.type.name}'!  Either remove the ${rootType.resolverInterface.name} interface from the resolver or remove the resolver entirely: $resolver")
             }
         }
     }
@@ -311,7 +311,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     private class InputObjectReference(private val type: InputValueDefinition): Reference() {
-        override fun getDescription() = "input object ${type}"
+        override fun getDescription() = "input object $type"
     }
 
     private class InitialDictionaryEntry(private val clazz: Class<*>) {
@@ -367,11 +367,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                 throw SchemaClassScannerError("No Root resolvers for $name type '$typeName' found!  Provide one or more ${resolverInterface.name} to the builder.")
             }
 
-            return RootType(name, type, typeName, resolvers, resolverInterface, resolverInfo)
+            return RootType(name, type, resolvers, resolverInterface, resolverInfo)
         }
     }
 
-    class RootType(val name: String, val type: ObjectTypeDefinition, val typeName: String, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
+    class RootType(val name: String, val type: ObjectTypeDefinition, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
 }
 
 class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)

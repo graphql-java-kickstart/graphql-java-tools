@@ -3,7 +3,6 @@ package com.coxautodev.graphql.tools
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.Type
-import org.apache.commons.lang3.reflect.TypeUtils
 
 /**
  * @author Andrew Potter
@@ -19,7 +18,13 @@ internal fun Type.unwrap(): Type = when(this) {
     else -> this
 }
 
-class Utils {
-    companion object {
+internal fun <E, R> List<E>.findTransformedNotNull(transform: (E) -> R?): R? {
+    for(element in this) {
+        val result = transform(element)
+        if(result != null) {
+            return result
+        }
     }
+
+    return null
 }

@@ -13,14 +13,9 @@ internal class FieldResolverScanner {
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
         val searches = resolverInfo.getFieldSearches()
 
-        for(search in searches) {
-            val resolver = findFieldResolver(field, search)
-            if(resolver != null) {
-                return resolver
-            }
-        }
+        val found = searches.findTransformedNotNull { search -> findFieldResolver(field, search) }
 
-        throw FieldFinderError(getMissingFieldMessage(field, searches))
+        return found ?: throw FieldFinderError(getMissingFieldMessage(field, searches))
     }
 
     private fun findFieldResolver(field: FieldDefinition, search: Search): FieldResolver? {
