@@ -23,7 +23,7 @@ class TypeClassMatcherSpec extends Specification {
     private static final TypeClassMatcher matcher = new TypeClassMatcher([CustomType: customDefinition])
     private static final FieldResolverScanner scanner = new FieldResolverScanner()
 
-    private final resolver = new NormalResolverInfo(new QueryMethods())
+    private final resolver = new RootResolverInfo([new QueryMethods()])
 
     private TypeClassMatcher.PotentialMatch createPotentialMatch(String methodName, graphql.language.Type graphQLType) {
         scanner.findFieldResolver(new FieldDefinition(methodName, graphQLType), resolver)
