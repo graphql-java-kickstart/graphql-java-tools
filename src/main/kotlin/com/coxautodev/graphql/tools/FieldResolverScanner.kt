@@ -15,7 +15,7 @@ internal class FieldResolverScanner {
 
         val found = searches.findTransformedNotNull { search -> findFieldResolver(field, search) }
 
-        return found ?: throw FieldFinderError(getMissingFieldMessage(field, searches))
+        return found ?: throw FieldResolverError(getMissingFieldMessage(field, searches))
     }
 
     private fun findFieldResolver(field: FieldDefinition, search: Search): FieldResolver? {
@@ -105,4 +105,4 @@ internal class FieldResolverScanner {
     data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null)
 }
 
-class FieldFinderError(msg: String): RuntimeException(msg)
+class FieldResolverError(msg: String): RuntimeException(msg)

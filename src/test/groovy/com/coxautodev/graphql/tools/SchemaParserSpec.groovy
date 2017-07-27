@@ -58,7 +58,7 @@ class SchemaParserSpec extends Specification {
                 .makeExecutableSchema()
 
         then:
-            thrown(FieldFinderError)
+            thrown(FieldResolverError)
     }
 
     def "should parse correctly when Query resolver is given"() {

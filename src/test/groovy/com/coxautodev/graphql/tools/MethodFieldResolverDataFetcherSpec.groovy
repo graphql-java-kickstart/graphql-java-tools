@@ -7,7 +7,6 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
-import spock.lang.Shared
 import spock.lang.Specification
 
 /**
@@ -24,7 +23,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
             })
 
         then:
-            thrown(FieldFinderError)
+            thrown(FieldResolverError)
     }
 
     def "data fetcher throws exception if resolver has too few arguments"() {
@@ -34,7 +33,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
             })
 
         then:
-            thrown(FieldFinderError)
+            thrown(FieldResolverError)
     }
 
     def "data fetcher prioritizes methods on the resolver"() {
