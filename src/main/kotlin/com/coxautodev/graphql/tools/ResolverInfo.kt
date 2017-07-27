@@ -7,7 +7,7 @@ internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
 }
 
-internal class NormalResolverInfo(resolver: GraphQLResolver<*>): ResolverInfo() {
+internal class NormalResolverInfo(val resolver: GraphQLResolver<*>): ResolverInfo() {
     val resolverType = resolver.javaClass
     val dataClassType = findDataClass()
 
@@ -33,20 +33,20 @@ internal class NormalResolverInfo(resolver: GraphQLResolver<*>): ResolverInfo() 
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(
-            FieldResolverScanner.Search(resolverType, true, false, dataClassType),
-            FieldResolverScanner.Search(dataClassType, false, false)
+            FieldResolverScanner.Search(resolverType, this, dataClassType),
+            FieldResolverScanner.Search(dataClassType, this)
         )
     }
 }
 
 internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return resolvers.map { FieldResolverScanner.Search(it.javaClass, true, true) }
+        return resolvers.map { FieldResolverScanner.Search(it.javaClass, this) }
     }
 }
 
 internal class DataClassResolverInfo(val dataClass: Class<*>): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return listOf(FieldResolverScanner.Search(dataClass, false, false))
+        return listOf(FieldResolverScanner.Search(dataClass, this))
     }
 }

@@ -44,7 +44,7 @@ import graphql.schema.idl.ScalarInfo
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val methodsByObjectField: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, ResolverInfo.Method>>) {
+class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val fieldResolversByType: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>) {
 
     companion object {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
@@ -108,7 +108,7 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         definition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field ->
                 createField(field, fieldDefinition)
-                field.dataFetcher(ResolverDataFetcher.create(methodsByObjectField[definition]?.get(fieldDefinition) ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")))
+                field.dataFetcher(fieldResolversByType[definition]?.get(fieldDefinition)?.createDataFetcher() ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools"))
             }
         }
 

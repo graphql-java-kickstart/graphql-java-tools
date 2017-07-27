@@ -14,7 +14,7 @@ internal class FieldResolverScanner {
         val searches = resolverInfo.getFieldSearches()
 
         for(search in searches) {
-            val resolver = findFieldResolver(field, resolverInfo, search)
+            val resolver = findFieldResolver(field, search)
             if(resolver != null) {
                 return resolver
             }
@@ -23,15 +23,15 @@ internal class FieldResolverScanner {
         throw FieldFinderError(getMissingFieldMessage(field, searches))
     }
 
-    private fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo, search: Search): FieldResolver? {
+    private fun findFieldResolver(field: FieldDefinition, search: Search): FieldResolver? {
         val method = findResolverMethod(field, search)
         if(method != null) {
-            return MethodFieldResolver(field, resolverInfo, search, method)
+            return MethodFieldResolver(field, search, method)
         }
 
         val property = findResolverProperty(field, search)
         if(property != null) {
-            return PropertyFieldResolver(field, resolverInfo, search)
+            return PropertyFieldResolver(field, search)
         }
 
         return null
@@ -42,7 +42,7 @@ internal class FieldResolverScanner {
     private fun findResolverMethod(field: FieldDefinition, search: Search): java.lang.reflect.Method? {
 
         val methods = search.type.methods
-        val argumentCount = field.inputValueDefinitions.size + if(search.isNonRootResolver()) 1 else 0
+        val argumentCount = field.inputValueDefinitions.size + if(search.requiredFirstParameterType != null) 1 else 0
         val name = field.name
 
         val isBoolean = isBoolean(field.type)
@@ -62,7 +62,7 @@ internal class FieldResolverScanner {
 
     private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, search: Search): Boolean {
         val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
-        val appropriateFirstParameter = if(search.requiresSpecificFirstParameter()) method.parameterTypes.firstOrNull() == search.requiredFirstParameterType else true
+        val appropriateFirstParameter = if(search.requiredFirstParameterType != null) method.parameterTypes.firstOrNull() == search.requiredFirstParameterType else true
         return correctParameterCount && appropriateFirstParameter
     }
 
@@ -107,10 +107,7 @@ internal class FieldResolverScanner {
         return signatures
     }
 
-    data class Search(val type: Class<*>, val isResolver: Boolean, val isRootResolver: Boolean, val requiredFirstParameterType: Class<*>? = null) {
-        fun isNonRootResolver() = isResolver && !isRootResolver
-        fun requiresSpecificFirstParameter() = isNonRootResolver() && requiredFirstParameterType != null
-    }
+    data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val requiredFirstParameterType: Class<*>? = null)
 }
 
 class FieldFinderError(msg: String): RuntimeException(msg)

@@ -11,18 +11,19 @@ import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
 import java.util.Optional
 
-class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
+class MethodFieldResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
 
     companion object {
         val mapper = ObjectMapper().registerModule(Jdk8Module()).registerKotlinModule()
 
-        @JvmStatic fun create(method: ResolverInfo.Method): ResolverDataFetcher {
+        @JvmStatic internal fun create(fieldResolver: MethodFieldResolver): MethodFieldResolverDataFetcher {
 
             val args = mutableListOf<ArgumentPlaceholder>()
 
             // Add source argument if this is a resolver (but not a root resolver)
-            if(method.sourceArgument) {
-                val expectedType = method.resolver.dataClassType
+            if(fieldResolver.search.requiredFirstParameterType != null) {
+                val expectedType = fieldResolver.search.requiredFirstParameterType
+
                 args.add({ environment ->
                     val source = environment.getSource<Any>()
                     if (!(expectedType.isAssignableFrom(source.javaClass))) {
@@ -34,12 +35,12 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             }
 
             // Add an argument for each argument defined in the GraphQL schema
-            method.field.inputValueDefinitions.forEachIndexed { index, definition ->
+            fieldResolver.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
-                val genericParameterType = method.getJavaMethodParameterType(index) ?: throw ResolverError("Missing method type at position ${method.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
+                val genericParameterType = fieldResolver.getJavaMethodParameterType(index) ?: throw ResolverError("Missing method type at position ${fieldResolver.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
                 val isNonNull = definition.type is NonNullType
-                val isOptional = method.genericType.getRawClass(genericParameterType) == Optional::class.java
+                val isOptional = fieldResolver.genericType.getRawClass(genericParameterType) == Optional::class.java
 
                 val typeReference = object: TypeReference<Any>() {
                     override fun getType() = genericParameterType
@@ -61,22 +62,22 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
             }
 
             // Add DataFetchingEnvironment argument
-            if(method.dataFetchingEnvironment) {
+            if(fieldResolver.dataFetchingEnvironment) {
                 args.add({ environment -> environment })
             }
 
             // Add source resolver depending on whether or not this is a resolver method
-            val sourceResolver: SourceResolver = if(method.resolverMethod) ({ method.resolver.resolver }) else ({ environment ->
+            val sourceResolver: SourceResolver = if(fieldResolver.resolverInfo is NormalResolverInfo) ({ fieldResolver.resolverInfo.resolver }) else ({ environment ->
                 val source = environment.getSource<Any>()
 
-                if(!method.genericType.isAssignableFrom(source.javaClass)) {
-                    throw ResolverError("Expected source object to be an instance of '${method.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
+                if(!fieldResolver.genericType.isAssignableFrom(source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${fieldResolver.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
                 }
 
                 source
             })
 
-            return ResolverDataFetcher(sourceResolver, method.javaMethod, args)
+            return MethodFieldResolverDataFetcher(sourceResolver, fieldResolver.method, args)
         }
     }
 

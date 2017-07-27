@@ -17,6 +17,7 @@ import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Method
 
 /**
  * @author Andrew Potter
@@ -55,7 +56,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val fieldResolverScanner = FieldResolverScanner()
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
-    private val unvalidatedMatches = mutableSetOf<UnvalidatedMatch>()
+    private val unvalidatedTypes = mutableSetOf<TypeDefinition>()
     private val queue = linkedSetOf<QueueItem>()
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
@@ -223,8 +224,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             if (typeWasSet && clazz != null) {
                 handleNewType(type, clazz)
             }
-        } else if(clazz != null) {
-            unvalidatedMatches.add(UnvalidatedMatch(type, clazz))
+        } else {
+            unvalidatedTypes.add(type)
         }
     }
 
@@ -299,16 +300,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         fun joinReferences() = "- $typeClass:\n|   " + references.map { it.getDescription() }.joinToString("\n|   ")
     }
 
-    private data class UnvalidatedMatch(val type: TypeDefinition, val clazz: Class<*>)
-
     abstract class Reference {
         abstract fun getDescription(): String
         override fun toString() = getDescription()
-    }
-
-    private class RootResolverReference(val type: String): Reference() {
-        override fun getDescription() = "root $type type"
-
     }
 
     private class DictionaryReference: Reference() {
@@ -333,12 +327,12 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }
     }
 
-    class ReturnValueReference(private val fieldResolver: MethodFieldResolver): Reference() {
-        override fun getDescription() = "return type of method ${fieldResolver.method}"
+    class ReturnValueReference(private val method: Method): Reference() {
+        override fun getDescription() = "return type of method $method"
     }
 
-    class MethodParameterReference(private val fieldResolver: MethodFieldResolver, private val index: Int): Reference() {
-        override fun getDescription() = "parameter $index of method ${fieldResolver.method}"
+    class MethodParameterReference(private val method: Method, private val index: Int): Reference() {
+        override fun getDescription() = "parameter $index of method $method"
     }
 }
 
