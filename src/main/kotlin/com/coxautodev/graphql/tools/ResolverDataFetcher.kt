@@ -16,7 +16,7 @@ class ResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, va
     companion object {
         val mapper = ObjectMapper().registerModule(Jdk8Module()).registerKotlinModule()
 
-        @JvmStatic fun create(method: Resolver.Method): ResolverDataFetcher {
+        @JvmStatic fun create(method: ResolverInfo.Method): ResolverDataFetcher {
 
             val args = mutableListOf<ArgumentPlaceholder>()
 

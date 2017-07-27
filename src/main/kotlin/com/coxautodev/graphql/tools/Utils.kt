@@ -9,6 +9,7 @@ import org.apache.commons.lang3.reflect.TypeUtils
  * @author Andrew Potter
  */
 
+internal typealias GraphQLRootResolver = GraphQLResolver<Void>
 internal typealias JavaType = java.lang.reflect.Type
 internal typealias GraphQLLangType = graphql.language.Type
 

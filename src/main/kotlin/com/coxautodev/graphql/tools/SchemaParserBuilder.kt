@@ -110,9 +110,8 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
                 throw pce
             }
         }
-        val definitions = document.definitions
 
-        val resolvers = resolvers.map { Resolver(it) }
+        val definitions = document.definitions
         val customScalars = scalars.associateBy { it.name }
 
         return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars).scanForClasses()

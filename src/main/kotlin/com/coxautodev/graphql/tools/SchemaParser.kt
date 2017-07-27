@@ -38,14 +38,13 @@ import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
 import graphql.schema.idl.ScalarInfo
-import java.util.LinkedHashMap
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val methodsByObjectField: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.Method>>) {
+class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val methodsByObjectField: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, ResolverInfo.Method>>) {
 
     companion object {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
