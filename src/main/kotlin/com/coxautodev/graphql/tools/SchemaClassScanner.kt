@@ -4,8 +4,7 @@ import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
 import graphql.language.Definition
-import graphql.language.FieldDefinition
-import graphql.language.InputObjectTypeDefinition
+import graphql.language.FieldDefinition import graphql.language.InputObjectTypeDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
@@ -65,21 +64,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     fun scanForClasses(): SchemaParser {
 
         // Figure out what query, mutation and subscription types are called
-        val queryName = rootInfo.getQueryName()
-        val mutationName = rootInfo.getMutationName()
-        val subscriptionName = rootInfo.getSubscriptionName()
+        val rootTypeHolder = RootTypesHolder(rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
 
-        val queryDefinition = definitionsByName[queryName]
-        val mutationDefinition = definitionsByName[mutationName]
-        val subscriptionDefinition = definitionsByName[subscriptionName]
-
-        val queryResolverInfo = RootResolverInfo(queryResolvers)
-        val mutationResolverInfo = RootResolverInfo(mutationResolvers)
-        val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers)
-
-        handleRootType(queryDefinition, queryName, "query", true, queryResolvers, GraphQLQueryResolver::class.java, queryResolverInfo)
-        handleRootType(mutationDefinition, mutationName, "mutation", rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)
-        handleRootType(subscriptionDefinition, subscriptionName, "subscription", rootInfo.isSubscriptionRequired(), subscriptionResolvers, GraphQLSubscriptionResolver::class.java, subscriptionResolverInfo)
+        handleRootType(rootTypeHolder.query)
+        handleRootType(rootTypeHolder.mutation)
+        handleRootType(rootTypeHolder.subscription)
 
         // Loop over all objects scanning each one only once for more objects to discover.
         while(queue.isNotEmpty()) {
@@ -96,45 +85,33 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
         }
 
-        return validateAndCreateParser()
+        return validateAndCreateParser(rootTypeHolder)
     }
 
     /**
      * Adds all root resolvers for a type to the list of classes to scan
      */
-    private fun handleRootType(rootType: TypeDefinition?, typeName: String, name: String, required: Boolean, resolvers: List<GraphQLRootResolver>, resolverInterface: Class<*>, resolverInfo: RootResolverInfo) {
+    private fun handleRootType(rootType: RootType?) {
         if(rootType == null) {
-            if(required) {
-                throw SchemaClassScannerError("Type definition for root $name type '$typeName' not found!")
-            }
-
             return
         }
 
-        if(rootType !is ObjectTypeDefinition) {
-            throw SchemaClassScannerError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${rootType.javaClass.simpleName}")
-        }
-
-        // Find query resolver class
-        if(resolvers.isEmpty()) {
-            throw SchemaClassScannerError("No Root resolvers for $name type '$typeName' found!  Provide one or more ${resolverInterface.name} to the builder.")
-        }
-
-        scanResolverInfoForPotentialMatches(rootType, resolverInfo)
+        unvalidatedTypes.add(rootType.type)
+        scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
     }
 
-    private fun validateAndCreateParser(): SchemaParser {
+    private fun validateAndCreateParser(rootTypeHolder: RootTypesHolder): SchemaParser {
         initialDictionary.filter { !it.value.accessed }.forEach {
             log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
         }
 
-        val observedDefinitions = dictionary.keys.toSet()
+        val observedDefinitions = dictionary.keys.toSet() + unvalidatedTypes
 
         // The dictionary doesn't need to know what classes are used with scalars.
         // In addition, scalars can have duplicate classes so that breaks the bi-map.
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
-                dictionary.filter { it.key !is ScalarTypeDefinition }.mapValuesTo(it) { it.value.typeClass }
+                dictionary.filter { it.value.typeClass != null }.mapValuesTo(it) { it.value.typeClass }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -151,12 +128,32 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
         }
 
-//        TODO
-//        (resolverInfos - fieldResolversByType.flatMap { it.value.map { it.value.resolver } }.distinct()).forEach { resolver ->
-//            log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolver.resolver}")
-//        }
+        val fieldResolvers = fieldResolversByType.flatMap { it.value.map { it.value } }
+        val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<NormalResolverInfo>()
+
+        (resolverInfos - observedNormalResolverInfos).forEach { resolverInfo ->
+            log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolverInfo.resolver}")
+        }
+
+        validateRootResolversWereUsed(rootTypeHolder.query, fieldResolvers)
+        validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
+        validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
         return SchemaParser(dictionary, observedDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
+    }
+
+    fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
+        if(rootType == null) {
+            return
+        }
+
+        val observedRootTypes = fieldResolvers.filter { it.resolverInfo is RootResolverInfo && it.resolverInfo == rootType.resolverInfo }.map { it.search.type }.toSet()
+
+        rootType.resolvers.forEach { resolver ->
+            if(resolver.javaClass !in observedRootTypes) {
+                log.warn("Root ${rootType.name} resolver was provided but no methods on it were used in data fetchers for GraphQL type '${rootType.type}'")
+            }
+        }
     }
 
     fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
@@ -190,6 +187,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.fieldDefinitions.forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
+
             fieldResolversByType.getOrPut(type, { mutableMapOf() })[fieldResolver.field] = fieldResolver
             fieldResolver.scanForMatches().forEach { potentialMatch ->
                 handleFoundType(typeClassMatcher.match(potentialMatch))
@@ -333,6 +331,47 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     class MethodParameterReference(private val method: Method, private val index: Int): Reference() {
         override fun getDescription() = "parameter $index of method $method"
     }
+
+    class RootTypesHolder(rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
+        val queryName = rootInfo.getQueryName()
+        val mutationName = rootInfo.getMutationName()
+        val subscriptionName = rootInfo.getSubscriptionName()
+
+        val queryDefinition = definitionsByName[queryName]
+        val mutationDefinition = definitionsByName[mutationName]
+        val subscriptionDefinition = definitionsByName[subscriptionName]
+
+        val queryResolverInfo = RootResolverInfo(queryResolvers)
+        val mutationResolverInfo = RootResolverInfo(mutationResolvers)
+        val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers)
+
+        val query = createRootType("query", queryDefinition, queryName, true, queryResolvers, GraphQLQueryResolver::class.java, queryResolverInfo)
+        val mutation = createRootType("mutation", mutationDefinition, mutationName, rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)
+        val subscription = createRootType("subscription", subscriptionDefinition, subscriptionName, rootInfo.isSubscriptionRequired(), subscriptionResolvers, GraphQLSubscriptionResolver::class.java, subscriptionResolverInfo)
+
+        fun createRootType(name: String, type: TypeDefinition?, typeName: String, required: Boolean, resolvers: List<GraphQLRootResolver>, resolverInterface: Class<*>, resolverInfo: RootResolverInfo): RootType? {
+            if(type == null) {
+                if(required) {
+                    throw SchemaClassScannerError("Type definition for root $name type '$typeName' not found!")
+                }
+
+                return null
+            }
+
+            if(type !is ObjectTypeDefinition) {
+                throw SchemaClassScannerError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${type.javaClass.simpleName}")
+            }
+
+            // Find query resolver class
+            if(resolvers.isEmpty()) {
+                throw SchemaClassScannerError("No Root resolvers for $name type '$typeName' found!  Provide one or more ${resolverInterface.name} to the builder.")
+            }
+
+            return RootType(name, type, typeName, resolvers, resolverInterface, resolverInfo)
+        }
+    }
+
+    class RootType(val name: String, val type: ObjectTypeDefinition, val typeName: String, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
 }
 
 class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
