@@ -11,7 +11,6 @@ import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
 import graphql.language.SchemaDefinition
-import graphql.language.Type
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
@@ -22,13 +21,12 @@ import org.slf4j.LoggerFactory
 /**
  * @author Andrew Potter
  */
-internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, private val allDefinitions: List<Definition>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap) {
+internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap) {
 
     companion object {
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
     }
 
-    private val fieldResolverScanner = FieldResolverScanner()
 
     private val queryResolvers = resolvers.filterIsInstance<GraphQLQueryResolver>()
     private val mutationResolvers = resolvers.filterIsInstance<GraphQLMutationResolver>()
@@ -54,6 +52,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
     private val mutationDefinition = definitionsByName[mutationName]
     private val subscriptionDefinition = definitionsByName[subscriptionName]
 
+    private val fieldResolverScanner = FieldResolverScanner()
+    private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val unvalidatedMatches = mutableSetOf<UnvalidatedMatch>()
     private val queue = linkedSetOf<QueueItem>()
@@ -85,7 +85,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
         while(queue.isNotEmpty()) {
             while (queue.isNotEmpty()) {
                 while (queue.isNotEmpty()) {
-                    scanObjectForDictionaryItems(queue.iterator().run { val item = next(); remove(); item })
+                    scanQueueItemForPotentialMatches(queue.iterator().run { val item = next(); remove(); item })
                 }
 
                 // Require all implementors of discovered interfaces to be discovered or provided.
@@ -120,9 +120,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
             throw SchemaClassScannerError("No Root resolvers for $name type '$typeName' found!  Provide one or more ${resolverInterface.name} to the builder.")
         }
 
-        resolverInfo.resolvers.forEach { rootResolver ->
-            handleFoundType(rootType, rootResolver.javaClass, RootResolverReference(name))
-        }
+        scanResolverInfoForPotentialMatches(rootType, resolverInfo)
     }
 
     private fun validateAndCreateParser(): SchemaParser {
@@ -153,9 +151,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
             log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
         }
 
-        (resolverInfos - fieldResolversByType.flatMap { it.value.map { it.value.resolver } }.distinct()).forEach { resolver ->
-            log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolver.resolver}")
-        }
+//        TODO
+//        (resolverInfos - fieldResolversByType.flatMap { it.value.map { it.value.resolver } }.distinct()).forEach { resolver ->
+//            log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolver.resolver}")
+//        }
 
         return SchemaParser(dictionary, observedDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
     }
@@ -184,34 +183,22 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
     /**
      * Scan a new object for types that haven't been mapped yet.
      */
-    private fun scanObjectForDictionaryItems(item: QueueItem) {
-        val fields = item.type.fieldDefinitions
+    private fun scanQueueItemForPotentialMatches(item: QueueItem) {
+        scanResolverInfoForPotentialMatches(item.type, resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz))
+    }
 
-        if(isRootTypeDefinition(item.type)) {
-            // TODO
-        } else {
-            fields.forEach { field ->
-                val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz))
-
-                fieldResolversByType.getOrPut(item.type, { mutableMapOf() })[field] = fieldResolver
-                handleFieldTypes(field, fieldResolver)
+    private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
+        type.fieldDefinitions.forEach { field ->
+            val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
+            fieldResolversByType.getOrPut(type, { mutableMapOf() })[fieldResolver.field] = fieldResolver
+            fieldResolver.scanForMatches().forEach { potentialMatch ->
+                handleFoundType(typeClassMatcher.match(potentialMatch))
             }
         }
     }
 
-    /**
-     * Match types from a single field (return value and input values).
-     */
-    private fun handleFieldTypes(field: FieldDefinition, fieldResolver: FieldResolver) {
-        handleFoundType(matchTypeToClass(field.type, method.javaMethod.genericReturnType, method.genericType.relativeTo(method.javaMethod.declaringClass), TypeClassMatcher.Location.RETURN_TYPE), ReturnValueReference(method))
-
-        field.inputValueDefinitions.forEachIndexed { i, inputDefinition ->
-            handleFoundType(matchTypeToClass(inputDefinition.type, method.getJavaMethodParameterType(i)!!, method.genericType.relativeTo(method.javaMethod.declaringClass)), MethodParameterReference(method, i))
-        }
-    }
-
-    private fun handleFoundType(match: TypeClassMatcher.Match, reference: Reference) {
-        handleFoundType(match.type, match.clazz, reference)
+    private fun handleFoundType(match: TypeClassMatcher.Match) {
+        handleFoundType(match.type, match.clazz, match.reference)
     }
 
     /**
@@ -237,18 +224,12 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
                 handleNewType(type, clazz)
             }
         } else if(clazz != null) {
-            if(unvalidatedMatches.add(UnvalidatedMatch(type, clazz))) {
-                handleNewType(type, clazz)
-            }
+            unvalidatedMatches.add(UnvalidatedMatch(type, clazz))
         }
     }
 
     private fun ignoreDictionaryForType(type: TypeDefinition): Boolean {
-        return type is ScalarTypeDefinition || isRootTypeDefinition(type)
-    }
-
-    private fun isRootTypeDefinition(type: TypeDefinition): Boolean {
-        return type == queryDefinition || type == mutationDefinition || type == subscriptionDefinition
+        return type is ScalarTypeDefinition
     }
 
     /**
@@ -257,7 +238,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
     private fun handleNewType(graphQLType: TypeDefinition, javaType: Class<*>) {
         when(graphQLType) {
             is ObjectTypeDefinition -> {
-                queue.add(QueueItem(graphQLType, javaType))
+                enqueue(graphQLType, javaType)
+
                 graphQLType.implements.forEach {
                     if(it is TypeName) {
                         handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
@@ -270,12 +252,16 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
                     findInputValueType(inputValueDefinition.name, javaType)?.let { inputValueJavaType ->
                         val inputGraphQLType = inputValueDefinition.type.unwrap()
                         if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                            handleFoundType(matchTypeToClass(inputValueDefinition.type, inputValueJavaType, GenericType(javaType).relativeTo(inputValueJavaType)), InputObjectReference(inputValueDefinition))
+                            handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch(inputValueDefinition.type, inputValueJavaType, GenericType(javaType).relativeTo(inputValueJavaType), InputObjectReference(inputValueDefinition))))
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun enqueue(graphQLType: ObjectTypeDefinition, javaType: Class<*>) {
+        queue.add(QueueItem(graphQLType, javaType))
     }
 
     private fun findInputValueType(name: String, clazz: Class<*>): JavaType? {
@@ -289,8 +275,6 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
             it.name == name
         }?.genericType
     }
-
-    private fun matchTypeToClass(typeDefinition: Type, type: JavaType, generic: GenericType.RelativeTo, location: TypeClassMatcher.Location = TypeClassMatcher.Location.PARAMETER_TYPE) = TypeClassMatcher(typeDefinition, type, generic, location, definitionsByName).match()
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
 
@@ -317,7 +301,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
 
     private data class UnvalidatedMatch(val type: TypeDefinition, val clazz: Class<*>)
 
-    private abstract class Reference {
+    abstract class Reference {
         abstract fun getDescription(): String
         override fun toString() = getDescription()
     }
@@ -329,14 +313,6 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
 
     private class DictionaryReference: Reference() {
         override fun getDescription() = "provided dictionary"
-    }
-
-    private class ReturnValueReference(private val method: ResolverInfo.Method): Reference() {
-        override fun getDescription() = "return type of method ${method.javaMethod}"
-    }
-
-    private class MethodParameterReference(private val method: ResolverInfo.Method, private val index: Int): Reference() {
-        override fun getDescription() = "parameter $index of method ${method.javaMethod}"
     }
 
     private class InterfaceReference(private val type: ObjectTypeDefinition): Reference() {
@@ -355,6 +331,14 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, pr
             accessed = true
             return clazz
         }
+    }
+
+    class ReturnValueReference(private val fieldResolver: MethodFieldResolver): Reference() {
+        override fun getDescription() = "return type of method ${fieldResolver.method}"
+    }
+
+    class MethodParameterReference(private val fieldResolver: MethodFieldResolver, private val index: Int): Reference() {
+        override fun getDescription() = "parameter $index of method ${fieldResolver.method}"
     }
 }
 

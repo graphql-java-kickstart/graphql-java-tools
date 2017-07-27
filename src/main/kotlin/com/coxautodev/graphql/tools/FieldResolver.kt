@@ -7,10 +7,14 @@ import java.lang.reflect.Method
  * @author Andrew Potter
  */
 internal abstract class FieldResolver(val field: FieldDefinition, val resolverInfo: ResolverInfo, val search: FieldResolverScanner.Search) {
-
+    abstract fun scanForMatches(): List<TypeClassMatcher.PotentialMatch>
 }
 
-internal class MethodFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo, search: FieldResolverScanner.Search, private val method: Method): FieldResolver(field, resolverInfo, search) {
+internal class MethodFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo, search: FieldResolverScanner.Search, val method: Method): FieldResolver(field, resolverInfo, search) {
+
+    override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
+        TODO("not implemented")
+    }
 
     val genericType = GenericType(search.type).relativeTo(method.declaringClass)
     val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
@@ -31,5 +35,7 @@ internal class MethodFieldResolver(field: FieldDefinition, resolverInfo: Resolve
 }
 
 internal class PropertyFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo, search: FieldResolverScanner.Search): FieldResolver(field, resolverInfo, search) {
-
+    override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
+        TODO("not implemented")
+    }
 }
