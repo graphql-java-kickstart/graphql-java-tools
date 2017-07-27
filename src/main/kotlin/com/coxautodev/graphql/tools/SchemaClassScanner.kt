@@ -376,4 +376,4 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
 class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
 
-typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>
+internal typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>

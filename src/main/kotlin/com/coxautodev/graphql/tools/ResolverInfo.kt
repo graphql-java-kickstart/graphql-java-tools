@@ -33,20 +33,22 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>): ResolverInf
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(
-            FieldResolverScanner.Search(resolverType, this, dataClassType),
-            FieldResolverScanner.Search(dataClassType, this)
+            FieldResolverScanner.Search(resolverType, this, resolver, dataClassType),
+            FieldResolverScanner.Search(dataClassType, this, null)
         )
     }
 }
 
 internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return resolvers.map { FieldResolverScanner.Search(it.javaClass, this) }
+        return resolvers.map { FieldResolverScanner.Search(it.javaClass, this, it) }
     }
 }
 
 internal class DataClassResolverInfo(val dataClass: Class<*>): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return listOf(FieldResolverScanner.Search(dataClass, this))
+        return listOf(FieldResolverScanner.Search(dataClass, this, null))
     }
 }
+
+class ResolverError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

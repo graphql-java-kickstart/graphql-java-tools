@@ -12,7 +12,7 @@ import java.util.concurrent.Future
 /**
  * @author Andrew Potter
  */
-open class GenericType(protected val mostSpecificType: JavaType) {
+open internal class GenericType(protected val mostSpecificType: JavaType) {
 
     fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>): Boolean {
         return clazz.isAssignableFrom(getRawClass(type.rawType))

@@ -20,11 +20,15 @@ class TypeClassMatcherSpec extends Specification {
     private static final graphql.language.Type customType = new TypeName("CustomType")
     private static final TypeDefinition customDefinition = new ObjectTypeDefinition("CustomType")
 
-    private final resolver = new ResolverInfo(new QueryMethods())
+    private static final TypeClassMatcher matcher = new TypeClassMatcher([CustomType: customDefinition])
+    private static final FieldResolverScanner scanner = new FieldResolverScanner()
 
-    private TypeClassMatcher createReturnValueMatcher(String methodName, graphql.language.Type graphQLType) {
-        def method = resolver.getMethod(new FieldDefinition(methodName, graphQLType))
-        new TypeClassMatcher(graphQLType, method.javaMethod.genericReturnType, method.getGenericType().relativeTo(method.javaMethod.declaringClass), TypeClassMatcher.Location.RETURN_TYPE, [CustomType: customDefinition])
+    private final resolver = new NormalResolverInfo(new QueryMethods())
+
+    private TypeClassMatcher.PotentialMatch createPotentialMatch(String methodName, graphql.language.Type graphQLType) {
+        scanner.findFieldResolver(new FieldDefinition(methodName, graphQLType), resolver)
+            .scanForMatches()
+            .find { it.location == TypeClassMatcher.Location.RETURN_TYPE }
     }
 
     private graphql.language.Type list(graphql.language.Type other = customType) {
@@ -37,7 +41,7 @@ class TypeClassMatcherSpec extends Specification {
     @Unroll
     def "matcher verifies that nested return type matches graphql definition for method #methodName"() {
         when:
-            def match = createReturnValueMatcher(methodName, type).match()
+            def match = matcher.match(createPotentialMatch(methodName, type))
 
         then:
             noExceptionThrown()
@@ -63,7 +67,7 @@ class TypeClassMatcherSpec extends Specification {
     @Unroll
     def "matcher verifies that nested return type doesn't match graphql definition for method #methodName"() {
         when:
-            createReturnValueMatcher(methodName, type).match()
+            matcher.match(createPotentialMatch(methodName, type))
 
         then:
             thrown(SchemaClassScannerError)
@@ -77,7 +81,7 @@ class TypeClassMatcherSpec extends Specification {
     @Unroll
     def "matcher verifies return value optionals are used incorrectly for method #methodName"() {
         when:
-            createReturnValueMatcher(methodName, type).match()
+            matcher.match(createPotentialMatch(methodName, type))
 
         then:
             thrown(SchemaClassScannerError)
@@ -91,7 +95,8 @@ class TypeClassMatcherSpec extends Specification {
 
     def "matcher does not allow parameterized types as root types"() {
         when:
-            createReturnValueMatcher("genericCustomType", customType).match()
+            matcher.match(createPotentialMatch("genericCustomType", customType))
+
         then:
             thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
     }

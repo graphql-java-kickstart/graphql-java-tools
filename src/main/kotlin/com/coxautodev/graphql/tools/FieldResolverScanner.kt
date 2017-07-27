@@ -75,7 +75,7 @@ internal class FieldResolverScanner {
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, search.requiredFirstParameterType))
         }
 
-        return "No method found with any of the following signatures (in priority order):${signatures.joinToString("\n  ")}"
+        return "No method found with any of the following signatures (in priority order):${signatures.joinToString("\n  ")}\n"
     }
 
 
@@ -102,7 +102,7 @@ internal class FieldResolverScanner {
         return signatures
     }
 
-    data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val requiredFirstParameterType: Class<*>? = null)
+    data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null)
 }
 
 class FieldFinderError(msg: String): RuntimeException(msg)

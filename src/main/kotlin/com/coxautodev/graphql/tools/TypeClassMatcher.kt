@@ -79,6 +79,6 @@ internal class TypeClassMatcher(val definitionsByName: Map<String, TypeDefinitio
         PARAMETER_TYPE,
     }
 
-    data class PotentialMatch(val graphQLType: GraphQLLangType, val javaType: JavaType, val generic: GenericType.RelativeTo, val reference: SchemaClassScanner.Reference, val location: Location = Location.PARAMETER_TYPE)
+    internal data class PotentialMatch(val graphQLType: GraphQLLangType, val javaType: JavaType, val generic: GenericType.RelativeTo, val reference: SchemaClassScanner.Reference, val location: Location = Location.PARAMETER_TYPE)
     class RawClassRequiredForGraphQLMappingException(msg: String): RuntimeException(msg)
 }
