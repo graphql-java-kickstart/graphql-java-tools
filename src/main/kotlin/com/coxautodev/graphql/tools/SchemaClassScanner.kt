@@ -28,12 +28,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
     }
 
+    private val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
 
     private val queryResolvers = resolvers.filterIsInstance<GraphQLQueryResolver>()
     private val mutationResolvers = resolvers.filterIsInstance<GraphQLMutationResolver>()
     private val subscriptionResolvers = resolvers.filterIsInstance<GraphQLSubscriptionResolver>()
-
-    private val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
 
     private val resolverInfos = resolvers.minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it) }
     private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
@@ -43,15 +42,6 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>()
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
-
-    // Figure out what query, mutation and subscription types are called
-    private val queryName = rootInfo.getQueryName()
-    private val mutationName = rootInfo.getMutationName()
-    private val subscriptionName = rootInfo.getSubscriptionName()
-
-    private val queryDefinition = definitionsByName[queryName]
-    private val mutationDefinition = definitionsByName[mutationName]
-    private val subscriptionDefinition = definitionsByName[subscriptionName]
 
     private val fieldResolverScanner = FieldResolverScanner()
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
@@ -73,6 +63,15 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
      * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
      */
     fun scanForClasses(): SchemaParser {
+
+        // Figure out what query, mutation and subscription types are called
+        val queryName = rootInfo.getQueryName()
+        val mutationName = rootInfo.getMutationName()
+        val subscriptionName = rootInfo.getSubscriptionName()
+
+        val queryDefinition = definitionsByName[queryName]
+        val mutationDefinition = definitionsByName[mutationName]
+        val subscriptionDefinition = definitionsByName[subscriptionName]
 
         val queryResolverInfo = RootResolverInfo(queryResolvers)
         val mutationResolverInfo = RootResolverInfo(mutationResolvers)
