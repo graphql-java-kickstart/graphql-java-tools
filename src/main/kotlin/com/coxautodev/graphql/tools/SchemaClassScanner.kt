@@ -97,6 +97,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }
 
         unvalidatedTypes.add(rootType.type)
+        scanInterfacesOfType(rootType.type)
         scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
     }
 
@@ -237,12 +238,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         when(graphQLType) {
             is ObjectTypeDefinition -> {
                 enqueue(graphQLType, javaType)
-
-                graphQLType.implements.forEach {
-                    if(it is TypeName) {
-                        handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
-                    }
-                }
+                scanInterfacesOfType(graphQLType)
             }
 
             is InputObjectTypeDefinition -> {
@@ -254,6 +250,14 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {
+        graphQLType.implements.forEach {
+            if(it is TypeName) {
+                handleFoundType(interfaceDefinitionsByName[it.name] ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
             }
         }
     }
