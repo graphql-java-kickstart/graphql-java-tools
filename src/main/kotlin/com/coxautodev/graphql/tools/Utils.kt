@@ -17,14 +17,3 @@ internal fun Type.unwrap(): Type = when(this) {
     is ListType -> this.type.unwrap()
     else -> this
 }
-
-internal fun <E, R> List<E>.findTransformedNotNull(transform: (E) -> R?): R? {
-    for(element in this) {
-        val result = transform(element)
-        if(result != null) {
-            return result
-        }
-    }
-
-    return null
-}

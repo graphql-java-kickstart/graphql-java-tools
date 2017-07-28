@@ -11,7 +11,7 @@ class FieldResolverScannerSpec extends Specification {
 
     private static final FieldResolverScanner scanner = new FieldResolverScanner()
 
-    def "field resolver finds fields on multiple root types"() {
+    def "scanner finds fields on multiple root types"() {
         setup:
             def resolver = new RootResolverInfo([new RootQuery1(), new RootQuery2()])
 
@@ -23,11 +23,37 @@ class FieldResolverScannerSpec extends Specification {
             result1.search.source != result2.search.source
     }
 
+    def "scanner throws exception when more than one resolver method is found"() {
+        setup:
+            def resolver = new RootResolverInfo([new RootQuery1(), new DuplicateQuery()])
+
+        when:
+            scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
+
+        then:
+            thrown(FieldResolverError)
+    }
+
+    def "scanner throws exception when no resolver methods are found"() {
+        setup:
+            def resolver = new RootResolverInfo([])
+
+        when:
+            scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
+
+        then:
+            thrown(FieldResolverError)
+    }
+
     class RootQuery1 implements GraphQLQueryResolver {
         def field1() {}
     }
 
     class RootQuery2 implements GraphQLQueryResolver {
         def field2() {}
+    }
+
+    class DuplicateQuery implements GraphQLQueryResolver {
+        def field1() {}
     }
 }

@@ -103,6 +103,8 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             return null
         }
     }
+
+    override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
 class MethodFieldResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
