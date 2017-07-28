@@ -53,12 +53,13 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         internal fun getDocumentation(node: AbstractNode): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
     }
 
-    private val objectDefinitions = definitions.filterIsInstance<ObjectTypeDefinition>()
+    private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
+    private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
+
     private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
-    private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -105,7 +106,7 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
             builder.withInterface(interfaces.find { it.name == interfaceName } ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
         }
 
-        definition.fieldDefinitions.forEach { fieldDefinition ->
+        definition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
             builder.field { field ->
                 createField(field, fieldDefinition)
                 field.dataFetcher(fieldResolversByType[definition]?.get(fieldDefinition)?.createDataFetcher() ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools"))

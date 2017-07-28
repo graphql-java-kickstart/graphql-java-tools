@@ -143,7 +143,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return SchemaParser(dictionary, observedDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
+        return SchemaParser(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
     }
 
     fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -189,7 +189,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
-        type.fieldDefinitions.forEach { field ->
+        type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type, { mutableMapOf() })[fieldResolver.field] = fieldResolver
