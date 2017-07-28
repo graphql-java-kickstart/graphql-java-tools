@@ -12,29 +12,29 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-class TypeClassMatcher(private val graphQLType: GraphQLLangType, private val javaType: JavaType, private val generic: GenericType.RelativeTo, private val location: Location, private val definitionsByName: Map<String, TypeDefinition>) {
+internal class TypeClassMatcher(val definitionsByName: Map<String, TypeDefinition>) {
 
-    private fun error(msg: String) = SchemaClassScannerError("Unable to match type definition ($graphQLType) with java type ($javaType): $msg")
+    private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) with java type (${potentialMatch.javaType}): $msg")
 
-    fun match() = match(graphQLType, javaType, true)
+    fun match(potentialMatch: PotentialMatch) = match(potentialMatch, potentialMatch.graphQLType, potentialMatch.javaType, true)
 
-    private fun match(graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
+    private fun match(potentialMatch: PotentialMatch, graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
 
-        var realType = generic.unwrapGenericType(javaType)
+        var realType = potentialMatch.generic.unwrapGenericType(javaType)
         var optional = false
 
         // Handle jdk8 Optionals
-        if(realType is ParameterizedType && generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
+        if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
             optional = true
 
-            if(location == Location.RETURN_TYPE && !root) {
-                throw error("${Optional::class.java.name} can only be used at the top level of a return type")
+            if(potentialMatch.location == Location.RETURN_TYPE && !root) {
+                throw error(potentialMatch, "${Optional::class.java.name} can only be used at the top level of a return type")
             }
 
-            realType = generic.unwrapGenericType(realType.actualTypeArguments.first())
+            realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
 
-            if(realType is ParameterizedType && generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
-                throw error("${Optional::class.java.name} cannot be nested within itself")
+            if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
+                throw error(potentialMatch, "${Optional::class.java.name} cannot be nested within itself")
             }
         }
 
@@ -42,26 +42,26 @@ class TypeClassMatcher(private val graphQLType: GraphQLLangType, private val jav
         return when(graphQLType) {
             is NonNullType -> {
                 if(optional) {
-                    throw error("graphql type is marked as nonnull but ${Optional::class.java.name} was used")
+                    throw error(potentialMatch, "graphql type is marked as nonnull but ${Optional::class.java.name} was used")
                 }
-                match(graphQLType.type, realType)
+                match(potentialMatch, graphQLType.type, realType)
             }
 
             is ListType -> {
-                if(realType is ParameterizedType && generic.isTypeAssignableFromRawClass(realType, List::class.java)) {
-                    match(graphQLType.type, realType.actualTypeArguments.first())
+                if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, List::class.java)) {
+                    match(potentialMatch, graphQLType.type, realType.actualTypeArguments.first())
                 } else {
-                    throw error("Java class is not a List: $realType")
+                    throw error(potentialMatch, "Java class is not a List: $realType")
                 }
             }
 
             is TypeName -> {
-                val typeDefinition = ScalarInfo.STANDARD_SCALAR_DEFINITIONS[graphQLType.name] ?: definitionsByName[graphQLType.name] ?: throw SchemaClassScannerError("No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
-                Match(typeDefinition, requireRawClass(realType))
+                val typeDefinition = ScalarInfo.STANDARD_SCALAR_DEFINITIONS[graphQLType.name] ?: definitionsByName[graphQLType.name] ?: throw error(potentialMatch, "No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
+                Match(typeDefinition, requireRawClass(realType), potentialMatch.reference)
             }
 
-            is TypeDefinition -> Match(graphQLType, requireRawClass(realType))
-            else -> throw error("Unknown type: ${realType.javaClass.name}")
+            is TypeDefinition -> Match(graphQLType, requireRawClass(realType), potentialMatch.reference)
+            else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
         }
     }
 
@@ -73,11 +73,21 @@ class TypeClassMatcher(private val graphQLType: GraphQLLangType, private val jav
         return type
     }
 
-    data class Match(val type: TypeDefinition, val clazz: Class<*>)
+    data class Match(val type: TypeDefinition, val clazz: Class<*>, val reference: SchemaClassScanner.Reference)
     enum class Location {
         RETURN_TYPE,
         PARAMETER_TYPE,
     }
 
+    internal data class PotentialMatch private constructor(val graphQLType: GraphQLLangType, val javaType: JavaType, val generic: GenericType.RelativeTo, val reference: SchemaClassScanner.Reference, val location: Location) {
+        companion object {
+            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference): PotentialMatch {
+                return PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE)
+            }
+            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference): PotentialMatch {
+                return PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE)
+            }
+        }
+    }
     class RawClassRequiredForGraphQLMappingException(msg: String): RuntimeException(msg)
 }

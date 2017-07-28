@@ -8,6 +8,14 @@ import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
+fun createSchema() = SchemaParser.newParser()
+    .schemaString(schemaDefinition)
+    .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
+    .scalars(CustomUUIDScalar)
+    .dictionary("OtherItem", OtherItemWithWrongName::class.java)
+    .build()
+    .makeExecutableSchema()
+
 val schemaDefinition = """
 
 scalar UUID
@@ -31,6 +39,16 @@ type Query {
     complexNullableType: ComplexNullable
 
     complexInputType(complexInput: [[ComplexInputType!]]): String!
+    extendedType: ExtendedType!
+    propertyField: String!
+}
+
+type ExtendedType {
+    first: String!
+}
+
+extend type ExtendedType {
+    second: String!
 }
 
 type ComplexNullable {
@@ -129,6 +147,17 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun complexNullableType(): ComplexNullable? = null
 
     fun complexInputType(input: List<List<ComplexInputType>?>?) = input?.firstOrNull()?.firstOrNull()?.let { it.first == "foo" && it.second?.firstOrNull()?.firstOrNull()?.first == "bar" } ?: false
+    fun extendedType() = ExtendedType()
+
+    private val propertyField = "test"
+}
+
+class UnusedRootResolver: GraphQLQueryResolver
+class UnusedResolver: GraphQLResolver<String>
+
+class ExtendedType {
+    fun first() = "test"
+    fun second() = "test"
 }
 
 abstract class ListListResolver<out E> {

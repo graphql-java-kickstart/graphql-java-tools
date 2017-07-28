@@ -38,14 +38,13 @@ import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
 import graphql.schema.idl.ScalarInfo
-import java.util.LinkedHashMap
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val methodsByObjectField: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, Resolver.Method>>) {
+class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val fieldResolversByType: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>) {
 
     companion object {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
@@ -54,12 +53,13 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         internal fun getDocumentation(node: AbstractNode): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
     }
 
-    private val objectDefinitions = definitions.filterIsInstance<ObjectTypeDefinition>()
+    private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
+    private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
+
     private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
-    private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -106,10 +106,10 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
             builder.withInterface(interfaces.find { it.name == interfaceName } ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
         }
 
-        definition.fieldDefinitions.forEach { fieldDefinition ->
+        definition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
             builder.field { field ->
                 createField(field, fieldDefinition)
-                field.dataFetcher(ResolverDataFetcher.create(methodsByObjectField[definition]?.get(fieldDefinition) ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")))
+                field.dataFetcher(fieldResolversByType[definition]?.get(fieldDefinition)?.createDataFetcher() ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools"))
             }
         }
 

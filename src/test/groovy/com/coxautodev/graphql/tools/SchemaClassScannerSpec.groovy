@@ -187,7 +187,58 @@ class SchemaClassScannerSpec extends Specification {
     }
 
     class ScalarsWithMultipleTypes implements GraphQLQueryResolver {
-        Object first() { null }
+        Integer first() { null }
         String second() { null }
+    }
+
+    def "scanner handles multiple interfaces that are not used as field types"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new MultipleInterfaces())
+                .schemaString("""
+                    type Query {
+                        query1: NamedResourceImpl
+                        query2: VersionedResourceImpl
+                    }
+
+                    interface NamedResource {
+                        name: String!
+                    }
+
+                    interface VersionedResource {
+                        version: Int!
+                    }
+
+                    type NamedResourceImpl implements NamedResource {
+                        name: String!
+                    }
+
+                    type VersionedResourceImpl implements VersionedResource {
+                        version: Int!
+                    }
+                """)
+                .build()
+
+        then:
+            noExceptionThrown()
+    }
+
+    class MultipleInterfaces implements GraphQLQueryResolver {
+        NamedResourceImpl query1() { null }
+        VersionedResourceImpl query2() { null }
+
+        static interface NamedResource {
+            String name()
+        }
+        static interface VersionedResource {
+            int version()
+        }
+
+        static class NamedResourceImpl implements NamedResource {
+            String name() {}
+        }
+        static class VersionedResourceImpl implements VersionedResource {
+            int version() {}
+        }
     }
 }

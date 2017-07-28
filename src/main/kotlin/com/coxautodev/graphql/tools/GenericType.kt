@@ -12,7 +12,7 @@ import java.util.concurrent.Future
 /**
  * @author Andrew Potter
  */
-open class GenericType(protected val mostSpecificType: JavaType) {
+open internal class GenericType(protected val mostSpecificType: JavaType) {
 
     fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>): Boolean {
         return clazz.isAssignableFrom(getRawClass(type.rawType))
@@ -28,8 +28,19 @@ open class GenericType(protected val mostSpecificType: JavaType) {
         return TypeUtils.isAssignable(type, mostSpecificType)
     }
 
-    fun relativeTo(declaringClass: Class<*>) = relativeTo(getGenericSuperType(mostSpecificType, declaringClass) ?: error("Unable to find declaring type from class '${declaringClass.name}' relative to ${TypeUtils.toString(mostSpecificType)}"))
-    fun relativeTo(declaringType: JavaType) = RelativeTo(declaringType, mostSpecificType)
+    fun relativeToPotentialParent(declaringType: JavaType): RelativeTo {
+        if(declaringType !is Class<*>) {
+            return relativeToType(declaringType)
+        }
+
+        val type = getGenericSuperType(mostSpecificType, declaringType)
+        if(type == null) {
+            error("Unable to find generic type of class ${TypeUtils.toString(declaringType)} relative to ${TypeUtils.toString(mostSpecificType)}")
+        } else {
+            return relativeToType(type)
+        }
+    }
+    fun relativeToType(declaringType: JavaType) = RelativeTo(declaringType, mostSpecificType)
 
     fun getGenericInterface(targetInterface: Class<*>) = getGenericInterface(mostSpecificType, targetInterface)
 
@@ -69,7 +80,7 @@ open class GenericType(protected val mostSpecificType: JavaType) {
         return getGenericSuperType(raw.genericSuperclass, targetSuperClass)
     }
 
-    class RelativeTo constructor(private val declaringType: JavaType, mostSpecificType: JavaType): GenericType(mostSpecificType) {
+    class RelativeTo (private val declaringType: JavaType, mostSpecificType: JavaType): GenericType(mostSpecificType) {
 
         /**
          * Unwrap certain Java types to find the "real" class.

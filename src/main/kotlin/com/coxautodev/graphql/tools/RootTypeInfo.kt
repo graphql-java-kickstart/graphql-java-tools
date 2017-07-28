@@ -6,7 +6,7 @@ import graphql.language.TypeName
 /**
  * @author Andrew Potter
  */
-class RootTypeInfo private constructor(val queryType: TypeName?, val mutationType: TypeName?, val subscriptionType: TypeName?) {
+internal class RootTypeInfo private constructor(val queryType: TypeName?, val mutationType: TypeName?, val subscriptionType: TypeName?) {
     companion object {
         const val DEFAULT_QUERY_NAME = "Query"
         const val DEFAULT_MUTATION_NAME = "Mutation"

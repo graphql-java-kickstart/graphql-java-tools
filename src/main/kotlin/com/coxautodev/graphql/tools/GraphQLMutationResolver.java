@@ -3,9 +3,5 @@ package com.coxautodev.graphql.tools;
 /**
  * @author Andrew Potter
  */
-public interface GraphQLMutationResolver extends GraphQLRootResolver {
-    @Override
-    default String getResolverName() {
-        return RootTypeInfo.DEFAULT_MUTATION_NAME;
-    }
+public interface GraphQLMutationResolver extends GraphQLResolver<Void> {
 }
