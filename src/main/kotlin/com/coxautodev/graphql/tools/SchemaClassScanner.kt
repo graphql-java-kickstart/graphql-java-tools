@@ -11,6 +11,7 @@ import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
 import graphql.language.SchemaDefinition
 import graphql.language.TypeDefinition
+import graphql.language.TypeExtensionDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
@@ -37,8 +38,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
-    private val definitionsByName = allDefinitions.filterIsInstance<TypeDefinition>().associateBy { it.name }
-    private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>()
+    private val extensionDefinitions = allDefinitions.filterIsInstance<TypeExtensionDefinition>()
+
+    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition>() - extensionDefinitions).associateBy { it.name }
+    private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 

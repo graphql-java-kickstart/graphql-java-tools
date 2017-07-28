@@ -79,7 +79,7 @@ internal class FieldResolverScanner {
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, search.requiredFirstParameterType))
         }
 
-        return "No method found with any of the following signatures (in priority order):${signatures.joinToString("\n  ")}\n"
+        return "No method found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
 
@@ -95,7 +95,7 @@ internal class FieldResolverScanner {
 
         args.addAll(field.inputValueDefinitions.map { "~${it.name}" })
 
-        val argString = args.joinToString(sep) + " [, ${DataFetchingEnvironment::class.java.name}]"
+        val argString = args.joinToString(sep)
 
         signatures.add("${baseType.name}.${field.name}($argString)")
         if(isBoolean) {

@@ -13,13 +13,7 @@ class EndToEndSpec extends Specification {
     GraphQL gql
 
     def setupSpec() {
-        gql = new GraphQL(SchemaParser.newParser()
-            .schemaString(EndToEndSpecKt.schemaDefinition)
-            .resolvers(new Query(), new Mutation(), new Subscription(), new ItemResolver(), new UnusedRootResolver())
-            .scalars(EndToEndSpecKt.CustomUUIDScalar)
-            .dictionary("OtherItem", OtherItemWithWrongName)
-            .build()
-            .makeExecutableSchema())
+        gql = new GraphQL(EndToEndSpecKt.createSchema())
     }
 
     def "schema comments are used as descriptions"() {
@@ -243,5 +237,24 @@ class EndToEndSpec extends Specification {
 
         then:
             data.complexInputType
+    }
+
+    def "generated schema should use type extensions"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    extendedType {
+                        first
+                        second
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.extendedType
+            data.extendedType.first
+            data.extendedType.second
     }
 }
