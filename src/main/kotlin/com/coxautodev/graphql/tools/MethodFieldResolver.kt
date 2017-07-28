@@ -15,9 +15,8 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, val method: Method): FieldResolver(field, search) {
+internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, val method: Method): FieldResolver(field, search, method.declaringClass) {
 
-    val genericType = GenericType(search.type).relativeTo(method.declaringClass)
     val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
@@ -69,25 +68,14 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             args.add({ environment -> environment })
         }
 
-        // Add source resolver depending on whether or not this is a resolver method
-        val sourceResolver: SourceResolver = if(this.search.source != null) ({ this.search.source }) else ({ environment ->
-            val source = environment.getSource<Any>()
-
-            if(!this.genericType.isAssignableFrom(source.javaClass)) {
-                throw ResolverError("Expected source object to be an instance of '${this.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
-            }
-
-            source
-        })
-
-        return MethodFieldResolverDataFetcher(sourceResolver, this.method, args)
+        return MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val returnValueMatch = TypeClassMatcher.PotentialMatch(field.type, method.genericReturnType, genericType.relativeTo(method.declaringClass), SchemaClassScanner.ReturnValueReference(method), TypeClassMatcher.Location.RETURN_TYPE)
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, method.genericReturnType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType.relativeTo(method.declaringClass), SchemaClassScanner.MethodParameterReference(method, i))
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
 
@@ -107,23 +95,22 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-class MethodFieldResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
+class MethodFieldResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
     companion object {
         val mapper = ObjectMapper().registerModule(Jdk8Module()).registerKotlinModule()
     }
 
     // Convert to reflactasm reflection
-    val methodAccess = MethodAccess.get(method.declaringClass)!!
-    val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
+    private val methodAccess = MethodAccess.get(method.declaringClass)!!
+    private val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
 
     override fun get(environment: DataFetchingEnvironment): Any? {
         val source = sourceResolver(environment)
         val args = this.args.map { it(environment) }.toTypedArray()
         val result = methodAccess.invoke(source, methodIndex, *args)
-        return if(result is Optional<*>) result.orElse(null) else result
+        return if(result != null && result is Optional<*>) result.orElse(null) else result
     }
 }
 
-internal typealias SourceResolver = (DataFetchingEnvironment) -> Any
 internal typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
 

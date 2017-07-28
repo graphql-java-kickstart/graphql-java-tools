@@ -17,6 +17,7 @@ import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /**
@@ -168,7 +169,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
     fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
-            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("TODO") }
+            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union") }
         }.flatten().distinct()
     }
 
@@ -249,7 +250,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                     findInputValueType(inputValueDefinition.name, javaType)?.let { inputValueJavaType ->
                         val inputGraphQLType = inputValueDefinition.type.unwrap()
                         if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                            handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch(inputValueDefinition.type, inputValueJavaType, GenericType(javaType).relativeTo(inputValueJavaType), InputObjectReference(inputValueDefinition))))
+                            handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(inputValueDefinition.type, inputValueJavaType, GenericType(javaType).relativeToType(inputValueJavaType), InputObjectReference(inputValueDefinition))))
                         }
                     }
                 }
@@ -337,6 +338,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
     class MethodParameterReference(private val method: Method, private val index: Int): Reference() {
         override fun getDescription() = "parameter $index of method $method"
+    }
+
+    class FieldTypeReference(private val field: Field): Reference() {
+        override fun getDescription() = "type of field $field"
     }
 
     class RootTypesHolder(rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {

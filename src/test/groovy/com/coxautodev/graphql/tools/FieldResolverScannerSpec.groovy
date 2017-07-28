@@ -45,6 +45,19 @@ class FieldResolverScannerSpec extends Specification {
             thrown(FieldResolverError)
     }
 
+    def "scanner finds properties when no method is found"() {
+        setup:
+            def resolver = new RootResolverInfo([new PropertyQuery()])
+
+        when:
+            def name = scanner.findFieldResolver(new FieldDefinition("name", new TypeName("String")), resolver)
+            def version = scanner.findFieldResolver(new FieldDefinition("version", new TypeName("Integer")), resolver)
+
+        then:
+            name instanceof PropertyFieldResolver
+            version instanceof PropertyFieldResolver
+    }
+
     class RootQuery1 implements GraphQLQueryResolver {
         def field1() {}
     }
@@ -55,5 +68,13 @@ class FieldResolverScannerSpec extends Specification {
 
     class DuplicateQuery implements GraphQLQueryResolver {
         def field1() {}
+    }
+
+    class ParentPropertyQuery {
+        private Integer version = 1
+    }
+
+    class PropertyQuery extends ParentPropertyQuery implements GraphQLQueryResolver {
+        private String name = "name"
     }
 }

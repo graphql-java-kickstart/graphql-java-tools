@@ -257,4 +257,18 @@ class EndToEndSpec extends Specification {
             data.extendedType.first
             data.extendedType.second
     }
+
+    def "generated schema uses properties if no methods are found"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    propertyField
+                }
+                '''
+            }
+
+        then:
+            data.propertyField
+    }
 }

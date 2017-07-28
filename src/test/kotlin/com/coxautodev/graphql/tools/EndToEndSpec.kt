@@ -40,6 +40,7 @@ type Query {
 
     complexInputType(complexInput: [[ComplexInputType!]]): String!
     extendedType: ExtendedType!
+    propertyField: String!
 }
 
 type ExtendedType {
@@ -147,6 +148,8 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
 
     fun complexInputType(input: List<List<ComplexInputType>?>?) = input?.firstOrNull()?.firstOrNull()?.let { it.first == "foo" && it.second?.firstOrNull()?.firstOrNull()?.first == "bar" } ?: false
     fun extendedType() = ExtendedType()
+
+    private val propertyField = "test"
 }
 
 class UnusedRootResolver: GraphQLQueryResolver

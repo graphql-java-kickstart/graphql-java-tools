@@ -4,33 +4,46 @@ import graphql.Scalars
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
+import org.apache.commons.lang3.ClassUtils
+import org.apache.commons.lang3.reflect.FieldUtils
+import java.lang.reflect.Field
+import java.lang.reflect.Method
 
 /**
  * @author Andrew Potter
  */
 internal class FieldResolverScanner {
 
+    companion object {
+        fun getAllMethods(type: Class<*>): List<Method> {
+            return type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }
+        }
+    }
+
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
         val searches = resolverInfo.getFieldSearches()
 
-        val found = searches.mapNotNull { search -> findFieldResolver(field, search) }
+        val scanProperties = field.inputValueDefinitions.isEmpty()
+        val found = searches.mapNotNull { search -> findFieldResolver(field, search, scanProperties) }
 
         if(found.size > 1) {
             throw FieldResolverError("Found more than one matching resolver for field '$field': $found")
         }
 
-        return found.firstOrNull() ?: throw FieldResolverError(getMissingFieldMessage(field, searches))
+        return found.firstOrNull() ?: throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
     }
 
-    private fun findFieldResolver(field: FieldDefinition, search: Search): FieldResolver? {
+    private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if(method != null) {
-            return MethodFieldResolver(field, search, method)
+            return MethodFieldResolver(field, search, method.apply { isAccessible = true })
         }
 
-        val property = findResolverProperty(field, search)
-        if(property != null) {
-            return PropertyFieldResolver(field, search)
+        if(scanProperties) {
+            val property = findResolverProperty(field, search)
+            if(property != null) {
+                return PropertyFieldResolver(field, search, property.apply { isAccessible = true })
+            }
         }
 
         return null
@@ -40,7 +53,7 @@ internal class FieldResolverScanner {
 
     private fun findResolverMethod(field: FieldDefinition, search: Search): java.lang.reflect.Method? {
 
-        val methods = search.type.methods
+        val methods = getAllMethods(search.type)
         val argumentCount = field.inputValueDefinitions.size + if(search.requiredFirstParameterType != null) 1 else 0
         val name = field.name
 
@@ -66,31 +79,30 @@ internal class FieldResolverScanner {
     }
 
 
-    private fun findResolverProperty(field: FieldDefinition, search: Search): PropertyFieldResolver? {
-        // TODO
-        return null
+    private fun findResolverProperty(field: FieldDefinition, search: Search): Field? {
+        return FieldUtils.getAllFields(search.type).find { it.name == field.name }
     }
 
-    fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>): String {
+    fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
         val isBoolean = isBoolean(field.type)
 
         searches.forEach { search ->
-            signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, search.requiredFirstParameterType))
+            signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
         }
 
-        return "No method found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
+        return "No method${if(scannedProperties) " or field" else ""} found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
 
-    fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, requiredFirstParameterType: Class<*>? = null): List<String> {
+    fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
         val baseType = search.type
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()
         val sep = ", "
 
-        if(requiredFirstParameterType != null) {
-            args.add(search.requiredFirstParameterType!!.name)
+        if(search.requiredFirstParameterType != null) {
+            args.add(search.requiredFirstParameterType.name)
         }
 
         args.addAll(field.inputValueDefinitions.map { "~${it.name}" })
@@ -102,6 +114,9 @@ internal class FieldResolverScanner {
             signatures.add("${baseType.name}.is${field.name.capitalize()}($argString)")
         }
         signatures.add("${baseType.name}.get${field.name.capitalize()}($argString)")
+        if(scannedProperties) {
+            signatures.add("${baseType.name}.${field.name}")
+        }
 
         return signatures
     }
