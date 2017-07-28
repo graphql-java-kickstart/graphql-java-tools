@@ -15,7 +15,7 @@ class EndToEndSpec extends Specification {
     def setupSpec() {
         gql = new GraphQL(SchemaParser.newParser()
             .schemaString(EndToEndSpecKt.schemaDefinition)
-            .resolvers(new Query(), new Mutation(), new Subscription(), new ItemResolver())
+            .resolvers(new Query(), new Mutation(), new Subscription(), new ItemResolver(), new UnusedRootResolver())
             .scalars(EndToEndSpecKt.CustomUUIDScalar)
             .dictionary("OtherItem", OtherItemWithWrongName)
             .build()

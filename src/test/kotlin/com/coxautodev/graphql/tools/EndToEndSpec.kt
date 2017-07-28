@@ -131,6 +131,8 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun complexInputType(input: List<List<ComplexInputType>?>?) = input?.firstOrNull()?.firstOrNull()?.let { it.first == "foo" && it.second?.firstOrNull()?.firstOrNull()?.first == "bar" } ?: false
 }
 
+class UnusedRootResolver: GraphQLQueryResolver
+
 abstract class ListListResolver<out E> {
     fun listList(): List<List<E>> = listOf(listOf())
 }
