@@ -26,7 +26,7 @@ internal class FieldResolverScanner {
         val scanProperties = field.inputValueDefinitions.isEmpty()
         val found = searches.mapNotNull { search -> findFieldResolver(field, search, scanProperties) }
 
-        if(found.size > 1) {
+        if(resolverInfo is RootResolverInfo && found.size > 1) {
             throw FieldResolverError("Found more than one matching resolver for field '$field': $found")
         }
 
