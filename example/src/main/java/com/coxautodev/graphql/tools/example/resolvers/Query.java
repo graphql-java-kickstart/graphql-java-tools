@@ -7,6 +7,7 @@ import com.coxautodev.graphql.tools.example.types.Character;
 import com.coxautodev.graphql.tools.example.types.Droid;
 import com.coxautodev.graphql.tools.example.types.Episode;
 import com.coxautodev.graphql.tools.example.types.Human;
+import graphql.schema.DataFetchingEnvironment;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,7 @@ public class Query implements GraphQLQueryResolver {
         return episode != null ? characterRepository.getHeroes().get(episode) : characterRepository.getCharacters().get("1000");
     }
 
-    public Human human(String id) {
+    public Human human(String id, DataFetchingEnvironment env) {
         return (Human) characterRepository.getCharacters().values().stream()
             .filter(character -> character instanceof Human && character.getId().equals(id))
             .findFirst()

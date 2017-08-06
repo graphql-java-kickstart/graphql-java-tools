@@ -8,7 +8,7 @@ import java.lang.reflect.Field
 /**
  * @author Andrew Potter
  */
-internal class PropertyFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, val property: Field): FieldResolver(field, search, property.declaringClass) {
+internal class PropertyFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val property: Field): FieldResolver(field, search, property.declaringClass, options) {
     override fun createDataFetcher(): DataFetcher<*> {
         return PropertyFieldResolverDataFetcher(getSourceResolver(), property)
     }

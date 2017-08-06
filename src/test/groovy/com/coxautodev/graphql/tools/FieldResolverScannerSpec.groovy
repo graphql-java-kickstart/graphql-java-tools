@@ -9,7 +9,7 @@ import spock.lang.Specification
  */
 class FieldResolverScannerSpec extends Specification {
 
-    private static final FieldResolverScanner scanner = new FieldResolverScanner()
+    private static final FieldResolverScanner scanner = new FieldResolverScanner(SchemaParserOptions.defaultOptions())
 
     def "scanner finds fields on multiple root types"() {
         setup:

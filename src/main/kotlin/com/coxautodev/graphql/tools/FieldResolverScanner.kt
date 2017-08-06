@@ -6,17 +6,21 @@ import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
+import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 /**
  * @author Andrew Potter
  */
-internal class FieldResolverScanner {
+internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     companion object {
+        private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
+
         fun getAllMethods(type: Class<*>): List<Method> {
-            return type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }
+            return type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }.filter { !Modifier.isPrivate(it.modifiers) }
         }
     }
 
@@ -30,19 +34,29 @@ internal class FieldResolverScanner {
             throw FieldResolverError("Found more than one matching resolver for field '$field': $found")
         }
 
-        return found.firstOrNull() ?: throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
+        return found.firstOrNull() ?:  missingFieldResolver(field, searches, scanProperties)
+    }
+
+    fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+        return if(options.allowUnimplementedResolvers) {
+            log.warn("Missing resolver for field: $field")
+
+            MissingFieldResolver(field, options)
+        } else {
+            throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
+        }
     }
 
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if(method != null) {
-            return MethodFieldResolver(field, search, method.apply { isAccessible = true })
+            return MethodFieldResolver(field, search, options, method.apply { isAccessible = true })
         }
 
         if(scanProperties) {
             val property = findResolverProperty(field, search)
             if(property != null) {
-                return PropertyFieldResolver(field, search, property.apply { isAccessible = true })
+                return PropertyFieldResolver(field, search, options, property.apply { isAccessible = true })
             }
         }
 

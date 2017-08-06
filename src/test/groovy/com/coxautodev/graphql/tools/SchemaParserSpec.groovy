@@ -2,6 +2,8 @@ package com.coxautodev.graphql.tools
 
 import spock.lang.Specification
 
+import java.util.concurrent.Future
+
 /**
  * @author Andrew Potter
  */
@@ -46,14 +48,11 @@ class SchemaParserSpec extends Specification {
         when:
             SchemaParser.newParser()
                 .schemaString('''
-                    schema {
-                        query: QueryResolverMissing
-                    }
-                    type QueryResolverMissing {
+                    type Query {
                         get(int: Int!): Int!
                     }
                 ''')
-                .resolvers(new QueryResolverMissing())
+                .resolvers(new GraphQLQueryResolver() { })
                 .build()
                 .makeExecutableSchema()
 
@@ -61,30 +60,76 @@ class SchemaParserSpec extends Specification {
             thrown(FieldResolverError)
     }
 
-    def "should parse correctly when Query resolver is given"() {
+    def "parser should parse correctly when Query resolver is given"() {
         when:
             SchemaParser.newParser()
                 .schemaString('''
-                    schema {
-                        query: QueryResolver
-                    }
-                    type QueryResolver {
+                    type Query {
                         get(int: Int!): Int!
                     }
                 ''')
-                .resolvers(new QueryResolver())
+                .resolvers(new GraphQLQueryResolver() {
+                    int get(int i) { return i }
+                })
                 .build()
                 .makeExecutableSchema()
 
         then:
             noExceptionThrown()
     }
+
+    def "parser should allow setting custom generic wrappers"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString('''
+                    type Query {
+                        one: Object!
+                        two: Object!
+                    }
+                    
+                    type Object {
+                        name: String!
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    CustomGenericWrapper<Integer, Obj> one() { null }
+                    Obj two() { null }
+                })
+                .options(SchemaParserOptions.newOptions().genericWrappers(new SchemaParserOptions.GenericWrapper(CustomGenericWrapper, 1)).build())
+                .build()
+                .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+    }
+
+    def "parser should allow turning off default generic wrappers"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString('''
+                    type Query {
+                        one: Object!
+                        two: Object!
+                    }
+                    
+                    type Object {
+                        toString: String!
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    Future<Obj> one() { null }
+                    Obj two() { null }
+                })
+                .options(SchemaParserOptions.newOptions().useDefaultGenericWrappers(false).build())
+                .build()
+                .makeExecutableSchema()
+
+        then:
+            thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
+    }
 }
 
-class QueryResolverMissing implements GraphQLQueryResolver {
-
-}
-
-class QueryResolver implements GraphQLQueryResolver {
-    def int get(int i) { return i }
+class CustomGenericWrapper<T, V> { }
+class Obj {
+    def name() { null }
 }

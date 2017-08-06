@@ -21,7 +21,7 @@ class TypeClassMatcherSpec extends Specification {
     private static final TypeDefinition customDefinition = new ObjectTypeDefinition("CustomType")
 
     private static final TypeClassMatcher matcher = new TypeClassMatcher([CustomType: customDefinition])
-    private static final FieldResolverScanner scanner = new FieldResolverScanner()
+    private static final FieldResolverScanner scanner = new FieldResolverScanner(SchemaParserOptions.defaultOptions())
 
     private final resolver = new RootResolverInfo([new QueryMethods()])
 

@@ -15,7 +15,7 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, val method: Method): FieldResolver(field, search, method.declaringClass) {
+internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method): FieldResolver(field, search, method.declaringClass, options) {
 
     val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 

@@ -5,6 +5,10 @@ type Query {
     character(id: String!): Character @doc(d: "Find character by id")
 }
 
+type Mutation {
+
+}
+
 enum Episode @doc(d: "One of the films in the Star Wars Trilogy") {
     NEWHOPE @doc(d: "Released in 1977"),
     EMPIRE @doc(d: "Released in 1980"),

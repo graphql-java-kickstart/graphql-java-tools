@@ -7,6 +7,9 @@ import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+import java.util.concurrent.Future
 
 /**
  * @author Andrew Potter
@@ -16,6 +19,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     private val schemaString = StringBuilder()
     private val resolvers = mutableListOf<GraphQLResolver<*>>()
     private val scalars = mutableListOf<GraphQLScalarType>()
+    private var options = SchemaParserOptions.defaultOptions()
 
     /**
      * Add GraphQL schema files from the classpath.
@@ -96,6 +100,10 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
         this.dictionary.add(dictionary)
     }
 
+    fun options(options: SchemaParserOptions) = this.apply {
+        this.options = options
+    }
+
     /**
      * Build the parser with the supplied schema and dictionary.
      */
@@ -114,7 +122,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
         val definitions = document.definitions
         val customScalars = scalars.associateBy { it.name }
 
-        return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars).scanForClasses()
+        return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options).scanForClasses()
     }
 }
 
@@ -165,3 +173,47 @@ class SchemaParserDictionary {
     }
 }
 
+data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean) {
+    companion object {
+        @JvmStatic fun newOptions() = Builder()
+        @JvmStatic fun defaultOptions() = Builder().build()
+    }
+
+    class Builder {
+        private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
+        private var useDefaultGenericWrappers = true
+        private var allowUnimplementedResolvers = false
+
+        fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
+            this.genericWrappers.addAll(genericWrappers)
+        }
+
+        fun genericWrappers(vararg genericWrappers: GenericWrapper) = this.apply {
+            this.genericWrappers.addAll(genericWrappers)
+        }
+
+        fun useDefaultGenericWrappers(useDefaultGenericWrappers: Boolean) = this.apply {
+            this.useDefaultGenericWrappers = useDefaultGenericWrappers
+        }
+
+        fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
+            this.allowUnimplementedResolvers = allowUnimplementedResolvers
+        }
+
+        fun build(): SchemaParserOptions {
+            val wrappers = if(useDefaultGenericWrappers) {
+                genericWrappers + listOf(
+                    GenericWrapper(Future::class.java, 0),
+                    GenericWrapper(CompletableFuture::class.java, 0),
+                    GenericWrapper(CompletionStage::class.java, 0)
+                )
+            } else {
+                genericWrappers
+            }
+
+            return SchemaParserOptions(wrappers, allowUnimplementedResolvers)
+        }
+    }
+
+    data class GenericWrapper(val type: Class<*>, val index: Int)
+}

@@ -14,7 +14,7 @@ import spock.lang.Specification
  */
 class MethodFieldResolverDataFetcherSpec extends Specification {
 
-    static final FieldResolverScanner fieldResolverScanner = new FieldResolverScanner()
+    static final FieldResolverScanner fieldResolverScanner = new FieldResolverScanner(SchemaParserOptions.defaultOptions())
 
     def "data fetcher throws exception if resolver has too many arguments"() {
         when:
@@ -160,7 +160,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     private static DataFetcher createFetcher(String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
         def field = new FieldDefinition(methodName, new TypeName('Boolean')).with { getInputValueDefinitions().addAll(arguments); it }
 
-        fieldResolverScanner.findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver]) : new NormalResolverInfo(resolver)).createDataFetcher()
+        fieldResolverScanner.findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver]) : new NormalResolverInfo(resolver, SchemaParserOptions.defaultOptions())).createDataFetcher()
     }
 
     private static DataFetchingEnvironment createEnvironment(Map<String, Object> arguments = [:]) {

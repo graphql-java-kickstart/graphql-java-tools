@@ -7,13 +7,13 @@ internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
 }
 
-internal class NormalResolverInfo(val resolver: GraphQLResolver<*>): ResolverInfo() {
+internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions): ResolverInfo() {
     val resolverType = resolver.javaClass
     val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
-        val interfaceType = GenericType(resolverType).getGenericInterface(GraphQLResolver::class.java)
+        val interfaceType = GenericType(resolverType, options).getGenericInterface(GraphQLResolver::class.java)
         if(interfaceType == null || interfaceType !is ParameterizedType) {
             error("${GraphQLResolver::class.java.simpleName} interface was not parameterized for: ${resolverType.name}")
         }
@@ -49,6 +49,10 @@ internal class DataClassResolverInfo(val dataClass: Class<*>): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(FieldResolverScanner.Search(dataClass, this, null))
     }
+}
+
+internal class MissingResolverInfo: ResolverInfo() {
+    override fun getFieldSearches(): List<FieldResolverScanner.Search> = listOf()
 }
 
 class ResolverError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

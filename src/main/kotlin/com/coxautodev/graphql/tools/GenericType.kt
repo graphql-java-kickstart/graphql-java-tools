@@ -5,14 +5,11 @@ import org.apache.commons.lang3.reflect.TypeUtils
 import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
-import java.util.concurrent.Future
 
 /**
  * @author Andrew Potter
  */
-open internal class GenericType(protected val mostSpecificType: JavaType) {
+open internal class GenericType(protected val mostSpecificType: JavaType, protected val options: SchemaParserOptions) {
 
     fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>): Boolean {
         return clazz.isAssignableFrom(getRawClass(type.rawType))
@@ -40,7 +37,7 @@ open internal class GenericType(protected val mostSpecificType: JavaType) {
             return relativeToType(type)
         }
     }
-    fun relativeToType(declaringType: JavaType) = RelativeTo(declaringType, mostSpecificType)
+    fun relativeToType(declaringType: JavaType) = RelativeTo(declaringType, mostSpecificType, options)
 
     fun getGenericInterface(targetInterface: Class<*>) = getGenericInterface(mostSpecificType, targetInterface)
 
@@ -80,7 +77,7 @@ open internal class GenericType(protected val mostSpecificType: JavaType) {
         return getGenericSuperType(raw.genericSuperclass, targetSuperClass)
     }
 
-    class RelativeTo (private val declaringType: JavaType, mostSpecificType: JavaType): GenericType(mostSpecificType) {
+    class RelativeTo(private val declaringType: JavaType, mostSpecificType: JavaType, options: SchemaParserOptions): GenericType(mostSpecificType, options) {
 
         /**
          * Unwrap certain Java types to find the "real" class.
@@ -88,12 +85,15 @@ open internal class GenericType(protected val mostSpecificType: JavaType) {
         fun unwrapGenericType(type: JavaType): JavaType {
             return when(type) {
                 is ParameterizedType -> {
-                    return when(type.rawType) {
-                        Future::class.java -> unwrapGenericType(type.actualTypeArguments.first())
-                        CompletionStage::class.java -> unwrapGenericType(type.actualTypeArguments.first())
-                        CompletableFuture::class.java -> unwrapGenericType(type.actualTypeArguments.first())
-                        else -> type
+                    val rawType = type.rawType
+                    val genericType = options.genericWrappers.find { it.type == rawType } ?: return type
+
+                    val typeArguments = type.actualTypeArguments
+                    if(typeArguments.size <= genericType.index) {
+                        throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${genericType.index}!")
                     }
+
+                    return unwrapGenericType(typeArguments[genericType.index])
                 }
                 is Class<*> -> if(type.isPrimitive) Primitives.wrap(type) else type
                 is TypeVariable<*> -> {

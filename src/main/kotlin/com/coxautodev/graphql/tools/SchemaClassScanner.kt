@@ -23,7 +23,7 @@ import java.lang.reflect.Method
 /**
  * @author Andrew Potter
  */
-internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap) {
+internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap, private val options: SchemaParserOptions) {
 
     companion object {
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
@@ -35,7 +35,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val mutationResolvers = resolvers.filterIsInstance<GraphQLMutationResolver>()
     private val subscriptionResolvers = resolvers.filterIsInstance<GraphQLSubscriptionResolver>()
 
-    private val resolverInfos = resolvers.minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it) }
+    private val resolverInfos = resolvers.minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }
     private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
@@ -46,7 +46,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
-    private val fieldResolverScanner = FieldResolverScanner()
+    private val fieldResolverScanner = FieldResolverScanner(options)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
     private val unvalidatedTypes = mutableSetOf<TypeDefinition>()
@@ -59,6 +59,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             if(!definitionsByName.containsKey(name)) {
                 throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
             }
+        }
+
+        if(options.allowUnimplementedResolvers) {
+            log.warn("Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved to query time instead of schema creation time.  Make sure this is turned off in production.")
         }
     }
 
@@ -250,7 +254,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                     findInputValueType(inputValueDefinition.name, javaType)?.let { inputValueJavaType ->
                         val inputGraphQLType = inputValueDefinition.type.unwrap()
                         if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                            handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(inputValueDefinition.type, inputValueJavaType, GenericType(javaType).relativeToType(inputValueJavaType), InputObjectReference(inputValueDefinition))))
+                            handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(inputValueDefinition.type, inputValueJavaType, GenericType(javaType, options).relativeToType(inputValueJavaType), InputObjectReference(inputValueDefinition))))
                         }
                     }
                 }
