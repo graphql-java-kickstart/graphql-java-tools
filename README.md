@@ -90,8 +90,8 @@ Multiple sources will be concatenated together in the order given, allowing you 
 
 ### Resolvers and Data Classes
 
-GraphQL Java Tools maps fields on your GraphQL objects to methods on your java objects.
-For most scalar fields, a POJO with getter methods is enough to describe the data to GraphQL.
+GraphQL Java Tools maps fields on your GraphQL objects to methods and properties on your java objects.
+For most scalar fields, a POJO with fields and/or getter methods is enough to describe the data to GraphQL.
 More complex fields (like looking up another object) often need more complex methods with state not provided by the GraphQL context (repositories, connections, etc).
 GraphQL Java Tools uses the concept of "Data Classes" and "Resolvers" to account for both of these situations.
 
@@ -159,13 +159,13 @@ class BookResolver implements GraphQLResolver<Book> /* This class is a resolver 
 }
 ```
 
-When given a BookResolver instance, GraphQL Java Tools first attempts to map methods on the resolver before mapping them on the data class.
+When given a BookResolver instance, GraphQL Java Tools first attempts to map fields to methods on the resolver before mapping them to fields or methods on the data class.
 If there is a matching method on the resolver, the data class instance is passed as the first argument to the resolver function.  This does not apply to root resolvers, since those don't have a data class to resolve for.
 An optional argument can be defined to inject the `DataFetchingEnvironment`, and must be the last argument.
 
-Since the Query object is a root GraphQL object, it doesn't have an associated data class:
+Since the Query/Mutation/Subscription objects are root GraphQL objects, they doesn't have an associated data class.  In those cases, any resolvers implementing `GraphQLQueryResolver`/`GraphQLMutationResolver`/`GraphQLSubscriptionResolver` will be searched for methods that map to fields in their respective root types.  Root resolver methods can be spread between multiple resolvers, but a simple example is below:
 ```java
-class Query implements GraphQLRootResolver {
+class Query implements GraphQLQueryResolver {
     
     private BookRepository bookRepository;
     
@@ -186,20 +186,20 @@ SchemaParser.newParser()
     .resolvers(new Query(bookRepository), new BookResolver(authorRepository))
 ```
 
-*Note:* The method mapping is done by name, with the following priority:
-
+*Note:* The field mapping is done by name against public/protected methods and public/protected/private fields, with the following priority:
 
 First on the resolver or root resolver (note that dataClassInstance doesn't apply for root resolvers):
-1. `<name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
-2. `is<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
-3. `get<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
+1. `method <name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
+2. `method is<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
+3. `method get<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
 
 Then on the data class:
-1. `<name>(*fieldArgs [, DataFetchingEnvironment])`
-2. `is<Name>(*fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
-3. `get<Name>(*fieldArgs [, DataFetchingEnvironment])`
+1. `method <name>(*fieldArgs [, DataFetchingEnvironment])`
+2. `method is<Name>(*fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
+3. `method get<Name>(*fieldArgs [, DataFetchingEnvironment])`
+4. `field <name>`
 
-*Note:* All reflection discovery is done on startup, and runtime reflection calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
+*Note:* All reflection discovery is done on startup, and runtime reflection method calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
 
 *Note:* `java.util.Optional` can be used for nullable field arguments and nullable return values, and the schema parser will verify that it's not used with non-null field arguments and return values.
 
