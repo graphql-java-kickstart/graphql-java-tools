@@ -51,8 +51,13 @@
         </dependency>
         <dependency>
             <groupId>com.graphql-java</groupId>
+            <artifactId>graphiql-spring-boot-starter</artifactId>
+            <version>3.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java-tools</artifactId>
-            <version>3.1.0</version>
+            <version>4.0.0</version>
         </dependency>
     </dependencies>
 

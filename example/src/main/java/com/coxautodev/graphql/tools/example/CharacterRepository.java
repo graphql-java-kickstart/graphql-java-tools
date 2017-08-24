@@ -1,6 +1,9 @@
 package com.coxautodev.graphql.tools.example;
 
+import com.coxautodev.graphql.tools.example.types.Character;
 import com.coxautodev.graphql.tools.example.types.Droid;
+import com.coxautodev.graphql.tools.example.types.Episode;
+import com.coxautodev.graphql.tools.example.types.Human;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
