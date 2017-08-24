@@ -165,7 +165,7 @@ An optional argument can be defined to inject the `DataFetchingEnvironment`, and
 
 #### Root Resolvers
 
-Since the Query/Mutation/Subscription objects are root GraphQL objects, they doesn't have an associated data class.  In those cases, any resolvers implementing `GraphQLQueryResolver`/`GraphQLMutationResolver`/`GraphQLSubscriptionResolver` will be searched for methods that map to fields in their respective root types.  Root resolver methods can be spread between multiple resolvers, but a simple example is below:
+Since the Query/Mutation/Subscription objects are root GraphQL objects, they doesn't have an associated data class.  In those cases, any resolvers implementing `GraphQLQueryResolver`, `GraphQLMutationResolver`, or `GraphQLSubscriptionResolver` will be searched for methods that map to fields in their respective root types.  Root resolver methods can be spread between multiple resolvers, but a simple example is below:
 ```java
 class Query implements GraphQLQueryResolver {
     
@@ -188,7 +188,9 @@ SchemaParser.newParser()
     .resolvers(new Query(bookRepository), new BookResolver(authorRepository))
 ```
 
-*Note:* The field mapping is done by name against public/protected methods and public/protected/private fields, with the following priority:
+#### Field Mapping Priority
+
+The field mapping is done by name against public/protected methods and public/protected/private fields, with the following priority:
 
 First on the resolver or root resolver (note that dataClassInstance doesn't apply for root resolvers):
 1. `method <name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
