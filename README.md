@@ -163,6 +163,8 @@ When given a BookResolver instance, GraphQL Java Tools first attempts to map fie
 If there is a matching method on the resolver, the data class instance is passed as the first argument to the resolver function.  This does not apply to root resolvers, since those don't have a data class to resolve for.
 An optional argument can be defined to inject the `DataFetchingEnvironment`, and must be the last argument.
 
+#### Root Resolvers
+
 Since the Query/Mutation/Subscription objects are root GraphQL objects, they doesn't have an associated data class.  In those cases, any resolvers implementing `GraphQLQueryResolver`/`GraphQLMutationResolver`/`GraphQLSubscriptionResolver` will be searched for methods that map to fields in their respective root types.  Root resolver methods can be spread between multiple resolvers, but a simple example is below:
 ```java
 class Query implements GraphQLQueryResolver {
