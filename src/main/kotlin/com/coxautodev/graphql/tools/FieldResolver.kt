@@ -7,7 +7,7 @@ import graphql.schema.DataFetchingEnvironment
 /**
  * @author Andrew Potter
  */
-internal abstract class FieldResolver(val field: FieldDefinition, val search: FieldResolverScanner.Search, relativeTo: JavaType, options: SchemaParserOptions) {
+internal abstract class FieldResolver(val field: FieldDefinition, val search: FieldResolverScanner.Search, val options: SchemaParserOptions, relativeTo: JavaType) {
     val resolverInfo: ResolverInfo = search.resolverInfo
     val genericType = GenericType(search.type, options).relativeToPotentialParent(relativeTo)
 
@@ -32,7 +32,7 @@ internal abstract class FieldResolver(val field: FieldDefinition, val search: Fi
     }
 }
 
-internal class MissingFieldResolver(field: FieldDefinition, options: SchemaParserOptions): FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), Any::class.java, options) {
+internal class MissingFieldResolver(field: FieldDefinition, options: SchemaParserOptions): FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options, Any::class.java) {
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
     override fun createDataFetcher(): DataFetcher<*> = DataFetcher<Any> { TODO("Schema resolver not implemented") }
 }

@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
@@ -173,7 +174,7 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean) {
+data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
@@ -183,6 +184,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
+        private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
 
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
@@ -200,6 +202,14 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
         }
 
+        fun objectMapperConfigurer(objectMapperConfigurer: ObjectMapperConfigurer) = this.apply {
+            this.objectMapperConfigurer = objectMapperConfigurer
+        }
+
+        fun objectMapperConfigurer(objectMapperConfigurer: (ObjectMapper, ObjectMapperConfigurerContext) -> Unit) = this.apply {
+            this.objectMapperConfigurer(ObjectMapperConfigurer(objectMapperConfigurer))
+        }
+
         fun build(): SchemaParserOptions {
             val wrappers = if(useDefaultGenericWrappers) {
                 genericWrappers + listOf(
@@ -211,7 +221,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
                 genericWrappers
             }
 
-            return SchemaParserOptions(wrappers, allowUnimplementedResolvers)
+            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer)
         }
     }
 

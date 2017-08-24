@@ -15,12 +15,15 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method): FieldResolver(field, search, method.declaringClass, options) {
+internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method): FieldResolver(field, search, options, method.declaringClass) {
 
-    val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+    private val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
         val args = mutableListOf<ArgumentPlaceholder>()
+        val mapper = ObjectMapper().apply {
+            options.objectMapperConfigurer.configure(this, ObjectMapperConfigurerContext(field))
+        }.registerModule(Jdk8Module()).registerKotlinModule()
 
         // Add source argument if this is a resolver (but not a root resolver)
         if(this.search.requiredFirstParameterType != null) {
@@ -59,7 +62,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
                     return@add Optional.empty<Any>()
                 }
 
-                return@add MethodFieldResolverDataFetcher.mapper.convertValue(value, typeReference)
+                return@add mapper.convertValue(value, typeReference)
             })
         }
 
@@ -80,25 +83,23 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     }
 
     private fun getIndexOffset() = if(resolverInfo is NormalResolverInfo) 1 else 0
-    fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
+    private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
 
-    fun getJavaMethodParameterType(index: Int): JavaType? {
+    private fun getJavaMethodParameterType(index: Int): JavaType? {
         val methodIndex = getJavaMethodParameterIndex(index)
         val parameters = method.parameterTypes
-        if(parameters.size > methodIndex) {
-            return method.genericParameterTypes[getJavaMethodParameterIndex(index)]
+
+        return if(parameters.size > methodIndex) {
+            method.genericParameterTypes[getJavaMethodParameterIndex(index)]
         } else {
-            return null
+            null
         }
     }
 
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-class MethodFieldResolverDataFetcher(val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
-    companion object {
-        val mapper = ObjectMapper().registerModule(Jdk8Module()).registerKotlinModule()
-    }
+class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
 
     // Convert to reflactasm reflection
     private val methodAccess = MethodAccess.get(method.declaringClass)!!
