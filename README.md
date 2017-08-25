@@ -50,11 +50,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>3.2.0</version>
+    <version>4.0.1</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java:graphql-java-tools:3.2.0'
+compile 'com.graphql-java:graphql-java-tools:4.0.1'
 ```
 
 ### Examples
