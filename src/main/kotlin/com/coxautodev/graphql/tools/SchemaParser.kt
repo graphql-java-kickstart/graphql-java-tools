@@ -61,6 +61,9 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
 
+    private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
+    private val inputObjectDefinitionsByName = inputObjectDefinitions.associateBy { it.name }
+
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
      */
@@ -222,8 +225,16 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         }
     }
 
-    private fun determineOutputType(typeDefinition: Type) = determineType(typeDefinition) as GraphQLOutputType
-    private fun determineInputType(typeDefinition: Type) = determineType(typeDefinition) as GraphQLInputType
+    private fun determineOutputType(typeDefinition: Type) = determineType<GraphQLOutputType, ObjectTypeDefinition>(typeDefinition, objectDefinitionsByName)
+    private fun determineInputType(typeDefinition: Type) = determineType<GraphQLInputType, InputObjectTypeDefinition>(typeDefinition, inputObjectDefinitionsByName)
+
+    private inline fun <reified T, D> determineType(typeDefinition: Type, definitionsByName: Map<String, D>) = determineType(typeDefinition).let { type ->
+        if(type is GraphQLTypeReference && !definitionsByName.containsKey(type.name)) {
+            throw SchemaError("Expected type '${type.name}' to be a ${T::class.simpleName}, but it wasn't!  Was an object type incorrectly used as an input type, or vice-versa?")
+        }
+
+        type as T
+    }
 
     private fun determineType(typeDefinition: Type): GraphQLType =
         when (typeDefinition) {

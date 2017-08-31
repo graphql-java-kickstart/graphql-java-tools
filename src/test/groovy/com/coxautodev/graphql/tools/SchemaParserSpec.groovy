@@ -127,8 +127,34 @@ class SchemaParserSpec extends Specification {
         then:
             thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
     }
+
+    def "parser should throw descriptive exception when object is used as input type incorrectly"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString('''
+                    type Query {
+                        name(filter: Filter): [String]
+                    }
+                    
+                    type Filter {
+                        filter: String
+                    }
+                ''')
+            .resolvers(new GraphQLQueryResolver() {
+                List<String> name(Filter filter) { null }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        then:
+            def t = thrown(SchemaError)
+            t.message.contains("Was an object type used as an input type")
+    }
 }
 
+class Filter {
+    String filter() { null }
+}
 class CustomGenericWrapper<T, V> { }
 class Obj {
     def name() { null }
