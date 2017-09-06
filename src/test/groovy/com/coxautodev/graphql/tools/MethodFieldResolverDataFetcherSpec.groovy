@@ -168,7 +168,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetchingEnvironment createEnvironment(Object source, Map<String, Object> arguments = [:]) {
-        new DataFetchingEnvironmentImpl(source, arguments, null, null, null, null, null, null, null, null)
+        new DataFetchingEnvironmentImpl(source, arguments, null, null, null, null, null, null, null, null, null, null, null)
     }
 }
 
