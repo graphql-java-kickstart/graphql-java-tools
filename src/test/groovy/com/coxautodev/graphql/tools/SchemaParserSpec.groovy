@@ -148,7 +148,7 @@ class SchemaParserSpec extends Specification {
 
         then:
             def t = thrown(SchemaError)
-            t.message.contains("Was an object type incorrectly used as an input type")
+            t.message.contains("Was a type only permitted for object types incorrectly used as an input type, or vice-versa")
     }
 }
 
