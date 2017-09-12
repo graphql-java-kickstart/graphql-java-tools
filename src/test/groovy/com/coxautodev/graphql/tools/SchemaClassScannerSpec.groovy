@@ -241,4 +241,49 @@ class SchemaClassScannerSpec extends Specification {
             int version() {}
         }
     }
+
+    def "scanner handles custom scalars when matching types"() {
+        when:
+            GraphQLScalarType customMap = new GraphQLScalarType('customMap', '', new Coercing<Map<String, Object>, Map<String, Object>>() {
+                @Override
+                Map<String, Object> serialize(Object dataFetcherResult) {
+                    return [:]
+                }
+
+                @Override
+                Map<String, Object> parseValue(Object input) {
+                    return [:]
+                }
+
+                @Override
+                Map<String, Object> parseLiteral(Object input) {
+                    return [:]
+                }
+            })
+
+            SchemaParser.newParser()
+                .resolvers(new GraphQLQueryResolver() {
+                    boolean query(HasMapField hasMapField) { true }
+                })
+                .scalars(customMap)
+                .schemaString("""
+                    type Query {
+                        query(customMap: customMap): Boolean
+                    }
+                    
+                    input HasMapField {
+                        map: customMap
+                    }
+                    
+                    scalar customMap
+                """)
+                .build()
+
+        then:
+            noExceptionThrown()
+    }
+
+    class HasMapField {
+        Map<String, Object> map
+    }
 }

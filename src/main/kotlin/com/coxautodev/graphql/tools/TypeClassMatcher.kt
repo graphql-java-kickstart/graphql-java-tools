@@ -12,7 +12,7 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-internal class TypeClassMatcher(val definitionsByName: Map<String, TypeDefinition>) {
+internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition>) {
 
     private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) with java type (${potentialMatch.javaType}): $msg")
 
