@@ -118,9 +118,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
         // The dictionary doesn't need to know what classes are used with scalars.
         // In addition, scalars can have duplicate classes so that breaks the bi-map.
+        // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
-                dictionary.filter { it.value.typeClass != null }.mapValuesTo(it) { it.value.typeClass }
+                dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition }.mapValuesTo(it) { it.value.typeClass }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)

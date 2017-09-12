@@ -286,4 +286,33 @@ class SchemaClassScannerSpec extends Specification {
     class HasMapField {
         Map<String, Object> map
     }
+
+    def "scanner allows class to be used for object type and input object type"() {
+        when:
+            SchemaParser.newParser()
+                .resolvers(new GraphQLQueryResolver() {
+                    Pojo test(Pojo pojo) { pojo }
+                })
+                .schemaString("""
+                    type Query {
+                        test(inPojo: InPojo): OutPojo
+                    }
+                    
+                    input InPojo {
+                        name: String
+                    }
+                    
+                    type OutPojo {
+                        name: String
+                    }
+                """)
+                .build()
+
+        then:
+            noExceptionThrown()
+    }
+
+    class Pojo {
+        String name
+    }
 }
