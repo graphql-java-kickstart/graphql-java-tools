@@ -38,6 +38,7 @@ import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
 import graphql.schema.idl.ScalarInfo
+import kotlin.reflect.KClass
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
@@ -61,8 +62,12 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
 
-    private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
-    private val inputObjectDefinitionsByName = inputObjectDefinitions.associateBy { it.name }
+    private val permittedTypesForObject: Set<String> = (objectDefinitions.map { it.name } +
+            enumDefinitions.map { it.name } +
+            interfaceDefinitions.map { it.name } +
+            unionDefinitions.map { it.name }).toSet()
+    private val permittedTypesForInputObject: Set<String> =
+            (inputObjectDefinitions.map { it.name } + enumDefinitions.map { it.name }).toSet()
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -225,24 +230,29 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         }
     }
 
-    private fun determineOutputType(typeDefinition: Type) = determineType<GraphQLOutputType, ObjectTypeDefinition>(typeDefinition, objectDefinitionsByName)
-    private fun determineInputType(typeDefinition: Type) = determineType<GraphQLInputType, InputObjectTypeDefinition>(typeDefinition, inputObjectDefinitionsByName)
+    private fun determineOutputType(typeDefinition: Type) =
+            determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject) as GraphQLOutputType
+    private fun determineInputType(typeDefinition: Type) =
+            determineType(GraphQLInputType::class, typeDefinition, permittedTypesForInputObject) as GraphQLInputType
 
-    private inline fun <reified T, D> determineType(typeDefinition: Type, definitionsByName: Map<String, D>) = determineType(typeDefinition).let { type ->
-        if(type is GraphQLTypeReference && !definitionsByName.containsKey(type.name)) {
-            throw SchemaError("Expected type '${type.name}' to be a ${T::class.simpleName}, but it wasn't!  Was an object type incorrectly used as an input type, or vice-versa?")
-        }
-
-        type as T
-    }
-
-    private fun determineType(typeDefinition: Type): GraphQLType =
-        when (typeDefinition) {
-            is ListType -> GraphQLList(determineType(typeDefinition.type))
-            is NonNullType -> GraphQLNonNull(determineType(typeDefinition.type))
-            is TypeName -> graphQLScalars[typeDefinition.name] ?: customScalars[typeDefinition.name] ?: GraphQLTypeReference(typeDefinition.name)
-            else -> throw SchemaError("Unknown type: $typeDefinition")
-        }
+    private fun <T: Any> determineType(expectedType: KClass<T>, typeDefinition: Type, allowedTypeReferences: Set<String>): GraphQLType =
+            when (typeDefinition) {
+                is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
+                is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
+                is TypeName -> {
+                    val scalarType = graphQLScalars[typeDefinition.name] ?: customScalars[typeDefinition.name]
+                    if (scalarType != null) {
+                        scalarType
+                    } else {
+                        if (!allowedTypeReferences.contains(typeDefinition.name)) {
+                            throw SchemaError("Expected type '${typeDefinition.name}' to be a ${expectedType.simpleName}, but it wasn't!  " +
+                                    "Was a type only permitted for object types incorrectly used as an input type, or vice-versa?")
+                        }
+                        GraphQLTypeReference(typeDefinition.name)
+                    }
+                }
+                else -> throw SchemaError("Unknown type: $typeDefinition")
+            }
 
     /**
      * Returns an optional [String] describing a deprecated field/enum.
