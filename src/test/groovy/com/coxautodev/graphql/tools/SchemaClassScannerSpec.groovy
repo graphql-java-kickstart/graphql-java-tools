@@ -242,7 +242,7 @@ class SchemaClassScannerSpec extends Specification {
         }
     }
 
-    def "scanner handles custom scalars when matching types"() {
+    def "scanner handles custom scalars when matching input types"() {
         when:
             GraphQLScalarType customMap = new GraphQLScalarType('customMap', '', new Coercing<Map<String, Object>, Map<String, Object>>() {
                 @Override
