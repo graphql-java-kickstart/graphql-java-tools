@@ -32,6 +32,8 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 - [Examples](#examples)
 - [Defining a Schema](#defining-a-schema)
 - [Resolvers and Data Classes](#resolvers-and-data-classes)
+  - [Root Resolvers](#root-resolvers)
+  - [Field Mapping Priority](#field-mapping-priority)
 - [Enum Types](#enum-types)
 - [Input Objects](#input-objects)
 - [Interfaces and Union Types](#interfaces-and-union-types)
@@ -40,6 +42,7 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 - [Making the graphql-java Schema Instance](#making-the-graphql-java-schema-instance)
 - [GraphQL Descriptions](#graphql-descriptions)
 - [GraphQL Deprecations](#graphql-deprecations)
+- [Schema Parser Options](#schema-parser-options)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -299,9 +302,8 @@ enum Episode {
 ```
 ### GraphQL Deprecations
 
-GraphQL field/enum deprecations can be provided by the `@deprecated(reason: String)` directive, and are added to the 
-generated schema. You can either supply a **reason** argument with a string value or not supply one and receive
-a "No longer supported" message when introspected:
+GraphQL field/enum deprecations can be provided by the `@deprecated(reason: String)` directive, and are added to the generated schema.
+You can either supply a **reason** argument with a string value or not supply one and receive a "No longer supported" message when introspected:
 
 ```graphql
 # One of the films in the Star Wars Trilogy
@@ -318,3 +320,14 @@ enum Episode {
     CLONES @deprecated  
 }
 ```
+
+### Schema Parser Options
+
+For advanced use-cases, the schema parser can be tweaked to suit your needs.
+Use `SchemaParserOptions.newBuilder()` to build an options object to pass to the parser.
+
+Options:
+* `genericWrappers`: Allows defining your own generic classes that should be unwrapped when matching Java types to GraphQL types.  You must supply the class and the index (zero-indexed) of the wrapped generic type.  For example: If you want to unwrap type argument `T` of `Future<T>`, you must pass `Future.class` and `0`.
+* `useDefaultGenericWrappers`: Defaults to `true`.  Tells the parser whether or not to add it's own list of well-known generic wrappers, such as `Future` and `CompletableFuture`.
+* `allowUnimplementedResolvers`: Deafults to `false`.  Allows a schema to be created even if not all GraphQL fields have resolvers.  Intended only for development, it will log a warning to remind you to turn it off for production.  Any unimplemented resolvers will throw errors when queried.
+* `objectMapperConfigurer`: Exposes the Jackson `ObjectMapper` that handles marshalling arguments in method resolvers.  Every method resolver gets its own mapper, and the configurer can configure it differently based on the GraphQL field definition.
