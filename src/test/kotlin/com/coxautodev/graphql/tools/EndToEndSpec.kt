@@ -31,6 +31,7 @@ type Query {
     itemByUUID(uuid: UUID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
+    enumInputType(type: Type!): Type!
 
     defaultArgument(arg: Boolean = true): Boolean!
 
@@ -140,6 +141,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
+    fun enumInputType(type: Type) = type
 
     fun defaultArgument(arg: Boolean) = arg
 

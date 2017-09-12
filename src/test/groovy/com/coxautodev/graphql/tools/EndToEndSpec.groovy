@@ -271,4 +271,18 @@ class EndToEndSpec extends Specification {
         then:
             data.propertyField
     }
+
+    def "generated schema allows enums in input types"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    enumInputType(type: TYPE_2)
+                }
+                '''
+            }
+
+        then:
+            data.enumInputType == "TYPE_2"
+    }
 }

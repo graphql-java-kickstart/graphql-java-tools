@@ -140,11 +140,11 @@ class SchemaParserSpec extends Specification {
                         filter: String
                     }
                 ''')
-            .resolvers(new GraphQLQueryResolver() {
-                List<String> name(Filter filter) { null }
-            })
-            .build()
-            .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {
+                    List<String> name(Filter filter) { null }
+                })
+                .build()
+                .makeExecutableSchema()
 
         then:
             def t = thrown(SchemaError)
