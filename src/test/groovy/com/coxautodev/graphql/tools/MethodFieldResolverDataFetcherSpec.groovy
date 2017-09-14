@@ -159,8 +159,9 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
 
     private static DataFetcher createFetcher(String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
         def field = new FieldDefinition(methodName, new TypeName('Boolean')).with { getInputValueDefinitions().addAll(arguments); it }
+        def options = SchemaParserOptions.defaultOptions()
 
-        fieldResolverScanner.findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver]) : new NormalResolverInfo(resolver, SchemaParserOptions.defaultOptions())).createDataFetcher()
+        fieldResolverScanner.findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver], options) : new NormalResolverInfo(resolver, options)).createDataFetcher()
     }
 
     private static DataFetchingEnvironment createEnvironment(Map<String, Object> arguments = [:]) {

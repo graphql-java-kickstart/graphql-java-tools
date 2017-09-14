@@ -72,7 +72,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     fun scanForClasses(): SchemaParser {
 
         // Figure out what query, mutation and subscription types are called
-        val rootTypeHolder = RootTypesHolder(rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
+        val rootTypeHolder = RootTypesHolder(options, rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
 
         handleRootType(rootTypeHolder.query)
         handleRootType(rootTypeHolder.mutation)
@@ -349,7 +349,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         override fun getDescription() = "type of field $field"
     }
 
-    class RootTypesHolder(rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
+    class RootTypesHolder(options: SchemaParserOptions, rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
         private val queryName = rootInfo.getQueryName()
         private val mutationName = rootInfo.getMutationName()
         private val subscriptionName = rootInfo.getSubscriptionName()
@@ -358,9 +358,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         private val mutationDefinition = definitionsByName[mutationName]
         private val subscriptionDefinition = definitionsByName[subscriptionName]
 
-        private val queryResolverInfo = RootResolverInfo(queryResolvers)
-        private val mutationResolverInfo = RootResolverInfo(mutationResolvers)
-        private val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers)
+        private val queryResolverInfo = RootResolverInfo(queryResolvers, options)
+        private val mutationResolverInfo = RootResolverInfo(mutationResolvers, options)
+        private val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers, options)
 
         val query = createRootType("query", queryDefinition, queryName, true, queryResolvers, GraphQLQueryResolver::class.java, queryResolverInfo)
         val mutation = createRootType("mutation", mutationDefinition, mutationName, rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)

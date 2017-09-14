@@ -127,7 +127,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     }
 }
 
-class InvalidSchemaError(pce: ParseCancellationException, val recognitionException: RecognitionException): RuntimeException(pce) {
+class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException): RuntimeException(pce) {
     override val message: String?
         get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }
@@ -174,7 +174,7 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer) {
+data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
@@ -185,6 +185,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
+        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler())
 
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
@@ -210,6 +211,10 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
             this.objectMapperConfigurer(ObjectMapperConfigurer(objectMapperConfigurer))
         }
 
+        fun addProxyHandler(proxyHandler: ProxyHandler) = this.apply {
+            this.proxyHandlers.add(proxyHandler)
+        }
+
         fun build(): SchemaParserOptions {
             val wrappers = if(useDefaultGenericWrappers) {
                 genericWrappers + listOf(
@@ -221,7 +226,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
                 genericWrappers
             }
 
-            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer)
+            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
         }
     }
 

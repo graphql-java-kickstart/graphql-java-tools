@@ -71,11 +71,12 @@
             <version>1.7.25</version>
         </dependency>
 
-        <!-- Required till graphql-java 4.0.0 is released with correct scoping -->
+        <!-- Optional for supporting spring proxies -->
         <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
-            <version>4.5.1</version>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-aop</artifactId>
+            <version>4.3.11.RELEASE</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

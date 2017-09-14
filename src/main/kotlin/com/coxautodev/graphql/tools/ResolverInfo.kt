@@ -5,10 +5,14 @@ import java.lang.reflect.ParameterizedType
 
 internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
+
+    protected fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions): Class<*> {
+        return options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
+    }
 }
 
 internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions): ResolverInfo() {
-    val resolverType = resolver.javaClass
+    private val resolverType = getRealResolverClass(resolver, options)
     val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<*> {
@@ -39,13 +43,13 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
     }
 }
 
-internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>): ResolverInfo() {
+internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, private val options: SchemaParserOptions): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return resolvers.map { FieldResolverScanner.Search(it.javaClass, this, it) }
+        return resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
     }
 }
 
-internal class DataClassResolverInfo(val dataClass: Class<*>): ResolverInfo() {
+internal class DataClassResolverInfo(private val dataClass: Class<*>): ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(FieldResolverScanner.Search(dataClass, this, null))
     }

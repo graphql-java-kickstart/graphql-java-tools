@@ -1,5 +1,8 @@
 package com.coxautodev.graphql.tools
 
+import org.springframework.aop.framework.AopProxyUtils
+import org.springframework.aop.framework.ProxyFactory
+import org.springframework.aop.support.AopUtils
 import spock.lang.Specification
 
 import java.util.concurrent.Future
@@ -150,6 +153,22 @@ class SchemaParserSpec extends Specification {
             def t = thrown(SchemaError)
             t.message.contains("Was a type only permitted for object types incorrectly used as an input type, or vice-versa")
     }
+
+    def "parser handles spring AOP proxied resolvers by default"() {
+        when:
+            def resolver = new ProxyFactory(new ProxiedResolver()).getProxy() as GraphQLQueryResolver
+
+            SchemaParser.newParser()
+                .schemaString('''
+                    type Query {
+                        test: [String]
+                    }
+                ''')
+                .resolvers(resolver)
+                .build()
+        then:
+            noExceptionThrown()
+    }
 }
 
 class Filter {
@@ -158,4 +177,8 @@ class Filter {
 class CustomGenericWrapper<T, V> { }
 class Obj {
     def name() { null }
+}
+
+class ProxiedResolver implements GraphQLQueryResolver {
+    List<String> test() { [] }
 }
