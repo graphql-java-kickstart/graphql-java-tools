@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.execution.batched.Batched
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
@@ -32,6 +33,7 @@ type Query {
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
     enumInputType(type: Type!): Type!
+    batchedEcho(msg: String!): String!
 
     defaultArgument(arg: Boolean = true): Boolean!
 
@@ -142,6 +144,9 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
     fun enumInputType(type: Type) = type
+
+    @Batched
+    fun batchedEcho(messages: List<String>) = messages
 
     fun defaultArgument(arg: Boolean) = arg
 

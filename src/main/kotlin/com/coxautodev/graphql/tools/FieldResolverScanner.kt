@@ -37,7 +37,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return found.firstOrNull() ?:  missingFieldResolver(field, searches, scanProperties)
     }
 
-    fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+    private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
         return if(options.allowUnimplementedResolvers) {
             log.warn("Missing resolver for field: $field")
 
@@ -92,12 +92,11 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return correctParameterCount && appropriateFirstParameter
     }
 
-
     private fun findResolverProperty(field: FieldDefinition, search: Search): Field? {
         return FieldUtils.getAllFields(search.type).find { it.name == field.name }
     }
 
-    fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
+    private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
         val isBoolean = isBoolean(field.type)
 
@@ -108,8 +107,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return "No method${if(scannedProperties) " or field" else ""} found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
-
-    fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
+    private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
         val baseType = search.type
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()

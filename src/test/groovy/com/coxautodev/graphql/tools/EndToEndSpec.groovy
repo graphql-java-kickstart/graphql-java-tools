@@ -1,6 +1,7 @@
 package com.coxautodev.graphql.tools
 
 import graphql.GraphQL
+import graphql.execution.batched.BatchedExecutionStrategy
 import spock.lang.Shared
 import spock.lang.Specification
 
@@ -13,7 +14,9 @@ class EndToEndSpec extends Specification {
     GraphQL gql
 
     def setupSpec() {
-        gql = new GraphQL(EndToEndSpecKt.createSchema())
+        gql = GraphQL.newGraphQL(EndToEndSpecKt.createSchema())
+            .queryExecutionStrategy(new BatchedExecutionStrategy())
+            .build()
     }
 
     def "schema comments are used as descriptions"() {
@@ -284,5 +287,22 @@ class EndToEndSpec extends Specification {
 
         then:
             data.enumInputType == "TYPE_2"
+    }
+
+    def "generated schema supports batched datafetchers"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    batched1: batchedEcho(msg: "hello")
+                    batched2: batchedEcho(msg: ", ")
+                    batched3: batchedEcho(msg: "world")
+                    batched4: batchedEcho(msg: "!")
+                }
+                '''
+            }
+
+        then:
+            data.batched1 == "hello"
     }
 }

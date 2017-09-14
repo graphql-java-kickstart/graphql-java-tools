@@ -11,19 +11,13 @@ import java.lang.reflect.TypeVariable
  */
 open internal class GenericType(protected val mostSpecificType: JavaType, protected val options: SchemaParserOptions) {
 
-    fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>): Boolean {
-        return clazz.isAssignableFrom(getRawClass(type.rawType))
-    }
+    fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>) = clazz.isAssignableFrom(getRawClass(type.rawType))
 
     fun getRawClass() = getRawClass(mostSpecificType)
 
-    fun getRawClass(type: JavaType): Class<*> {
-        return TypeUtils.getRawType(type, mostSpecificType)
-    }
+    fun getRawClass(type: JavaType) = TypeUtils.getRawType(type, mostSpecificType)!!
 
-    fun isAssignableFrom(type: JavaType): Boolean {
-        return TypeUtils.isAssignable(type, mostSpecificType)
-    }
+    fun isAssignableFrom(type: JavaType) = TypeUtils.isAssignable(type, mostSpecificType)
 
     fun relativeToPotentialParent(declaringType: JavaType): RelativeTo {
         if(declaringType !is Class<*>) {

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import graphql.execution.batched.Batched
 import graphql.language.FieldDefinition
 import graphql.language.NonNullType
 import graphql.schema.DataFetcher
@@ -16,6 +17,10 @@ import java.util.Optional
  * @author Andrew Potter
  */
 internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method): FieldResolver(field, search, options, method.declaringClass) {
+
+    companion object {
+        internal fun isBatched(method: Method) = method.getAnnotation(Batched::class.java) != null
+    }
 
     private val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
@@ -71,14 +76,19 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             args.add({ environment -> environment })
         }
 
-        return MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+        if(isBatched(method)) {
+            return BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+        } else {
+            return MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+        }
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, method.genericReturnType, genericType, SchemaClassScanner.ReturnValueReference(method))
+        val batched = MethodFieldResolver.isBatched(method)
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, method.genericReturnType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i), batched)
         } + listOf(returnValueMatch)
     }
 
@@ -99,7 +109,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
+open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
 
     // Convert to reflactasm reflection
     private val methodAccess = MethodAccess.get(method.declaringClass)!!
@@ -111,6 +121,10 @@ class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver,
         val result = methodAccess.invoke(source, methodIndex, *args)
         return if(result != null && result is Optional<*>) result.orElse(null) else result
     }
+}
+
+class BatchedMethodFieldResolverDataFetcher(sourceResolver: SourceResolver, method: Method, args: List<ArgumentPlaceholder>): MethodFieldResolverDataFetcher(sourceResolver, method, args) {
+    @Batched override fun get(environment: DataFetchingEnvironment) = super.get(environment)
 }
 
 internal typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
