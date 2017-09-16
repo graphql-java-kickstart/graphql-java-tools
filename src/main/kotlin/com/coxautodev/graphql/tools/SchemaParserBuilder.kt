@@ -97,7 +97,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
-    fun dictionary(dictionary: List<Class<*>>) = this.apply {
+    fun dictionary(dictionary: Collection<Class<*>>) = this.apply {
         this.dictionary.add(dictionary)
     }
 
@@ -169,7 +169,7 @@ class SchemaParserDictionary {
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
-    fun add(dictionary: List<Class<*>>) = this.apply {
+    fun add(dictionary: Collection<Class<*>>) = this.apply {
         dictionary.forEach { this.add(it) }
     }
 }
