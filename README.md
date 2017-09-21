@@ -13,7 +13,7 @@ GraphQL Java Tools aims for seamless integration with Java, but works for any JV
 
 ## Why GraphQL Java Tools?
 
-* **Schema First**:  GraphQL Java Tools allows you two write your schema in a simple, portable way using the [GraphQL schema language](http://graphql.org/learn/schema/) instead of hard-to-read builders in code.
+* **Schema First**:  GraphQL Java Tools allows you to write your schema in a simple, portable way using the [GraphQL schema language](http://graphql.org/learn/schema/) instead of hard-to-read builders in code.
 * **Minimal Boilerplate**:  It takes a lot of work to describe your GraphQL-Java objects manually, and quickly becomes unreadable.
 A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's built-in schema-first wiring](http://graphql-java.readthedocs.io/en/latest/schema.html), but none (so far) do type and datafetcher discovery.
 * **Stateful Data Fetchers**:  If you're using an IOC container (like Spring), it's hard to wire up datafetchers that make use of beans you've already defined without a bunch of fragile configuration.  GraphQL Java Tools allows you to register "Resolvers" for any type that can bring state along and use that to resolve fields.
