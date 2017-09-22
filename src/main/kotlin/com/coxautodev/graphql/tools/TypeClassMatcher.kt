@@ -51,7 +51,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Iterable::class.java)) {
                     match(potentialMatch, graphQLType.type, realType.actualTypeArguments.first())
                 } else {
-                    throw error(potentialMatch, "Java class is not a List: $realType")
+                    throw error(potentialMatch, "Java class is not a List or generic type information was lost: $realType")
                 }
             }
 
