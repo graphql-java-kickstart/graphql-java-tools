@@ -150,14 +150,14 @@ The BookResolver might look something like this:
 ```java
 class BookResolver implements GraphQLResolver<Book> /* This class is a resolver for the Book "Data Class" */ {
     
-    private AuthorRepostory authorRepostory;
+    private AuthorRepository authorRepository;
     
     public BookResolver(AuthorRepository authorRepository) {
-        this.authorRepostory = authorRepository;
+        this.authorRepository = authorRepository;
     }
     
     public Author author(Book book) {
-        return authorRepostory.findById(book.getAuthorId());
+        return authorRepository.findById(book.getAuthorId());
     }
 }
 ```
