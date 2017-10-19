@@ -113,6 +113,31 @@ class EndToEndSpec extends Specification {
             data.allItems
     }
 
+    def "generated schema should handle nested union types"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    nestedUnionItems {
+                        ... on Item {
+                            itemId: id
+                        }
+                        ... on OtherItem {
+                            otherItemId: id
+                        }
+                        ... on ThirdItem {
+                            thirdItemId: id
+                        }
+                    }
+                }
+                '''
+        }
+
+        then:
+        // TODO, flimsy. Need to test with two different numbers of items, because the mutation test may have run before this test.
+        data.nestedUnionItems == [[itemId: 0], [itemId: 1], [otherItemId: 0], [otherItemId: 1], [thirdItemId: 100]] || data.nestedUnionItems == [[itemId: 0], [itemId: 1], [itemId: 2], [otherItemId: 0], [otherItemId: 1], [thirdItemId: 100]]
+    }
+
     def "generated schema should handle scalar types"() {
         when:
             def data = Utils.assertNoGraphQlErrors(gql) {

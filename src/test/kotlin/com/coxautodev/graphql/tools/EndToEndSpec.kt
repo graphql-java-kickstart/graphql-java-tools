@@ -29,6 +29,7 @@ type Query {
     optionalItem(itemsInput: ItemSearchInput!): Item
     allItems: [AllItems!]
     otherUnionItems: [OtherUnion!]
+    nestedUnionItems: [NestedUnion!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
@@ -123,6 +124,8 @@ type ThirdItem {
 
 union OtherUnion = Item | ThirdItem
 
+union NestedUnion = OtherUnion | OtherItem
+
 type Tag {
     id: Int!
     name: String!
@@ -150,6 +153,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun optionalItem(input: ItemSearchInput) = items(input).firstOrNull()?.let { Optional.of(it) } ?: Optional.empty()
     fun allItems(): List<Any> = items + otherItems
     fun otherUnionItems(): List<Any> = items + thirdItems
+    fun nestedUnionItems(): List<Any> = items + otherItems + thirdItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
