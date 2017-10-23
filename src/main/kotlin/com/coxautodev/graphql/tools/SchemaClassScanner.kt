@@ -119,9 +119,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // The dictionary doesn't need to know what classes are used with scalars.
         // In addition, scalars can have duplicate classes so that breaks the bi-map.
         // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
+        // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
-                dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition }.mapValuesTo(it) { it.value.typeClass }
+                dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition}.mapValuesTo(it) { it.value.typeClass }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -173,8 +174,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
+        val unionTypeNames = dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union -> union.name }.toSet()
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
-            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union") }
+            union.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union") }
         }.flatten().distinct()
     }
 

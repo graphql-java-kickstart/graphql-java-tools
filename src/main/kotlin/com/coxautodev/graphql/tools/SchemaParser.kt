@@ -190,12 +190,27 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
             .description(getDocumentation(definition))
             .typeResolver(TypeResolverProxy())
 
+        getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
+        return builder.build()
+    }
+
+    private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
+        val name = definition.name
+        val leafObjects = mutableListOf<GraphQLObjectType>()
+
         definition.memberTypes.forEach {
             val typeName = (it as TypeName).name
-            builder.possibleType(types.find { it.name == typeName } ?: throw SchemaError("Expected object type '$typeName' for union type '$name', but found none!"))
-        }
 
-        return builder.build()
+            // Is this a nested union? If so, expand
+            val nestedUnion : UnionTypeDefinition? = unionDefinitions.find { otherDefinition -> typeName == otherDefinition.name }
+
+            if (nestedUnion != null) {
+                leafObjects.addAll(getLeafUnionObjects(nestedUnion, types))
+            } else {
+                leafObjects.add(types.find { it.name == typeName } ?: throw SchemaError("Expected object type '$typeName' for union type '$name', but found none!"))
+            }
+        }
+        return leafObjects
     }
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition : FieldDefinition): GraphQLFieldDefinition.Builder {

@@ -13,6 +13,7 @@ fun createSchema() = SchemaParser.newParser()
     .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
     .scalars(CustomUUIDScalar)
     .dictionary("OtherItem", OtherItemWithWrongName::class.java)
+    .dictionary("ThirdItem", ThirdItem::class.java)
     .build()
     .makeExecutableSchema()
 
@@ -27,6 +28,8 @@ type Query {
     items(itemsInput: ItemSearchInput!): [Item!]
     optionalItem(itemsInput: ItemSearchInput!): Item
     allItems: [AllItems!]
+    otherUnionItems: [OtherUnion!]
+    nestedUnionItems: [NestedUnion!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
@@ -115,6 +118,14 @@ interface ItemInterface {
 
 union AllItems = Item | OtherItem
 
+type ThirdItem {
+    id: Int!
+}
+
+union OtherUnion = Item | ThirdItem
+
+union NestedUnion = OtherUnion | OtherItem
+
 type Tag {
     id: Int!
     name: String!
@@ -132,11 +143,17 @@ val otherItems = mutableListOf(
     OtherItemWithWrongName(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
+val thirdItems = mutableListOf(
+        ThirdItem(100)
+)
+
 class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun isEmpty() = items.isEmpty()
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
     fun optionalItem(input: ItemSearchInput) = items(input).firstOrNull()?.let { Optional.of(it) } ?: Optional.empty()
     fun allItems(): List<Any> = items + otherItems
+    fun otherUnionItems(): List<Any> = items + thirdItems
+    fun nestedUnionItems(): List<Any> = items + otherItems + thirdItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
@@ -195,6 +212,7 @@ interface ItemInterface {
 enum class Type { TYPE_1, TYPE_2 }
 data class Item(val id: Int, override val name: String, override val type: Type, override val uuid:UUID, val tags: List<Tag>) : ItemInterface
 data class OtherItemWithWrongName(val id: Int, override val name: String, override val type: Type, override val uuid:UUID) : ItemInterface
+data class ThirdItem(val id: Int)
 data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
