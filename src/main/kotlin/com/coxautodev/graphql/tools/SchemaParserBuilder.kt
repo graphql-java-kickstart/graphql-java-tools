@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.misc.ParseCancellationException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.reflect.KClass
 
 /**
  * @author Andrew Potter
@@ -76,6 +77,13 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
      */
+    fun dictionary(name: String, clazz: KClass<*>) = this.apply {
+        this.dictionary.add(name, clazz)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
+     */
     fun dictionary(dictionary: Map<String, Class<*>>) = this.apply {
         this.dictionary.add(dictionary)
     }
@@ -90,7 +98,21 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
+    fun dictionary(clazz: KClass<*>) = this.apply {
+        this.dictionary.add(clazz)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
     fun dictionary(vararg dictionary: Class<*>) = this.apply {
+        this.dictionary.add(*dictionary)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun dictionary(vararg dictionary: KClass<*>) = this.apply {
         this.dictionary.add(*dictionary)
     }
 
@@ -153,6 +175,13 @@ class SchemaParserDictionary {
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
      */
+    fun add(name: String, clazz: KClass<*>) = this.apply {
+        this.dictionary.put(name, clazz.java)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
+     */
     fun add(dictionary: Map<String, Class<*>>) = this.apply {
         this.dictionary.putAll(dictionary)
     }
@@ -167,7 +196,21 @@ class SchemaParserDictionary {
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
+    fun add(clazz: KClass<*>) = this.apply {
+        this.add(clazz.java.simpleName, clazz)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
     fun add(vararg dictionary: Class<*>) = this.apply {
+        dictionary.forEach { this.add(it) }
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun add(vararg dictionary: KClass<*>) = this.apply {
         dictionary.forEach { this.add(it) }
     }
 
@@ -223,9 +266,9 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         fun build(): SchemaParserOptions {
             val wrappers = if(useDefaultGenericWrappers) {
                 genericWrappers + listOf(
-                    GenericWrapper(Future::class.java, 0),
-                    GenericWrapper(CompletableFuture::class.java, 0),
-                    GenericWrapper(CompletionStage::class.java, 0)
+                    GenericWrapper(Future::class, 0),
+                    GenericWrapper(CompletableFuture::class, 0),
+                    GenericWrapper(CompletionStage::class, 0)
                 )
             } else {
                 genericWrappers
@@ -235,5 +278,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         }
     }
 
-    data class GenericWrapper(val type: Class<*>, val index: Int)
+    data class GenericWrapper(val type: Class<*>, val index: Int) {
+        constructor(type: KClass<*>, index: Int): this(type.java, index)
+    }
 }
