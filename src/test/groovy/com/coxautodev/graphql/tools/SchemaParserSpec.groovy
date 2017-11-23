@@ -167,54 +167,6 @@ class SchemaParserSpec extends Specification {
         then:
             noExceptionThrown()
     }
-
-    def "parser should parse interface with complex type"() {
-        when:
-            SchemaParser.newParser()
-                .schemaString(''' 
-                    schema {
-                        query: Query
-                    }
-                    
-                    type Query {
-                        animal: Animal
-                    }
-                    
-                    interface Animal {
-                        type: ComplexType
-                    }
-                    
-                    type Dog implements Animal {
-                        type: ComplexType
-                    }
-                    
-                    type ComplexType {
-                        id: String
-                    }
-                ''')
-                .resolvers(new ComplexQuery())
-                .build()
-                .makeExecutableSchema()
-
-        then:
-            noExceptionThrown()
-
-    }
-
-}
-
-class ComplexQuery implements GraphQLQueryResolver {
-    Animal animal() { null }
-
-    interface Animal {
-        ComplexType type = null
-    }
-
-    class Dog implements Animal { }
-
-    class ComplexType {
-        String id
-    }
 }
 
 class Filter {

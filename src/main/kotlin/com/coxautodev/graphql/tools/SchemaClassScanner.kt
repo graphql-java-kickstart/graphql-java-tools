@@ -78,22 +78,32 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         handleRootType(rootTypeHolder.mutation)
         handleRootType(rootTypeHolder.subscription)
 
-        // Loop over all objects scanning each one only once for more objects to discover.
-        while(queue.isNotEmpty()) {
-            while (queue.isNotEmpty()) {
-                while (queue.isNotEmpty()) {
-                    scanQueueItemForPotentialMatches(queue.iterator().run { val item = next(); remove(); item })
-                }
+        scanQueue()
 
+        // Loop over all objects scanning each one only once for more objects to discover.
+        do {
+            do {
                 // Require all implementors of discovered interfaces to be discovered or provided.
-                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces(), { "Object type '${it.name}' implements a known interface, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
-            }
+                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces(), { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+            } while (scanQueue())
 
             // Require all members of discovered unions to be discovered.
-            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
-        }
+            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+        } while (scanQueue())
 
         return validateAndCreateResult(rootTypeHolder)
+    }
+
+    private fun scanQueue(): Boolean {
+        if(queue.isEmpty()) {
+            return false
+        }
+
+        while (queue.isNotEmpty()) {
+            scanQueueItemForPotentialMatches(queue.iterator().run { val item = next(); remove(); item })
+        }
+
+        return true
     }
 
     /**
@@ -182,7 +192,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
     private fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
         types.forEach { type ->
-            if(!dictionary.containsKey(type)) {
+            if(!unvalidatedTypes.contains(type) && !dictionary.containsKey(type)) {
                 val initialEntry = initialDictionary[type.name] ?: throw SchemaClassScannerError(failureMessage(type))
                 handleFoundType(type, initialEntry.get(), DictionaryReference())
             }

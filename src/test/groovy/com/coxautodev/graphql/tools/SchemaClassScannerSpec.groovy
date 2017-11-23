@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import graphql.language.InputObjectTypeDefinition
 import graphql.language.InterfaceTypeDefinition
+import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
@@ -318,5 +319,55 @@ class SchemaClassScannerSpec extends Specification {
 
     class Pojo {
         String name
+    }
+
+    def "scanner should handle nested types in input types"() {
+        when:
+            ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString(''' 
+                    schema {
+                        query: Query
+                    }
+                    
+                    type Query {
+                        animal: Animal
+                    }
+                    
+                    interface Animal {
+                        type: ComplexType
+                    }
+                    
+                    type Dog implements Animal {
+                        type: ComplexType
+                    }
+                    
+                    type ComplexType {
+                        id: String
+                    }
+                ''')
+                .resolvers(new NestedInterfaceTypeQuery())
+                .dictionary(NestedInterfaceTypeQuery.Dog)
+                .scan()
+
+        then:
+            objects.definitions.findAll { it instanceof ObjectTypeDefinition }.size() == 3
+
+    }
+
+    class NestedInterfaceTypeQuery implements GraphQLQueryResolver {
+        Animal animal() { null }
+
+        interface Animal {
+            ComplexType type()
+        }
+
+        class Dog implements Animal {
+            @Override
+            ComplexType type() { null }
+        }
+
+        class ComplexType {
+            String id
+        }
     }
 }
