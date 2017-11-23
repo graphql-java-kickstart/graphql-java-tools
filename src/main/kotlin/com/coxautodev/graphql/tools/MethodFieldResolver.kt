@@ -19,12 +19,23 @@ import java.util.Optional
 internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method): FieldResolver(field, search, options, method.declaringClass) {
 
     companion object {
-        internal fun isBatched(method: Method) = method.getAnnotation(Batched::class.java) != null
+        fun isBatched(method: Method, search: FieldResolverScanner.Search): Boolean {
+            if(method.getAnnotation(Batched::class.java) != null) {
+                if(!search.allowBatched) {
+                    throw ResolverError("The @Batched annotation is only allowed on non-root resolver methods, but it was found on ${search.type.name}#${method.name}!")
+                }
+
+                return true
+            }
+
+            return false
+        }
     }
 
     private val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
+        val batched = isBatched(method, search)
         val args = mutableListOf<ArgumentPlaceholder>()
         val mapper = ObjectMapper().apply {
             options.objectMapperConfigurer.configure(this, ObjectMapperConfigurerContext(field))
@@ -32,7 +43,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
         // Add source argument if this is a resolver (but not a root resolver)
         if(this.search.requiredFirstParameterType != null) {
-            val expectedType = this.search.requiredFirstParameterType
+            val expectedType = if(batched) Iterable::class.java else this.search.requiredFirstParameterType
 
             args.add({ environment ->
                 val source = environment.getSource<Any>()
@@ -76,15 +87,15 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             args.add({ environment -> environment })
         }
 
-        if(isBatched(method)) {
-            return BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+        return if(batched) {
+            BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
         } else {
-            return MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
         }
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val batched = MethodFieldResolver.isBatched(method)
+        val batched = isBatched(method, search)
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, method.genericReturnType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->

@@ -15,6 +15,10 @@ import java.util.Optional
  */
 internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition>) {
 
+    companion object {
+        fun isListType(realType: ParameterizedType, generic: GenericType) = generic.isTypeAssignableFromRawClass(realType, Iterable::class.java)
+    }
+
     private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) with java type (${potentialMatch.javaType}): $msg")
 
     fun match(potentialMatch: PotentialMatch): Match {
@@ -76,7 +80,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         }
     }
 
-    private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = potentialMatch.generic.isTypeAssignableFromRawClass(realType, List::class.java)
+    private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = isListType(realType, potentialMatch.generic)
 
     private fun requireRawClass(type: JavaType): Class<*> {
         if(type !is Class<*>) {
@@ -106,12 +110,11 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     internal data class PotentialMatch(val graphQLType: GraphQLLangType, val javaType: JavaType, val generic: GenericType.RelativeTo, val reference: SchemaClassScanner.Reference, val location: Location, val batched: Boolean) {
         companion object {
-            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference, batched: Boolean): PotentialMatch {
-                return PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE, batched)
-            }
-            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference, batched: Boolean): PotentialMatch {
-                return PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE, batched)
-            }
+            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference, batched: Boolean) =
+                PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE, batched)
+
+            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference, batched: Boolean) =
+                PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE, batched)
         }
     }
     class RawClassRequiredForGraphQLMappingException(msg: String): RuntimeException(msg)

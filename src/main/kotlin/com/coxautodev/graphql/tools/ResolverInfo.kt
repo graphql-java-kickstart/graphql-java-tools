@@ -6,9 +6,8 @@ import java.lang.reflect.ParameterizedType
 internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
 
-    protected fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions): Class<*> {
-        return options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
-    }
+    protected fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions) =
+        options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
 }
 
 internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions): ResolverInfo() {
@@ -37,22 +36,20 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(
-            FieldResolverScanner.Search(resolverType, this, resolver, dataClassType),
+            FieldResolverScanner.Search(resolverType, this, resolver, dataClassType, true),
             FieldResolverScanner.Search(dataClassType, this, null)
         )
     }
 }
 
 internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, private val options: SchemaParserOptions): ResolverInfo() {
-    override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
-    }
+    override fun getFieldSearches() =
+        resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
 }
 
 internal class DataClassResolverInfo(private val dataClass: Class<*>): ResolverInfo() {
-    override fun getFieldSearches(): List<FieldResolverScanner.Search> {
-        return listOf(FieldResolverScanner.Search(dataClass, this, null))
-    }
+    override fun getFieldSearches() =
+        listOf(FieldResolverScanner.Search(dataClass, this, null))
 }
 
 internal class MissingResolverInfo: ResolverInfo() {

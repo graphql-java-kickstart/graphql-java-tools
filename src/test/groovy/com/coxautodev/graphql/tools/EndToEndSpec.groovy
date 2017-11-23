@@ -365,15 +365,14 @@ class EndToEndSpec extends Specification {
             def data = Utils.assertNoGraphQlErrors(gql) {
                 '''
                 {
-                    batched1: batchedEcho(msg: "hello")
-                    batched2: batchedEcho(msg: ", ")
-                    batched3: batchedEcho(msg: "world")
-                    batched4: batchedEcho(msg: "!")
+                    allBaseItems {
+                        name: batchedName
+                    }
                 }
                 '''
             }
 
         then:
-            data.batched1 == "hello"
+            data.allBaseItems.collect { it.name } == ['item1', 'item2']
     }
 }
