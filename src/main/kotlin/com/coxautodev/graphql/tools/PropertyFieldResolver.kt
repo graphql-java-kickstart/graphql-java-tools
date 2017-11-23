@@ -21,7 +21,7 @@ internal class PropertyFieldResolver(field: FieldDefinition, search: FieldResolv
 }
 
 class PropertyFieldResolverDataFetcher(private val sourceResolver: SourceResolver, private val field: Field): DataFetcher<Any> {
-    override fun get(environment: DataFetchingEnvironment): Any {
+    override fun get(environment: DataFetchingEnvironment): Any? {
         return field.get(sourceResolver(environment))
     }
 }

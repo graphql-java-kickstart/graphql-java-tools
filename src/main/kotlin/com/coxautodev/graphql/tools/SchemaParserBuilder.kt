@@ -8,9 +8,11 @@ import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
+import org.reactivestreams.Publisher
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.reflect.KClass
 
 /**
  * @author Andrew Potter
@@ -76,6 +78,13 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
      */
+    fun dictionary(name: String, clazz: KClass<*>) = this.apply {
+        this.dictionary.add(name, clazz)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
+     */
     fun dictionary(dictionary: Map<String, Class<*>>) = this.apply {
         this.dictionary.add(dictionary)
     }
@@ -90,6 +99,13 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
+    fun dictionary(clazz: KClass<*>) = this.apply {
+        this.dictionary.add(clazz)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
     fun dictionary(vararg dictionary: Class<*>) = this.apply {
         this.dictionary.add(*dictionary)
     }
@@ -97,7 +113,14 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
-    fun dictionary(dictionary: List<Class<*>>) = this.apply {
+    fun dictionary(vararg dictionary: KClass<*>) = this.apply {
+        this.dictionary.add(*dictionary)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun dictionary(dictionary: Collection<Class<*>>) = this.apply {
         this.dictionary.add(dictionary)
     }
 
@@ -106,9 +129,9 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     }
 
     /**
-     * Build the parser with the supplied schema and dictionary.
+     * Scan for classes with the supplied schema and dictionary.  Used for testing.
      */
-    fun build(): SchemaParser {
+    private fun scan(): ScannedSchemaObjects {
         val document = try {
             Parser().parseDocument(this.schemaString.toString())
         } catch (pce: ParseCancellationException) {
@@ -125,9 +148,14 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
 
         return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options).scanForClasses()
     }
+
+    /**
+     * Build the parser with the supplied schema and dictionary.
+     */
+    fun build() = SchemaParser(scan())
 }
 
-class InvalidSchemaError(pce: ParseCancellationException, val recognitionException: RecognitionException): RuntimeException(pce) {
+class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException): RuntimeException(pce) {
     override val message: String?
         get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }
@@ -148,6 +176,13 @@ class SchemaParserDictionary {
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
      */
+    fun add(name: String, clazz: KClass<*>) = this.apply {
+        this.dictionary.put(name, clazz.java)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
+     */
     fun add(dictionary: Map<String, Class<*>>) = this.apply {
         this.dictionary.putAll(dictionary)
     }
@@ -162,6 +197,13 @@ class SchemaParserDictionary {
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
+    fun add(clazz: KClass<*>) = this.apply {
+        this.add(clazz.java.simpleName, clazz)
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
     fun add(vararg dictionary: Class<*>) = this.apply {
         dictionary.forEach { this.add(it) }
     }
@@ -169,12 +211,19 @@ class SchemaParserDictionary {
     /**
      * Add arbitrary classes to the parser's dictionary.
      */
-    fun add(dictionary: List<Class<*>>) = this.apply {
+    fun add(vararg dictionary: KClass<*>) = this.apply {
+        dictionary.forEach { this.add(it) }
+    }
+
+    /**
+     * Add arbitrary classes to the parser's dictionary.
+     */
+    fun add(dictionary: Collection<Class<*>>) = this.apply {
         dictionary.forEach { this.add(it) }
     }
 }
 
-data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer) {
+data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
@@ -185,6 +234,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
+        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler())
 
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
@@ -210,20 +260,27 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
             this.objectMapperConfigurer(ObjectMapperConfigurer(objectMapperConfigurer))
         }
 
+        fun addProxyHandler(proxyHandler: ProxyHandler) = this.apply {
+            this.proxyHandlers.add(proxyHandler)
+        }
+
         fun build(): SchemaParserOptions {
             val wrappers = if(useDefaultGenericWrappers) {
                 genericWrappers + listOf(
-                    GenericWrapper(Future::class.java, 0),
-                    GenericWrapper(CompletableFuture::class.java, 0),
-                    GenericWrapper(CompletionStage::class.java, 0)
+                    GenericWrapper(Future::class, 0),
+                    GenericWrapper(CompletableFuture::class, 0),
+                    GenericWrapper(CompletionStage::class, 0),
+                    GenericWrapper(Publisher::class, 0)
                 )
             } else {
                 genericWrappers
             }
 
-            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer)
+            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
         }
     }
 
-    data class GenericWrapper(val type: Class<*>, val index: Int)
+    data class GenericWrapper(val type: Class<*>, val index: Int) {
+        constructor(type: KClass<*>, index: Int): this(type.java, index)
+    }
 }

@@ -69,31 +69,41 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
      */
-    fun scanForClasses(): SchemaParser {
+    fun scanForClasses(): ScannedSchemaObjects {
 
         // Figure out what query, mutation and subscription types are called
-        val rootTypeHolder = RootTypesHolder(rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
+        val rootTypeHolder = RootTypesHolder(options, rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
 
         handleRootType(rootTypeHolder.query)
         handleRootType(rootTypeHolder.mutation)
         handleRootType(rootTypeHolder.subscription)
 
-        // Loop over all objects scanning each one only once for more objects to discover.
-        while(queue.isNotEmpty()) {
-            while (queue.isNotEmpty()) {
-                while (queue.isNotEmpty()) {
-                    scanQueueItemForPotentialMatches(queue.iterator().run { val item = next(); remove(); item })
-                }
+        scanQueue()
 
+        // Loop over all objects scanning each one only once for more objects to discover.
+        do {
+            do {
                 // Require all implementors of discovered interfaces to be discovered or provided.
-                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces(), { "Object type '${it.name}' implements a known interface, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
-            }
+                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces(), { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+            } while (scanQueue())
 
             // Require all members of discovered unions to be discovered.
-            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+        } while (scanQueue())
+
+        return validateAndCreateResult(rootTypeHolder)
+    }
+
+    private fun scanQueue(): Boolean {
+        if(queue.isEmpty()) {
+            return false
         }
 
-        return validateAndCreateParser(rootTypeHolder)
+        while (queue.isNotEmpty()) {
+            scanQueueItemForPotentialMatches(queue.iterator().run { val item = next(); remove(); item })
+        }
+
+        return true
     }
 
     /**
@@ -109,7 +119,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
     }
 
-    private fun validateAndCreateParser(rootTypeHolder: RootTypesHolder): SchemaParser {
+    private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
         initialDictionary.filter { !it.value.accessed }.forEach {
             log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
         }
@@ -119,9 +129,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // The dictionary doesn't need to know what classes are used with scalars.
         // In addition, scalars can have duplicate classes so that breaks the bi-map.
         // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
+        // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
-                dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition }.mapValuesTo(it) { it.value.typeClass }
+                dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition}.mapValuesTo(it) { it.value.typeClass }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -149,7 +160,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return SchemaParser(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
+        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -173,14 +184,15 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
+        val unionTypeNames = dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union -> union.name }.toSet()
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
-            union.memberTypes.filterIsInstance<TypeName>().map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union") }
+            union.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map { objectDefinitionsByName[it.name] ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union") }
         }.flatten().distinct()
     }
 
     private fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
         types.forEach { type ->
-            if(!dictionary.containsKey(type)) {
+            if(!unvalidatedTypes.contains(type) && !dictionary.containsKey(type)) {
                 val initialEntry = initialDictionary[type.name] ?: throw SchemaClassScannerError(failureMessage(type))
                 handleFoundType(type, initialEntry.get(), DictionaryReference())
             }
@@ -206,38 +218,42 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     private fun handleFoundType(match: TypeClassMatcher.Match) {
-        handleFoundType(match.type, match.clazz, match.reference)
+        when(match) {
+            is TypeClassMatcher.ScalarMatch -> {
+                handleFoundScalarType(match.type)
+            }
+
+            is TypeClassMatcher.ValidMatch -> {
+                handleFoundType(match.type, match.clazz, match.reference)
+            }
+        }
+    }
+
+    private fun handleFoundScalarType(type: ScalarTypeDefinition) {
+        unvalidatedTypes.add(type)
     }
 
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
     private fun handleFoundType(type: TypeDefinition, clazz: Class<*>?, reference: Reference) {
-        if(!ignoreDictionaryForType(type)) {
-            val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
-            var typeWasSet = false
+        val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
+        var typeWasSet = false
 
-            if (clazz != null) {
-                typeWasSet = realEntry.setTypeIfMissing(clazz)
+        if (clazz != null) {
+            typeWasSet = realEntry.setTypeIfMissing(clazz)
 
-                if (realEntry.typeClass != clazz) {
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
-                }
+            if (realEntry.typeClass != clazz) {
+                throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
             }
-
-            realEntry.addReference(reference)
-
-            // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
-            if (typeWasSet && clazz != null) {
-                handleNewType(type, clazz)
-            }
-        } else {
-            unvalidatedTypes.add(type)
         }
-    }
 
-    private fun ignoreDictionaryForType(type: TypeDefinition): Boolean {
-        return type is ScalarTypeDefinition
+        realEntry.addReference(reference)
+
+        // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
+        if (typeWasSet && clazz != null) {
+            handleNewType(type, clazz)
+        }
     }
 
     /**
@@ -355,7 +371,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         override fun getDescription() = "type of field $field"
     }
 
-    class RootTypesHolder(rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
+    class RootTypesHolder(options: SchemaParserOptions, rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
         private val queryName = rootInfo.getQueryName()
         private val mutationName = rootInfo.getMutationName()
         private val subscriptionName = rootInfo.getSubscriptionName()
@@ -364,9 +380,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         private val mutationDefinition = definitionsByName[mutationName]
         private val subscriptionDefinition = definitionsByName[subscriptionName]
 
-        private val queryResolverInfo = RootResolverInfo(queryResolvers)
-        private val mutationResolverInfo = RootResolverInfo(mutationResolvers)
-        private val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers)
+        private val queryResolverInfo = RootResolverInfo(queryResolvers, options)
+        private val mutationResolverInfo = RootResolverInfo(mutationResolvers, options)
+        private val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers, options)
 
         val query = createRootType("query", queryDefinition, queryName, true, queryResolvers, GraphQLQueryResolver::class.java, queryResolverInfo)
         val mutation = createRootType("mutation", mutationDefinition, mutationName, rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)
@@ -398,5 +414,3 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 }
 
 class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
-
-internal typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>

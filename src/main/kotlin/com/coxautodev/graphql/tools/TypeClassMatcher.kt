@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import graphql.language.ListType
 import graphql.language.NonNullType
+import graphql.language.ScalarTypeDefinition
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.schema.idl.ScalarInfo
@@ -57,16 +58,20 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 if(realType is ParameterizedType && isListType(realType, potentialMatch)) {
                     match(potentialMatch, graphQLType.type, realType.actualTypeArguments.first())
                 } else {
-                    throw error(potentialMatch, "Java class is not a List: $realType")
+                    throw error(potentialMatch, "Java class is not a List or generic type information was lost: $realType")
                 }
             }
 
             is TypeName -> {
                 val typeDefinition = ScalarInfo.STANDARD_SCALAR_DEFINITIONS[graphQLType.name] ?: definitionsByName[graphQLType.name] ?: throw error(potentialMatch, "No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
-                Match(typeDefinition, requireRawClass(realType), potentialMatch.reference)
+                if(typeDefinition is ScalarTypeDefinition) {
+                    ScalarMatch(typeDefinition)
+                } else {
+                    ValidMatch(typeDefinition, requireRawClass(realType), potentialMatch.reference)
+                }
             }
 
-            is TypeDefinition -> Match(graphQLType, requireRawClass(realType), potentialMatch.reference)
+            is TypeDefinition -> ValidMatch(graphQLType, requireRawClass(realType), potentialMatch.reference)
             else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
         }
     }
@@ -91,8 +96,10 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         }
     }
 
-    data class Match(val type: TypeDefinition, val clazz: Class<*>, val reference: SchemaClassScanner.Reference)
-    enum class Location(val prettyName: String) {
+    internal interface Match
+    internal data class ScalarMatch(val type: ScalarTypeDefinition): Match
+    internal data class ValidMatch(val type: TypeDefinition, val clazz: Class<*>, val reference: SchemaClassScanner.Reference): Match
+    internal enum class Location(val prettyName: String) {
         RETURN_TYPE("return type"),
         PARAMETER_TYPE("parameter"),
     }

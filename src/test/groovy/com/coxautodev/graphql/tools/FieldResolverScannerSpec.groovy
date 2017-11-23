@@ -9,11 +9,12 @@ import spock.lang.Specification
  */
 class FieldResolverScannerSpec extends Specification {
 
-    private static final FieldResolverScanner scanner = new FieldResolverScanner(SchemaParserOptions.defaultOptions())
+    private static final SchemaParserOptions options = SchemaParserOptions.defaultOptions()
+    private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
 
     def "scanner finds fields on multiple root types"() {
         setup:
-            def resolver = new RootResolverInfo([new RootQuery1(), new RootQuery2()])
+            def resolver = new RootResolverInfo([new RootQuery1(), new RootQuery2()], options)
 
         when:
             def result1 = scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
@@ -25,7 +26,7 @@ class FieldResolverScannerSpec extends Specification {
 
     def "scanner throws exception when more than one resolver method is found"() {
         setup:
-            def resolver = new RootResolverInfo([new RootQuery1(), new DuplicateQuery()])
+            def resolver = new RootResolverInfo([new RootQuery1(), new DuplicateQuery()], options)
 
         when:
             scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
@@ -36,7 +37,7 @@ class FieldResolverScannerSpec extends Specification {
 
     def "scanner throws exception when no resolver methods are found"() {
         setup:
-            def resolver = new RootResolverInfo([])
+            def resolver = new RootResolverInfo([], options)
 
         when:
             scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
@@ -47,7 +48,7 @@ class FieldResolverScannerSpec extends Specification {
 
     def "scanner finds properties when no method is found"() {
         setup:
-            def resolver = new RootResolverInfo([new PropertyQuery()])
+            def resolver = new RootResolverInfo([new PropertyQuery()], options)
 
         when:
             def name = scanner.findFieldResolver(new FieldDefinition("name", new TypeName("String")), resolver)

@@ -1,9 +1,15 @@
 package com.coxautodev.graphql.tools
 
+import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.execution.batched.BatchedExecutionStrategy
+import org.reactivestreams.Publisher
+import org.reactivestreams.Subscriber
 import spock.lang.Shared
 import spock.lang.Specification
+
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * @author Andrew Potter
@@ -62,6 +68,7 @@ class EndToEndSpec extends Specification {
     def "generated schema should execute the subscription query"() {
         when:
             def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+            def returnedItem = null
             def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
                 '''
                 subscription {
@@ -71,9 +78,33 @@ class EndToEndSpec extends Specification {
                 } 
                 '''
             }
+            CountDownLatch latch = new CountDownLatch(1)
+            (data as Publisher<ExecutionResult>).subscribe(new Subscriber<ExecutionResult>() {
+                @Override
+                void onSubscribe(org.reactivestreams.Subscription s) {
+
+                }
+
+                @Override
+                void onNext(ExecutionResult executionResult) {
+                    returnedItem = executionResult.data
+                    latch.countDown()
+                }
+
+                @Override
+                void onError(Throwable t) {
+
+                }
+
+                @Override
+                void onComplete() {
+
+                }
+            })
+            latch.await(3, TimeUnit.SECONDS)
 
         then:
-            data.onItemCreated
+            returnedItem.id == 1
     }
 
     def "generated schema should handle interface types"() {
@@ -114,6 +145,30 @@ class EndToEndSpec extends Specification {
 
         then:
             data.allItems
+    }
+
+    def "generated schema should handle nested union types"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                    {
+                        nestedUnionItems {
+                            ... on Item {
+                                itemId: id
+                            }
+                            ... on OtherItem {
+                                otherItemId: id
+                            }
+                            ... on ThirdItem {
+                                thirdItemId: id
+                            }
+                        }
+                    }
+                    '''
+            }
+
+        then:
+            data.nestedUnionItems == [[itemId: 0], [itemId: 1], [otherItemId: 0], [otherItemId: 1], [thirdItemId: 100]]
     }
 
     def "generated schema should handle scalar types"() {
@@ -287,6 +342,22 @@ class EndToEndSpec extends Specification {
 
         then:
             data.enumInputType == "TYPE_2"
+    }
+
+    def "generated schema works with custom scalars as input values"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    customScalarMapInputType(customScalarMap: { test: "me" })
+                }
+                '''
+            }
+
+        then:
+            data.customScalarMapInputType == [
+                test: "me"
+            ]
     }
 
     def "generated schema supports batched datafetchers"() {

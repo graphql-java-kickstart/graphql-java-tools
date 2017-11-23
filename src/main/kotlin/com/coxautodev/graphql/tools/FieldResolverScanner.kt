@@ -19,9 +19,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     companion object {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
-        fun getAllMethods(type: Class<*>): List<Method> {
-            return type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }.filter { !Modifier.isPrivate(it.modifiers) }
-        }
+        fun getAllMethods(type: Class<*>) =
+            type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }.filter { !Modifier.isPrivate(it.modifiers) }
     }
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
@@ -92,9 +91,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return correctParameterCount && appropriateFirstParameter
     }
 
-    private fun findResolverProperty(field: FieldDefinition, search: Search): Field? {
-        return FieldUtils.getAllFields(search.type).find { it.name == field.name }
-    }
+    private fun findResolverProperty(field: FieldDefinition, search: Search) =
+        FieldUtils.getAllFields(search.type).find { it.name == field.name }
 
     private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
@@ -107,7 +105,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return "No method${if(scannedProperties) " or field" else ""} found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
-    private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
+   private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
         val baseType = search.type
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()

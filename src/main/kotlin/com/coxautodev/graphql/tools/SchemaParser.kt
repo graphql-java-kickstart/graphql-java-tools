@@ -17,7 +17,6 @@ import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.language.Type
-import graphql.language.TypeDefinition
 import graphql.language.TypeExtensionDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
@@ -31,7 +30,6 @@ import graphql.schema.GraphQLList
 import graphql.schema.GraphQLNonNull
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLOutputType
-import graphql.schema.GraphQLScalarType
 import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
@@ -45,7 +43,7 @@ import kotlin.reflect.KClass
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(private val dictionary: TypeClassDictionary, definitions: Set<TypeDefinition>, private val customScalars: CustomScalarMap, private val rootInfo: RootTypeInfo, private val fieldResolversByType: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>) {
+class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
 
     companion object {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
@@ -53,6 +51,12 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
         @JvmStatic fun newParser() = SchemaParserBuilder()
         internal fun getDocumentation(node: AbstractNode): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
     }
+
+    private val dictionary = scanResult.dictionary
+    private val definitions = scanResult.definitions
+    private val customScalars = scanResult.customScalars
+    private val rootInfo = scanResult.rootInfo
+    private val fieldResolversByType = scanResult.fieldResolversByType
 
     private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
     private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
@@ -190,12 +194,27 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
             .description(getDocumentation(definition))
             .typeResolver(TypeResolverProxy())
 
+        getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
+        return builder.build()
+    }
+
+    private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
+        val name = definition.name
+        val leafObjects = mutableListOf<GraphQLObjectType>()
+
         definition.memberTypes.forEach {
             val typeName = (it as TypeName).name
-            builder.possibleType(types.find { it.name == typeName } ?: throw SchemaError("Expected object type '$typeName' for union type '$name', but found none!"))
-        }
 
-        return builder.build()
+            // Is this a nested union? If so, expand
+            val nestedUnion : UnionTypeDefinition? = unionDefinitions.find { otherDefinition -> typeName == otherDefinition.name }
+
+            if (nestedUnion != null) {
+                leafObjects.addAll(getLeafUnionObjects(nestedUnion, types))
+            } else {
+                leafObjects.add(types.find { it.name == typeName } ?: throw SchemaError("Expected object type '$typeName' for union type '$name', but found none!"))
+            }
+        }
+        return leafObjects
     }
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition : FieldDefinition): GraphQLFieldDefinition.Builder {
@@ -275,5 +294,3 @@ class SchemaParser internal constructor(private val dictionary: TypeClassDiction
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
 val graphQLScalars = ScalarInfo.STANDARD_SCALARS.associateBy { it.name }
-
-typealias CustomScalarMap = Map<String, GraphQLScalarType>

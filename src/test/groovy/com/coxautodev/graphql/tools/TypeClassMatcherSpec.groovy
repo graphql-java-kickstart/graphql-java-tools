@@ -21,9 +21,10 @@ class TypeClassMatcherSpec extends Specification {
     private static final TypeDefinition customDefinition = new ObjectTypeDefinition("CustomType")
 
     private static final TypeClassMatcher matcher = new TypeClassMatcher([CustomType: customDefinition])
-    private static final FieldResolverScanner scanner = new FieldResolverScanner(SchemaParserOptions.defaultOptions())
+    private static final SchemaParserOptions options = SchemaParserOptions.defaultOptions()
+    private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
 
-    private final resolver = new RootResolverInfo([new QueryMethods()])
+    private final resolver = new RootResolverInfo([new QueryMethods()], options)
 
     private TypeClassMatcher.PotentialMatch createPotentialMatch(String methodName, graphql.language.Type graphQLType) {
         scanner.findFieldResolver(new FieldDefinition(methodName, graphQLType), resolver)

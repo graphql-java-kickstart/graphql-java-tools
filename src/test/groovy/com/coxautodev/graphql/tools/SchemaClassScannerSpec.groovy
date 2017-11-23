@@ -1,5 +1,9 @@
 package com.coxautodev.graphql.tools
 
+import graphql.language.InputObjectTypeDefinition
+import graphql.language.InterfaceTypeDefinition
+import graphql.language.ObjectTypeDefinition
+import graphql.language.ScalarTypeDefinition
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
 import spock.lang.Specification
@@ -21,7 +25,7 @@ class SchemaClassScannerSpec extends Specification {
                         immediate: Int!
                     }
                 """)
-                .build()
+                .scan()
         then:
             noExceptionThrown()
     }
@@ -46,7 +50,7 @@ class SchemaClassScannerSpec extends Specification {
                         boxed: Int!
                     }
                 """)
-                .build()
+                .scan()
         then:
             noExceptionThrown()
     }
@@ -71,7 +75,7 @@ class SchemaClassScannerSpec extends Specification {
                         id: ID!
                     }
                 """)
-                .build()
+                .scan()
 
         then:
             noExceptionThrown()
@@ -84,7 +88,7 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles interfaces referenced by objects that aren't explicitly used"() {
         when:
-            SchemaParser.newParser()
+            ScannedSchemaObjects objects = SchemaParser.newParser()
                 .resolvers(new InterfaceMissingQuery())
                 .schemaString("""
                     interface Interface {
@@ -95,11 +99,10 @@ class SchemaClassScannerSpec extends Specification {
                         id: ID!
                     }
                 """)
-                .build()
-                .parseSchemaObjects()
+                .scan()
 
         then:
-            noExceptionThrown()
+            objects.definitions.find { it instanceof InterfaceTypeDefinition } != null
     }
 
     private class InterfaceMissingQuery implements GraphQLQueryResolver {
@@ -108,7 +111,7 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles input types that reference other input types"() {
         when:
-            SchemaParser.newParser()
+            ScannedSchemaObjects objects = SchemaParser.newParser()
                 .resolvers(new MultipleInputTypeQuery())
                 .schemaString("""
                     input FirstInput {
@@ -127,11 +130,11 @@ class SchemaClassScannerSpec extends Specification {
                         test(input: FirstInput): String!
                     }
                 """)
-                .build()
-                .makeExecutableSchema()
+                .scan()
 
         then:
-            noExceptionThrown()
+            objects.definitions.findAll { it instanceof InputObjectTypeDefinition }.size() == 3
+
     }
 
     private class MultipleInputTypeQuery implements GraphQLQueryResolver {
@@ -154,7 +157,7 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner allows multiple return types for custom scalars"() {
         when:
-            SchemaParser.newParser()
+            ScannedSchemaObjects objects = SchemaParser.newParser()
                 .resolvers(new ScalarsWithMultipleTypes())
                 .scalars(new GraphQLScalarType("UUID", "Test scalars with duplicate types", new Coercing() {
                     @Override
@@ -180,10 +183,10 @@ class SchemaClassScannerSpec extends Specification {
                         second: UUID
                     }
                 """)
-                .build()
+                .scan()
 
         then:
-            noExceptionThrown()
+            objects.definitions.findAll { it instanceof ScalarTypeDefinition }.size() == 1
     }
 
     class ScalarsWithMultipleTypes implements GraphQLQueryResolver {
@@ -193,7 +196,7 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles multiple interfaces that are not used as field types"() {
         when:
-            SchemaParser.newParser()
+            ScannedSchemaObjects objects = SchemaParser.newParser()
                 .resolvers(new MultipleInterfaces())
                 .schemaString("""
                     type Query {
@@ -217,10 +220,10 @@ class SchemaClassScannerSpec extends Specification {
                         version: Int!
                     }
                 """)
-                .build()
+                .scan()
 
         then:
-            noExceptionThrown()
+            objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 2
     }
 
     class MultipleInterfaces implements GraphQLQueryResolver {
@@ -261,14 +264,16 @@ class SchemaClassScannerSpec extends Specification {
                 }
             })
 
-            SchemaParser.newParser()
+            ScannedSchemaObjects objects = SchemaParser.newParser()
                 .resolvers(new GraphQLQueryResolver() {
-                    boolean query(HasMapField hasMapField) { true }
+                    boolean hasRawScalar(Map<String, Object> rawScalar) { true }
+                    boolean hasMapField(HasMapField mapField) { true }
                 })
                 .scalars(customMap)
                 .schemaString("""
                     type Query {
-                        query(customMap: customMap): Boolean
+                        hasRawScalar(customMap: customMap): Boolean
+                        hasMapField(mapField: HasMapField): Boolean
                     }
                     
                     input HasMapField {
@@ -277,10 +282,10 @@ class SchemaClassScannerSpec extends Specification {
                     
                     scalar customMap
                 """)
-                .build()
+                .scan()
 
         then:
-            noExceptionThrown()
+            objects.definitions.findAll { it instanceof ScalarTypeDefinition }.size() == 2 // Boolean and customMap
     }
 
     class HasMapField {
@@ -289,7 +294,7 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner allows class to be used for object type and input object type"() {
         when:
-            SchemaParser.newParser()
+            ScannedSchemaObjects objects = SchemaParser.newParser()
                 .resolvers(new GraphQLQueryResolver() {
                     Pojo test(Pojo pojo) { pojo }
                 })
@@ -306,13 +311,63 @@ class SchemaClassScannerSpec extends Specification {
                         name: String
                     }
                 """)
-                .build()
+                .scan()
 
         then:
-            noExceptionThrown()
+            objects.definitions
     }
 
     class Pojo {
         String name
+    }
+
+    def "scanner should handle nested types in input types"() {
+        when:
+            ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString(''' 
+                    schema {
+                        query: Query
+                    }
+                    
+                    type Query {
+                        animal: Animal
+                    }
+                    
+                    interface Animal {
+                        type: ComplexType
+                    }
+                    
+                    type Dog implements Animal {
+                        type: ComplexType
+                    }
+                    
+                    type ComplexType {
+                        id: String
+                    }
+                ''')
+                .resolvers(new NestedInterfaceTypeQuery())
+                .dictionary(NestedInterfaceTypeQuery.Dog)
+                .scan()
+
+        then:
+            objects.definitions.findAll { it instanceof ObjectTypeDefinition }.size() == 3
+
+    }
+
+    class NestedInterfaceTypeQuery implements GraphQLQueryResolver {
+        Animal animal() { null }
+
+        interface Animal {
+            ComplexType type()
+        }
+
+        class Dog implements Animal {
+            @Override
+            ComplexType type() { null }
+        }
+
+        class ComplexType {
+            String id
+        }
     }
 }

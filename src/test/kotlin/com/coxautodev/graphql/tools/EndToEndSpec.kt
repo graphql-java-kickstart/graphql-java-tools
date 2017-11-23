@@ -1,10 +1,13 @@
 package com.coxautodev.graphql.tools
 
 import graphql.execution.batched.Batched
+import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import org.reactivestreams.Publisher
+import org.reactivestreams.Subscriber
 import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -12,14 +15,16 @@ import java.util.concurrent.CompletableFuture
 fun createSchema() = SchemaParser.newParser()
     .schemaString(schemaDefinition)
     .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
-    .scalars(CustomUUIDScalar)
-    .dictionary("OtherItem", OtherItemWithWrongName::class.java)
+    .scalars(customScalarUUID, customScalarMap)
+    .dictionary("OtherItem", OtherItemWithWrongName::class)
+    .dictionary("ThirdItem", ThirdItem::class)
     .build()
     .makeExecutableSchema()
 
 val schemaDefinition = """
 
 scalar UUID
+scalar customScalarMap
 
 type Query {
     # Check if items list is empty
@@ -28,11 +33,14 @@ type Query {
     items(itemsInput: ItemSearchInput!): [Item!]
     optionalItem(itemsInput: ItemSearchInput!): Item
     allItems: [AllItems!]
+    otherUnionItems: [OtherUnion!]
+    nestedUnionItems: [NestedUnion!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
     enumInputType(type: Type!): Type!
+    customScalarMapInputType(customScalarMap: customScalarMap): customScalarMap
     batchedEcho(msg: String!): String!
 
     defaultArgument(arg: Boolean = true): Boolean!
@@ -117,6 +125,14 @@ interface ItemInterface {
 
 union AllItems = Item | OtherItem
 
+type ThirdItem {
+    id: Int!
+}
+
+union OtherUnion = Item | ThirdItem
+
+union NestedUnion = OtherUnion | OtherItem
+
 type Tag {
     id: Int!
     name: String!
@@ -134,16 +150,23 @@ val otherItems = mutableListOf(
     OtherItemWithWrongName(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
+val thirdItems = mutableListOf(
+        ThirdItem(100)
+)
+
 class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun isEmpty() = items.isEmpty()
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
     fun optionalItem(input: ItemSearchInput) = items(input).firstOrNull()?.let { Optional.of(it) } ?: Optional.empty()
     fun allItems(): List<Any> = items + otherItems
+    fun otherUnionItems(): List<Any> = items + thirdItems
+    fun nestedUnionItems(): List<Any> = items + otherItems + thirdItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
     fun enumInputType(type: Type) = type
+    fun customScalarMapInputType(customScalarMap: Map<String, Any>) = customScalarMap
 
     @Batched
     fun batchedEcho(messages: List<String>) = messages
@@ -173,18 +196,18 @@ abstract class ListListResolver<out E> {
 
 class Mutation: GraphQLMutationResolver {
     fun addItem(input: NewItemInput): Item {
-        return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()).apply {
-            items.add(this)
-        }
+        return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()) // Don't actually add the item to the list, since we want the test to be deterministic
     }
 }
 
 class OnItemCreatedContext(val newItem: Item)
 
 class Subscription : GraphQLSubscriptionResolver {
-    fun onItemCreated(env: DataFetchingEnvironment): Item {
-        return env.getContext<OnItemCreatedContext>().newItem
-    }
+    fun onItemCreated(env: DataFetchingEnvironment) =
+        Publisher<Item> { subscriber ->
+            subscriber.onNext(env.getContext<OnItemCreatedContext>().newItem)
+//            subscriber.onComplete()
+        }
 }
 
 class ItemResolver : GraphQLResolver<Item> {
@@ -200,6 +223,7 @@ interface ItemInterface {
 enum class Type { TYPE_1, TYPE_2 }
 data class Item(val id: Int, override val name: String, override val type: Type, override val uuid:UUID, val tags: List<Tag>) : ItemInterface
 data class OtherItemWithWrongName(val id: Int, override val name: String, override val type: Type, override val uuid:UUID) : ItemInterface
+data class ThirdItem(val id: Int)
 data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
@@ -207,7 +231,7 @@ data class ComplexNullable(val first: String, val second: String, val third: Str
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
 
-val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
+val customScalarUUID = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
 
     override fun serialize(input: Any): String? = when (input) {
         is String -> input
@@ -221,4 +245,12 @@ val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID,
         is StringValue -> UUID.fromString(input.value)
         else -> null
     }
+})
+
+val customScalarMap = GraphQLScalarType("customScalarMap", "customScalarMap", object: Coercing<Map<String, Any>, Map<String, Any>> {
+    override fun parseValue(input: Any?): Map<String, Any> = input as Map<String, Any>
+
+    override fun serialize(dataFetcherResult: Any?): Map<String, Any> = dataFetcherResult as Map<String, Any>
+
+    override fun parseLiteral(input: Any?): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
 })

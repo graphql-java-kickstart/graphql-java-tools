@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>4.1.2-SNAPSHOT</version>
+    <version>4.2.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -14,7 +14,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <kotlin.version>1.1.4-3</kotlin.version>
+        <kotlin.version>1.1.60</kotlin.version>
         <jackson.version>2.8.8</jackson.version>
 
         <!--This contends with dokka and creates two javadoc jars...-->
@@ -33,7 +33,7 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
-            <version>4.2</version>
+            <version>6.0</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -71,11 +71,12 @@
             <version>1.7.25</version>
         </dependency>
 
-        <!-- Required till graphql-java 4.0.0 is released with correct scoping -->
+        <!-- Optional for supporting spring proxies -->
         <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
-            <version>4.5.1</version>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-aop</artifactId>
+            <version>4.3.11.RELEASE</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
