@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import graphql.ExecutionResult
 import graphql.GraphQL
+import graphql.execution.batched.BatchedExecutionStrategy
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
 import spock.lang.Shared
@@ -19,7 +20,9 @@ class EndToEndSpec extends Specification {
     GraphQL gql
 
     def setupSpec() {
-        gql = new GraphQL(EndToEndSpecKt.createSchema())
+        gql = GraphQL.newGraphQL(EndToEndSpecKt.createSchema())
+            .queryExecutionStrategy(new BatchedExecutionStrategy())
+            .build()
     }
 
     def "schema comments are used as descriptions"() {
@@ -355,5 +358,21 @@ class EndToEndSpec extends Specification {
             data.customScalarMapInputType == [
                 test: "me"
             ]
+    }
+
+    def "generated schema supports batched datafetchers"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    allBaseItems {
+                        name: batchedName
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.allBaseItems.collect { it.name } == ['item1', 'item2']
     }
 }

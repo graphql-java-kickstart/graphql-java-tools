@@ -1,12 +1,12 @@
 package com.coxautodev.graphql.tools
 
+import graphql.execution.batched.Batched
 import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import org.reactivestreams.Publisher
-import org.reactivestreams.Subscriber
 import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -28,6 +28,8 @@ scalar customScalarMap
 type Query {
     # Check if items list is empty
     empty: Boolean!
+    # Get all items
+    allBaseItems: [Item!]
     # Get items by name
     items(itemsInput: ItemSearchInput!): [Item!]
     optionalItem(itemsInput: ItemSearchInput!): Item
@@ -106,6 +108,7 @@ type Item implements ItemInterface {
     type: Type!
     uuid: UUID!
     tags(names: [String!]): [Tag!]
+    batchedName: String!
 }
 
 type OtherItem implements ItemInterface {
@@ -154,6 +157,7 @@ val thirdItems = mutableListOf(
 
 class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun isEmpty() = items.isEmpty()
+    fun allBaseItems() = items
     fun items(input: ItemSearchInput): List<Item> = items.filter { it.name == input.name }
     fun optionalItem(input: ItemSearchInput) = items(input).firstOrNull()?.let { Optional.of(it) } ?: Optional.empty()
     fun allItems(): List<Any> = items + otherItems
@@ -207,6 +211,9 @@ class Subscription : GraphQLSubscriptionResolver {
 
 class ItemResolver : GraphQLResolver<Item> {
     fun tags(item: Item, names: List<String>?): List<Tag> = item.tags.filter { names?.contains(it.name) ?: true }
+
+    @Batched
+    fun batchedName(items: List<Item>) = items.map { it.name }
 }
 
 interface ItemInterface {
@@ -243,8 +250,11 @@ val customScalarUUID = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID,
 })
 
 val customScalarMap = GraphQLScalarType("customScalarMap", "customScalarMap", object: Coercing<Map<String, Any>, Map<String, Any>> {
+
+    @Suppress("UNCHECKED_CAST")
     override fun parseValue(input: Any?): Map<String, Any> = input as Map<String, Any>
 
+    @Suppress("UNCHECKED_CAST")
     override fun serialize(dataFetcherResult: Any?): Map<String, Any> = dataFetcherResult as Map<String, Any>
 
     override fun parseLiteral(input: Any?): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }

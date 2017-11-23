@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.execution.batched.Batched
 import graphql.language.InputObjectTypeDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
@@ -369,5 +370,49 @@ class SchemaClassScannerSpec extends Specification {
         class ComplexType {
             String id
         }
+    }
+
+    def "scanner throws if @Batched is used on root resolver"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString(''' 
+                        type Query {
+                            test: String
+                        }
+                    ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    @Batched List<String> test() { null }
+                })
+                .scan()
+
+        then:
+            def e = thrown(ResolverError)
+            e.message.contains('The @Batched annotation is only allowed on non-root resolver methods')
+    }
+
+    def "scanner throws if @Batched is used on data class"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString(''' 
+                        type Query {
+                            test: DataClass
+                        }
+                        
+                        type DataClass {
+                            test: String
+                        }
+                    ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    DataClass test() { null }
+
+                    class DataClass {
+                        @Batched List<String> test() { null }
+                    }
+                })
+                .scan()
+
+        then:
+            def e = thrown(ResolverError)
+            e.message.contains('The @Batched annotation is only allowed on non-root resolver methods')
     }
 }
