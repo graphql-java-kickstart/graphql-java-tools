@@ -8,6 +8,7 @@ import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
+import org.reactivestreams.Publisher
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
@@ -268,7 +269,8 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
                 genericWrappers + listOf(
                     GenericWrapper(Future::class, 0),
                     GenericWrapper(CompletableFuture::class, 0),
-                    GenericWrapper(CompletionStage::class, 0)
+                    GenericWrapper(CompletionStage::class, 0),
+                    GenericWrapper(Publisher::class, 0)
                 )
             } else {
                 genericWrappers

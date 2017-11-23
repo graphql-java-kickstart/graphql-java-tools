@@ -5,6 +5,8 @@ import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import org.reactivestreams.Publisher
+import org.reactivestreams.Subscriber
 import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -196,9 +198,11 @@ class Mutation: GraphQLMutationResolver {
 class OnItemCreatedContext(val newItem: Item)
 
 class Subscription : GraphQLSubscriptionResolver {
-    fun onItemCreated(env: DataFetchingEnvironment): Item {
-        return env.getContext<OnItemCreatedContext>().newItem
-    }
+    fun onItemCreated(env: DataFetchingEnvironment) =
+        Publisher<Item> { subscriber ->
+            subscriber.onNext(env.getContext<OnItemCreatedContext>().newItem)
+//            subscriber.onComplete()
+        }
 }
 
 class ItemResolver : GraphQLResolver<Item> {

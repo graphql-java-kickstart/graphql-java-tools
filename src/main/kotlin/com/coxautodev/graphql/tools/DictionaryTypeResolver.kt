@@ -14,7 +14,7 @@ import graphql.schema.TypeResolver
 abstract class DictionaryTypeResolver(private val dictionary: BiMap<Class<*>, TypeDefinition>, private val types: Map<String, GraphQLObjectType>) : TypeResolver {
 
     override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
-        val clazz = env.`object`.javaClass
+        val clazz = env.getObject<Any>().javaClass
         val name = dictionary[clazz]?.name ?: clazz.simpleName
 
         return types[name] ?: throw TypeResolverError(getError(name))

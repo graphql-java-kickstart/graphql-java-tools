@@ -1,8 +1,14 @@
 package com.coxautodev.graphql.tools
 
+import graphql.ExecutionResult
 import graphql.GraphQL
+import org.reactivestreams.Publisher
+import org.reactivestreams.Subscriber
 import spock.lang.Shared
 import spock.lang.Specification
+
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * @author Andrew Potter
@@ -59,6 +65,7 @@ class EndToEndSpec extends Specification {
     def "generated schema should execute the subscription query"() {
         when:
             def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+            def returnedItem = null
             def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
                 '''
                 subscription {
@@ -68,9 +75,33 @@ class EndToEndSpec extends Specification {
                 } 
                 '''
             }
+            CountDownLatch latch = new CountDownLatch(1)
+            (data as Publisher<ExecutionResult>).subscribe(new Subscriber<ExecutionResult>() {
+                @Override
+                void onSubscribe(org.reactivestreams.Subscription s) {
+
+                }
+
+                @Override
+                void onNext(ExecutionResult executionResult) {
+                    returnedItem = executionResult.data
+                    latch.countDown()
+                }
+
+                @Override
+                void onError(Throwable t) {
+
+                }
+
+                @Override
+                void onComplete() {
+
+                }
+            })
+            latch.await(3, TimeUnit.SECONDS)
 
         then:
-            data.onItemCreated
+            returnedItem.id == 1
     }
 
     def "generated schema should handle interface types"() {
