@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
@@ -11,7 +12,7 @@ import java.util.concurrent.CompletableFuture
 fun createSchema() = SchemaParser.newParser()
     .schemaString(schemaDefinition)
     .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
-    .scalars(CustomUUIDScalar)
+    .scalars(customScalarUUID, customScalarMap)
     .dictionary("OtherItem", OtherItemWithWrongName::class.java)
     .dictionary("ThirdItem", ThirdItem::class.java)
     .build()
@@ -20,6 +21,7 @@ fun createSchema() = SchemaParser.newParser()
 val schemaDefinition = """
 
 scalar UUID
+scalar customScalarMap
 
 type Query {
     # Check if items list is empty
@@ -35,6 +37,7 @@ type Query {
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
     enumInputType(type: Type!): Type!
+    customScalarMapInputType(customScalarMap: customScalarMap): customScalarMap
 
     defaultArgument(arg: Boolean = true): Boolean!
 
@@ -159,6 +162,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
     fun enumInputType(type: Type) = type
+    fun customScalarMapInputType(customScalarMap: Map<String, Any>) = customScalarMap
 
     fun defaultArgument(arg: Boolean) = arg
 
@@ -185,9 +189,7 @@ abstract class ListListResolver<out E> {
 
 class Mutation: GraphQLMutationResolver {
     fun addItem(input: NewItemInput): Item {
-        return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()).apply {
-            items.add(this)
-        }
+        return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()) // Don't actually add the item to the list, since we want the test to be deterministic
     }
 }
 
@@ -220,7 +222,7 @@ data class ComplexNullable(val first: String, val second: String, val third: Str
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
 
-val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
+val customScalarUUID = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
 
     override fun serialize(input: Any): String? = when (input) {
         is String -> input
@@ -234,4 +236,12 @@ val CustomUUIDScalar = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID,
         is StringValue -> UUID.fromString(input.value)
         else -> null
     }
+})
+
+val customScalarMap = GraphQLScalarType("customScalarMap", "customScalarMap", object: Coercing<Map<String, Any>, Map<String, Any>> {
+    override fun parseValue(input: Any?): Map<String, Any> = input as Map<String, Any>
+
+    override fun serialize(dataFetcherResult: Any?): Map<String, Any> = dataFetcherResult as Map<String, Any>
+
+    override fun parseLiteral(input: Any?): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
 })

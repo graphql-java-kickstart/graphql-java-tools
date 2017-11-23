@@ -106,9 +106,9 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     }
 
     /**
-     * Build the parser with the supplied schema and dictionary.
+     * Scan for classes with the supplied schema and dictionary.  Used for testing.
      */
-    fun build(): SchemaParser {
+    private fun scan(): ScannedSchemaObjects {
         val document = try {
             Parser().parseDocument(this.schemaString.toString())
         } catch (pce: ParseCancellationException) {
@@ -125,6 +125,11 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
 
         return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options).scanForClasses()
     }
+
+    /**
+     * Build the parser with the supplied schema and dictionary.
+     */
+    fun build() = SchemaParser(scan())
 }
 
 class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException): RuntimeException(pce) {

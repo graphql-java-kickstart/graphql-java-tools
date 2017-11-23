@@ -19,9 +19,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     companion object {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
-        fun getAllMethods(type: Class<*>): List<Method> {
-            return type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }.filter { !Modifier.isPrivate(it.modifiers) }
-        }
+        fun getAllMethods(type: Class<*>) =
+            type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }.filter { !Modifier.isPrivate(it.modifiers) }
     }
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
@@ -37,7 +36,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return found.firstOrNull() ?:  missingFieldResolver(field, searches, scanProperties)
     }
 
-    fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+    private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
         return if(options.allowUnimplementedResolvers) {
             log.warn("Missing resolver for field: $field")
 
@@ -93,11 +92,10 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
 
-    private fun findResolverProperty(field: FieldDefinition, search: Search): Field? {
-        return FieldUtils.getAllFields(search.type).find { it.name == field.name }
-    }
+    private fun findResolverProperty(field: FieldDefinition, search: Search) =
+        FieldUtils.getAllFields(search.type).find { it.name == field.name }
 
-    fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
+    private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
         val isBoolean = isBoolean(field.type)
 
@@ -109,7 +107,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
 
-    fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
+    private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
         val baseType = search.type
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()

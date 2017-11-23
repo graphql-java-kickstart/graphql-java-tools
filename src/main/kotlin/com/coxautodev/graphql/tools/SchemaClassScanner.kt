@@ -69,7 +69,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Attempts to discover GraphQL Type -> Java Class relationships by matching return types/argument types on known fields
      */
-    fun scanForClasses(): SchemaParser {
+    fun scanForClasses(): ScannedSchemaObjects {
 
         // Figure out what query, mutation and subscription types are called
         val rootTypeHolder = RootTypesHolder(options, rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
@@ -93,7 +93,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class was found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
         }
 
-        return validateAndCreateParser(rootTypeHolder)
+        return validateAndCreateResult(rootTypeHolder)
     }
 
     /**
@@ -109,7 +109,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
     }
 
-    private fun validateAndCreateParser(rootTypeHolder: RootTypesHolder): SchemaParser {
+    private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
         initialDictionary.filter { !it.value.accessed }.forEach {
             log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
         }
@@ -150,7 +150,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return SchemaParser(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
+        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -208,38 +208,42 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     private fun handleFoundType(match: TypeClassMatcher.Match) {
-        handleFoundType(match.type, match.clazz, match.reference)
+        when(match) {
+            is TypeClassMatcher.ScalarMatch -> {
+                handleFoundScalarType(match.type)
+            }
+
+            is TypeClassMatcher.ValidMatch -> {
+                handleFoundType(match.type, match.clazz, match.reference)
+            }
+        }
+    }
+
+    private fun handleFoundScalarType(type: ScalarTypeDefinition) {
+        unvalidatedTypes.add(type)
     }
 
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
     private fun handleFoundType(type: TypeDefinition, clazz: Class<*>?, reference: Reference) {
-        if(!ignoreDictionaryForType(type)) {
-            val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
-            var typeWasSet = false
+        val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
+        var typeWasSet = false
 
-            if (clazz != null) {
-                typeWasSet = realEntry.setTypeIfMissing(clazz)
+        if (clazz != null) {
+            typeWasSet = realEntry.setTypeIfMissing(clazz)
 
-                if (realEntry.typeClass != clazz) {
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
-                }
+            if (realEntry.typeClass != clazz) {
+                throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
             }
-
-            realEntry.addReference(reference)
-
-            // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
-            if (typeWasSet && clazz != null) {
-                handleNewType(type, clazz)
-            }
-        } else {
-            unvalidatedTypes.add(type)
         }
-    }
 
-    private fun ignoreDictionaryForType(type: TypeDefinition): Boolean {
-        return type is ScalarTypeDefinition
+        realEntry.addReference(reference)
+
+        // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
+        if (typeWasSet && clazz != null) {
+            handleNewType(type, clazz)
+        }
     }
 
     /**
@@ -394,5 +398,3 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 }
 
 class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
-
-internal typealias TypeClassDictionary = BiMap<TypeDefinition, Class<*>>

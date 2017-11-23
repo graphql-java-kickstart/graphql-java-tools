@@ -1,8 +1,6 @@
 package com.coxautodev.graphql.tools
 
-import org.springframework.aop.framework.AopProxyUtils
 import org.springframework.aop.framework.ProxyFactory
-import org.springframework.aop.support.AopUtils
 import spock.lang.Specification
 
 import java.util.concurrent.Future
@@ -168,6 +166,54 @@ class SchemaParserSpec extends Specification {
                 .build()
         then:
             noExceptionThrown()
+    }
+
+    def "parser should parse interface with complex type"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString(''' 
+                    schema {
+                        query: Query
+                    }
+                    
+                    type Query {
+                        animal: Animal
+                    }
+                    
+                    interface Animal {
+                        type: ComplexType
+                    }
+                    
+                    type Dog implements Animal {
+                        type: ComplexType
+                    }
+                    
+                    type ComplexType {
+                        id: String
+                    }
+                ''')
+                .resolvers(new ComplexQuery())
+                .build()
+                .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+
+    }
+
+}
+
+class ComplexQuery implements GraphQLQueryResolver {
+    Animal animal() { null }
+
+    interface Animal {
+        ComplexType type = null
+    }
+
+    class Dog implements Animal { }
+
+    class ComplexType {
+        String id
     }
 }
 
