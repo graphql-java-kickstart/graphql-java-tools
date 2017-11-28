@@ -159,7 +159,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
 
         definition.enumValueDefinitions.forEach { enumDefinition ->
             val enumName = enumDefinition.name
-            val enumValue = type.enumConstants.find { it.toString() == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.simpleName}' but found none!")
+            val enumValue = type.enumConstants.find { (it as Enum<*>).name == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.simpleName}' but found none!")
             getDeprecated(enumDefinition.directives).let {
                 when (it) {
                     is String -> builder.value(enumName, enumValue, getDocumentation(enumDefinition), it)

@@ -167,6 +167,27 @@ class SchemaParserSpec extends Specification {
         then:
             noExceptionThrown()
     }
+
+    def "parser handles enums with overridden toString method"() {
+        when:
+        SchemaParser.newParser()
+                .schemaString('''
+                    enum CustomEnum {
+                        FOO
+                    }
+                    
+                    type Query {
+                        customEnum: CustomEnum
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    CustomEnum customEnum() { null }
+                })
+                .build()
+                .makeExecutableSchema()
+        then:
+        noExceptionThrown()
+    }
 }
 
 class Filter {
@@ -179,4 +200,13 @@ class Obj {
 
 class ProxiedResolver implements GraphQLQueryResolver {
     List<String> test() { [] }
+}
+
+enum CustomEnum {
+    FOO {
+        @Override
+        String toString() {
+            return "Bar"
+        }
+    }
 }
