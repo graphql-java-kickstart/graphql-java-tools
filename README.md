@@ -212,7 +212,7 @@ Then on the data class:
 
 ### Enum Types
 
-Enum values are automatically mapped by `toString()`.
+Enum values are automatically mapped by `Enum#name()`.
 
 ### Input Objects
 
