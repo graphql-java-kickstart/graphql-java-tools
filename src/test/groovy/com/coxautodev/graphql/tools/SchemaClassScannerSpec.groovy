@@ -250,7 +250,7 @@ class SchemaClassScannerSpec extends Specification {
         when:
         ScannedSchemaObjects objects = SchemaParser.newParser()
         // uncommenting the line below makes the test succeed
-//                .dictionary(InterfaceImplementation.NamedResourceImpl.class)
+                .dictionary(InterfaceImplementation.NamedResourceImpl.class)
                 .resolvers(new InterfaceImplementation())
                 .schemaString("""
                     type Query {
