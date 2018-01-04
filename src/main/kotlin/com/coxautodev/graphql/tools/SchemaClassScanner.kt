@@ -180,7 +180,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
             objectDefinitions.filter { obj -> obj.implements.filterIsInstance<TypeName>().any { it.name == iface.name } }
-        }.flatten().distinct()
+        }.flatten().distinctBy{ it.name }
     }
 
     private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
@@ -192,7 +192,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
     private fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
         types.forEach { type ->
-            if(!unvalidatedTypes.contains(type) && !dictionary.containsKey(type)) {
+            val dictionaryContainsType = dictionary.filter{ it.key.name == type.name }.isNotEmpty()
+            if(!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
                 val initialEntry = initialDictionary[type.name] ?: throw SchemaClassScannerError(failureMessage(type))
                 handleFoundType(type, initialEntry.get(), DictionaryReference())
             }

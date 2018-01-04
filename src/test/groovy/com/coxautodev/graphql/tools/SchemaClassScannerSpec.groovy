@@ -246,6 +246,44 @@ class SchemaClassScannerSpec extends Specification {
         }
     }
 
+    def "scanner handles interface implementation that is not used as field type"() {
+        when:
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+        // uncommenting the line below makes the test succeed
+                .dictionary(InterfaceImplementation.NamedResourceImpl.class)
+                .resolvers(new InterfaceImplementation())
+                .schemaString("""
+                    type Query {
+                        query1: NamedResource
+                    }
+
+                    interface NamedResource {
+                        name: String!
+                    }
+
+                    type NamedResourceImpl implements NamedResource {
+                        name: String!
+                    }
+                """)
+                .scan()
+
+        then:
+        objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 1
+    }
+
+    class InterfaceImplementation implements GraphQLQueryResolver {
+        NamedResource query1() { null }
+        NamedResourceImpl query2() { null }
+
+        static interface NamedResource {
+            String name()
+        }
+
+        static class NamedResourceImpl implements NamedResource {
+            String name() {}
+        }
+    }
+
     def "scanner handles custom scalars when matching input types"() {
         when:
             GraphQLScalarType customMap = new GraphQLScalarType('customMap', '', new Coercing<Map<String, Object>, Map<String, Object>>() {
