@@ -6,7 +6,7 @@ import java.lang.reflect.ParameterizedType
 internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
 
-    protected fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions) =
+    fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions) =
         options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
 }
 
