@@ -169,9 +169,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }
 
         val observedRootTypes = fieldResolvers.filter { it.resolverInfo is RootResolverInfo && it.resolverInfo == rootType.resolverInfo }.map { it.search.type }.toSet()
-
         rootType.resolvers.forEach { resolver ->
-            if(resolver.javaClass !in observedRootTypes) {
+            if(rootType.resolverInfo.getRealResolverClass(resolver, options) !in observedRootTypes) {
                 log.warn("Root ${rootType.name} resolver was provided but no methods on it were used in data fetchers for GraphQL type '${rootType.type.name}'!  Either remove the ${rootType.resolverInterface.name} interface from the resolver or remove the resolver entirely: $resolver")
             }
         }
