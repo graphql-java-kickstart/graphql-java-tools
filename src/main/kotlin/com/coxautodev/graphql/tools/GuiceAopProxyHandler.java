@@ -8,12 +8,7 @@ public class GuiceAopProxyHandler implements ProxyHandler {
 
     @Override
     public Class<?> getTargetClass(GraphQLResolver<?> resolver) {
-        Class<?> targetClass = resolver.getClass();
-        if (isGuiceProxy(resolver)) {
-            return resolver.getClass().getSuperclass();
-        } else {
-            return targetClass;
-        }
+        return resolver.getClass().getSuperclass();
     }
 
     private boolean isGuiceProxy(GraphQLResolver<?> resolver) {
