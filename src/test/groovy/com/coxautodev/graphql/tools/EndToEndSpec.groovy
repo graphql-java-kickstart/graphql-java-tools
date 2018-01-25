@@ -375,4 +375,22 @@ class EndToEndSpec extends Specification {
         then:
             data.allBaseItems.collect { it.name } == ['item1', 'item2']
     }
+
+    def "generated schema supports batched datafetchers with params"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    allBaseItems {
+                        tags: batchedWithParamsTags(names: ["item2-tag1"]) {
+                            name
+                        }
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
+    }
 }
