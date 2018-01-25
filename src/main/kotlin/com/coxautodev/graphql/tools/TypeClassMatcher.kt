@@ -91,7 +91,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     }
 
     private fun stripBatchedType(potentialMatch: PotentialMatch): PotentialMatch {
-        if (potentialMatch.location.ordinal > 0) {
+        if (potentialMatch.location != Location.RETURN_TYPE) {
             return potentialMatch.copy(javaType = potentialMatch.javaType, batched = false)
         } else {
             val realType = potentialMatch.generic.unwrapGenericType(potentialMatch.javaType)
