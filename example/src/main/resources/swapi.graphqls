@@ -9,6 +9,10 @@ type Query {
     character(id: String!): Character
 }
 
+type Subscription {
+    counter: Int
+}
+
 # One of the films in the Star Wars Trilogy
 enum Episode {
     # Released in 1977
