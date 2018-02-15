@@ -51,6 +51,14 @@ type Query {
 
     complexInputType(complexInput: [[ComplexInputType!]]): String!
     extendedType: ExtendedType!
+
+    # Exercise field with get<<capitalised field name>> resolver
+    itemsWithGetResolver: [Item!]
+
+    # Check it's possible to use field names that correspond to methods on the java.lang.Object class
+    class: [Item!]
+    hashCode: [Item!]
+
     propertyField: String!
 }
 
@@ -177,6 +185,11 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
 
     fun complexInputType(input: List<List<ComplexInputType>?>?) = input?.firstOrNull()?.firstOrNull()?.let { it.first == "foo" && it.second?.firstOrNull()?.firstOrNull()?.first == "bar" } ?: false
     fun extendedType() = ExtendedType()
+
+    fun getItemsWithGetResolver() = items
+
+    fun getFieldClass() = items
+    fun getFieldHashCode() = items
 
     private val propertyField = "test"
 }
