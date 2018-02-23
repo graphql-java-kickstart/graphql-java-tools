@@ -223,19 +223,28 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
+data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
     }
 
     class Builder {
+        private var contextClass: Class<*>? = null
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler())
 
+        fun contextClass(contextClass: Class<*>) {
+            this.contextClass = contextClass
+        }
+
+        fun contextClass(contextClass: KClass<*>) {
+            contextClass(contextClass.java)
+        }
+        
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
         }
@@ -276,7 +285,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
                 genericWrappers
             }
 
-            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
         }
     }
 
