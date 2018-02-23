@@ -284,13 +284,22 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
     }
 
     data class GenericWrapper(val type: Class<*>, val index: Int, val transformer: (Any) -> Any?) {
+        
         constructor(type: Class<*>, index: Int): this(type, index, { x -> x })
         constructor(type: KClass<*>, index: Int): this(type.java, index, { x -> x })
+        
         companion object {
+
             @Suppress("UNCHECKED_CAST")
-            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
-                return GenericWrapper(type.java, index, transformer as (Any) -> Any?)
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
+                return GenericWrapper(type, index, transformer as (Any) -> Any?)
             }
+            
+            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
+                return withTransformer(type.java, index, transformer)
+            }
+            
         }
+        
     }
 }
