@@ -11,7 +11,7 @@ import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
-import java.util.Optional
+import java.util.*
 
 /**
  * @author Andrew Potter
@@ -32,7 +32,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         }
     }
 
-    private val dataFetchingEnvironment = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+    private val additionalLastArgument = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
         val batched = isBatched(method, search)
@@ -82,9 +82,14 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             })
         }
 
-        // Add DataFetchingEnvironment argument
-        if(this.dataFetchingEnvironment) {
-            args.add({ environment -> environment })
+        // Add DataFetchingEnvironment/Context argument
+        if(this.additionalLastArgument) {
+            val lastArgumentType = this.method.parameterTypes.last()
+            when(lastArgumentType) {
+                null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
+                options.contextClass -> args.add({ environment -> environment.getContext() })
+                else -> args.add({ environment -> environment })
+            }
         }
 
         return if(batched) {
