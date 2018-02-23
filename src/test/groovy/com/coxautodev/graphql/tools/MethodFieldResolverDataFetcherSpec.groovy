@@ -104,7 +104,8 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
 
     def "data fetcher passes environment if method has extra argument even if context is specified"() {
         setup:
-        def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
+        def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+        def resolver = createFetcher(options,"active", new GraphQLResolver<DataClass>() {
             boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
                 env instanceof DataFetchingEnvironment
             }
