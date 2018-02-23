@@ -237,12 +237,12 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler())
 
-        fun contextClass(contextClass: Class<*>) {
+        fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
         }
 
-        fun contextClass(contextClass: KClass<*>) {
-            contextClass(contextClass.java)
+        fun contextClass(contextClass: KClass<*>) = this.apply {
+            this.contextClass = contextClass.java
         }
         
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
