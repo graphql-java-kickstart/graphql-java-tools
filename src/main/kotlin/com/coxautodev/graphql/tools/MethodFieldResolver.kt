@@ -141,16 +141,18 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
         val args = this.args.map { it(environment) }.toTypedArray()
         val result = methodAccess.invoke(source, methodIndex, *args)
         return if (result == null) {
-            null
+            result
         } else {
-            options
+            val wrapper = options
                 .genericWrappers
                 .filter { it.type.isInstance(result) }
                 .sortedWith(CompareGenericWrappers)
                 .firstOrNull()
-                ?.transformer
-                ?.invoke(result)
-                ?: result
+            if (wrapper == null) {
+                result
+            } else {
+                wrapper.transformer.invoke(result)
+            }
         }
     }
 }
