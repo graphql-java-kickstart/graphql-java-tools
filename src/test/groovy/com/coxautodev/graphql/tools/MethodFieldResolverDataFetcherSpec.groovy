@@ -104,29 +104,29 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
 
     def "data fetcher passes environment if method has extra argument even if context is specified"() {
         setup:
-        def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
-        def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
-            boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
-                env instanceof DataFetchingEnvironment
-            }
-        })
+            def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+            def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
+                boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
+                    env instanceof DataFetchingEnvironment
+                }
+            })
 
         expect:
-        resolver.get(createEnvironment(new ContextClass(), new DataClass()))
+            resolver.get(createEnvironment(new ContextClass(), new DataClass()))
     }
 
     def "data fetcher passes context if method has extra argument and context is specified"() {
         setup:
-        def context = new ContextClass()
-        def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
-        def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
-            boolean isActive(DataClass dataClass, ContextClass ctx) {
-                ctx == context
-            }
-        })
+            def context = new ContextClass()
+            def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+            def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
+                boolean isActive(DataClass dataClass, ContextClass ctx) {
+                    ctx == context
+                }
+            })
 
         expect:
-        resolver.get(createEnvironment(context, new DataClass()))
+            resolver.get(createEnvironment(context, new DataClass()))
     }
 
     def "data fetcher marshalls input object if required"() {
