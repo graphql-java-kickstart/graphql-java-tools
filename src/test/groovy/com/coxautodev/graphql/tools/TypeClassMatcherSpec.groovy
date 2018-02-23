@@ -79,21 +79,6 @@ class TypeClassMatcherSpec extends Specification {
             "futureType"   | list()
     }
 
-    @Unroll
-    def "matcher verifies return value optionals are used incorrectly for method #methodName"() {
-        when:
-            matcher.match(createPotentialMatch(methodName, type))
-
-        then:
-            thrown(SchemaClassScannerError)
-
-        where:
-            methodName             | type
-            "nullableType"         | nonNull(customType)
-            "nullableNullableType" | customType
-            "listNullableType"     | list(customType)
-    }
-
     def "matcher does not allow parameterized types as root types"() {
         when:
             matcher.match(createPotentialMatch("genericCustomType", customType))
