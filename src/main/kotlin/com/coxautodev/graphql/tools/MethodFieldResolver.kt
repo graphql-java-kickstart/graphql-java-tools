@@ -151,7 +151,7 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
             if (wrapper == null) {
                 result
             } else {
-                wrapper.transformer.invoke(result)
+                wrapper.transformer.invoke(result, environment)
             }
         }
     }

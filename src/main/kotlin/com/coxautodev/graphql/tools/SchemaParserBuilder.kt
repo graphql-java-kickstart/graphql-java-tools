@@ -5,6 +5,7 @@ import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
 import graphql.parser.Parser
+import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
@@ -283,18 +284,26 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         }
     }
 
-    data class GenericWrapper(val type: Class<*>, val index: Int, val transformer: (Any) -> Any?) {
+    data class GenericWrapper(val type: Class<*>, val index: Int, val transformer: (Any, DataFetchingEnvironment) -> Any?) {
         
-        constructor(type: Class<*>, index: Int): this(type, index, { x -> x })
-        constructor(type: KClass<*>, index: Int): this(type.java, index, { x -> x })
+        constructor(type: Class<*>, index: Int): this(type, index, { x, _ -> x })
+        constructor(type: KClass<*>, index: Int): this(type.java, index, { x, _ -> x })
         
         companion object {
 
             @Suppress("UNCHECKED_CAST")
-            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
-                return GenericWrapper(type, index, transformer as (Any) -> Any?)
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?): GenericWrapper where T: Any {
+                return GenericWrapper(type, index, transformer as (Any, DataFetchingEnvironment) -> Any?)
             }
             
+            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?): GenericWrapper where T: Any {
+                return withTransformer(type.java, index, transformer)
+            }
+
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
+                return withTransformer(type, index, { x, _ -> transformer.invoke(x) })
+            }
+
             fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
                 return withTransformer(type.java, index, transformer)
             }
