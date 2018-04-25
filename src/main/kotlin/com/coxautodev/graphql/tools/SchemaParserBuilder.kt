@@ -234,7 +234,7 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
-        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler())
+        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
 
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
