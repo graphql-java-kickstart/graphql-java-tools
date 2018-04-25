@@ -4,26 +4,29 @@ import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
 import graphql.language.Definition
-import graphql.language.FieldDefinition import graphql.language.InputObjectTypeDefinition
+import graphql.language.FieldDefinition
+import graphql.language.InputObjectTypeDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
+import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.ScalarTypeDefinition
 import graphql.language.SchemaDefinition
 import graphql.language.TypeDefinition
-import graphql.language.TypeExtensionDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
+import graphql.schema.GraphQLDirective
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.ArrayList
 
 /**
  * @author Andrew Potter
  */
-internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap, private val options: SchemaParserOptions) {
+internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition<*>>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap, private val options: SchemaParserOptions) {
 
     companion object {
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
@@ -39,17 +42,17 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
-    private val extensionDefinitions = allDefinitions.filterIsInstance<TypeExtensionDefinition>()
+    private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
 
-    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition>() - extensionDefinitions).associateBy { it.name }
+    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions).associateBy { it.name }
     private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
     private val fieldResolverScanner = FieldResolverScanner(options)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
-    private val dictionary = mutableMapOf<TypeDefinition, DictionaryEntry>()
-    private val unvalidatedTypes = mutableSetOf<TypeDefinition>()
+    private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
+    private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
     private val queue = linkedSetOf<QueueItem>()
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
@@ -131,7 +134,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
         // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
-            Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition, Class<*>>().also {
+            Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, Class<*>>().also {
                 dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition}.mapValuesTo(it) { it.value.typeClass }
             })
         } catch (t: Throwable) {
@@ -142,7 +145,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // Ensure all scalar definitions have implementations and add the definition to those.
         val scalars = scalarDefinitions.filter { !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name) }.map { definition ->
             val provided = scalars[definition.name] ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
-            GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition) ?: provided.description, provided.coercing, definition)
+            GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition) ?: provided.description, provided.coercing, listOf(), definition)
         }.associateBy { it.name!! }
 
         (definitionsByName.values - observedDefinitions).forEach { definition ->
@@ -236,7 +239,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
-    private fun handleFoundType(type: TypeDefinition, clazz: Class<*>?, reference: Reference) {
+    private fun handleFoundType(type: TypeDefinition<*>, clazz: Class<*>?, reference: Reference) {
         val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
         var typeWasSet = false
 
@@ -259,7 +262,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
      */
-    private fun handleNewType(graphQLType: TypeDefinition, javaType: Class<*>) {
+    private fun handleNewType(graphQLType: TypeDefinition<*>, javaType: Class<*>) {
         when(graphQLType) {
             is ObjectTypeDefinition -> {
                 enqueue(graphQLType, javaType)
@@ -371,7 +374,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         override fun getDescription() = "type of field $field"
     }
 
-    class RootTypesHolder(options: SchemaParserOptions, rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
+    class RootTypesHolder(options: SchemaParserOptions, rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition<*>>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
         private val queryName = rootInfo.getQueryName()
         private val mutationName = rootInfo.getMutationName()
         private val subscriptionName = rootInfo.getSubscriptionName()
@@ -388,7 +391,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         val mutation = createRootType("mutation", mutationDefinition, mutationName, rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)
         val subscription = createRootType("subscription", subscriptionDefinition, subscriptionName, rootInfo.isSubscriptionRequired(), subscriptionResolvers, GraphQLSubscriptionResolver::class.java, subscriptionResolverInfo)
 
-        private fun createRootType(name: String, type: TypeDefinition?, typeName: String, required: Boolean, resolvers: List<GraphQLRootResolver>, resolverInterface: Class<*>, resolverInfo: RootResolverInfo): RootType? {
+        private fun createRootType(name: String, type: TypeDefinition<*>?, typeName: String, required: Boolean, resolvers: List<GraphQLRootResolver>, resolverInterface: Class<*>, resolverInfo: RootResolverInfo): RootType? {
             if(type == null) {
                 if(required) {
                     throw SchemaClassScannerError("Type definition for root $name type '$typeName' not found!")

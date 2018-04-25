@@ -14,10 +14,10 @@ import graphql.language.InterfaceTypeDefinition
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
+import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.language.Type
-import graphql.language.TypeExtensionDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.language.Value
@@ -49,7 +49,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
 
         @JvmStatic fun newParser() = SchemaParserBuilder()
-        internal fun getDocumentation(node: AbstractNode): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
+        internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
     }
 
     private val dictionary = scanResult.dictionary
@@ -58,7 +58,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
     private val rootInfo = scanResult.rootInfo
     private val fieldResolversByType = scanResult.fieldResolversByType
 
-    private val extensionDefinitions = definitions.filterIsInstance<TypeExtensionDefinition>()
+    private val extensionDefinitions = definitions.filterIsInstance<ObjectTypeExtensionDefinition>()
     private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
 
     private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
@@ -235,7 +235,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
         return field
     }
 
-    private fun buildDefaultValue(value: Value?): Any? {
+    private fun buildDefaultValue(value: Value<*>?): Any? {
         return when(value) {
             null -> null
             is IntValue -> value.value
@@ -249,12 +249,12 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
         }
     }
 
-    private fun determineOutputType(typeDefinition: Type) =
+    private fun determineOutputType(typeDefinition: Type<*>) =
             determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject) as GraphQLOutputType
-    private fun determineInputType(typeDefinition: Type) =
+    private fun determineInputType(typeDefinition: Type<*>) =
             determineType(GraphQLInputType::class, typeDefinition, permittedTypesForInputObject) as GraphQLInputType
 
-    private fun <T: Any> determineType(expectedType: KClass<T>, typeDefinition: Type, allowedTypeReferences: Set<String>): GraphQLType =
+    private fun <T: Any> determineType(expectedType: KClass<T>, typeDefinition: Type<*>, allowedTypeReferences: Set<String>): GraphQLType =
             when (typeDefinition) {
                 is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
                 is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences))

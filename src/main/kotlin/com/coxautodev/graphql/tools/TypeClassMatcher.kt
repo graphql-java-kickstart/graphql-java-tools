@@ -13,7 +13,7 @@ import java.util.Optional
 /**
  * @author Andrew Potter
  */
-internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition>) {
+internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition<*>>) {
 
     companion object {
         fun isListType(realType: ParameterizedType, generic: GenericType) = generic.isTypeAssignableFromRawClass(realType, Iterable::class.java)
@@ -75,7 +75,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 }
             }
 
-            is TypeDefinition -> ValidMatch(graphQLType, requireRawClass(realType), potentialMatch.reference)
+            is TypeDefinition<*> -> ValidMatch(graphQLType, requireRawClass(realType), potentialMatch.reference)
             else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
         }
     }
@@ -102,7 +102,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     internal interface Match
     internal data class ScalarMatch(val type: ScalarTypeDefinition): Match
-    internal data class ValidMatch(val type: TypeDefinition, val clazz: Class<*>, val reference: SchemaClassScanner.Reference): Match
+    internal data class ValidMatch(val type: TypeDefinition<*>, val clazz: Class<*>, val reference: SchemaClassScanner.Reference): Match
     internal enum class Location(val prettyName: String) {
         RETURN_TYPE("return type"),
         PARAMETER_TYPE("parameter"),

@@ -93,18 +93,16 @@ class EndToEndSpec extends Specification {
 
                 @Override
                 void onError(Throwable t) {
-
                 }
 
                 @Override
                 void onComplete() {
-
                 }
             })
             latch.await(3, TimeUnit.SECONDS)
 
         then:
-            returnedItem.id == 1
+            returnedItem.get("onItemCreated").id == 1
     }
 
     def "generated schema should handle interface types"() {
