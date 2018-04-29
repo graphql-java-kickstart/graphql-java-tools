@@ -154,8 +154,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
         val fieldResolvers = fieldResolversByType.flatMap { it.value.map { it.value } }
         val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<NormalResolverInfo>()
+        val observedMultiResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }
 
-        (resolverInfos - observedNormalResolverInfos).forEach { resolverInfo ->
+        (resolverInfos - observedNormalResolverInfos - observedMultiResolverInfos).forEach { resolverInfo ->
             log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolverInfo.resolver}")
         }
 
@@ -206,7 +207,16 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        scanResolverInfoForPotentialMatches(item.type, resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz))
+        val resolverInfoList = this.resolverInfos.filter { it.dataClassType == item.clazz }
+        val resolverInfo: ResolverInfo
+
+        if (resolverInfoList.size > 1) {
+            resolverInfo = MultiResolverInfo(resolverInfoList)
+        } else {
+            resolverInfo = resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
+        }
+
+        scanResolverInfoForPotentialMatches(item.type, resolverInfo)
     }
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
