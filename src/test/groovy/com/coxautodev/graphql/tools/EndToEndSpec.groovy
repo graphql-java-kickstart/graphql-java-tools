@@ -262,6 +262,29 @@ class EndToEndSpec extends Specification {
             data.defaultArgument == true
     }
 
+    def "introspection shouldn't fail for arguments of type list with a default value (defaultEnumListArgument)"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                   __type(name: "Query") {
+                       name
+                       fields {
+                         name
+                         args {
+                           name
+                           defaultValue
+                         }
+                       }
+                   }
+                }
+                '''
+            }
+
+        then:
+            data.__type
+    }
+
     def "generated schema should return null without errors for null value with nested fields"() {
         when:
             def data = Utils.assertNoGraphQlErrors(gql) {
