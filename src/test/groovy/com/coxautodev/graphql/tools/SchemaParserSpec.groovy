@@ -79,6 +79,41 @@ class SchemaParserSpec extends Specification {
             noExceptionThrown()
     }
 
+    def "parser should parse correctly when multiple resolvers for the same data type are given"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString('''
+                    type RootObj {
+                        obj: Obj
+                        anotherObj: AnotherObj
+                    }
+                    
+                    type Obj {
+                        name: String
+                    }
+                    
+                    type AnotherObj {
+                        key: String
+                    }
+                    
+                    type Query {
+                        rootObj: RootObj
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    RootObj getRootObj() { return new RootObj() }
+                }, new GraphQLResolver<RootObj>() {
+                    Obj getObj(RootObj rootObj) { return new Obj() }
+                }, new GraphQLResolver<RootObj>() {
+                    AnotherObj getAnotherObj(RootObj rootObj) { return new AnotherObj() }
+                })
+                .build()
+                .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+    }
+
     def "parser should allow setting custom generic wrappers"() {
         when:
             SchemaParser.newParser()
@@ -196,6 +231,11 @@ class Filter {
 class CustomGenericWrapper<T, V> { }
 class Obj {
     def name() { null }
+}
+class AnotherObj {
+    def key() { null }
+}
+class RootObj {
 }
 
 class ProxiedResolver implements GraphQLQueryResolver {
