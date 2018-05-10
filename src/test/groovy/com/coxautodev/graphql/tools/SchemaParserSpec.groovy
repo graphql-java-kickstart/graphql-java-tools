@@ -79,6 +79,35 @@ class SchemaParserSpec extends Specification {
             noExceptionThrown()
     }
 
+    def "parser should parse correctly when multiple query resolvers are given"() {
+        when:
+            SchemaParser.newParser()
+                .schemaString('''
+                    type Obj {
+                        name: String
+                    }
+
+                    type AnotherObj {
+                        key: String
+                    }
+
+                    type Query {
+                        obj: Obj
+                        anotherObj: AnotherObj
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    Obj getObj() { return new Obj() }
+                }, new GraphQLQueryResolver() {
+                    AnotherObj getAnotherObj() { return new AnotherObj() }
+                })
+                .build()
+                .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+    }
+
     def "parser should parse correctly when multiple resolvers for the same data type are given"() {
         when:
             SchemaParser.newParser()
