@@ -12,10 +12,21 @@ import graphql.schema.TypeResolver
  * @author Andrew Potter
  */
 abstract class DictionaryTypeResolver(private val dictionary: BiMap<Class<*>, TypeDefinition<*>>, private val types: Map<String, GraphQLObjectType>) : TypeResolver {
+    private fun <T> getTypeName(clazz: Class<T>): String? {
+        val name = dictionary[clazz]?.name
+
+        if (name == null && clazz.superclass != null) {
+            return getTypeName(clazz.superclass)
+        }
+
+        return name
+    }
 
     override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
         val clazz = env.getObject<Any>().javaClass
-        val name = dictionary[clazz]?.name ?: clazz.simpleName
+        val name = clazz.interfaces.fold(getTypeName(clazz), { name, interfaceClazz ->
+            name ?: getTypeName(interfaceClazz)
+        }) ?: clazz.simpleName
 
         return types[name] ?: throw TypeResolverError(getError(name))
     }
