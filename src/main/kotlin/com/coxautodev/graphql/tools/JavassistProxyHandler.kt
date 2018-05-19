@@ -9,7 +9,7 @@ import javassist.util.proxy.ProxyFactory
 
 class JavassistProxyHandler : ProxyHandler {
 
-    val isEnabled: Boolean =
+    private val isEnabled: Boolean =
             try {
                 Class.forName("javassist.util.proxy.ProxyFactory")
                 true
@@ -21,5 +21,5 @@ class JavassistProxyHandler : ProxyHandler {
         return isEnabled && ProxyFactory.isProxyClass(resolver?.javaClass)
     }
 
-    override fun getTargetClass(resolver: GraphQLResolver<*>?): Class<*> = resolver!!.javaClass!!.superclass
+    override fun getTargetClass(resolver: GraphQLResolver<*>?): Class<*> = resolver!!.javaClass.superclass
 }
