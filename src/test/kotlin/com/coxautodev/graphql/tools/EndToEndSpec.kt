@@ -117,6 +117,7 @@ type Item implements ItemInterface {
     uuid: UUID!
     tags(names: [String!]): [Tag!]
     batchedName: String!
+    batchedWithParamsTags(names: [String!]): [Tag!]
 }
 
 type OtherItem implements ItemInterface {
@@ -227,6 +228,9 @@ class ItemResolver : GraphQLResolver<Item> {
 
     @Batched
     fun batchedName(items: List<Item>) = items.map { it.name }
+
+    @Batched
+    fun batchedWithParamsTags(items: List<Item>, names: List<String>?): List<List<Tag>> = items.map{ it.tags.filter { names?.contains(it.name) ?: true } }
 }
 
 interface ItemInterface {

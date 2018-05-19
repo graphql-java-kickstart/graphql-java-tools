@@ -91,12 +91,15 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     }
 
     private fun stripBatchedType(potentialMatch: PotentialMatch): PotentialMatch {
-        val realType = potentialMatch.generic.unwrapGenericType(potentialMatch.javaType)
-
-        if(realType is ParameterizedType && isListType(realType, potentialMatch)) {
-            return potentialMatch.copy(javaType = realType.actualTypeArguments.first(), batched = false)
+        if (potentialMatch.location != Location.RETURN_TYPE) {
+            return potentialMatch.copy(javaType = potentialMatch.javaType, batched = false)
         } else {
-            throw error(potentialMatch, "Method was marked as @Batched but ${potentialMatch.location.prettyName} was not a list!")
+            val realType = potentialMatch.generic.unwrapGenericType(potentialMatch.javaType)
+            if (realType is ParameterizedType && isListType(realType, potentialMatch)) {
+                return potentialMatch.copy(javaType = realType.actualTypeArguments.first(), batched = false)
+            } else {
+                throw error(potentialMatch, "Method was marked as @Batched but ${potentialMatch.location.prettyName} was not a list!")
+            }
         }
     }
 
