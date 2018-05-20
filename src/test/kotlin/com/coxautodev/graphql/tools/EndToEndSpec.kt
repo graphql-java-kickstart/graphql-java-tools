@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture
 fun createSchema() = SchemaParser.newParser()
     .schemaString(schemaDefinition)
     .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
-    .scalars(customScalarUUID, customScalarMap)
+    .scalars(customScalarUUID, customScalarMap, customScalarId)
     .dictionary("OtherItem", OtherItemWithWrongName::class)
     .dictionary("ThirdItem", ThirdItem::class)
     .build()
@@ -38,6 +38,7 @@ type Query {
     nestedUnionItems: [NestedUnion!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
+    itemByBuiltInId(id: ID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
     enumInputType(type: Type!): Type!
@@ -175,6 +176,9 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun nestedUnionItems(): List<Any> = items + otherItems + thirdItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
+    fun itemByBuiltInId(id: UUID): Item? {
+        return items.find { it.uuid == id }
+    }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
     fun enumInputType(type: Type) = type
@@ -251,6 +255,21 @@ data class NewItemInput(val name: String, val type: Type)
 data class ComplexNullable(val first: String, val second: String, val third: String)
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
+
+val customScalarId = GraphQLScalarType("ID", "Overrides built-in ID", object : Coercing<UUID, String> {
+    override fun serialize(input: Any): String? = when (input) {
+        is String -> input
+        is UUID -> input.toString()
+        else -> null
+    }
+
+    override fun parseValue(input: Any): UUID? = parseLiteral(input)
+
+    override fun parseLiteral(input: Any): UUID? = when (input) {
+        is StringValue -> UUID.fromString(input.value)
+        else -> null
+    }
+})
 
 val customScalarUUID = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
 

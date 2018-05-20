@@ -399,8 +399,8 @@ class EndToEndSpec extends Specification {
 
     def "generated schema supports batched datafetchers with params"() {
         when:
-        def data = Utils.assertNoGraphQlErrors(gql) {
-            '''
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
                 {
                     allBaseItems {
                         tags: batchedWithParamsTags(names: ["item2-tag1"]) {
@@ -409,9 +409,26 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-        }
+            }
 
         then:
-        data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
+            data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
+    }
+
+    def "generated schema supports overriding built-in scalars"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    itemByBuiltInId(id: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
+                        name
+                    }
+                }
+                '''
+            }
+
+        then:
+            noExceptionThrown()
+            data.itemByBuiltInId != null
     }
 }

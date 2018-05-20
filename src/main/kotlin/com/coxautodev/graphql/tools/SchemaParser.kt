@@ -259,7 +259,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
                 is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
                 is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
                 is TypeName -> {
-                    val scalarType = graphQLScalars[typeDefinition.name] ?: customScalars[typeDefinition.name]
+                    val scalarType = customScalars[typeDefinition.name] ?: graphQLScalars[typeDefinition.name]
                     if (scalarType != null) {
                         scalarType
                     } else {
