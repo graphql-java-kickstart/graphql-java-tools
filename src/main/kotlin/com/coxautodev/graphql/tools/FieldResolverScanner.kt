@@ -15,6 +15,8 @@ import java.lang.reflect.ParameterizedType
  */
 internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
+    private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, options.contextClass)
+
     companion object {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
@@ -103,7 +105,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             true
         }
 
-        val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
+        val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(method.parameterTypes.last()))
         return correctParameterCount && appropriateFirstParameter
     }
 
@@ -136,7 +138,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
         }
 
-        return "No method${if (scannedProperties) " or field" else ""} found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
+        return "No method${if (scannedProperties) " or field" else ""} found with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
