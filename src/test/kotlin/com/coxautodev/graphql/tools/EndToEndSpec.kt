@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.execution.DataFetcherResult
 import graphql.execution.batched.Batched
 import graphql.language.ObjectValue
 import graphql.language.StringValue
@@ -63,6 +64,7 @@ type Query {
     hashCode: [Item!]
 
     propertyField: String!
+    dataFetcherResult: Item!
 }
 
 type ExtendedType {
@@ -200,6 +202,10 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun getFieldHashCode() = items
 
     private val propertyField = "test"
+
+    fun dataFetcherResult(): DataFetcherResult<Item> {
+        return DataFetcherResult(items.first(), listOf())
+    }
 }
 
 class UnusedRootResolver: GraphQLQueryResolver

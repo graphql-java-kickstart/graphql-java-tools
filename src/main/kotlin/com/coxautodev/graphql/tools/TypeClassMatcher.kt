@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.execution.DataFetcherResult
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ScalarTypeDefinition
@@ -32,6 +33,23 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     private fun match(potentialMatch: PotentialMatch, graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
 
         var realType = potentialMatch.generic.unwrapGenericType(javaType)
+
+        if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, DataFetcherResult::class.java)) {
+            if(potentialMatch.location != Location.RETURN_TYPE) {
+                throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used as a return type")
+            }
+
+            if(!root) {
+                throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used at the top level of a return type")
+            }
+
+            realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
+
+            if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, DataFetcherResult::class.java)) {
+                throw error(potentialMatch, "${DataFetcherResult::class.java.name} cannot be nested within itself")
+            }
+        }
+
         var optional = false
 
         // Handle jdk8 Optionals

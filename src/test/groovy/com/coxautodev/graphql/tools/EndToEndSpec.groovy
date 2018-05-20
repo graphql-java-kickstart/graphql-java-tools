@@ -2,7 +2,9 @@ package com.coxautodev.graphql.tools
 
 import graphql.ExecutionResult
 import graphql.GraphQL
+import graphql.execution.AsyncExecutionStrategy
 import graphql.execution.batched.BatchedExecutionStrategy
+import graphql.schema.GraphQLSchema
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
 import spock.lang.Shared
@@ -17,11 +19,20 @@ import java.util.concurrent.TimeUnit
 class EndToEndSpec extends Specification {
 
     @Shared
+    GraphQL batchedGql
+
+    @Shared
     GraphQL gql
 
     def setupSpec() {
-        gql = GraphQL.newGraphQL(EndToEndSpecKt.createSchema())
+        GraphQLSchema schema = EndToEndSpecKt.createSchema()
+
+        batchedGql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(new BatchedExecutionStrategy())
+            .build()
+
+        gql = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(new AsyncExecutionStrategy())
             .build()
     }
 
@@ -383,7 +394,7 @@ class EndToEndSpec extends Specification {
 
     def "generated schema supports batched datafetchers"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
+            def data = Utils.assertNoGraphQlErrors(batchedGql) {
                 '''
                 {
                     allBaseItems {
@@ -399,7 +410,7 @@ class EndToEndSpec extends Specification {
 
     def "generated schema supports batched datafetchers with params"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
+            def data = Utils.assertNoGraphQlErrors(batchedGql) {
                 '''
                 {
                     allBaseItems {
@@ -430,5 +441,21 @@ class EndToEndSpec extends Specification {
         then:
             noExceptionThrown()
             data.itemByBuiltInId != null
+    }
+
+    def "generated schema supports DataFetcherResult"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    dataFetcherResult {
+                        name
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.dataFetcherResult.name == "item1"
     }
 }
