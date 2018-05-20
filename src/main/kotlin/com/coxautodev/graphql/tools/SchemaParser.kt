@@ -49,7 +49,9 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
         val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
 
         @JvmStatic fun newParser() = SchemaParserBuilder()
-        internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.map { it.content.trim() }?.joinToString("\n")
+        internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.filter {
+            !it.content.startsWith("#")
+        }?.map { it.content.trim() }?.joinToString("\n")
     }
 
     private val dictionary = scanResult.dictionary

@@ -22,6 +22,7 @@ fun createSchema() = SchemaParser.newParser()
 
 val schemaDefinition = """
 
+## Private comment!
 scalar UUID
 scalar customScalarMap
 
