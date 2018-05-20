@@ -44,6 +44,7 @@ type Query {
     customScalarMapInputType(customScalarMap: customScalarMap): customScalarMap
 
     defaultArgument(arg: Boolean = true): Boolean!
+    defaultEnumListArgument(types: [Type] = [TYPE_1]): [Type]
 
     listList: [[String!]!]!
     futureItems: [Item!]!
@@ -180,6 +181,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun customScalarMapInputType(customScalarMap: Map<String, Any>) = customScalarMap
 
     fun defaultArgument(arg: Boolean) = arg
+    fun defaultEnumListArgument(types: List<Type>) = types
 
     fun futureItems() = CompletableFuture.completedFuture(items)
     fun complexNullableType(): ComplexNullable? = null

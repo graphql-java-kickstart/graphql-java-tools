@@ -243,7 +243,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
             is StringValue -> value.value
             is EnumValue -> value.name
             is BooleanValue -> value.isValue
-            is ArrayValue -> value.values.map { buildDefaultValue(it) }.toTypedArray()
+            is ArrayValue -> value.values.map { buildDefaultValue(it) }
             is ObjectValue -> value.objectFields.associate { it.name to buildDefaultValue(it.value) }
             else -> throw SchemaError("Unrecognized default value: $value")
         }
