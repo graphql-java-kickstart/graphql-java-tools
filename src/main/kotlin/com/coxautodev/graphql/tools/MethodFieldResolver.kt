@@ -11,7 +11,7 @@ import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
-import java.util.*
+import java.util.Optional
 
 /**
  * @author Andrew Potter
