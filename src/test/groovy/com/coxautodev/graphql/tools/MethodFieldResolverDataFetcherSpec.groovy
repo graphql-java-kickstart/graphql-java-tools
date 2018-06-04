@@ -14,8 +14,6 @@ import spock.lang.Specification
  */
 class MethodFieldResolverDataFetcherSpec extends Specification {
 
-    static final FieldResolverScanner fieldResolverScanner = new FieldResolverScanner(SchemaParserOptions.defaultOptions())
-
     def "data fetcher throws exception if resolver has too many arguments"() {
         when:
             createFetcher("active", new GraphQLQueryResolver() {
@@ -104,6 +102,33 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
             resolver.get(createEnvironment(new DataClass()))
     }
 
+    def "data fetcher passes environment if method has extra argument even if context is specified"() {
+        setup:
+            def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+            def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
+                boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
+                    env instanceof DataFetchingEnvironment
+                }
+            })
+
+        expect:
+            resolver.get(createEnvironment(new ContextClass(), new DataClass()))
+    }
+
+    def "data fetcher passes context if method has extra argument and context is specified"() {
+        setup:
+            def context = new ContextClass()
+            def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+            def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
+                boolean isActive(DataClass dataClass, ContextClass ctx) {
+                    ctx == context
+                }
+            })
+
+        expect:
+            resolver.get(createEnvironment(context, new DataClass()))
+    }
+
     def "data fetcher marshalls input object if required"() {
         setup:
             def name = "correct name"
@@ -158,10 +183,13 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetcher createFetcher(String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
-        def field = new FieldDefinition(methodName, new TypeName('Boolean')).with { getInputValueDefinitions().addAll(arguments); it }
-        def options = SchemaParserOptions.defaultOptions()
+        return createFetcher(SchemaParserOptions.defaultOptions(), methodName, arguments, resolver)
+    }
 
-        fieldResolverScanner.findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver], options) : new NormalResolverInfo(resolver, options)).createDataFetcher()
+    private static DataFetcher createFetcher(SchemaParserOptions options, String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
+        def field = new FieldDefinition(methodName, new TypeName('Boolean')).with { getInputValueDefinitions().addAll(arguments); it }
+
+        new FieldResolverScanner(options).findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver], options) : new NormalResolverInfo(resolver, options)).createDataFetcher()
     }
 
     private static DataFetchingEnvironment createEnvironment(Map<String, Object> arguments = [:]) {
@@ -169,7 +197,11 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetchingEnvironment createEnvironment(Object source, Map<String, Object> arguments = [:]) {
-        new DataFetchingEnvironmentImpl(source, arguments, null, null, null, null, null, null, null, null, null, null, null)
+        createEnvironment(null, source, arguments)
+    }
+
+    private static DataFetchingEnvironment createEnvironment(Object context, Object source, Map<String, Object> arguments = [:]) {
+        new DataFetchingEnvironmentImpl(source, arguments, context, null, null, null, null, null, null, null, null, null, null)
     }
 }
 
@@ -183,4 +215,7 @@ class DataClass {
 
 class InputClass {
     String name
+}
+
+class ContextClass {
 }
