@@ -1,14 +1,11 @@
 package com.coxautodev.graphql.tools
 
 import graphql.execution.DataFetcherResult
-import graphql.language.ListType
-import graphql.language.NonNullType
-import graphql.language.ScalarTypeDefinition
-import graphql.language.TypeDefinition
-import graphql.language.TypeName
+import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.ParameterizedType
+import java.util.*
 
 /**
  * @author Andrew Potter
@@ -49,9 +46,29 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
             }
         }
 
+        var optional = false
+
+        // Handle jdk8 Optionals
+        if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
+            optional = true
+
+            if(potentialMatch.location == Location.RETURN_TYPE && !root) {
+                throw error(potentialMatch, "${Optional::class.java.name} can only be used at the top level of a return type")
+            }
+
+            realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
+
+            if(realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
+                throw error(potentialMatch, "${Optional::class.java.name} cannot be nested within itself")
+            }
+        }
+
         // Match graphql type to java type.
         return when(graphQLType) {
             is NonNullType -> {
+                if(optional) {
+                    throw error(potentialMatch, "graphql type is marked as nonnull but ${Optional::class.java.name} was used")
+                }
                 match(potentialMatch, graphQLType.type, realType)
             }
 

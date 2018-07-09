@@ -10,7 +10,6 @@ import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.reactivestreams.Publisher
-import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
@@ -233,9 +232,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
 
     class Builder {
         private var contextClass: Class<*>? = null
-        private val genericWrappers: MutableList<GenericWrapper> = mutableListOf(
-                GenericWrapper.withTransformer(Optional::class, 0, { o -> o.orElse(null) })
-        )
+        private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
