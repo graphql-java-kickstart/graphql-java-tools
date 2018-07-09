@@ -1,15 +1,11 @@
 package com.coxautodev.graphql.tools
 
 import graphql.execution.DataFetcherResult
-import graphql.language.ListType
-import graphql.language.NonNullType
-import graphql.language.ScalarTypeDefinition
-import graphql.language.TypeDefinition
-import graphql.language.TypeName
+import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.ParameterizedType
-import java.util.Optional
+import java.util.*
 
 /**
  * @author Andrew Potter

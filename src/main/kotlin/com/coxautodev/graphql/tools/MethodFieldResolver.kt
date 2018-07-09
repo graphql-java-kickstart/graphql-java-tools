@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import com.coxautodev.graphql.tools.SchemaParserOptions.GenericWrapper
 import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -11,7 +12,7 @@ import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
-import java.util.Optional
+import java.util.*
 
 /**
  * @author Andrew Potter
@@ -93,9 +94,9 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         }
 
         return if(batched) {
-            BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+            BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
         } else {
-            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args)
+            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
         }
     }
 
@@ -125,21 +126,43 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>): DataFetcher<Any> {
+open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>, private val options: SchemaParserOptions): DataFetcher<Any> {
 
     // Convert to reflactasm reflection
     private val methodAccess = MethodAccess.get(method.declaringClass)!!
     private val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
 
+    private class CompareGenericWrappers {
+        companion object: Comparator<GenericWrapper> {
+            override fun compare(w1: GenericWrapper, w2: GenericWrapper): Int = when {
+                w1.type.isAssignableFrom(w2.type) -> 1
+                else -> -1
+            }
+        }
+    }
+
     override fun get(environment: DataFetchingEnvironment): Any? {
         val source = sourceResolver(environment)
         val args = this.args.map { it(environment) }.toTypedArray()
         val result = methodAccess.invoke(source, methodIndex, *args)
-        return if(result != null && result is Optional<*>) result.orElse(null) else result
+        return if (result == null) {
+            result
+        } else {
+            val wrapper = options
+                .genericWrappers
+                .filter { it.type.isInstance(result) }
+                .sortedWith(CompareGenericWrappers)
+                .firstOrNull()
+            if (wrapper == null) {
+                result
+            } else {
+                wrapper.transformer.invoke(result, environment)
+            }
+        }
     }
 }
 
-class BatchedMethodFieldResolverDataFetcher(sourceResolver: SourceResolver, method: Method, args: List<ArgumentPlaceholder>): MethodFieldResolverDataFetcher(sourceResolver, method, args) {
+class BatchedMethodFieldResolverDataFetcher(sourceResolver: SourceResolver, method: Method, args: List<ArgumentPlaceholder>, options: SchemaParserOptions): MethodFieldResolverDataFetcher(sourceResolver, method, args, options) {
     @Batched override fun get(environment: DataFetchingEnvironment) = super.get(environment)
 }
 
