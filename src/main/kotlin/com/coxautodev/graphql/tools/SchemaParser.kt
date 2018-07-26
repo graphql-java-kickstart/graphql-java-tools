@@ -51,7 +51,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
         @JvmStatic fun newParser() = SchemaParserBuilder()
         internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.filter {
             !it.content.startsWith("#")
-        }?.map { it.content.trim() }?.joinToString("\n")
+        }?.map { it.content.trimEnd() }?.joinToString("\n")?.trimIndent()
     }
 
     private val dictionary = scanResult.dictionary
