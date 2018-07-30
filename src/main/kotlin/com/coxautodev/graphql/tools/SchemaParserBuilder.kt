@@ -4,15 +4,19 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
+import com.google.common.util.concurrent.ListenableFuture
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.reactivestreams.Publisher
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
+import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import java.util.stream.Stream
 import kotlin.reflect.KClass
 
 /**
@@ -290,28 +294,30 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         }
     }
 
-    data class GenericWrapper(val type: Class<*>, val index: Int, val transformer: (Any, DataFetchingEnvironment) -> Any?) {
+    data class GenericWrapper(val type: Class<*>, val index: Int, val transformer: (Any, DataFetchingEnvironment) -> Any?, val wrapTo: Class<*>? = null) {
         
         constructor(type: Class<*>, index: Int): this(type, index, { x, _ -> x })
         constructor(type: KClass<*>, index: Int): this(type.java, index, { x, _ -> x })
-        
+        constructor(type: Class<*>, index: Int, wrapTo: Class<*>): this(type, index, { x, _ -> x }, wrapTo)
+        constructor(type: KClass<*>, index: Int, wrapTo: Class<*>): this(type.java, index, { x, _ -> x }, wrapTo)
+
         companion object {
 
             @Suppress("UNCHECKED_CAST")
-            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?): GenericWrapper where T: Any {
-                return GenericWrapper(type, index, transformer as (Any, DataFetchingEnvironment) -> Any?)
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?, wrapTo: Class<*>? = null): GenericWrapper where T: Any {
+                return GenericWrapper(type, index, transformer as (Any, DataFetchingEnvironment) -> Any?, wrapTo)
             }
             
-            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?): GenericWrapper where T: Any {
-                return withTransformer(type.java, index, transformer)
+            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?, wrapTo: Class<*>? = null): GenericWrapper where T: Any {
+                return withTransformer(type.java, index, transformer, wrapTo)
             }
 
-            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
-                return withTransformer(type, index, { x, _ -> transformer.invoke(x) })
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T) -> Any?, wrapTo: Class<*>? = null): GenericWrapper where T: Any {
+                return withTransformer(type, index, { x, _ -> transformer.invoke(x) }, wrapTo)
             }
 
-            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
-                return withTransformer(type.java, index, transformer)
+            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T) -> Any?, wrapTo: Class<*>? = null): GenericWrapper where T: Any {
+                return withTransformer(type.java, index, transformer, wrapTo)
             }
             
         }

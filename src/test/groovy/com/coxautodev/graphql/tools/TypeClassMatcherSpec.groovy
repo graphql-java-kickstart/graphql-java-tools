@@ -21,7 +21,17 @@ class TypeClassMatcherSpec extends Specification {
     private static final TypeDefinition customDefinition = new ObjectTypeDefinition("CustomType")
 
     private static final TypeClassMatcher matcher = new TypeClassMatcher([CustomType: customDefinition])
-    private static final SchemaParserOptions options = SchemaParserOptions.defaultOptions()
+    private static final SchemaParserOptions options = SchemaParserOptions.newOptions().genericWrappers(
+        new SchemaParserOptions.GenericWrapper(
+            GenericCustomType.class,
+            0
+        ),
+        new SchemaParserOptions.GenericWrapper(
+            GenericCustomListType.class,
+            0,
+            List.class
+        )
+    ).build()
     private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
 
     private final resolver = new RootResolverInfo([new QueryMethods()], options)
@@ -63,6 +73,8 @@ class TypeClassMatcherSpec extends Specification {
             "superListFutureType" | list()
             "nullableType"        | customType
             "nullableListType"    | list(nonNull(customType))
+            "genericCustomType"   | customType
+            "genericListType"     | list()
     }
 
     @Unroll
@@ -94,9 +106,9 @@ class TypeClassMatcherSpec extends Specification {
             "listNullableType"     | list(customType)
     }
 
-    def "matcher does not allow parameterized types as root types"() {
+    def "matcher does not allow unwrapped parameterized types as root types"() {
         when:
-            matcher.match(createPotentialMatch("genericCustomType", customType))
+            matcher.match(createPotentialMatch("genericCustomUnwrappedType", customType))
 
         then:
             thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
@@ -122,9 +134,13 @@ class TypeClassMatcherSpec extends Specification {
         Optional<Optional<CustomType>> nullableNullableType() { null }
         List<Optional<CustomType>> listNullableType() { null }
 
-        GenericCustomType<String> genericCustomType() { null }
+        GenericCustomType<CustomType> genericCustomType() { null }
+        GenericCustomListType<CustomType> genericListType() { null }
+        UnwrappedGenericCustomType<String> genericCustomUnwrappedType() { null }
     }
 
     private class CustomType {}
-    private class GenericCustomType<T> {}
+    private static class GenericCustomType<T> {}
+    private static class GenericCustomListType<T> {}
+    private static class UnwrappedGenericCustomType<T> {}
 }

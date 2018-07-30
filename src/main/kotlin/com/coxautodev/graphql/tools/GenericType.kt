@@ -2,6 +2,7 @@ package com.coxautodev.graphql.tools
 
 import com.google.common.primitives.Primitives
 import org.apache.commons.lang3.reflect.TypeUtils
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
@@ -88,7 +89,13 @@ open internal class GenericType(protected val mostSpecificType: JavaType, protec
                         throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${genericType.index}!")
                     }
 
-                    return unwrapGenericType(typeArguments[genericType.index])
+                    val unwrapsTo = if (genericType.wrapTo != null) {
+                        ParameterizedTypeImpl.make(genericType.wrapTo, arrayOf(typeArguments[genericType.index]), null)
+                    } else {
+                        typeArguments[genericType.index]
+                    }
+
+                    return unwrapGenericType(unwrapsTo)
                 }
                 is Class<*> -> if(type.isPrimitive) Primitives.wrap(type) else type
                 is TypeVariable<*> -> {
