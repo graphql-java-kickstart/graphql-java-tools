@@ -89,8 +89,8 @@ open internal class GenericType(protected val mostSpecificType: JavaType, protec
                         throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${genericType.index}!")
                     }
 
-                    val unwrapsTo = if (genericType.wrapTo != null) {
-                        ParameterizedTypeImpl.make(genericType.wrapTo, arrayOf(typeArguments[genericType.index]), null)
+                    val unwrapsTo = if (genericType.schemaWrapper != null) {
+                        genericType.schemaWrapper.invoke(typeArguments[genericType.index])
                     } else {
                         typeArguments[genericType.index]
                     }

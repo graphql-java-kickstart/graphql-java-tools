@@ -8,6 +8,7 @@ import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import spock.lang.Specification
 import spock.lang.Unroll
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
@@ -29,7 +30,11 @@ class TypeClassMatcherSpec extends Specification {
         new SchemaParserOptions.GenericWrapper(
             GenericCustomListType.class,
             0,
-            List.class
+            { type -> ParameterizedTypeImpl.make(
+                List.class,
+                [type] as java.lang.reflect.Type[],
+                null
+            )}
         )
     ).build()
     private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
