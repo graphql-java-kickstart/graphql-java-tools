@@ -8,7 +8,6 @@ import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import spock.lang.Specification
 import spock.lang.Unroll
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future

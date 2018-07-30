@@ -2,7 +2,6 @@ package com.coxautodev.graphql.tools
 
 import com.google.common.primitives.Primitives
 import org.apache.commons.lang3.reflect.TypeUtils
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
