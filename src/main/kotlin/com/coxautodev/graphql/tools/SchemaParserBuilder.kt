@@ -363,18 +363,6 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
             ): GenericWrapper where T: Any {
                 return listCollectionWithTransformer(type.java, index, transformer)
             }
-
-            @JvmStatic fun <T>  listCollection(type: Class<T>, index: Int): GenericWrapper where T: Any {
-                return listCollectionWithTransformer(
-                    type,
-                    index,
-                    { x -> x }
-                )
-            }
-
-            fun listCollection(type: KClass<*>, index: Int): GenericWrapper {
-                return listCollection(type.java, index)
-            }
         }
         
     }

@@ -27,9 +27,10 @@ class TypeClassMatcherSpec extends Specification {
             GenericCustomType.class,
             0
         ),
-        SchemaParserOptions.GenericWrapper.listCollection(
+        SchemaParserOptions.GenericWrapper.listCollectionWithTransformer(
             GenericCustomListType.class,
-            0
+            0,
+            { x -> x }
         )
     ).build()
     private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
