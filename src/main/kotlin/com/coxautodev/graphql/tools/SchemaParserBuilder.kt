@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
-import com.google.common.util.concurrent.ListenableFuture
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
@@ -12,11 +11,9 @@ import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.reactivestreams.Publisher
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
-import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
-import java.util.stream.Stream
 import kotlin.reflect.KClass
 
 /**
