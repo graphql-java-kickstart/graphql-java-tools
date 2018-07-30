@@ -27,14 +27,9 @@ class TypeClassMatcherSpec extends Specification {
             GenericCustomType.class,
             0
         ),
-        new SchemaParserOptions.GenericWrapper(
+        SchemaParserOptions.GenericWrapper.listCollection(
             GenericCustomListType.class,
-            0,
-            { type -> ParameterizedTypeImpl.make(
-                List.class,
-                [type] as java.lang.reflect.Type[],
-                null
-            )}
+            0
         )
     ).build()
     private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
