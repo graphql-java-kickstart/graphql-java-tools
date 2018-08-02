@@ -5,6 +5,7 @@ import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
 import graphql.parser.Parser
+import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
@@ -223,19 +224,28 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
+data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
     }
 
     class Builder {
+        private var contextClass: Class<*>? = null
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
-        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler())
+        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
 
+        fun contextClass(contextClass: Class<*>) = this.apply {
+            this.contextClass = contextClass
+        }
+
+        fun contextClass(contextClass: KClass<*>) = this.apply {
+            this.contextClass = contextClass.java
+        }
+        
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
         }
@@ -276,11 +286,35 @@ data class SchemaParserOptions internal constructor(val genericWrappers: List<Ge
                 genericWrappers
             }
 
-            return SchemaParserOptions(wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
         }
     }
 
-    data class GenericWrapper(val type: Class<*>, val index: Int) {
-        constructor(type: KClass<*>, index: Int): this(type.java, index)
+    data class GenericWrapper(val type: Class<*>, val index: Int, val transformer: (Any, DataFetchingEnvironment) -> Any?) {
+        
+        constructor(type: Class<*>, index: Int): this(type, index, { x, _ -> x })
+        constructor(type: KClass<*>, index: Int): this(type.java, index, { x, _ -> x })
+        
+        companion object {
+
+            @Suppress("UNCHECKED_CAST")
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?): GenericWrapper where T: Any {
+                return GenericWrapper(type, index, transformer as (Any, DataFetchingEnvironment) -> Any?)
+            }
+            
+            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T, DataFetchingEnvironment) -> Any?): GenericWrapper where T: Any {
+                return withTransformer(type.java, index, transformer)
+            }
+
+            @JvmStatic fun <T> withTransformer(type: Class<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
+                return withTransformer(type, index, { x, _ -> transformer.invoke(x) })
+            }
+
+            fun <T> withTransformer(type: KClass<T>, index: Int, transformer: (T) -> Any?): GenericWrapper where T: Any {
+                return withTransformer(type.java, index, transformer)
+            }
+            
+        }
+        
     }
 }

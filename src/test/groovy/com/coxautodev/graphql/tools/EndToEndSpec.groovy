@@ -2,7 +2,9 @@ package com.coxautodev.graphql.tools
 
 import graphql.ExecutionResult
 import graphql.GraphQL
+import graphql.execution.AsyncExecutionStrategy
 import graphql.execution.batched.BatchedExecutionStrategy
+import graphql.schema.GraphQLSchema
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
 import spock.lang.Shared
@@ -17,11 +19,20 @@ import java.util.concurrent.TimeUnit
 class EndToEndSpec extends Specification {
 
     @Shared
+    GraphQL batchedGql
+
+    @Shared
     GraphQL gql
 
     def setupSpec() {
-        gql = GraphQL.newGraphQL(EndToEndSpecKt.createSchema())
+        GraphQLSchema schema = EndToEndSpecKt.createSchema()
+
+        batchedGql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(new BatchedExecutionStrategy())
+            .build()
+
+        gql = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(new AsyncExecutionStrategy())
             .build()
     }
 
@@ -93,18 +104,16 @@ class EndToEndSpec extends Specification {
 
                 @Override
                 void onError(Throwable t) {
-
                 }
 
                 @Override
                 void onComplete() {
-
                 }
             })
             latch.await(3, TimeUnit.SECONDS)
 
         then:
-            returnedItem.id == 1
+            returnedItem.get("onItemCreated").id == 1
     }
 
     def "generated schema should handle interface types"() {
@@ -264,6 +273,29 @@ class EndToEndSpec extends Specification {
             data.defaultArgument == true
     }
 
+    def "introspection shouldn't fail for arguments of type list with a default value (defaultEnumListArgument)"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                   __type(name: "Query") {
+                       name
+                       fields {
+                         name
+                         args {
+                           name
+                           defaultValue
+                         }
+                       }
+                   }
+                }
+                '''
+            }
+
+        then:
+            data.__type
+    }
+
     def "generated schema should return null without errors for null value with nested fields"() {
         when:
             def data = Utils.assertNoGraphQlErrors(gql) {
@@ -362,7 +394,7 @@ class EndToEndSpec extends Specification {
 
     def "generated schema supports batched datafetchers"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
+            def data = Utils.assertNoGraphQlErrors(batchedGql) {
                 '''
                 {
                     allBaseItems {
@@ -374,5 +406,56 @@ class EndToEndSpec extends Specification {
 
         then:
             data.allBaseItems.collect { it.name } == ['item1', 'item2']
+    }
+
+    def "generated schema supports batched datafetchers with params"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(batchedGql) {
+                '''
+                {
+                    allBaseItems {
+                        tags: batchedWithParamsTags(names: ["item2-tag1"]) {
+                            name
+                        }
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
+    }
+
+    def "generated schema supports overriding built-in scalars"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    itemByBuiltInId(id: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
+                        name
+                    }
+                }
+                '''
+            }
+
+        then:
+            noExceptionThrown()
+            data.itemByBuiltInId != null
+    }
+
+    def "generated schema supports DataFetcherResult"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    dataFetcherResult {
+                        name
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.dataFetcherResult.name == "item1"
     }
 }

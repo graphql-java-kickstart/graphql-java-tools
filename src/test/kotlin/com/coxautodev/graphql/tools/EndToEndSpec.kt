@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.execution.DataFetcherResult
 import graphql.execution.batched.Batched
 import graphql.language.ObjectValue
 import graphql.language.StringValue
@@ -14,7 +15,7 @@ import java.util.concurrent.CompletableFuture
 fun createSchema() = SchemaParser.newParser()
     .schemaString(schemaDefinition)
     .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
-    .scalars(customScalarUUID, customScalarMap)
+    .scalars(customScalarUUID, customScalarMap, customScalarId)
     .dictionary("OtherItem", OtherItemWithWrongName::class)
     .dictionary("ThirdItem", ThirdItem::class)
     .build()
@@ -22,6 +23,7 @@ fun createSchema() = SchemaParser.newParser()
 
 val schemaDefinition = """
 
+## Private comment!
 scalar UUID
 scalar customScalarMap
 
@@ -38,12 +40,14 @@ type Query {
     nestedUnionItems: [NestedUnion!]
     itemsByInterface: [ItemInterface!]
     itemByUUID(uuid: UUID!): Item
+    itemByBuiltInId(id: ID!): Item
     itemsWithOptionalInput(itemsInput: ItemSearchInput): [Item!]
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
     enumInputType(type: Type!): Type!
     customScalarMapInputType(customScalarMap: customScalarMap): customScalarMap
 
     defaultArgument(arg: Boolean = true): Boolean!
+    defaultEnumListArgument(types: [Type] = [TYPE_1]): [Type]
 
     listList: [[String!]!]!
     futureItems: [Item!]!
@@ -51,7 +55,16 @@ type Query {
 
     complexInputType(complexInput: [[ComplexInputType!]]): String!
     extendedType: ExtendedType!
+
+    # Exercise field with get<<capitalised field name>> resolver
+    itemsWithGetResolver: [Item!]
+
+    # Check it's possible to use field names that correspond to methods on the java.lang.Object class
+    class: [Item!]
+    hashCode: [Item!]
+
     propertyField: String!
+    dataFetcherResult: Item!
 }
 
 type ExtendedType {
@@ -109,6 +122,7 @@ type Item implements ItemInterface {
     uuid: UUID!
     tags(names: [String!]): [Tag!]
     batchedName: String!
+    batchedWithParamsTags(names: [String!]): [Tag!]
 }
 
 type OtherItem implements ItemInterface {
@@ -165,12 +179,16 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun nestedUnionItems(): List<Any> = items + otherItems + thirdItems
     fun itemsByInterface(): List<ItemInterface> = items + otherItems
     fun itemByUUID(uuid: UUID): Item? = items.find { it.uuid == uuid }
+    fun itemByBuiltInId(id: UUID): Item? {
+        return items.find { it.uuid == id }
+    }
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if(input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
     fun enumInputType(type: Type) = type
     fun customScalarMapInputType(customScalarMap: Map<String, Any>) = customScalarMap
 
     fun defaultArgument(arg: Boolean) = arg
+    fun defaultEnumListArgument(types: List<Type>) = types
 
     fun futureItems() = CompletableFuture.completedFuture(items)
     fun complexNullableType(): ComplexNullable? = null
@@ -178,7 +196,16 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun complexInputType(input: List<List<ComplexInputType>?>?) = input?.firstOrNull()?.firstOrNull()?.let { it.first == "foo" && it.second?.firstOrNull()?.firstOrNull()?.first == "bar" } ?: false
     fun extendedType() = ExtendedType()
 
+    fun getItemsWithGetResolver() = items
+
+    fun getFieldClass() = items
+    fun getFieldHashCode() = items
+
     private val propertyField = "test"
+
+    fun dataFetcherResult(): DataFetcherResult<Item> {
+        return DataFetcherResult(items.first(), listOf())
+    }
 }
 
 class UnusedRootResolver: GraphQLQueryResolver
@@ -214,6 +241,9 @@ class ItemResolver : GraphQLResolver<Item> {
 
     @Batched
     fun batchedName(items: List<Item>) = items.map { it.name }
+
+    @Batched
+    fun batchedWithParamsTags(items: List<Item>, names: List<String>?): List<List<Tag>> = items.map{ it.tags.filter { names?.contains(it.name) ?: true } }
 }
 
 interface ItemInterface {
@@ -232,6 +262,21 @@ data class NewItemInput(val name: String, val type: Type)
 data class ComplexNullable(val first: String, val second: String, val third: String)
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
+
+val customScalarId = GraphQLScalarType("ID", "Overrides built-in ID", object : Coercing<UUID, String> {
+    override fun serialize(input: Any): String? = when (input) {
+        is String -> input
+        is UUID -> input.toString()
+        else -> null
+    }
+
+    override fun parseValue(input: Any): UUID? = parseLiteral(input)
+
+    override fun parseLiteral(input: Any): UUID? = when (input) {
+        is StringValue -> UUID.fromString(input.value)
+        else -> null
+    }
+})
 
 val customScalarUUID = GraphQLScalarType("UUID", "UUID", object : Coercing<UUID, String> {
 

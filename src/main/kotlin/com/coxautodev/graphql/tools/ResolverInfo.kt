@@ -11,7 +11,7 @@ internal abstract class ResolverInfo {
 }
 
 internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions): ResolverInfo() {
-    private val resolverType = getRealResolverClass(resolver, options)
+    val resolverType = getRealResolverClass(resolver, options)
     val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<*> {
@@ -39,6 +39,29 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
             FieldResolverScanner.Search(resolverType, this, resolver, dataClassType, true),
             FieldResolverScanner.Search(dataClassType, this, null)
         )
+    }
+}
+
+internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>): ResolverInfo() {
+    private val dataClassType = findDataClass()
+
+    /**
+     * Checks if all `ResolverInfo` instances are related to the same data type
+     */
+    private fun findDataClass(): Class<*> {
+        val dataClass = resolverInfoList.map { it.dataClassType }.distinct().singleOrNull()
+
+        if(dataClass == null) {
+            throw ResolverError("Resolvers may not use the same type.")
+        } else {
+            return dataClass
+        }
+    }
+
+    override fun getFieldSearches(): List<FieldResolverScanner.Search> {
+        return resolverInfoList
+                .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, dataClassType, true) }
+                .plus(FieldResolverScanner.Search(dataClassType, this, null))
     }
 }
 

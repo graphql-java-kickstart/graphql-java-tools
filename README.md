@@ -53,11 +53,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>4.3.0</version>
+    <version>5.2.0</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java:graphql-java-tools:4.3.0'
+compile 'com.graphql-java:graphql-java-tools:5.2.0'
 ```
 
 ### Examples
@@ -199,16 +199,20 @@ First on the resolver or root resolver (note that dataClassInstance doesn't appl
 1. `method <name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
 2. `method is<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
 3. `method get<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
+4. `method getField<Name>(dataClassInstance, *fieldArgs [, DataFetchingEnvironment])`
 
 Then on the data class:
 1. `method <name>(*fieldArgs [, DataFetchingEnvironment])`
 2. `method is<Name>(*fieldArgs [, DataFetchingEnvironment])`, only if the field returns a `Boolean`
 3. `method get<Name>(*fieldArgs [, DataFetchingEnvironment])`
-4. `field <name>`
+4. `method getField<Name>(*fieldArgs [, DataFetchingEnvironment])`
+5. `field <name>`
 
 *Note:* All reflection discovery is done on startup, and runtime reflection method calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
 
 *Note:* `java.util.Optional` can be used for nullable field arguments and nullable return values, and the schema parser will verify that it's not used with non-null field arguments and return values.
+
+*Note:* Methods on `java.lang.Object` are excluded from method matching, for example a field named `class` will require a method named `getFieldClass` defined.
 
 ### Enum Types
 

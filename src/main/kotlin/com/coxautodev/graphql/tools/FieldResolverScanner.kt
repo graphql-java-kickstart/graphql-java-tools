@@ -15,11 +15,18 @@ import java.lang.reflect.ParameterizedType
  */
 internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
+    private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, options.contextClass)
+
     companion object {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
         fun getAllMethods(type: Class<*>) =
-            type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.declaredMethods.toList() }.filter { !Modifier.isPrivate(it.modifiers) }
+            type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type)
+                    .flatMap { it.declaredMethods.toList() }
+                    .filter { !Modifier.isPrivate(it.modifiers) }
+                    // discard any methods that are coming off the root of the class hierarchy
+                    // to avoid issues with duplicate method declarations
+                    .filter { it.declaringClass != Object::class.java }
     }
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
@@ -75,12 +82,15 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         //   1. Method with exact field name
         //   2. Method that returns a boolean with "is" style getter
         //   3. Method with "get" style getter
+        //   4. Method with "getField" style getter
         return methods.find {
             it.name == name && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             (isBoolean && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+        } ?: methods.find {
+            it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
         }
     }
 
@@ -95,7 +105,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             true
         }
 
-        val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && method.parameterTypes.last() == DataFetchingEnvironment::class.java)
+        val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(method.parameterTypes.last()))
         return correctParameterCount && appropriateFirstParameter
     }
 
@@ -128,7 +138,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
         }
 
-        return "No method${if (scannedProperties) " or field" else ""} found with any of the following signatures (with or without ${DataFetchingEnvironment::class.java.name} as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
+        return "No method${if (scannedProperties) " or field" else ""} found with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
