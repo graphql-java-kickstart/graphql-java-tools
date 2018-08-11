@@ -88,7 +88,13 @@ open internal class GenericType(protected val mostSpecificType: JavaType, protec
                         throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${genericType.index}!")
                     }
 
-                    return unwrapGenericType(typeArguments[genericType.index])
+                    val unwrapsTo = if (genericType.schemaWrapper != null) {
+                        genericType.schemaWrapper.invoke(typeArguments[genericType.index])
+                    } else {
+                        typeArguments[genericType.index]
+                    }
+
+                    return unwrapGenericType(unwrapsTo)
                 }
                 is Class<*> -> if(type.isPrimitive) Primitives.wrap(type) else type
                 is TypeVariable<*> -> {
