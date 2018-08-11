@@ -21,7 +21,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
         fun getAllMethods(type: Class<*>) =
-            type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type)
+            type.declaredMethods.toList().filter { !it.isSynthetic } + ClassUtils.getAllSuperclasses(type)
                     .flatMap { it.declaredMethods.toList() }
                     .filter { !Modifier.isPrivate(it.modifiers) }
                     // discard any methods that are coming off the root of the class hierarchy

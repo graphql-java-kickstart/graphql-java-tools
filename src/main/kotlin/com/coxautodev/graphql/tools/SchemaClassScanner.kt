@@ -316,11 +316,13 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private fun findInputValueType(name: String, clazz: Class<*>): JavaType? {
         val methods = clazz.methods
 
-        return (methods.find {
-            it.name == name
-        } ?: methods.find {
-            it.name == "get${name.capitalize()}"
-        })?.genericReturnType ?: clazz.fields.find {
+        val filteredMethods = methods.filter {
+            it.name == name || it.name == "get${name.capitalize()}"
+        }.sortedBy { it.name.length }
+        return filteredMethods.find {
+            !it.isSynthetic
+        }?.genericReturnType ?: filteredMethods.firstOrNull(
+        )?.genericReturnType ?: clazz.fields.find {
             it.name == name
         }?.genericType
     }
