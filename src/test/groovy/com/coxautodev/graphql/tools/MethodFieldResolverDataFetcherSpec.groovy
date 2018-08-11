@@ -1,13 +1,24 @@
 package com.coxautodev.graphql.tools
 
+import graphql.Assert
+import graphql.ExecutionResult
+import graphql.execution.ExecutionContext
+import graphql.execution.ExecutionContextBuilder
+import graphql.execution.ExecutionId
+import graphql.execution.ExecutionStrategy
+import graphql.execution.ExecutionStrategyParameters
+import graphql.execution.instrumentation.SimpleInstrumentation
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.NonNullType
 import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.DataFetchingEnvironmentBuilder
 import graphql.schema.DataFetchingEnvironmentImpl
 import spock.lang.Specification
+
+import java.util.concurrent.CompletableFuture
 
 /**
  * @author Andrew Potter
@@ -201,7 +212,29 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetchingEnvironment createEnvironment(Object context, Object source, Map<String, Object> arguments = [:]) {
-        new DataFetchingEnvironmentImpl(source, arguments, context, null, null, null, null, null, null, null, null, null, null)
+        DataFetchingEnvironmentBuilder.newDataFetchingEnvironment()
+                .source(source)
+                .arguments(arguments)
+                .context(context)
+                .executionContext(buildExecutionContext())
+                .build()
+    }
+
+    private static ExecutionContext buildExecutionContext() {
+        ExecutionStrategy executionStrategy = new ExecutionStrategy() {
+            @Override
+            CompletableFuture<ExecutionResult> execute(ExecutionContext executionContext, ExecutionStrategyParameters parameters) {
+                return Assert.assertShouldNeverHappen("should not be called")
+            }
+        }
+        ExecutionId executionId = ExecutionId.from("executionId123")
+        ExecutionContextBuilder.newExecutionContextBuilder()
+            .instrumentation(SimpleInstrumentation.INSTANCE)
+            .executionId(executionId)
+            .queryStrategy(executionStrategy)
+            .mutationStrategy(executionStrategy)
+            .subscriptionStrategy(executionStrategy)
+            .build()
     }
 }
 

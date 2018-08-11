@@ -46,14 +46,14 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         if(this.search.requiredFirstParameterType != null) {
             val expectedType = if(batched) Iterable::class.java else this.search.requiredFirstParameterType
 
-            args.add({ environment ->
+            args.add { environment ->
                 val source = environment.getSource<Any>()
                 if (!(expectedType.isAssignableFrom(source.javaClass))) {
                     throw ResolverError("Source type (${source.javaClass.name}) is not expected type (${expectedType.name})!")
                 }
 
                 source
-            })
+            }
         }
 
         // Add an argument for each argument defined in the GraphQL schema
@@ -68,7 +68,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
                 override fun getType() = genericParameterType
             }
 
-            args.add({ environment ->
+            args.add { environment ->
                 val value = environment.arguments[definition.name] ?: if(isNonNull) {
                     throw ResolverError("Missing required argument with name '${definition.name}', this is most likely a bug with graphql-java-tools")
                 } else {
@@ -80,7 +80,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
                 }
 
                 return@add mapper.convertValue(value, typeReference)
-            })
+            }
         }
 
         // Add DataFetchingEnvironment/Context argument
@@ -88,8 +88,8 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             val lastArgumentType = this.method.parameterTypes.last()
             when(lastArgumentType) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
-                options.contextClass -> args.add({ environment -> environment.getContext() })
-                else -> args.add({ environment -> environment })
+                options.contextClass -> args.add { environment -> environment.getContext() }
+                else -> args.add { environment -> environment }
             }
         }
 
