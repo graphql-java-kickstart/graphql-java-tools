@@ -38,9 +38,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     override fun createDataFetcher(): DataFetcher<*> {
         val batched = isBatched(method, search)
         val args = mutableListOf<ArgumentPlaceholder>()
-        val mapper = ObjectMapper().apply {
-            options.objectMapperConfigurer.configure(this, ObjectMapperConfigurerContext(field))
-        }.registerModule(Jdk8Module()).registerKotlinModule()
+        val mapper = options.objectMapperProvider.provide(field)
 
         // Add source argument if this is a resolver (but not a root resolver)
         if(this.search.requiredFirstParameterType != null) {
