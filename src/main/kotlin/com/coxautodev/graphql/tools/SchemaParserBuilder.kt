@@ -225,7 +225,7 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperConfigurer: ObjectMapperConfigurer, val proxyHandlers: List<ProxyHandler>) {
+data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
@@ -236,7 +236,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
-        private var objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ ->  }
+        private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
 
         fun contextClass(contextClass: Class<*>) = this.apply {
@@ -264,7 +264,10 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         }
 
         fun objectMapperConfigurer(objectMapperConfigurer: ObjectMapperConfigurer) = this.apply {
-            this.objectMapperConfigurer = objectMapperConfigurer
+            this.objectMapperProvider = PerFieldConfiguringObjectMapperProvider(objectMapperConfigurer)
+        }
+        fun objectMapperProvider(objectMapperProvider: PerFieldObjectMapperProvider) = this.apply {
+            this.objectMapperProvider = objectMapperProvider
         }
 
         fun objectMapperConfigurer(objectMapperConfigurer: (ObjectMapper, ObjectMapperConfigurerContext) -> Unit) = this.apply {
@@ -287,7 +290,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
                 genericWrappers
             }
 
-            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperConfigurer, proxyHandlers)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers)
         }
     }
 
