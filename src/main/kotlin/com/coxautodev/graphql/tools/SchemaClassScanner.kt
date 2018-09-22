@@ -260,7 +260,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             typeWasSet = realEntry.setTypeIfMissing(clazz)
 
             if (realEntry.typeClass != clazz) {
-                throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
+                if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
+                   log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one $clazz $reference")
+                } else {
+                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
+                }
             }
         }
 
@@ -346,8 +350,16 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         fun addReference(reference: Reference) {
             references.add(reference)
         }
-
         fun joinReferences() = "- $typeClass:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
+
+        fun hasResolverRef():Boolean {
+            references.filterIsInstance<ReturnValueReference>().forEach{ reference ->
+                if (GraphQLResolver::class.java.isAssignableFrom(reference.getMethod().declaringClass)) {
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     abstract class Reference {
@@ -378,6 +390,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     class ReturnValueReference(private val method: Method): Reference() {
+        fun getMethod () = method;
         override fun getDescription() = "return type of method $method"
     }
 

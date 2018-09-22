@@ -225,7 +225,7 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>) {
+data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>, val preferGraphQLResolver: Boolean) {
     companion object {
         @JvmStatic fun newOptions() = Builder()
         @JvmStatic fun defaultOptions() = Builder().build()
@@ -238,6 +238,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         private var allowUnimplementedResolvers = false
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
+        private var preferGraphQLResolver = false
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -261,6 +262,10 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
 
         fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
+        }
+
+        fun preferGraphQLResolver(preferGraphQLResolver: Boolean) = this.apply {
+            this.preferGraphQLResolver = preferGraphQLResolver
         }
 
         fun objectMapperConfigurer(objectMapperConfigurer: ObjectMapperConfigurer) = this.apply {
@@ -290,7 +295,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
                 genericWrappers
             }
 
-            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers, preferGraphQLResolver)
         }
     }
 
