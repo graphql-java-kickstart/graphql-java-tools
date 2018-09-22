@@ -138,7 +138,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
         }
 
-        return "No method${if (scannedProperties) " or field" else ""} found with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
+        val sourceLocation = if (field.sourceLocation != null) "${field.sourceLocation.sourceName}:${field.sourceLocation.line}" else "<unknown>"
+        return "No method${if (scannedProperties) " or field" else ""} found as defined in $sourceLocation with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {

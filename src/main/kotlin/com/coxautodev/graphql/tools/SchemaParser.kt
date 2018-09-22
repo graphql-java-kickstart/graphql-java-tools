@@ -46,7 +46,7 @@ import kotlin.reflect.KClass
 class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
 
     companion object {
-        val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
+        const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
 
         @JvmStatic fun newParser() = SchemaParserBuilder()
         internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.filter {

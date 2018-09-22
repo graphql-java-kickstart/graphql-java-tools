@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
+import graphql.language.Document
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
@@ -22,6 +23,7 @@ import kotlin.reflect.KClass
 class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictionary = SchemaParserDictionary()) {
 
     private val schemaString = StringBuilder()
+    private val files = mutableListOf<String>()
     private val resolvers = mutableListOf<GraphQLResolver<*>>()
     private val scalars = mutableListOf<GraphQLScalarType>()
     private var options = SchemaParserOptions.defaultOptions()
@@ -37,16 +39,17 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
      * Add a GraphQL Schema file from the classpath.
      */
     fun file(filename: String) = this.apply {
-        this.schemaString(java.io.BufferedReader(java.io.InputStreamReader(
-            object : Any() {}.javaClass.classLoader.getResourceAsStream(filename) ?: throw java.io.FileNotFoundException("classpath:$filename")
-        )).readText())
+        files.add(filename)
     }
 
     /**
      * Add a GraphQL schema string directly.
      */
     fun schemaString(string: String) = this.apply {
-        schemaString.append("\n").append(string)
+        if (!schemaString.isEmpty()) {
+            schemaString.append("\n")
+        }
+        schemaString.append(string)
     }
 
     /**
@@ -134,21 +137,40 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
      * Scan for classes with the supplied schema and dictionary.  Used for testing.
      */
     private fun scan(): ScannedSchemaObjects {
-        val document = try {
-            Parser().parseDocument(this.schemaString.toString())
+        val definitions = parseDefinitions()
+        val customScalars = scalars.associateBy { it.name }
+
+        return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options)
+                .scanForClasses()
+    }
+
+    private fun parseDefinitions() = parseDocuments().flatMap { it.definitions }
+
+    private fun parseDocuments(): List<Document> {
+        val parser = Parser()
+        val documents = mutableListOf<Document>()
+        try {
+            files.forEach { documents.add(parser.parseDocument(readFile(it), it)) }
+
+            if (!schemaString.isEmpty()) {
+                documents.add(parser.parseDocument(this.schemaString.toString()))
+            }
         } catch (pce: ParseCancellationException) {
             val cause = pce.cause
-            if(cause != null && cause is RecognitionException) {
+            if (cause != null && cause is RecognitionException) {
                 throw InvalidSchemaError(pce, cause)
             } else {
                 throw pce
             }
         }
+        return documents
+    }
 
-        val definitions = document.definitions
-        val customScalars = scalars.associateBy { it.name }
-
-        return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options).scanForClasses()
+    private fun readFile(filename: String): String {
+        return java.io.BufferedReader(java.io.InputStreamReader(
+                object : Any() {}.javaClass.classLoader.getResourceAsStream(filename)
+                        ?: throw java.io.FileNotFoundException("classpath:$filename")
+        )).readText()
     }
 
     /**
@@ -157,7 +179,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     fun build() = SchemaParser(scan())
 }
 
-class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException): RuntimeException(pce) {
+class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException) : RuntimeException(pce) {
     override val message: String?
         get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }
@@ -227,8 +249,11 @@ class SchemaParserDictionary {
 
 data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>, val preferGraphQLResolver: Boolean) {
     companion object {
-        @JvmStatic fun newOptions() = Builder()
-        @JvmStatic fun defaultOptions() = Builder().build()
+        @JvmStatic
+        fun newOptions() = Builder()
+
+        @JvmStatic
+        fun defaultOptions() = Builder().build()
     }
 
     class Builder {
@@ -247,7 +272,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         fun contextClass(contextClass: KClass<*>) = this.apply {
             this.contextClass = contextClass.java
         }
-        
+
         fun genericWrappers(genericWrappers: List<GenericWrapper>) = this.apply {
             this.genericWrappers.addAll(genericWrappers)
         }
@@ -271,6 +296,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         fun objectMapperConfigurer(objectMapperConfigurer: ObjectMapperConfigurer) = this.apply {
             this.objectMapperProvider = PerFieldConfiguringObjectMapperProvider(objectMapperConfigurer)
         }
+
         fun objectMapperProvider(objectMapperProvider: PerFieldObjectMapperProvider) = this.apply {
             this.objectMapperProvider = objectMapperProvider
         }
@@ -284,12 +310,12 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         }
 
         fun build(): SchemaParserOptions {
-            val wrappers = if(useDefaultGenericWrappers) {
+            val wrappers = if (useDefaultGenericWrappers) {
                 genericWrappers + listOf(
-                    GenericWrapper(Future::class, 0),
-                    GenericWrapper(CompletableFuture::class, 0),
-                    GenericWrapper(CompletionStage::class, 0),
-                    GenericWrapper(Publisher::class, 0)
+                        GenericWrapper(Future::class, 0),
+                        GenericWrapper(CompletableFuture::class, 0),
+                        GenericWrapper(CompletionStage::class, 0),
+                        GenericWrapper(Publisher::class, 0)
                 )
             } else {
                 genericWrappers
@@ -300,75 +326,78 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
     }
 
     data class GenericWrapper(
-        val type: Class<*>,
-        val index: Int,
-        val transformer: (Any, DataFetchingEnvironment) -> Any? = { x, _ -> x },
-        val schemaWrapper: (JavaType) -> JavaType = { x -> x }
+            val type: Class<*>,
+            val index: Int,
+            val transformer: (Any, DataFetchingEnvironment) -> Any? = { x, _ -> x },
+            val schemaWrapper: (JavaType) -> JavaType = { x -> x }
     ) {
 
-        constructor(type: Class<*>, index: Int): this(type, index, { x, _ -> x })
-        constructor(type: KClass<*>, index: Int): this(type.java, index, { x, _ -> x })
+        constructor(type: Class<*>, index: Int) : this(type, index, { x, _ -> x })
+        constructor(type: KClass<*>, index: Int) : this(type.java, index, { x, _ -> x })
 
         companion object {
 
             @Suppress("UNCHECKED_CAST")
-            @JvmStatic fun <T> withTransformer(
-                type: Class<T>,
-                index: Int,
-                transformer: (T, DataFetchingEnvironment) -> Any?,
-                schemaWrapper: (JavaType) -> JavaType = { x -> x }
-            ): GenericWrapper where T: Any {
+            @JvmStatic
+            fun <T> withTransformer(
+                    type: Class<T>,
+                    index: Int,
+                    transformer: (T, DataFetchingEnvironment) -> Any?,
+                    schemaWrapper: (JavaType) -> JavaType = { x -> x }
+            ): GenericWrapper where T : Any {
                 return GenericWrapper(type, index, transformer as (Any, DataFetchingEnvironment) -> Any?, schemaWrapper)
             }
-            
+
             fun <T> withTransformer(
-                type: KClass<T>,
-                index: Int,
-                transformer: (T, DataFetchingEnvironment) -> Any?,
-                schemaWrapper: (JavaType) -> JavaType = { x -> x }
-            ): GenericWrapper where T: Any {
+                    type: KClass<T>,
+                    index: Int,
+                    transformer: (T, DataFetchingEnvironment) -> Any?,
+                    schemaWrapper: (JavaType) -> JavaType = { x -> x }
+            ): GenericWrapper where T : Any {
                 return withTransformer(type.java, index, transformer, schemaWrapper)
             }
 
-            @JvmStatic fun <T> withTransformer(
-                type: Class<T>,
-                index: Int,
-                transformer: (T) -> Any?,
-                schemaWrapper: (JavaType) -> JavaType = { x -> x }
-            ): GenericWrapper where T: Any {
+            @JvmStatic
+            fun <T> withTransformer(
+                    type: Class<T>,
+                    index: Int,
+                    transformer: (T) -> Any?,
+                    schemaWrapper: (JavaType) -> JavaType = { x -> x }
+            ): GenericWrapper where T : Any {
                 return withTransformer(type, index, { x, _ -> transformer.invoke(x) }, schemaWrapper)
             }
 
             fun <T> withTransformer(
-                type: KClass<T>,
-                index: Int,
-                transformer: (T) -> Any?,
-                schemaWrapper: (JavaType) -> JavaType = { x -> x }
-            ): GenericWrapper where T: Any {
+                    type: KClass<T>,
+                    index: Int,
+                    transformer: (T) -> Any?,
+                    schemaWrapper: (JavaType) -> JavaType = { x -> x }
+            ): GenericWrapper where T : Any {
                 return withTransformer(type.java, index, transformer, schemaWrapper)
             }
 
-            @JvmStatic fun <T> listCollectionWithTransformer(
-                type: Class<T>,
-                index: Int,
-                transformer: (T) -> Any?
-            ): GenericWrapper where T: Any {
+            @JvmStatic
+            fun <T> listCollectionWithTransformer(
+                    type: Class<T>,
+                    index: Int,
+                    transformer: (T) -> Any?
+            ): GenericWrapper where T : Any {
                 return withTransformer(
-                    type,
-                    index,
-                    transformer,
-                    { innerType -> ParameterizedTypeImpl.make(List::class.java, arrayOf(innerType), null) }
+                        type,
+                        index,
+                        transformer,
+                        { innerType -> ParameterizedTypeImpl.make(List::class.java, arrayOf(innerType), null) }
                 )
             }
 
             fun <T> listCollectionWithTransformer(
-                type: KClass<T>,
-                index: Int,
-                transformer: (T) -> Any?
-            ): GenericWrapper where T: Any {
+                    type: KClass<T>,
+                    index: Int,
+                    transformer: (T) -> Any?
+            ): GenericWrapper where T : Any {
                 return listCollectionWithTransformer(type.java, index, transformer)
             }
         }
-        
+
     }
 }
