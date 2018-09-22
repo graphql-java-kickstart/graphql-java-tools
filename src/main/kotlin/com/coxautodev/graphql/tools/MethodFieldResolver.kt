@@ -3,9 +3,6 @@ package com.coxautodev.graphql.tools
 import com.coxautodev.graphql.tools.SchemaParserOptions.GenericWrapper
 import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import graphql.execution.batched.Batched
 import graphql.language.FieldDefinition
 import graphql.language.NonNullType
@@ -108,7 +105,14 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         } + listOf(returnValueMatch)
     }
 
-    private fun getIndexOffset() = if (resolverInfo is NormalResolverInfo || resolverInfo is MultiResolverInfo) 1 else 0
+    private fun getIndexOffset(): Int {
+        return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {
+            1
+        } else {
+            0
+        }
+    }
+
     private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
 
     private fun getJavaMethodParameterType(index: Int): JavaType? {

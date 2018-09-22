@@ -10,9 +10,13 @@ internal abstract class ResolverInfo {
             options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
 }
 
-internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions) : ResolverInfo() {
+internal interface DataClassTypeResolverInfo {
+    val dataClassType: Class<*>
+}
+
+internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions) : DataClassTypeResolverInfo, ResolverInfo() {
     val resolverType = getRealResolverClass(resolver, options)
-    val dataClassType = findDataClass()
+    override val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
@@ -42,8 +46,8 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
     }
 }
 
-internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>) : ResolverInfo() {
-    private val dataClassType = findDataClass()
+internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>) : DataClassTypeResolverInfo, ResolverInfo() {
+    override val dataClassType = findDataClass()
 
     /**
      * Checks if all `ResolverInfo` instances are related to the same data type
