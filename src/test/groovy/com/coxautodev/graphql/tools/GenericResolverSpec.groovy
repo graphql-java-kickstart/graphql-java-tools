@@ -35,7 +35,7 @@ class QueryResolver implements GraphQLQueryResolver {
 class Bar {
 }
 
-abstract class FooResolver<T> implements GraphQLResolver<T> {
+abstract class FooResolver<T> {
     String getValue(T foo) {
         return "value"
     }
