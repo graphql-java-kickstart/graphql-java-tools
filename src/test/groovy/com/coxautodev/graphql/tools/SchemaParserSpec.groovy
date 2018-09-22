@@ -25,7 +25,7 @@ class SchemaParserSpec extends Specification {
 
     def "builder throws FileNotFound exception when file is missing"() {
         when:
-            builder.file("/404")
+            builder.file("/404").build()
 
         then:
             thrown(FileNotFoundException)
@@ -33,7 +33,9 @@ class SchemaParserSpec extends Specification {
 
     def "builder doesn't throw FileNotFound exception when file is present"() {
         when:
-            builder.file("test.graphqls")
+            SchemaParser.newParser().file("test.graphqls")
+                    .resolvers(new GraphQLQueryResolver() { String getId() { "1" }})
+                    .build()
 
         then:
             noExceptionThrown()
@@ -296,7 +298,74 @@ class SchemaParserSpec extends Specification {
             sourceLocation.column == 5
             sourceLocation.sourceName == "test.graphqls"
     }
+
+    def "support enum types if only used as input type"() {
+        when:
+            SchemaParser.newParser().schemaString('''\
+                    type Query { test: Boolean }
+                    
+                    type Mutation {
+                        save(input: SaveInput!): Boolean
+                    }
+                    
+                    input SaveInput {
+                        type: EnumType!
+                    }
+                    
+                    enum EnumType {
+                        TEST
+                    }
+                '''.stripIndent())
+                    .resolvers(new GraphQLMutationResolver() {
+                        boolean save(SaveInput input) { false }
+
+                        class SaveInput {
+                            EnumType type;
+                        }
+
+                    }, new GraphQLQueryResolver() {
+                        boolean test() { false }
+                    })
+                    .dictionary(EnumType.class)
+                    .build()
+                    .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+    }
+
+    def "support enum types if only used in input Map"() {
+        when:
+            SchemaParser.newParser().schemaString('''\
+                    type Query { test: Boolean }
+                    
+                    type Mutation {
+                        save(input: SaveInput!): Boolean
+                    }
+                    
+                    input SaveInput {
+                        type: EnumType!
+                    }
+                    
+                    enum EnumType {
+                        TEST
+                    }
+                '''.stripIndent())
+                    .resolvers(new GraphQLMutationResolver() {
+                boolean save(Map input) { false }
+            }, new GraphQLQueryResolver() {
+                boolean test() { false }
+            })
+                    .dictionary(EnumType.class)
+                    .build()
+                    .makeExecutableSchema()
+
+        then:
+            noExceptionThrown()
+    }
 }
+
+enum EnumType { TEST }
 
 class QueryWithIdResolver implements GraphQLQueryResolver {
     String getId() { null }

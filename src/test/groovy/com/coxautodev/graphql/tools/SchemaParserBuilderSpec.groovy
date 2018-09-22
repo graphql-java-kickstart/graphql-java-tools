@@ -21,7 +21,7 @@ class SchemaParserBuilderSpec extends Specification {
 
         where:
             schema | error
-            "invalid"                   | "0,1:7='invalid'"
-            "type Query {\ninvalid!\n}" | "4,21:21='!'"
+            "invalid"                   | "0,0:6='invalid'"
+            "type Query {\ninvalid!\n}" | "4,20:20='!'"
     }
 }

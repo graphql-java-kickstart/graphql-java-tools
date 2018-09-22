@@ -8,6 +8,7 @@ import graphql.execution.ExecutionId
 import graphql.execution.ExecutionStrategy
 import graphql.execution.ExecutionStrategyParameters
 import graphql.execution.instrumentation.SimpleInstrumentation
+import graphql.language.BooleanValue
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.NonNullType
@@ -37,7 +38,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
 
     def "data fetcher throws exception if resolver has too few arguments"() {
         when:
-            createFetcher("active", [new InputValueDefinition("doesNotExist")], new GraphQLQueryResolver() {
+            createFetcher("active", [new InputValueDefinition("doesNotExist", new TypeName("Boolean"))], new GraphQLQueryResolver() {
                 boolean active() { true }
             })
 
@@ -143,7 +144,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     def "data fetcher marshalls input object if required"() {
         setup:
             def name = "correct name"
-            def resolver = createFetcher("active", [new InputValueDefinition("input")], new GraphQLQueryResolver() {
+            def resolver = createFetcher("active", [new InputValueDefinition("input", new TypeName("InputClass"))], new GraphQLQueryResolver() {
                 boolean active(InputClass input) {
                     input instanceof InputClass && input.name == name
                 }
@@ -156,7 +157,7 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     def "data fetcher doesn't marshall input object if not required"() {
         setup:
             def name = "correct name"
-            def resolver = createFetcher("active", [new InputValueDefinition("input")], new GraphQLQueryResolver() {
+            def resolver = createFetcher("active", [new InputValueDefinition("input", new TypeName("Map"))], new GraphQLQueryResolver() {
                 boolean active(Map input) {
                     input instanceof Map && input.name == name
                 }
