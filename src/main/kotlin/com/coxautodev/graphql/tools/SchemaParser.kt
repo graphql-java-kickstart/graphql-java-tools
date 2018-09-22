@@ -18,6 +18,7 @@ import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.language.Type
+import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.language.Value
@@ -59,13 +60,15 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
     private val customScalars = scanResult.customScalars
     private val rootInfo = scanResult.rootInfo
     private val fieldResolversByType = scanResult.fieldResolversByType
+    private val unusedDefinitions = scanResult.unusedDefinitions
 
     private val extensionDefinitions = definitions.filterIsInstance<ObjectTypeExtensionDefinition>()
-    private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
 
+    private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
     private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
+
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
 
     private val permittedTypesForObject: Set<String> = (objectDefinitions.map { it.name } +
@@ -107,6 +110,11 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
      * Parses the given schema with respect to the given dictionary and returns a GraphQLSchema
      */
     fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema()
+
+    /**
+     * Returns any unused type definitions that were found in the schema
+     */
+    fun getUnusedDefinitions(): Set<TypeDefinition<*>> = unusedDefinitions
 
     private fun createObject(definition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {
         val name = definition.name

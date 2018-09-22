@@ -151,7 +151,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                     ?: provided.description, provided.coercing, listOf(), definition)
         }.associateBy { it.name!! }
 
-        (definitionsByName.values - observedDefinitions).forEach { definition ->
+        val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
+        unusedDefinitions.forEach { definition ->
             log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
         }
 
@@ -167,7 +168,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap())
+        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
