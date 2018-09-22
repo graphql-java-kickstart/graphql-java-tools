@@ -1,13 +1,13 @@
 package com.coxautodev.graphql.tools
 
-import graphql.schema.GraphQLSchema
+
 import spock.lang.Specification
 
 class GenericResolverSpec extends Specification {
 
     def "methods from generic resolvers are resolved"() {
         when:
-            GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+            SchemaParser.newParser().schemaString('''\
                         type Query {
                             bar: Bar!
                         }
@@ -21,7 +21,7 @@ class GenericResolverSpec extends Specification {
                     .makeExecutableSchema()
 
         then:
-            schema != null
+            noExceptionThrown()
     }
 
 }
