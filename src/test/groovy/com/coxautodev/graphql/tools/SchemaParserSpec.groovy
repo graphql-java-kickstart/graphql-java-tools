@@ -34,7 +34,9 @@ class SchemaParserSpec extends Specification {
     def "builder doesn't throw FileNotFound exception when file is present"() {
         when:
             SchemaParser.newParser().file("test.graphqls")
-                    .resolvers(new GraphQLQueryResolver() { String getId() { "1" }})
+                    .resolvers(new GraphQLQueryResolver() {
+                String getId() { "1" }
+            })
                     .build()
 
         then:
@@ -317,15 +319,15 @@ class SchemaParserSpec extends Specification {
                     }
                 '''.stripIndent())
                     .resolvers(new GraphQLMutationResolver() {
-                        boolean save(SaveInput input) { false }
+                boolean save(SaveInput input) { false }
 
-                        class SaveInput {
-                            EnumType type;
-                        }
+                class SaveInput {
+                    EnumType type;
+                }
 
-                    }, new GraphQLQueryResolver() {
-                        boolean test() { false }
-                    })
+            }, new GraphQLQueryResolver() {
+                boolean test() { false }
+            })
                     .dictionary(EnumType.class)
                     .build()
                     .makeExecutableSchema()
@@ -364,6 +366,7 @@ class SchemaParserSpec extends Specification {
         then:
             noExceptionThrown()
     }
+
 }
 
 enum EnumType { TEST }

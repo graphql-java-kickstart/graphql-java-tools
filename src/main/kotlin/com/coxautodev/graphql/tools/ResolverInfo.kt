@@ -7,27 +7,27 @@ internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
 
     fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions) =
-        options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
+            options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
 }
 
-internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions): ResolverInfo() {
+internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions) : ResolverInfo() {
     val resolverType = getRealResolverClass(resolver, options)
     val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<*> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
         val interfaceType = GenericType(resolverType, options).getGenericInterface(GraphQLResolver::class.java)
-        if(interfaceType == null || interfaceType !is ParameterizedType) {
+        if (interfaceType == null || interfaceType !is ParameterizedType) {
             error("${GraphQLResolver::class.java.simpleName} interface was not parameterized for: ${resolverType.name}")
         }
 
         val type = TypeUtils.determineTypeArguments(resolverType, interfaceType)[GraphQLResolver::class.java.typeParameters[0]]
 
-        if(type == null || type !is Class<*>) {
-            throw ResolverError("Unable to determine data class for resolver '${resolverType.name}' from generic interface!  This is most likely a bug with graphql-java-tools.")
+        if (type == null || type !is Class<*>) {
+            throw ResolverError("Unable to determine data class for resolver '${resolverType.name}' from generic interface! This is most likely a bug with graphql-java-tools.")
         }
 
-        if(type == Void::class.java) {
+        if (type == Void::class.java) {
             throw ResolverError("Resolvers may not have ${Void::class.java.name} as their type, use a real type or use a root resolver interface.")
         }
 
@@ -36,13 +36,13 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(
-            FieldResolverScanner.Search(resolverType, this, resolver, dataClassType, true),
-            FieldResolverScanner.Search(dataClassType, this, null)
+                FieldResolverScanner.Search(resolverType, this, resolver, dataClassType, true),
+                FieldResolverScanner.Search(dataClassType, this, null)
         )
     }
 }
 
-internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>): ResolverInfo() {
+internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>) : ResolverInfo() {
     private val dataClassType = findDataClass()
 
     /**
@@ -51,7 +51,7 @@ internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>)
     private fun findDataClass(): Class<*> {
         val dataClass = resolverInfoList.map { it.dataClassType }.distinct().singleOrNull()
 
-        if(dataClass == null) {
+        if (dataClass == null) {
             throw ResolverError("Resolvers may not use the same type.")
         } else {
             return dataClass
@@ -65,17 +65,17 @@ internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>)
     }
 }
 
-internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, private val options: SchemaParserOptions): ResolverInfo() {
+internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, private val options: SchemaParserOptions) : ResolverInfo() {
     override fun getFieldSearches() =
-        resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
+            resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
 }
 
-internal class DataClassResolverInfo(private val dataClass: Class<*>): ResolverInfo() {
+internal class DataClassResolverInfo(private val dataClass: Class<*>) : ResolverInfo() {
     override fun getFieldSearches() =
-        listOf(FieldResolverScanner.Search(dataClass, this, null))
+            listOf(FieldResolverScanner.Search(dataClass, this, null))
 }
 
-internal class MissingResolverInfo: ResolverInfo() {
+internal class MissingResolverInfo : ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> = listOf()
 }
 

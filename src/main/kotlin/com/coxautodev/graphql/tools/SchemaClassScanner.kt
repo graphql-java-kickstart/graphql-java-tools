@@ -216,10 +216,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         val resolverInfoList = this.resolverInfos.filter { it.dataClassType == item.clazz }
         val resolverInfo: ResolverInfo
 
-        if (resolverInfoList.size > 1) {
-            resolverInfo = MultiResolverInfo(resolverInfoList)
+        resolverInfo = if (resolverInfoList.size > 1) {
+            MultiResolverInfo(resolverInfoList)
         } else {
-            resolverInfo = resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
+            resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
         }
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
@@ -229,7 +229,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
-            fieldResolversByType.getOrPut(type, { mutableMapOf() })[fieldResolver.field] = fieldResolver
+            fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
             fieldResolver.scanForMatches().forEach { potentialMatch ->
                 handleFoundType(typeClassMatcher.match(potentialMatch))
             }

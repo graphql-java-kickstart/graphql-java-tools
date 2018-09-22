@@ -9,6 +9,7 @@ import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.TypeVariable
 
 /**
  * @author Andrew Potter
@@ -22,11 +23,13 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
         fun getAllMethods(type: Class<*>) =
                 (type.methods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.methods.toList() })
-                    .filter { !it.isSynthetic }
-                    .filter { !Modifier.isPrivate(it.modifiers) }
-                    // discard any methods that are coming off the root of the class hierarchy
-                    // to avoid issues with duplicate method declarations
-                    .filter { it.declaringClass != Object::class.java }
+                        .asSequence()
+                        .filter { !it.isSynthetic }
+                        .filter { !Modifier.isPrivate(it.modifiers) }
+                        // discard any methods that are coming off the root of the class hierarchy
+                        // to avoid issues with duplicate method declarations
+                        .filter { it.declaringClass != Object::class.java }
+                        .toList()
     }
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
@@ -96,10 +99,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
-            if(MethodFieldResolver.isBatched(method, search)) {
+            if (MethodFieldResolver.isBatched(method, search)) {
                 verifyBatchedMethodFirstArgument(method.genericParameterTypes.firstOrNull(), search.requiredFirstParameterType)
             } else {
-                method.parameterTypes.firstOrNull() == search.requiredFirstParameterType
+                method.genericParameterTypes.firstOrNull()?.let {
+                    it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
+                } ?: false
             }
         } else {
             true
@@ -110,15 +115,15 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun verifyBatchedMethodFirstArgument(firstType: JavaType?, requiredFirstParameterType: Class<*>?): Boolean {
-        if(firstType == null) {
+        if (firstType == null) {
             return false
         }
 
-        if(firstType !is ParameterizedType) {
+        if (firstType !is ParameterizedType) {
             return false
         }
 
-        if(!TypeClassMatcher.isListType(firstType, GenericType(firstType, options))) {
+        if (!TypeClassMatcher.isListType(firstType, GenericType(firstType, options))) {
             return false
         }
 
@@ -128,7 +133,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun findResolverProperty(field: FieldDefinition, search: Search) =
-        FieldUtils.getAllFields(search.type).find { it.name == field.name }
+            FieldUtils.getAllFields(search.type).find { it.name == field.name }
 
     private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
@@ -138,7 +143,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
         }
 
-        val sourceLocation = if (field.sourceLocation != null) "${field.sourceLocation.sourceName}:${field.sourceLocation.line}" else "<unknown>"
+        val sourceName = if (field.sourceLocation != null && field.sourceLocation.sourceName != null) field.sourceLocation.sourceName else "<unknown>"
+        val sourceLocation = if (field.sourceLocation != null) "$sourceName:${field.sourceLocation.line}" else "<unknown>"
         return "No method${if (scannedProperties) " or field" else ""} found as defined in $sourceLocation with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
@@ -171,4 +177,4 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
 }
 
-class FieldResolverError(msg: String): RuntimeException(msg)
+class FieldResolverError(msg: String) : RuntimeException(msg)
