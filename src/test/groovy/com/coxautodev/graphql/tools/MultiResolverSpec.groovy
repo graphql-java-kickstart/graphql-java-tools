@@ -25,7 +25,7 @@ class MultiResolverSpec extends Specification {
                         type Friend {
                             name: String!
                         }
-                    ''')
+                    '''.stripIndent())
                 .resolvers(new QueryWithPersonResolver(), new PersonFriendResolver(), new PersonNameResolver())
                 .build()
                 .makeExecutableSchema()

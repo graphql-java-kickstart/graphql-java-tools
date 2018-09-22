@@ -108,7 +108,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         } + listOf(returnValueMatch)
     }
 
-    private fun getIndexOffset() = if (resolverInfo is NormalResolverInfo) 1 else 0
+    private fun getIndexOffset() = if (resolverInfo is NormalResolverInfo || resolverInfo is MultiResolverInfo) 1 else 0
     private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
 
     private fun getJavaMethodParameterType(index: Int): JavaType? {
@@ -147,8 +147,8 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
         return if (result == null) {
             result
         } else {
-            val wrapper = options
-                    .genericWrappers
+            val wrapper = options.genericWrappers
+                    .asSequence()
                     .filter { it.type.isInstance(result) }
                     .sortedWith(CompareGenericWrappers)
                     .firstOrNull()
