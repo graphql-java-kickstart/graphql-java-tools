@@ -87,11 +87,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         do {
             do {
                 // Require all implementors of discovered interfaces to be discovered or provided.
-                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces(), { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
             } while (scanQueue())
 
             // Require all members of discovered unions to be discovered.
-            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions(), { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." })
+            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
         } while (scanQueue())
 
         return validateAndCreateResult(rootTypeHolder)
@@ -253,7 +253,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
     private fun handleFoundType(type: TypeDefinition<*>, clazz: Class<*>?, reference: Reference) {
-        val realEntry = dictionary.getOrPut(type, { DictionaryEntry() })
+        val realEntry = dictionary.getOrPut(type) { DictionaryEntry() }
         var typeWasSet = false
 
         if (clazz != null) {
@@ -288,16 +288,23 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
             is InputObjectTypeDefinition -> {
                 graphQLType.inputValueDefinitions.forEach { inputValueDefinition ->
-                    findInputValueType(inputValueDefinition.name, javaType)?.let { inputValueJavaType ->
-                        val inputGraphQLType = inputValueDefinition.type.unwrap()
-                        if(inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                    val inputGraphQLType = inputValueDefinition.type.unwrap()
+                    if (inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                        val inputValueJavaType = findInputValueType(inputValueDefinition.name, javaType)
+                        if (inputValueJavaType != null) {
                             handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
-                                inputValueDefinition.type,
-                                inputValueJavaType,
-                                GenericType(javaType, options).relativeToType(inputValueJavaType),
-                                InputObjectReference(inputValueDefinition),
-                                false
+                                    inputValueDefinition.type,
+                                    inputValueJavaType,
+                                    GenericType(javaType, options).relativeToType(inputValueJavaType),
+                                    InputObjectReference(inputValueDefinition),
+                                    false
                             )))
+                        } else {
+                            var mappingAdvice = ""
+                            if (javaType.name.contains("Map")) {
+                                mappingAdvice = ". Try using a class to represent your input type instead of a Map."
+                            }
+                            log.warn("Cannot find definition for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' on input type '${graphQLType.name}' -> ${javaType.name}$mappingAdvice")
                         }
                     }
                 }

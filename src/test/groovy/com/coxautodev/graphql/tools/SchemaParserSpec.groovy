@@ -344,6 +344,7 @@ class SchemaParserSpec extends Specification {
                     }
                     
                     input SaveInput {
+                        age: Int
                         type: EnumType!
                     }
                     
