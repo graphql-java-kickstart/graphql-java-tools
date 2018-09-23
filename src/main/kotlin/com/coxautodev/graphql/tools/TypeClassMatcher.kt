@@ -8,6 +8,7 @@ import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.reflect.TypeUtils
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.util.*
 
@@ -103,7 +104,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = isListType(realType, potentialMatch.generic)
 
     private fun requireRawClass(type: JavaType): Class<out Any> {
-//        if (type is ParameterizedType) {
+//        if (type is ParameterizedTypeImpl) {
 //            return type.rawType.javaClass
 //        }
 //        if (type !is Class<*>) {
