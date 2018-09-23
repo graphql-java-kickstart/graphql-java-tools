@@ -29,6 +29,9 @@ class RelayConnectionSpec extends Specification {
                             id: ID!
                             name: String
                         }
+                        
+                        type PageInfo {
+                        }
                     ''')
                     .resolvers(new QueryResolver())
                     .dictionary(User.class)
@@ -40,8 +43,8 @@ class RelayConnectionSpec extends Specification {
     }
 
     static class QueryResolver implements GraphQLQueryResolver {
-        DefaultConnection<User> users(int first, String after, DataFetchingEnvironment env) {
-            new SimpleListConnection<User>(new ArrayList()).get(env) as DefaultConnection<User>
+        Connection<User> users(int first, String after, DataFetchingEnvironment env) {
+            new SimpleListConnection<User>(new ArrayList()).get(env)
         }
     }
 
