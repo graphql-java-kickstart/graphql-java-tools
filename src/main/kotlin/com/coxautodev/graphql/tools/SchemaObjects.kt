@@ -13,15 +13,17 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
      * Makes a GraphQLSchema with query, mutation and subscription.
      */
     fun toSchema(): GraphQLSchema = GraphQLSchema.newSchema()
-        .query(query)
-        .mutation(mutation)
-        .subscription(subscription)
-        .build(dictionary)
+            .query(query)
+            .mutation(mutation)
+            .subscription(subscription)
+            .additionalTypes(dictionary)
+            .build()
 
     /**
      * Makes a GraphQLSchema with query but without mutation and subscription.
      */
     fun toReadOnlySchema(): GraphQLSchema = GraphQLSchema.newSchema()
-        .query(query)
-        .build(dictionary)
+            .query(query)
+            .additionalTypes(dictionary)
+            .build()
 }
