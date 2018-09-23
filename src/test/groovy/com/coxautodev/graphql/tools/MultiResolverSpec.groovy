@@ -51,30 +51,30 @@ class MultiResolverSpec extends Specification {
         then:
             data.person
     }
-}
 
-class QueryWithPersonResolver implements GraphQLQueryResolver {
-    Person getPerson() {
-        new Person()
+    class QueryWithPersonResolver implements GraphQLQueryResolver {
+        Person getPerson() {
+            new Person()
+        }
     }
-}
 
-class Person {
+    class Person {
 
-}
-
-class Friend {
-    String name
-}
-
-class PersonFriendResolver implements GraphQLResolver<Person> {
-    List<Friend> friends(Person person, String friendName) {
-        Collections.emptyList()
     }
-}
 
-class PersonNameResolver implements GraphQLResolver<Person> {
-    String name(Person person) {
-        "name"
+    class Friend {
+        String name
+    }
+
+    class PersonFriendResolver implements GraphQLResolver<Person> {
+        List<Friend> friends(Person person, String friendName) {
+            Collections.emptyList()
+        }
+    }
+
+    class PersonNameResolver implements GraphQLResolver<Person> {
+        String name(Person person) {
+            "name"
+        }
     }
 }

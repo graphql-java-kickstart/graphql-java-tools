@@ -3,7 +3,7 @@ package com.coxautodev.graphql.tools
 
 import spock.lang.Specification
 
-class GenericResolverSpec extends Specification {
+class SuperclassResolverSpec extends Specification {
 
     def "methods from generic resolvers are resolved"() {
         when:
@@ -33,13 +33,13 @@ class GenericResolverSpec extends Specification {
     class Bar {
     }
 
-    abstract class FooResolver<T> {
+    abstract class FooResolver<T> implements GraphQLResolver<Bar> {
         String getValue(T foo) {
             return "value"
         }
     }
 
-    class BarResolver extends FooResolver<Bar> implements GraphQLResolver<Bar> {
+    class BarResolver extends FooResolver<Bar> {
 
     }
 }

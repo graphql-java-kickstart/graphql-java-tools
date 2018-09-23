@@ -367,40 +367,40 @@ class SchemaParserSpec extends Specification {
             noExceptionThrown()
     }
 
-}
+    enum EnumType { TEST }
 
-enum EnumType { TEST }
+    class QueryWithIdResolver implements GraphQLQueryResolver {
+        String getId() { null }
+    }
 
-class QueryWithIdResolver implements GraphQLQueryResolver {
-    String getId() { null }
-}
+    class Filter {
+        String filter() { null }
+    }
 
-class Filter {
-    String filter() { null }
-}
+    class CustomGenericWrapper<T, V> {}
 
-class CustomGenericWrapper<T, V> {}
+    class Obj {
+        def name() { null }
+    }
 
-class Obj {
-    def name() { null }
-}
+    class AnotherObj {
+        def key() { null }
+    }
 
-class AnotherObj {
-    def key() { null }
-}
+    class RootObj {
+    }
 
-class RootObj {
-}
+    class ProxiedResolver implements GraphQLQueryResolver {
+        List<String> test() { [] }
+    }
 
-class ProxiedResolver implements GraphQLQueryResolver {
-    List<String> test() { [] }
-}
-
-enum CustomEnum {
-    FOO{
-        @Override
-        String toString() {
-            return "Bar"
+    enum CustomEnum {
+        FOO{
+            @Override
+            String toString() {
+                return "Bar"
+            }
         }
     }
+
 }

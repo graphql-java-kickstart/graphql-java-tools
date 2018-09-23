@@ -237,19 +237,19 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
             .subscriptionStrategy(executionStrategy)
             .build()
     }
-}
 
-class DataClass {
-    private static final String name = "Data Class Name"
+    class DataClass {
+        private static final String name = "Data Class Name"
 
-    String getName() {
-        name
+        String getName() {
+            name
+        }
     }
-}
 
-class InputClass {
-    String name
-}
+    static class InputClass {
+        String name
+    }
 
-class ContextClass {
+    class ContextClass {
+    }
 }
