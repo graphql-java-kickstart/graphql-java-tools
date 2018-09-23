@@ -18,5 +18,5 @@ internal data class ScannedSchemaObjects(
         val unusedDefinitions: Set<TypeDefinition<*>>
 )
 
-internal typealias TypeClassDictionary = BiMap<TypeDefinition<*>, Class<*>>
+internal typealias TypeClassDictionary = BiMap<TypeDefinition<*>, Class<out Any>>
 internal typealias CustomScalarMap = Map<String, GraphQLScalarType>

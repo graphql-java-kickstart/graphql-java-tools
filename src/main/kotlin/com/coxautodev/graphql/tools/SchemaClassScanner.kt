@@ -256,7 +256,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
-    private fun handleFoundType(type: TypeDefinition<*>, clazz: Class<*>?, reference: Reference) {
+    private fun handleFoundType(type: TypeDefinition<*>, clazz: Class<out Any>?, reference: Reference) {
         val realEntry = dictionary.getOrPut(type) { DictionaryEntry() }
         var typeWasSet = false
 
@@ -356,10 +356,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
     private class DictionaryEntry {
         private val references = mutableListOf<Reference>()
-        var typeClass: Class<*>? = null
+        var typeClass: Class<out Any>? = null
             private set
 
-        fun setTypeIfMissing(typeClass: Class<*>): Boolean {
+        fun setTypeIfMissing(typeClass: Class<out Any>): Boolean {
             if (this.typeClass == null) {
                 this.typeClass = typeClass
                 return true

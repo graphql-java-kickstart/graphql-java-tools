@@ -1,6 +1,7 @@
 package com.coxautodev.graphql.tools
 
 import graphql.relay.Connection
+import graphql.relay.DefaultConnection
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
 import spock.lang.Specification
@@ -39,8 +40,8 @@ class RelayConnectionSpec extends Specification {
     }
 
     static class QueryResolver implements GraphQLQueryResolver {
-        Connection<User> users(int first, String after, DataFetchingEnvironment env) {
-            new SimpleListConnection<User>(new ArrayList()).get(env)
+        DefaultConnection<User> users(int first, String after, DataFetchingEnvironment env) {
+            new SimpleListConnection<User>(new ArrayList()).get(env) as DefaultConnection<User>
         }
     }
 
