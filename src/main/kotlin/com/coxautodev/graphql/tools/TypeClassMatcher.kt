@@ -6,6 +6,7 @@ import graphql.language.NonNullType
 import graphql.language.ScalarTypeDefinition
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
+import graphql.relay.Connection
 import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.reflect.TypeUtils
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
@@ -104,9 +105,9 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = isListType(realType, potentialMatch.generic)
 
     private fun requireRawClass(type: JavaType): Class<out Any> {
-//        if (type is ParameterizedTypeImpl) {
-//            return type.rawType.javaClass
-//        }
+        if (type is ParameterizedTypeImpl) {
+            return type.rawType
+        }
 //        if (type !is Class<*>) {
 //            throw RawClassRequiredForGraphQLMappingException("Type ${TypeUtils.toString(type)} cannot be mapped to a GraphQL type!  Since GraphQL-Java deals with erased types at runtime, only non-parameterized classes can represent a GraphQL type.  This allows for reverse-lookup by java class in interfaces and union types.")
 //        }

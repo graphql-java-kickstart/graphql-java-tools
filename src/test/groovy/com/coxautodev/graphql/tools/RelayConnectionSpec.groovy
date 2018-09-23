@@ -21,7 +21,6 @@ class RelayConnectionSpec extends Specification {
                         }
                         
                         type UserEdge {
-                            cursor: String!
                             node: User!
                         }
                         
