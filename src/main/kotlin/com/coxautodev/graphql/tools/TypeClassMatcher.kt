@@ -6,9 +6,7 @@ import graphql.language.NonNullType
 import graphql.language.ScalarTypeDefinition
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
-import graphql.relay.Connection
 import graphql.schema.idl.ScalarInfo
-import org.apache.commons.lang3.reflect.TypeUtils
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.util.*

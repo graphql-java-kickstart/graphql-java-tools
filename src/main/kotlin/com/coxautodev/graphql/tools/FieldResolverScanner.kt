@@ -9,7 +9,6 @@ import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
-import java.lang.reflect.TypeVariable
 
 /**
  * @author Andrew Potter
@@ -22,7 +21,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
         fun getAllMethods(type: Class<*>) =
-                (type.methods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.methods.toList() })
+                (type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.methods.toList() })
                         .asSequence()
                         .filter { !it.isSynthetic }
                         .filter { !Modifier.isPrivate(it.modifiers) }
@@ -74,7 +73,6 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
 
     private fun findResolverMethod(field: FieldDefinition, search: Search): java.lang.reflect.Method? {
-
         val methods = getAllMethods(search.type)
         val argumentCount = field.inputValueDefinitions.size + if (search.requiredFirstParameterType != null) 1 else 0
         val name = field.name

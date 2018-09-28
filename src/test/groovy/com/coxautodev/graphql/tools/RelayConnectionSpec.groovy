@@ -2,15 +2,27 @@ package com.coxautodev.graphql.tools
 
 import graphql.relay.Connection
 import graphql.relay.DefaultConnection
+import graphql.relay.Edge
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
 import spock.lang.Specification
 
 class RelayConnectionSpec extends Specification {
 
+    private static final SchemaParserOptions options = SchemaParserOptions.newOptions().genericWrappers(
+            new SchemaParserOptions.GenericWrapper(
+                    Connection.class,
+                    0
+            ),
+            new SchemaParserOptions.GenericWrapper(
+                    Edge.class,
+                    0
+            )
+    ).build()
+
     def "relay connection types are compatible"() {
         when:
-            SchemaParser.newParser().schemaString('''\
+            SchemaParser.newParser().options(options).schemaString('''\
                         type Query {
                             users(first: Int, after: String): UserConnection
                         }

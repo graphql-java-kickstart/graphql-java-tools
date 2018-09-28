@@ -64,8 +64,10 @@ internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>)
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return resolverInfoList
+                .asSequence()
                 .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, dataClassType, true) }
                 .plus(FieldResolverScanner.Search(dataClassType, this, null))
+                .toList()
     }
 }
 

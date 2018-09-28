@@ -412,7 +412,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     class ReturnValueReference(private val method: Method) : Reference() {
-        fun getMethod() = method;
+        fun getMethod() = method
         override fun getDescription() = "return type of method $method"
     }
 
