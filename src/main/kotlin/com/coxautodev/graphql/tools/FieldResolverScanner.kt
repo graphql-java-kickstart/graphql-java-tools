@@ -20,8 +20,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     companion object {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
-        fun getAllMethods(type: Class<*>) =
-                (type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.methods.toList() })
+        fun getAllMethods(type: JavaType) =
+                (type.unwrap().declaredMethods.toList() + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
                         .asSequence()
                         .filter { !it.isSynthetic }
                         .filter { !Modifier.isPrivate(it.modifiers) }
@@ -57,6 +57,10 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if (method != null) {
+            if (search.type is ParameterizedType && search.type.actualTypeArguments.isNotEmpty()) {
+                log.debug("actual type parameters: ${search.type.actualTypeArguments[0]}")
+            }
+            log.debug("method hit: ${method} and search type ${search.type} and declaring class ${method.declaringClass}")
             return MethodFieldResolver(field, search, options, method.apply { isAccessible = true })
         }
 
@@ -131,7 +135,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun findResolverProperty(field: FieldDefinition, search: Search) =
-            FieldUtils.getAllFields(search.type).find { it.name == field.name }
+            FieldUtils.getAllFields(search.type.unwrap()).find { it.name == field.name }
 
     private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
@@ -147,7 +151,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
-        val baseType = search.type
+        val baseType = search.type.unwrap()
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()
         val sep = ", "
@@ -172,7 +176,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return signatures
     }
 
-    data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
+    data class Search(val type: JavaType, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
 }
 
 class FieldResolverError(msg: String) : RuntimeException(msg)

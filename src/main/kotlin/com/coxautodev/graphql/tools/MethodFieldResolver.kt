@@ -9,23 +9,24 @@ import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import java.lang.reflect.Method
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.TypeVariable
 import java.util.*
 
 /**
  * @author Andrew Potter
  */
-internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method) : FieldResolver(field, search, options, method.declaringClass) {
+internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method) : FieldResolver(field, search, options, search.type) {
 
     companion object {
         fun isBatched(method: Method, search: FieldResolverScanner.Search): Boolean {
             if (method.getAnnotation(Batched::class.java) != null) {
                 if (!search.allowBatched) {
-                    throw ResolverError("The @Batched annotation is only allowed on non-root resolver methods, but it was found on ${search.type.name}#${method.name}!")
+                    throw ResolverError("The @Batched annotation is only allowed on non-root resolver methods, but it was found on ${search.type.unwrap().name}#${method.name}!")
                 }
 
                 return true
             }
-
             return false
         }
     }
@@ -98,12 +99,23 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val batched = isBatched(method, search)
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, method.genericReturnType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
+        // fixme: convert type variables
+//        val replacedGenericType = replaceTypeVariables(method.genericReturnType)
+        val unwrappedGenericType = genericType.unwrapGenericType(method.genericReturnType)
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
             TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i), batched)
         } + listOf(returnValueMatch)
     }
+
+//    private fun replaceTypeVariables(javaType: JavaType): JavaType {
+//        return when (javaType) {
+//            is ParameterizedType -> replaceTypeVariables(javaType.rawType)
+//            is TypeVariable<*> -> genericType.unwrapGenericType(javaType)
+//            else -> javaType
+//        }
+//    }
 
     private fun getIndexOffset(): Int {
         return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {

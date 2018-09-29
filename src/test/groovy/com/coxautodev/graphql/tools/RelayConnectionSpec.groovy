@@ -9,22 +9,12 @@ import spock.lang.Specification
 
 class RelayConnectionSpec extends Specification {
 
-    private static final SchemaParserOptions options = SchemaParserOptions.newOptions().genericWrappers(
-            new SchemaParserOptions.GenericWrapper(
-                    Connection.class,
-                    0
-            ),
-            new SchemaParserOptions.GenericWrapper(
-                    Edge.class,
-                    0
-            )
-    ).build()
-
     def "relay connection types are compatible"() {
         when:
-            SchemaParser.newParser().options(options).schemaString('''\
+            SchemaParser.newParser().schemaString('''\
                         type Query {
                             users(first: Int, after: String): UserConnection
+                            otherTypes: AnotherTypeConnection
                         }
                         
                         type UserConnection {
@@ -43,9 +33,20 @@ class RelayConnectionSpec extends Specification {
                         
                         type PageInfo {
                         }
+                        
+                        type AnotherTypeConnection {
+                            edges: [AnotherTypeEdge!]!
+                        }
+                        
+                        type AnotherTypeEdge {
+                            node: AnotherType!
+                        }
+                        
+                        type AnotherType {
+                        
+                        }
                     ''')
                     .resolvers(new QueryResolver())
-                    .dictionary(User.class)
                     .build()
                     .makeExecutableSchema()
 
@@ -57,11 +58,19 @@ class RelayConnectionSpec extends Specification {
         Connection<User> users(int first, String after, DataFetchingEnvironment env) {
             new SimpleListConnection<User>(new ArrayList()).get(env)
         }
+
+        Connection<AnotherType> otherTypes(DataFetchingEnvironment env) {
+            new SimpleListConnection<AnotherType>(new ArrayList()).get(env)
+        }
     }
 
     static class User {
         Long id
         String name
+    }
+
+    private static class AnotherType {
+
     }
 
 

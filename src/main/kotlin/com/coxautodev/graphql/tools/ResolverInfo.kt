@@ -11,14 +11,14 @@ internal abstract class ResolverInfo {
 }
 
 internal interface DataClassTypeResolverInfo {
-    val dataClassType: Class<*>
+    val dataClassType: Class<out Any>
 }
 
 internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions) : DataClassTypeResolverInfo, ResolverInfo() {
     val resolverType = getRealResolverClass(resolver, options)
     override val dataClassType = findDataClass()
 
-    private fun findDataClass(): Class<*> {
+    private fun findDataClass(): Class<out Any> {
         // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
         val interfaceType = GenericType(resolverType, options).getGenericInterface(GraphQLResolver::class.java)
         if (interfaceType == null || interfaceType !is ParameterizedType) {
@@ -52,8 +52,8 @@ internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>)
     /**
      * Checks if all `ResolverInfo` instances are related to the same data type
      */
-    private fun findDataClass(): Class<*> {
-        val dataClass = resolverInfoList.map { it.dataClassType }.distinct().singleOrNull()
+    private fun findDataClass(): Class<out Any> {
+        val dataClass = resolverInfoList.asSequence().map { it.dataClassType }.distinct().singleOrNull()
 
         if (dataClass == null) {
             throw ResolverError("Resolvers may not use the same type.")
@@ -76,7 +76,7 @@ internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, privat
             resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
 }
 
-internal class DataClassResolverInfo(private val dataClass: Class<*>) : ResolverInfo() {
+internal class DataClassResolverInfo(private val dataClass: JavaType) : ResolverInfo() {
     override fun getFieldSearches() =
             listOf(FieldResolverScanner.Search(dataClass, this, null))
 }

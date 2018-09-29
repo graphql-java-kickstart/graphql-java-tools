@@ -7,7 +7,6 @@ import graphql.language.ScalarTypeDefinition
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.schema.idl.ScalarInfo
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.util.*
 
@@ -91,27 +90,16 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 if (typeDefinition is ScalarTypeDefinition) {
                     ScalarMatch(typeDefinition)
                 } else {
-                    ValidMatch(typeDefinition, requireRawClass(realType), potentialMatch.reference)
+                    ValidMatch(typeDefinition, ClassEntry.of(realType), potentialMatch.reference)
                 }
             }
 
-            is TypeDefinition<*> -> ValidMatch(graphQLType, requireRawClass(realType), potentialMatch.reference)
+            is TypeDefinition<*> -> ValidMatch(graphQLType, ClassEntry.of(realType), potentialMatch.reference)
             else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
         }
     }
 
     private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = isListType(realType, potentialMatch.generic)
-
-    private fun requireRawClass(type: JavaType): Class<out Any> {
-        if (type is ParameterizedTypeImpl) {
-            return type.rawType
-        }
-//        if (type !is Class<*>) {
-//            throw RawClassRequiredForGraphQLMappingException("Type ${TypeUtils.toString(type)} cannot be mapped to a GraphQL type!  Since GraphQL-Java deals with erased types at runtime, only non-parameterized classes can represent a GraphQL type.  This allows for reverse-lookup by java class in interfaces and union types.")
-//        }
-
-        return type.javaClass
-    }
 
     private fun stripBatchedType(potentialMatch: PotentialMatch): PotentialMatch {
         return if (potentialMatch.location == Location.PARAMETER_TYPE) {
@@ -128,7 +116,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     internal interface Match
     internal data class ScalarMatch(val type: ScalarTypeDefinition) : Match
-    internal data class ValidMatch(val type: TypeDefinition<*>, val clazz: Class<out Any>, val reference: SchemaClassScanner.Reference) : Match
+    internal data class ValidMatch(val type: TypeDefinition<*>, val classEntry: ClassEntry, val reference: SchemaClassScanner.Reference) : Match
     internal enum class Location(val prettyName: String) {
         RETURN_TYPE("return type"),
         PARAMETER_TYPE("parameter"),

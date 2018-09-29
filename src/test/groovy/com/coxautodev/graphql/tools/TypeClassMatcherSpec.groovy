@@ -6,6 +6,7 @@ import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.TypeDefinition
 import graphql.language.TypeName
+import graphql.relay.Connection
 import spock.lang.Specification
 import spock.lang.Unroll
 
@@ -17,10 +18,15 @@ import java.util.concurrent.Future
  */
 class TypeClassMatcherSpec extends Specification {
 
+    private static final graphql.language.Type unwrappedCustomType = new TypeName("UnwrappedGenericCustomType")
     private static final graphql.language.Type customType = new TypeName("CustomType")
     private static final TypeDefinition customDefinition = new ObjectTypeDefinition("CustomType")
+    private static final TypeDefinition unwrappedCustomDefinition = new ObjectTypeDefinition("UnwrappedGenericCustomType")
 
-    private static final TypeClassMatcher matcher = new TypeClassMatcher([CustomType: customDefinition])
+    private static final TypeClassMatcher matcher = new TypeClassMatcher([
+            CustomType: customDefinition,
+            UnwrappedGenericCustomType: unwrappedCustomDefinition
+    ])
     private static final SchemaParserOptions options = SchemaParserOptions.newOptions().genericWrappers(
         new SchemaParserOptions.GenericWrapper(
             GenericCustomType.class,
@@ -106,12 +112,14 @@ class TypeClassMatcherSpec extends Specification {
             "listNullableType"     | list(customType)
     }
 
-    def "matcher does not allow unwrapped parameterized types as root types"() {
+    def "matcher allows unwrapped parameterized types as root types"() {
         when:
-            matcher.match(createPotentialMatch("genericCustomUnwrappedType", customType))
+            def match = matcher.match(createPotentialMatch("genericCustomUnwrappedType", unwrappedCustomType))
 
         then:
-            thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
+            noExceptionThrown()
+            match.type  == unwrappedCustomDefinition
+            match.clazz == UnwrappedGenericCustomType
     }
 
     private class Super<Unused, Type, ListFutureType> implements GraphQLQueryResolver {
@@ -136,11 +144,12 @@ class TypeClassMatcherSpec extends Specification {
 
         GenericCustomType<CustomType> genericCustomType() { null }
         GenericCustomListType<CustomType> genericListType() { null }
-        UnwrappedGenericCustomType<String> genericCustomUnwrappedType() { null }
+        UnwrappedGenericCustomType<CustomType> genericCustomUnwrappedType() { null }
     }
 
     private class CustomType {}
     private static class GenericCustomType<T> {}
     private static class GenericCustomListType<T> {}
     private static class UnwrappedGenericCustomType<T> {}
+
 }
