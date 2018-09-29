@@ -133,7 +133,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, JavaType>().also {
-                dictionary.filter { it.value.type() != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition }.mapValuesTo(it) { it.value.type() }
+                dictionary.filter { it.value.javaType != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition }.mapValuesTo(it) { it.value.javaType }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -205,7 +205,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
                 val initialEntry = initialDictionary[type.name] ?: throw SchemaClassScannerError(failureMessage(type))
-                handleFoundType(type, ClassEntry.of(initialEntry.get()), DictionaryReference())
+                handleFoundType(type, initialEntry.get(), DictionaryReference())
             }
         }
     }
@@ -244,7 +244,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             }
 
             is TypeClassMatcher.ValidMatch -> {
-                handleFoundType(match.type, match.classEntry, match.reference)
+                handleFoundType(match.type, match.javaType, match.reference)
             }
         }
     }
@@ -256,18 +256,18 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
-    private fun handleFoundType(type: TypeDefinition<*>, classEntry: ClassEntry?, reference: Reference) {
+    private fun handleFoundType(type: TypeDefinition<*>, javaType: JavaType?, reference: Reference) {
         val realEntry = dictionary.getOrPut(type) { DictionaryEntry() }
         var typeWasSet = false
 
-        if (classEntry != null) {
-            typeWasSet = realEntry.setTypeIfMissing(classEntry)
+        if (javaType != null) {
+            typeWasSet = realEntry.setTypeIfMissing(javaType)
 
-            if (realEntry.classEntry != classEntry) {
+            if (realEntry.javaType != javaType) {
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
-                    log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${classEntry.clazz} $reference")
+                    log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${classEntry.clazz}:\n|   ${reference.getDescription()}")
+                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.unwrap()}:\n|   ${reference.getDescription()}")
                 }
             }
         }
@@ -275,8 +275,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         realEntry.addReference(reference)
 
         // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
-        if (typeWasSet && classEntry != null) {
-            handleNewType(type, classEntry.type)
+        if (typeWasSet && javaType != null) {
+            handleNewType(type, javaType)
         }
     }
 
@@ -356,21 +356,21 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
 
     private class DictionaryEntry {
         private val references = mutableListOf<Reference>()
-        var classEntry: ClassEntry? = null
+        var javaType: JavaType? = null
             private set
 
-        fun setTypeIfMissing(classEntry: ClassEntry): Boolean {
-            if (this.classEntry == null) {
-                this.classEntry = classEntry
+        fun setTypeIfMissing(javaType: JavaType): Boolean {
+            if (this.javaType == null) {
+                this.javaType = javaType
                 return true
             }
 
             return false
         }
 
-        fun type(): JavaType? = classEntry?.type
+//        fun type(): JavaType? = classEntry?.type
 
-        fun typeClass(): Class<out Any>? = classEntry?.clazz
+        fun typeClass(): Class<out Any>? = javaType?.unwrap()
 
         fun addReference(reference: Reference) {
             references.add(reference)

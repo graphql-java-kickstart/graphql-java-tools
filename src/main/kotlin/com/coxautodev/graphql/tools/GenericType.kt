@@ -114,7 +114,11 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     declaringType
                 } else {
                     val superclass = declaringType.unwrap().genericSuperclass
-                    parameterizedDeclaringTypeOrSuperType(superclass)
+                    if (superclass != null) {
+                        parameterizedDeclaringTypeOrSuperType(superclass)
+                    } else {
+                        null
+                    }
                 }
 
         private fun unwrapGenericType(declaringType: ParameterizedType, type: TypeVariable<*>) =

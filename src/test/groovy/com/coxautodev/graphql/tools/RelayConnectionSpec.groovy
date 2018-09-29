@@ -3,12 +3,9 @@ package com.coxautodev.graphql.tools
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
-import graphql.relay.DefaultConnection
-import graphql.relay.Edge
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLSchema
-import spock.lang.Shared
 import spock.lang.Specification
 
 class RelayConnectionSpec extends Specification {

@@ -90,11 +90,11 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 if (typeDefinition is ScalarTypeDefinition) {
                     ScalarMatch(typeDefinition)
                 } else {
-                    ValidMatch(typeDefinition, ClassEntry.of(realType), potentialMatch.reference)
+                    ValidMatch(typeDefinition, realType, potentialMatch.reference)
                 }
             }
 
-            is TypeDefinition<*> -> ValidMatch(graphQLType, ClassEntry.of(realType), potentialMatch.reference)
+            is TypeDefinition<*> -> ValidMatch(graphQLType, realType, potentialMatch.reference)
             else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
         }
     }
@@ -116,7 +116,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     internal interface Match
     internal data class ScalarMatch(val type: ScalarTypeDefinition) : Match
-    internal data class ValidMatch(val type: TypeDefinition<*>, val classEntry: ClassEntry, val reference: SchemaClassScanner.Reference) : Match
+    internal data class ValidMatch(val type: TypeDefinition<*>, val javaType: JavaType, val reference: SchemaClassScanner.Reference) : Match
     internal enum class Location(val prettyName: String) {
         RETURN_TYPE("return type"),
         PARAMETER_TYPE("parameter"),
@@ -132,5 +132,4 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         }
     }
 
-    class RawClassRequiredForGraphQLMappingException(msg: String) : RuntimeException(msg)
 }
