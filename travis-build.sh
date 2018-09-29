@@ -25,5 +25,5 @@ if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ] &
     mvn release:clean release:prepare release:perform -B -e -Pbintray
 else
     echo "Building and verifying"
-    mvn -B clean verify
+    mvn -B verify
 fi
