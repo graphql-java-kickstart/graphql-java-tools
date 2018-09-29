@@ -3,6 +3,7 @@ package com.coxautodev.graphql.tools
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
+import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
 
 /**
  * @author Andrew Potter
@@ -17,6 +18,7 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
             .mutation(mutation)
             .subscription(subscription)
             .additionalTypes(dictionary)
+//            .fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
             .build()
 
     /**
