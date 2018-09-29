@@ -57,10 +57,6 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if (method != null) {
-            if (search.type is ParameterizedType && search.type.actualTypeArguments.isNotEmpty()) {
-                log.debug("actual type parameters: ${search.type.actualTypeArguments[0]}")
-            }
-            log.debug("method hit: ${method} and search type ${search.type} and declaring class ${method.declaringClass}")
             return MethodFieldResolver(field, search, options, method.apply { isAccessible = true })
         }
 

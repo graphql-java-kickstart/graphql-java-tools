@@ -198,7 +198,7 @@ class SchemaParserSpec extends Specification {
                     .makeExecutableSchema()
 
         then:
-            thrown(TypeClassMatcher.RawClassRequiredForGraphQLMappingException)
+            thrown(SchemaClassScannerError)
     }
 
     def "parser should throw descriptive exception when object is used as input type incorrectly"() {

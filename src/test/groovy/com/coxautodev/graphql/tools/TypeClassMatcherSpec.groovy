@@ -119,7 +119,7 @@ class TypeClassMatcherSpec extends Specification {
         then:
             noExceptionThrown()
             match.type  == unwrappedCustomDefinition
-            match.clazz == UnwrappedGenericCustomType
+            match.classEntry.clazz == UnwrappedGenericCustomType
     }
 
     private class Super<Unused, Type, ListFutureType> implements GraphQLQueryResolver {
