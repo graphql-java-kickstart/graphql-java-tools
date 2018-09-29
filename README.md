@@ -1,6 +1,6 @@
 # GraphQL Java Tools
 
-[![TravisCI Build](https://travis-ci.org/graphql-java/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java/graphql-java-tools)
+[![TravisCI Build](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java/graphql-java-tools)
 [![Chat on Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/graphql-java/graphql-java)
 
