@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.graphql-java</groupId>
+    <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>5.2.5-SNAPSHOT</version>
+    <version>5.3.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -15,7 +15,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <kotlin.version>1.2.60</kotlin.version>
+        <kotlin.version>1.2.71</kotlin.version>
         <jackson.version>2.9.6</jackson.version>
 
         <!--This contends with dokka and creates two javadoc jars...-->
@@ -212,19 +212,6 @@
                             </execution>
                         </executions>
                     </plugin>
-                    <plugin>
-                        <groupId>org.jetbrains.dokka</groupId>
-                        <artifactId>dokka-maven-plugin</artifactId>
-                        <version>0.9.14</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>javadocJar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
                 </plugins>
             </build>
         </profile>
@@ -247,19 +234,21 @@
     <distributionManagement>
         <snapshotRepository>
             <id>bintray</id>
-            <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools</url>
+            <name>graphql-java-kickstart-graphql-java-tools</name>
+            <url>https://api.bintray.com/maven/graphql-java-kickstart/graphql-java-tools/graphql-java-tools/</url>
         </snapshotRepository>
 
         <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Pbintray -->
         <repository>
             <id>bintray</id>
-            <url>https://api.bintray.com/maven/apottere/maven/graphql-java-tools/;publish=1</url>
+            <name>graphql-java-kickstart-graphql-java-tools</name>
+            <url>https://api.bintray.com/maven/graphql-java-kickstart/graphql-java-tools/graphql-java-tools/;publish=1</url>
         </repository>
     </distributionManagement>
     <scm>
-        <connection>scm:git:git://github.com/graphql-java/graphql-java-tools.git</connection>
-        <developerConnection>scm:git:git@github.com:graphql-java/graphql-java-tools.git</developerConnection>
-        <url>http://github.com/graphql-java/graphql-java-tools</url>
+        <connection>scm:git:git://github.com/graphql-java-kickstart/graphql-java-tools.git</connection>
+        <developerConnection>scm:git:git@github.com:graphql-java-kickstart/graphql-java-tools.git</developerConnection>
+        <url>http://github.com/graphql-javakickstart/graphql-java-tools</url>
         <tag>HEAD</tag>
     </scm>
 </project>

@@ -2,6 +2,10 @@ package com.coxautodev.graphql.tools
 
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
+import graphql.relay.Connection
+import graphql.relay.DefaultConnection
+import graphql.relay.SimpleListConnection
+import graphql.schema.DataFetchingEnvironment
 import spock.lang.Specification
 
 /**
@@ -59,6 +63,17 @@ class FieldResolverScannerSpec extends Specification {
             version instanceof PropertyFieldResolver
     }
 
+    def "scanner finds generic return type"() {
+        setup:
+            def resolver = new RootResolverInfo([new GenericQuery()], options)
+
+        when:
+            def users = scanner.findFieldResolver(new FieldDefinition("users", new TypeName("UserConnection")), resolver)
+
+        then:
+            users instanceof MethodFieldResolver
+    }
+
     class RootQuery1 implements GraphQLQueryResolver {
         def field1() {}
     }
@@ -77,5 +92,13 @@ class FieldResolverScannerSpec extends Specification {
 
     class PropertyQuery extends ParentPropertyQuery implements GraphQLQueryResolver {
         private String name = "name"
+    }
+
+    class User {
+
+    }
+
+    class GenericQuery implements GraphQLQueryResolver {
+        Connection<User> getUsers() { }
     }
 }

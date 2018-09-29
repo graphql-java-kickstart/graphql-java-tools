@@ -1,22 +1,21 @@
 package com.coxautodev.graphql.tools
 
-
-import graphql.relay.ConnectionCursor
-import graphql.relay.DefaultConnection
-import graphql.relay.DefaultEdge
-import graphql.relay.Edge
-import graphql.relay.PageInfo
+import graphql.GraphQL
+import graphql.execution.AsyncExecutionStrategy
+import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLSchema
 import spock.lang.Specification
 
 class RelayConnectionSpec extends Specification {
 
     def "relay connection types are compatible"() {
         when:
-            SchemaParser.newParser().schemaString('''\
+            GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
                         type Query {
                             users(first: Int, after: String): UserConnection
+                            otherTypes: AnotherTypeConnection
                         }
                         
                         type UserConnection {
@@ -25,7 +24,6 @@ class RelayConnectionSpec extends Specification {
                         }
                         
                         type UserEdge {
-                            cursor: String!
                             node: User!
                         }
                         
@@ -35,53 +33,83 @@ class RelayConnectionSpec extends Specification {
                         }
                         
                         type PageInfo {
-                            
+                        }
+                        
+                        type AnotherTypeConnection {
+                            edges: [AnotherTypeEdge!]!
+                        }
+                        
+                        type AnotherTypeEdge {
+                            node: AnotherType!
+                        }
+                        
+                        type AnotherType {
+                            echo: String
                         }
                     ''')
                     .resolvers(new QueryResolver())
-                    .dictionary(User.class)
                     .build()
                     .makeExecutableSchema()
+            GraphQL gql = GraphQL.newGraphQL(schema)
+                    .queryExecutionStrategy(new AsyncExecutionStrategy())
+                    .build()
+            def data = Utils.assertNoGraphQlErrors(gql, [limit: 10]) {
+                '''
+                query {
+                    users {
+                        edges {
+                            node {
+                                id
+                                name
+                            }
+                        }
+                    }
+                    otherTypes {
+                        edges {
+                            node {
+                                echo
+                            }
+                        }
+                    }
+                }
+                '''
+            }
 
         then:
             noExceptionThrown()
+            data.users.edges.size == 1
+            data.users.edges[0].node.id == "1"
+            data.users.edges[0].node.name == "name"
+            data.otherTypes.edges.size == 1
+            data.otherTypes.edges[0].node.echo == "echo"
     }
 
     static class QueryResolver implements GraphQLQueryResolver {
-        // fixme #114: desired return type to use: Connection<User>
-        UserConnection users(int first, String after, DataFetchingEnvironment env) {
-            new SimpleListConnection<User>(new ArrayList()).get(env) as UserConnection
-        }
-    }
-
-    // fixme #114: remove this implementation
-    static class UserConnection extends DefaultConnection<User> {
-
-        UserConnection(List<Edge<User>> edges, PageInfo pageInfo) {
-            super(edges, pageInfo)
+        Connection<User> users(int first, String after, DataFetchingEnvironment env) {
+            new SimpleListConnection<User>(new ArrayList([new User(1L, "name")])).get(env)
         }
 
-        List<UserEdge> getEdges() {
-            this.edges
+        Connection<AnotherType> otherTypes(DataFetchingEnvironment env) {
+            new SimpleListConnection<AnotherType>(new ArrayList([new AnotherType("echo")])).get(env)
         }
-
-        PageInfo getPageInfo() {
-            this.pageInfo
-        }
-    }
-
-    // fixme #114: remove this implementation
-    static class UserEdge extends DefaultEdge<User> {
-
-        UserEdge(User node, ConnectionCursor cursor) {
-            super(node, cursor)
-        }
-
     }
 
     static class User {
         Long id
         String name
+
+        User(Long id, String name) {
+            this.id = id
+            this.name = name
+        }
+    }
+
+    private static class AnotherType {
+        String echo
+
+        AnotherType(String echo) {
+            this.echo = echo
+        }
     }
 
 

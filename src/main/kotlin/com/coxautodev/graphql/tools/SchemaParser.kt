@@ -161,7 +161,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
         val name = definition.name
         val type = dictionary[definition] ?: throw SchemaError("Expected enum with name '$name' but found none!")
-        if (!type.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
+        if (!type.unwrap().isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
         val builder = GraphQLEnumType.newEnum()
             .name(name)
@@ -170,7 +170,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
 
         definition.enumValueDefinitions.forEach { enumDefinition ->
             val enumName = enumDefinition.name
-            val enumValue = type.enumConstants.find { (it as Enum<*>).name == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.simpleName}' but found none!")
+            val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
             getDeprecated(enumDefinition.directives).let {
                 when (it) {
                     is String -> builder.value(enumName, enumValue, getDocumentation(enumDefinition), it)

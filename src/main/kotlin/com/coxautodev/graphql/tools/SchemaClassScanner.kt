@@ -36,7 +36,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     private val mutationResolvers = resolvers.filterIsInstance<GraphQLMutationResolver>()
     private val subscriptionResolvers = resolvers.filterIsInstance<GraphQLSubscriptionResolver>()
 
-    private val resolverInfos = resolvers.minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }
+    private val resolverInfos = resolvers.asSequence().minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }.toList()
     private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
@@ -132,8 +132,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
         // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
-            Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, Class<*>>().also {
-                dictionary.filter { it.value.typeClass != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition }.mapValuesTo(it) { it.value.typeClass }
+            Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, JavaType>().also {
+                dictionary.filter { it.value.javaType != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition }.mapValuesTo(it) { it.value.javaType }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -176,7 +176,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             return
         }
 
-        val observedRootTypes = fieldResolvers.filter { it.resolverInfo is RootResolverInfo && it.resolverInfo == rootType.resolverInfo }.map { it.search.type }.toSet()
+        val observedRootTypes = fieldResolvers.asSequence().filter { it.resolverInfo is RootResolverInfo && it.resolverInfo == rootType.resolverInfo }.map { it.search.type }.toSet()
         rootType.resolvers.forEach { resolver ->
             if (rootType.resolverInfo.getRealResolverClass(resolver, options) !in observedRootTypes) {
                 log.warn("Root ${rootType.name} resolver was provided but no methods on it were used in data fetchers for GraphQL type '${rootType.type.name}'!  Either remove the ${rootType.resolverInterface.name} interface from the resolver or remove the resolver entirely: $resolver")
@@ -244,7 +244,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             }
 
             is TypeClassMatcher.ValidMatch -> {
-                handleFoundType(match.type, match.clazz, match.reference)
+                handleFoundType(match.type, match.javaType, match.reference)
             }
         }
     }
@@ -256,18 +256,18 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
-    private fun handleFoundType(type: TypeDefinition<*>, clazz: Class<*>?, reference: Reference) {
+    private fun handleFoundType(type: TypeDefinition<*>, javaType: JavaType?, reference: Reference) {
         val realEntry = dictionary.getOrPut(type) { DictionaryEntry() }
         var typeWasSet = false
 
-        if (clazz != null) {
-            typeWasSet = realEntry.setTypeIfMissing(clazz)
+        if (javaType != null) {
+            typeWasSet = realEntry.setTypeIfMissing(javaType)
 
-            if (realEntry.typeClass != clazz) {
+            if (realEntry.javaType != javaType) {
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
-                    log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one $clazz $reference")
+                    log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- $clazz:\n|   ${reference.getDescription()}")
+                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.unwrap()}:\n|   ${reference.getDescription()}")
                 }
             }
         }
@@ -275,15 +275,15 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         realEntry.addReference(reference)
 
         // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
-        if (typeWasSet && clazz != null) {
-            handleNewType(type, clazz)
+        if (typeWasSet && javaType != null) {
+            handleNewType(type, javaType)
         }
     }
 
     /**
      * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
      */
-    private fun handleNewType(graphQLType: TypeDefinition<*>, javaType: Class<*>) {
+    private fun handleNewType(graphQLType: TypeDefinition<*>, javaType: JavaType) {
         when (graphQLType) {
             is ObjectTypeDefinition -> {
                 enqueue(graphQLType, javaType)
@@ -294,7 +294,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                 graphQLType.inputValueDefinitions.forEach { inputValueDefinition ->
                     val inputGraphQLType = inputValueDefinition.type.unwrap()
                     if (inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                        val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType)
+                        val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
                         if (inputValueJavaType != null) {
                             handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
                                     inputValueDefinition.type,
@@ -305,10 +305,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                             )))
                         } else {
                             var mappingAdvice = "Try adding it manually to the dictionary"
-                            if (javaType.name.contains("Map")) {
+                            if (javaType.unwrap().name.contains("Map")) {
                                 mappingAdvice = " or add a class to represent your input type instead of a Map."
                             }
-                            log.warn("Cannot find definition for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' on input type '${graphQLType.name}' -> ${javaType.name}. $mappingAdvice")
+                            log.warn("Cannot find definition for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' on input type '${graphQLType.name}' -> ${javaType.unwrap().name}. $mappingAdvice")
                         }
                     }
                 }
@@ -325,11 +325,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }
     }
 
-    private fun enqueue(graphQLType: ObjectTypeDefinition, javaType: Class<*>) {
+    private fun enqueue(graphQLType: ObjectTypeDefinition, javaType: JavaType) {
         queue.add(QueueItem(graphQLType, javaType))
     }
 
-    private fun findInputValueType(name: String, inputGraphQLType: TypeName, clazz: Class<*>): JavaType? {
+    private fun findInputValueType(name: String, inputGraphQLType: TypeName, clazz: Class<out Any>): JavaType? {
         val inputValueType = findInputValueTypeInType(name, clazz)
         if (inputValueType != null) {
             return inputValueType
@@ -352,27 +352,31 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }?.genericType
     }
 
-    private data class QueueItem(val type: ObjectTypeDefinition, val clazz: Class<*>)
+    private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
 
     private class DictionaryEntry {
         private val references = mutableListOf<Reference>()
-        var typeClass: Class<*>? = null
+        var javaType: JavaType? = null
             private set
 
-        fun setTypeIfMissing(typeClass: Class<*>): Boolean {
-            if (this.typeClass == null) {
-                this.typeClass = typeClass
+        fun setTypeIfMissing(javaType: JavaType): Boolean {
+            if (this.javaType == null) {
+                this.javaType = javaType
                 return true
             }
 
             return false
         }
 
+//        fun type(): JavaType? = classEntry?.type
+
+        fun typeClass(): Class<out Any>? = javaType?.unwrap()
+
         fun addReference(reference: Reference) {
             references.add(reference)
         }
 
-        fun joinReferences() = "- $typeClass:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
+        fun joinReferences() = "- ${typeClass()}:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
 
         fun hasResolverRef(): Boolean {
             references.filterIsInstance<ReturnValueReference>().forEach { reference ->
@@ -412,7 +416,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
     }
 
     class ReturnValueReference(private val method: Method) : Reference() {
-        fun getMethod() = method;
+        fun getMethod() = method
         override fun getDescription() = "return type of method $method"
     }
 

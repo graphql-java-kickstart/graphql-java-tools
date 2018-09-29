@@ -20,8 +20,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     companion object {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
-        fun getAllMethods(type: Class<*>) =
-                (type.declaredMethods.toList() + ClassUtils.getAllSuperclasses(type).flatMap { it.methods.toList() })
+        fun getAllMethods(type: JavaType) =
+                (type.unwrap().declaredMethods.toList() + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
                         .asSequence()
                         .filter { !it.isSynthetic }
                         .filter { !Modifier.isPrivate(it.modifiers) }
@@ -131,7 +131,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun findResolverProperty(field: FieldDefinition, search: Search) =
-            FieldUtils.getAllFields(search.type).find { it.name == field.name }
+            FieldUtils.getAllFields(search.type.unwrap()).find { it.name == field.name }
 
     private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
@@ -143,11 +143,11 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
         val sourceName = if (field.sourceLocation != null && field.sourceLocation.sourceName != null) field.sourceLocation.sourceName else "<unknown>"
         val sourceLocation = if (field.sourceLocation != null) "$sourceName:${field.sourceLocation.line}" else "<unknown>"
-        return "No method${if (scannedProperties) " or field" else ""} found as defined in $sourceLocation with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
+        return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
     }
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
-        val baseType = search.type
+        val baseType = search.type.unwrap()
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()
         val sep = ", "
@@ -172,7 +172,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return signatures
     }
 
-    data class Search(val type: Class<*>, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
+    data class Search(val type: JavaType, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
 }
 
 class FieldResolverError(msg: String) : RuntimeException(msg)
