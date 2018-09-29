@@ -1,7 +1,6 @@
 package com.coxautodev.graphql.tools
 
 import com.google.common.primitives.Primitives
-import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.TypeUtils
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
@@ -95,25 +94,32 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     val unwrapsTo = genericType.schemaWrapper.invoke(typeArguments[genericType.index])
                     return unwrapGenericType(unwrapsTo)
                 }
-                is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
                 is TypeVariable<*> -> {
-                    if (declaringType is ParameterizedType) {
-                        unwrapGenericType(TypeUtils.determineTypeArguments(getRawClass(mostSpecificType), declaringType)[type]
-                                ?: error("No type variable found for: ${TypeUtils.toLongString(type)}"))
+                    val parameterizedDeclaringType = parameterizedDeclaringTypeOrSuperType(declaringType)
+                    if (parameterizedDeclaringType != null) {
+                        unwrapGenericType(parameterizedDeclaringType, type)
                     } else {
-                        val raw = TypeUtils.getRawType(type, declaringType)
-                        if (raw != null) {
-                            unwrapGenericType(raw)
-                        } else {
-                            error("Could not resolve type variable '${TypeUtils.toLongString(type)}' because declaring type is not parameterized: ${TypeUtils.toString(declaringType)}")
-                        }
+                        error("Could not resolve type variable '${TypeUtils.toLongString(type)}' because declaring type is not parameterized: ${TypeUtils.toString(declaringType)}")
                     }
                 }
                 is WildcardTypeImpl -> type.upperBounds.firstOrNull()
                         ?: throw error("Unable to unwrap type, wildcard has no upper bound: $type")
+                is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
                 else -> error("Unable to unwrap type: $type")
             }
         }
+
+        private fun parameterizedDeclaringTypeOrSuperType(declaringType: JavaType): ParameterizedType? =
+                if (declaringType is ParameterizedType) {
+                    declaringType
+                } else {
+                    val superclass = declaringType.unwrap().genericSuperclass
+                    parameterizedDeclaringTypeOrSuperType(superclass)
+                }
+
+        private fun unwrapGenericType(declaringType: ParameterizedType, type: TypeVariable<*>) =
+                unwrapGenericType(TypeUtils.determineTypeArguments(getRawClass(mostSpecificType), declaringType)[type]
+                        ?: error("No type variable found for: ${TypeUtils.toLongString(type)}"))
 
         private fun replaceTypeVariable(type: JavaType): JavaType {
             return when (type) {
@@ -134,9 +140,5 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
             }
         }
 
-        private fun parameterizedDeclaringType(): JavaType? {
-            return declaringType as? ParameterizedType
-                    ?: ClassUtils.getAllSuperclasses(declaringType.unwrap()).find { it is ParameterizedType }
-        }
     }
 }
