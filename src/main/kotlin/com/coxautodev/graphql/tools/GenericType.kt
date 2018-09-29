@@ -1,6 +1,7 @@
 package com.coxautodev.graphql.tools
 
 import com.google.common.primitives.Primitives
+import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.TypeUtils
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
@@ -96,11 +97,16 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                 }
                 is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
                 is TypeVariable<*> -> {
-                    if (declaringType !is ParameterizedType) {
-                        error("Could not resolve type variable '${TypeUtils.toLongString(type)}' because declaring type is not parameterized: ${TypeUtils.toString(declaringType)}")
-                    } else {
+                    if (declaringType is ParameterizedType) {
                         unwrapGenericType(TypeUtils.determineTypeArguments(getRawClass(mostSpecificType), declaringType)[type]
                                 ?: error("No type variable found for: ${TypeUtils.toLongString(type)}"))
+                    } else {
+                        val raw = TypeUtils.getRawType(type, declaringType)
+                        if (raw != null) {
+                            unwrapGenericType(raw)
+                        } else {
+                            error("Could not resolve type variable '${TypeUtils.toLongString(type)}' because declaring type is not parameterized: ${TypeUtils.toString(declaringType)}")
+                        }
                     }
                 }
                 is WildcardTypeImpl -> type.upperBounds.firstOrNull()
@@ -110,7 +116,7 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
         }
 
         private fun replaceTypeVariable(type: JavaType): JavaType {
-            return when(type) {
+            return when (type) {
                 is ParameterizedType -> {
                     val actualTypeArguments = type.actualTypeArguments.map { replaceTypeVariable(it) }.toTypedArray()
                     ParameterizedTypeImpl.make(type.rawType as Class<*>?, actualTypeArguments, type.ownerType)
@@ -126,6 +132,11 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     type
                 }
             }
+        }
+
+        private fun parameterizedDeclaringType(): JavaType? {
+            return declaringType as? ParameterizedType
+                    ?: ClassUtils.getAllSuperclasses(declaringType.unwrap()).find { it is ParameterizedType }
         }
     }
 }

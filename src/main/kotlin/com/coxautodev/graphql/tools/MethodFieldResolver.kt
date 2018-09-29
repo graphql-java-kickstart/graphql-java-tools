@@ -99,8 +99,6 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val batched = isBatched(method, search)
-        // fixme: convert type variables
-//        val replacedGenericType = replaceTypeVariables(method.genericReturnType)
         val unwrappedGenericType = genericType.unwrapGenericType(method.genericReturnType)
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
@@ -108,14 +106,6 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
             TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i), batched)
         } + listOf(returnValueMatch)
     }
-
-//    private fun replaceTypeVariables(javaType: JavaType): JavaType {
-//        return when (javaType) {
-//            is ParameterizedType -> replaceTypeVariables(javaType.rawType)
-//            is TypeVariable<*> -> genericType.unwrapGenericType(javaType)
-//            else -> javaType
-//        }
-//    }
 
     private fun getIndexOffset(): Int {
         return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {

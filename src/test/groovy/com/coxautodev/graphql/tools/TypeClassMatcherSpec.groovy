@@ -63,7 +63,7 @@ class TypeClassMatcherSpec extends Specification {
         then:
             noExceptionThrown()
             match.type == customDefinition
-            match.clazz == CustomType
+            match.classEntry.clazz == CustomType
 
         where:
             methodName            | type
