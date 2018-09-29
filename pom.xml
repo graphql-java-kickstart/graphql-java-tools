@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>5.3.1-SNAPSHOT</version>
+    <version>5.3.0</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -235,14 +235,14 @@
         <snapshotRepository>
             <id>bintray</id>
             <name>graphql-java-kickstart-graphql-java-tools</name>
-            <url>https://api.bintray.com/maven/graphql-java-kickstart/graphql-java-tools/graphql-java-tools/</url>
+            <url>https://api.bintray.com/maven/graphql-java-kickstart/releases/graphql-java-tools/</url>
         </snapshotRepository>
 
         <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Pbintray -->
         <repository>
             <id>bintray</id>
             <name>graphql-java-kickstart-graphql-java-tools</name>
-            <url>https://api.bintray.com/maven/graphql-java-kickstart/graphql-java-tools/graphql-java-tools/;publish=1</url>
+            <url>https://api.bintray.com/maven/graphql-java-kickstart/releases/graphql-java-tools/;publish=1</url>
         </repository>
     </distributionManagement>
     <scm>
