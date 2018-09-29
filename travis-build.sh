@@ -17,7 +17,7 @@ saveMavenSettings() {
         <server>
             <id>github</id>
             <username>${GITHUB_USER}</username>
-            <password>${GITHUB_TOKEN}</username>
+            <password>${GITHUB_TOKEN}</password>
         </server>
     </servers>
 </settings>
