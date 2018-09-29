@@ -22,10 +22,7 @@ EOL
 if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ] && [ "${RELEASE}" = "true" ]; then
     echo "Deploying release to Bintray"
     saveMavenSettings
-    mvn release:clean release:prepare -B -e -Pbintray
-    git commit -m 'Prepared next release'
-    git push
-    mvn release:perform -B -e -Pbintray
+    mvn release:clean release:prepare release:perform -B -e -Pbintray
 else
     echo "Building and verifying"
     mvn -B verify

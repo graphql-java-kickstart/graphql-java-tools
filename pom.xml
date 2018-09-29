@@ -248,7 +248,7 @@
     <scm>
         <connection>scm:git:git://github.com/graphql-java-kickstart/graphql-java-tools.git</connection>
         <developerConnection>scm:git:git@github.com:graphql-java-kickstart/graphql-java-tools.git</developerConnection>
-        <url>http://github.com/graphql-javakickstart/graphql-java-tools</url>
+        <url>http://github.com/graphql-java-kickstart/graphql-java-tools</url>
         <tag>HEAD</tag>
     </scm>
 </project>
