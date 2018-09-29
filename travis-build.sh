@@ -14,6 +14,11 @@ saveMavenSettings() {
             <username>${BINTRAY_USER}</username>
             <password>${BINTRAY_PASS}</password>
         </server>
+        <server>
+            <id>github</id>
+            <username>${GITHUB_USER}</username>
+            <password>${GITHUB_TOKEN}</username>
+        </server>
     </servers>
 </settings>
 EOL

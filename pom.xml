@@ -24,7 +24,7 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <useReleaseProfile>false</useReleaseProfile>
-        <GITHUB_TOKEN></GITHUB_TOKEN>
+        <project.scm.id>github</project.scm.id>
     </properties>
 
     <dependencies>
@@ -247,8 +247,8 @@
         </repository>
     </distributionManagement>
     <scm>
-        <connection>scm:git:https://${GITHUB_TOKEN}@github.com/graphql-java-kickstart/graphql-java-tools.git</connection>
-        <developerConnection>scm:git:https://${GITHUB_TOKEN}@github.com/graphql-java-kickstart/graphql-java-tools.git</developerConnection>
+        <connection>scm:git:git://github.com/graphql-java-kickstart/graphql-java-tools.git</connection>
+        <developerConnection>scm:git:git@github.com:graphql-java-kickstart/graphql-java-tools.git</developerConnection>
         <url>https://github.com/graphql-java-kickstart/graphql-java-tools</url>
         <tag>HEAD</tag>
     </scm>
