@@ -24,7 +24,4 @@ if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ] &
     saveMavenSettings
     git checkout -f ${TRAVIS_BRANCH}
     mvn release:clean release:prepare release:perform -B -e -Pbintray
-else
-    echo "Building and verifying"
-    mvn -B verify
 fi
