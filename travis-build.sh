@@ -24,9 +24,15 @@ saveMavenSettings() {
 EOL
 }
 
-if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ] && [ "${RELEASE}" = "true" ]; then
-    echo "Deploying release to Bintray"
+if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ]; then
     saveMavenSettings
     git checkout -f ${TRAVIS_BRANCH}
-    mvn release:clean release:prepare release:perform -B -e -Pbintray
+
+    if [ "${RELEASE}" = "true" ]; then
+        echo "Deploying release to Bintray"
+        mvn release:clean release:prepare release:perform -B -e -Pbintray
+    else
+        echo "Deploy snapshot to Bintray"
+        mvn deploy -B
+    fi
 fi
