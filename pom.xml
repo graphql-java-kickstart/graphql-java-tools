@@ -235,7 +235,7 @@
         <snapshotRepository>
             <id>bintray</id>
             <name>graphql-java-kickstart-graphql-java-tools</name>
-            <url>https://api.bintray.com/maven/graphql-java-kickstart/releases/graphql-java-tools/</url>
+            <url>http://oss.jfrog.org/artifactory/oss-snapshot-local</url>
         </snapshotRepository>
 
         <!-- Released with: mvn release:clean release:prepare release:perform -B -e -Pbintray -->
