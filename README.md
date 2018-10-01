@@ -223,11 +223,17 @@ Then on the data class:
 4. `method getField<Name>(*fieldArgs [, DataFetchingEnvironment])`
 5. `field <name>`
 
+Last of all, if the data class implements`java.util.Map` then:
+1. `method get(name)`
+
+
 *Note:* All reflection discovery is done on startup, and runtime reflection method calls use [reflectasm](https://github.com/EsotericSoftware/reflectasm), which increases performance and unifies stacktraces.  No more `InvocationTargetException`!
 
 *Note:* `java.util.Optional` can be used for nullable field arguments and nullable return values, and the schema parser will verify that it's not used with non-null field arguments and return values.
 
 *Note:* Methods on `java.lang.Object` are excluded from method matching, for example a field named `class` will require a method named `getFieldClass` defined.
+
+*Note:* If one of the values of a type backed by a `java.util.Map` is non-scalar then this type will need to be added to the `type dictionary` (see below). After adding this type to the dictionary, GraphQL Java Tools will however still be able to find the types used in the fields of this added type.
 
 ### Enum Types
 

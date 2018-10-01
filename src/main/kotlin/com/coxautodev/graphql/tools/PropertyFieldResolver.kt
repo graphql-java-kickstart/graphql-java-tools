@@ -14,7 +14,13 @@ internal class PropertyFieldResolver(field: FieldDefinition, search: FieldResolv
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        return listOf(TypeClassMatcher.PotentialMatch.returnValue(field.type, property.genericType, genericType, SchemaClassScanner.FieldTypeReference(property), false))
+        return listOf(
+                TypeClassMatcher.PotentialMatch.returnValue(
+                    field.type,
+                    property.genericType,
+                    genericType,
+                    SchemaClassScanner.FieldTypeReference(property.toString()),
+                    false))
     }
 
     override fun toString() = "PropertyFieldResolver{property=$property}"

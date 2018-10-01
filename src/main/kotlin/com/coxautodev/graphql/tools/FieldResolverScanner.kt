@@ -67,6 +67,10 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             }
         }
 
+        if(java.util.Map::class.java.isAssignableFrom(search.type.unwrap())) {
+            return PropertyMapResolver(field, search, options, search.type.unwrap())
+        }
+
         return null
     }
 
