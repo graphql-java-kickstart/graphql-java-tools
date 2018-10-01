@@ -10,7 +10,6 @@ GraphQL Java Tools works extremely well if you already have domain POJOs that ho
 
 GraphQL Java Tools aims for seamless integration with Java, but works for any JVM language.  Try it with Kotlin!
 
-
 ## Why GraphQL Java Tools?
 
 * **Schema First**:  GraphQL Java Tools allows you to write your schema in a simple, portable way using the [GraphQL schema language](http://graphql.org/learn/schema/) instead of hard-to-read builders in code.
@@ -51,13 +50,29 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 
 ```xml
 <dependency>
-    <groupId>com.graphql-java</groupId>
+    <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>5.2.4</version>
+    <version>5.3.1</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java:graphql-java-tools:5.2.4'
+compile 'com.graphql-java-kickstart:graphql-java-tools:5.3.1'
+```
+
+New releases will be available faster in the JCenter repository than in Maven Central. Add the following to use for Maven
+```xml
+<repositories>
+    <repository>
+      <id>jcenter</id>
+      <url>https://jcenter.bintray.com/</url>
+    </repository>
+</repositories>
+```
+For Gradle:
+```groovy
+repositories {
+    jcenter()
+}
 ```
 
 ### Examples
