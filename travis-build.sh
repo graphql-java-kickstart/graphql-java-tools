@@ -33,6 +33,6 @@ if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ]; 
         mvn release:clean release:prepare release:perform -B -e -Pbintray
     else
         echo "Deploy snapshot to Bintray"
-        mvn deploy -B
+        mvn deploy -B -Pbintray
     fi
 fi
