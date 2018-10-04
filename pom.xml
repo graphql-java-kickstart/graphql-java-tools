@@ -17,9 +17,6 @@
         <kotlin.version>1.2.71</kotlin.version>
         <jackson.version>2.9.6</jackson.version>
 
-        <!--This contends with dokka and creates two javadoc jars...-->
-        <maven.javadoc.skip>true</maven.javadoc.skip>
-
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <useReleaseProfile>false</useReleaseProfile>
@@ -206,19 +203,6 @@
                             <execution>
                                 <id>attach-sources</id>
                                 <phase>package</phase>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.0.1</version>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
                                 <goals>
                                     <goal>jar</goal>
                                 </goals>
