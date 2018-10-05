@@ -1,7 +1,7 @@
 # GraphQL Java Tools
 
 [![TravisCI Build](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java/graphql-java-tools)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools)
 [![Chat on Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/graphql-java-kickstart/Lobby)
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
@@ -52,11 +52,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>5.3.1</version>
+    <version>5.3.3</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java-kickstart:graphql-java-tools:5.3.1'
+compile 'com.graphql-java-kickstart:graphql-java-tools:5.3.3'
 ```
 
 New releases will be available faster in the JCenter repository than in Maven Central. Add the following to use for Maven
