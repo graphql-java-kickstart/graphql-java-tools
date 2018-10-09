@@ -133,7 +133,13 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, JavaType>().also {
-                dictionary.filter { it.value.javaType != null && it.key !is InputObjectTypeDefinition && it.key !is UnionTypeDefinition }.mapValuesTo(it) { it.value.javaType }
+                dictionary.filter {
+                            it.value.javaType != null
+                            && it.value.typeClass() != java.lang.Object::class.java
+                            && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
+                            && it.key !is InputObjectTypeDefinition
+                            && it.key !is UnionTypeDefinition
+                }.mapValuesTo(it) { it.value.javaType }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -210,17 +216,31 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }
     }
 
+    private fun getResolverInfoFromTypeDictionary(typeName: String) : ResolverInfo? {
+        val dictionaryType = initialDictionary[typeName]?.get()
+        return if(dictionaryType != null) {
+            resolverInfosByDataClass[dictionaryType] ?: DataClassResolverInfo(dictionaryType);
+        } else {
+            null
+        }
+    }
+
     /**
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
         val resolverInfoList = this.resolverInfos.filter { it.dataClassType == item.clazz }
-        val resolverInfo: ResolverInfo
-
-        resolverInfo = if (resolverInfoList.size > 1) {
+        val resolverInfo: ResolverInfo? = if (resolverInfoList.size > 1) {
             MultiResolverInfo(resolverInfoList)
         } else {
-            resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
+            if(item.clazz.equals(Object::class.java)) {
+                getResolverInfoFromTypeDictionary(item.type.name)
+            } else {
+                resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
+            }
+        }
+        if(resolverInfo == null) {
+            throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
         }
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
@@ -267,6 +287,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
                     log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
+                    if(java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
+                        throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
+                    }
                     throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.unwrap()}:\n|   ${reference.getDescription()}")
                 }
             }
@@ -424,7 +447,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         override fun getDescription() = "parameter $index of method $method"
     }
 
-    class FieldTypeReference(private val field: Field) : Reference() {
+    class FieldTypeReference(private val field: String) : Reference() {
         override fun getDescription() = "type of field $field"
     }
 

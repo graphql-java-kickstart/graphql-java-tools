@@ -196,6 +196,108 @@ class EndToEndSpec extends Specification {
             data.itemByUUID
     }
 
+    def "generated schema should handle any java.util.Map (using HashMap) types as property maps"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    propertyHashMapItems {
+                        name
+                        age
+                    }
+                }
+                '''
+        }
+
+        then:
+            data.propertyHashMapItems == [ [name: "bob", age:55] ]
+    }
+
+    def "generated schema should handle any java.util.Map (using SortedMap) types as property maps"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    propertySortedMapItems {
+                        name
+                        age
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.propertySortedMapItems == [ [name: "Arthur", age:76], [name: "Jane", age:28] ]
+    }
+
+    // In this test a dictionary entry for the schema type ComplexMapItem is defined
+    // so that it is possible for a POJO mapping to be known since the ComplexMapItem is contained
+    // in a property map (i.e. Map<String, Object>) and so the normal resolver and schema traversal code
+    // will not be able to find the POJO since it does not exist as a strongly typed object in
+    // resolver/POJO graph.
+    def "generated schema should handle java.util.Map types as property maps when containing complex data"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    propertyMapWithComplexItems {
+                        nameId {
+                            id
+                        }
+                        age
+                    }
+                }
+                '''
+        }
+
+        then:
+            data.propertyMapWithComplexItems == [ [nameId:[id:150], age:72] ]
+    }
+
+    // This behavior is consistent with PropertyDataFetcher
+    def "property map returns null when a property is not defined."() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    propertyMapMissingNamePropItems {
+                        name
+                        age
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.propertyMapMissingNamePropItems == [ [name: null, age:55] ]
+    }
+
+    // In this test a dictonary entry for the schema type NestedComplexMapItem is defined
+    // however we expect to not be required to define one for the transitive UndiscoveredItem object since
+    // the schema resolver discovery code should still be able to automatically determine the POJO that
+    // maps to this schema type.
+    def "generated schema should continue to associate resolvers for transitive types of a java.util.Map complex data type"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    propertyMapWithNestedComplexItems {
+                        nested {
+                            item {
+                                id
+                            }
+                        }
+                        age
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.propertyMapWithNestedComplexItems == [ [ nested:[ item: [id:63] ], age:72] ]
+    }
+
+
     def "generated schema should handle optional arguments"() {
         when:
             def data = Utils.assertNoGraphQlErrors(gql) {
