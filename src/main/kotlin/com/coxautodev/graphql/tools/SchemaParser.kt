@@ -44,7 +44,7 @@ import kotlin.reflect.KClass
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
+class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, private val options: SchemaParserOptions) {
 
     companion object {
         const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
@@ -110,7 +110,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects) {
     /**
      * Parses the given schema with respect to the given dictionary and returns a GraphQLSchema
      */
-    fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema()
+    fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema(options.introspectionEnabled)
 
     /**
      * Returns any unused type definitions that were found in the schema

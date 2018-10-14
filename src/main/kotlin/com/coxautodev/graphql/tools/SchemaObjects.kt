@@ -13,13 +13,19 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
     /**
      * Makes a GraphQLSchema with query, mutation and subscription.
      */
-    fun toSchema(): GraphQLSchema = GraphQLSchema.newSchema()
-            .query(query)
-            .mutation(mutation)
-            .subscription(subscription)
-            .additionalTypes(dictionary)
-//            .fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
-            .build()
+    fun toSchema(introspectionEnabled: Boolean): GraphQLSchema {
+        val builder = GraphQLSchema.newSchema()
+                .query(query)
+                .mutation(mutation)
+                .subscription(subscription)
+                .additionalTypes(dictionary)
+
+        if (!introspectionEnabled) {
+            builder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
+        }
+
+        return builder.build()
+    }
 
     /**
      * Makes a GraphQLSchema with query but without mutation and subscription.
