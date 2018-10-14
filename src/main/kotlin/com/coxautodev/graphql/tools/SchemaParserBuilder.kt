@@ -176,7 +176,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Build the parser with the supplied schema and dictionary.
      */
-    fun build() = SchemaParser(scan())
+    fun build() = SchemaParser(scan(), options)
 }
 
 class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException) : RuntimeException(pce) {
@@ -247,7 +247,7 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>, val preferGraphQLResolver: Boolean) {
+data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>, val preferGraphQLResolver: Boolean, val introspectionEnabled: Boolean) {
     companion object {
         @JvmStatic
         fun newOptions() = Builder()
@@ -264,6 +264,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
         private var preferGraphQLResolver = false
+        private var introspectionEnabled = true
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -309,6 +310,10 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
             this.proxyHandlers.add(proxyHandler)
         }
 
+        fun introspectionEnabled(introspectionEnabled: Boolean) = this.apply {
+            this.introspectionEnabled = introspectionEnabled
+        }
+
         fun build(): SchemaParserOptions {
             val wrappers = if (useDefaultGenericWrappers) {
                 genericWrappers + listOf(
@@ -321,7 +326,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
                 genericWrappers
             }
 
-            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers, preferGraphQLResolver)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers, preferGraphQLResolver, introspectionEnabled)
         }
     }
 
