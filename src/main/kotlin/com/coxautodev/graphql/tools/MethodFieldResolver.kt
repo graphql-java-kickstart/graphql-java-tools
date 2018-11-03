@@ -157,9 +157,7 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
 
         return if (isSuspendFunction) {
             GlobalScope.future(options.coroutineContext) {
-                suspendCoroutineUninterceptedOrReturn<Any?> { continuation ->
-                    methodAccess.invoke(source, methodIndex, *args + continuation)?.transformWithGenericWrapper(environment)
-                }
+                methodAccess.invokeSuspend(source, methodIndex, args)?.transformWithGenericWrapper(environment)
             }
         } else {
             methodAccess.invoke(source, methodIndex, *args)?.transformWithGenericWrapper(environment)
@@ -182,6 +180,12 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     @Suppress("unused")
     open fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
         return sourceResolver(environment)
+    }
+}
+
+private suspend inline fun MethodAccess.invokeSuspend(target: Any, methodIndex: Int, args: Array<Any?>): Any? {
+    return suspendCoroutineUninterceptedOrReturn { continuation ->
+        invoke(target, methodIndex, *args + continuation)
     }
 }
 
