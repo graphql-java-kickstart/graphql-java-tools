@@ -8,6 +8,7 @@ import graphql.language.Document
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import kotlinx.coroutines.Dispatchers
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.reactivestreams.Publisher
@@ -15,6 +16,7 @@ import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
 /**
@@ -247,7 +249,16 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>, val preferGraphQLResolver: Boolean, val introspectionEnabled: Boolean) {
+data class SchemaParserOptions internal constructor(
+        val contextClass: Class<*>?,
+        val genericWrappers: List<GenericWrapper>,
+        val allowUnimplementedResolvers: Boolean,
+        val objectMapperProvider: PerFieldObjectMapperProvider,
+        val proxyHandlers: List<ProxyHandler>,
+        val preferGraphQLResolver: Boolean,
+        val introspectionEnabled: Boolean,
+        val coroutineContext: CoroutineContext
+) {
     companion object {
         @JvmStatic
         fun newOptions() = Builder()
@@ -265,6 +276,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
         private var preferGraphQLResolver = false
         private var introspectionEnabled = true
+        private var coroutineContext: CoroutineContext? = null
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -314,6 +326,10 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
             this.introspectionEnabled = introspectionEnabled
         }
 
+        fun coroutineContext(context: CoroutineContext) = this.apply {
+            this.coroutineContext = context
+        }
+
         fun build(): SchemaParserOptions {
             val wrappers = if (useDefaultGenericWrappers) {
                 genericWrappers + listOf(
@@ -326,7 +342,9 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
                 genericWrappers
             }
 
-            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers, preferGraphQLResolver, introspectionEnabled)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider,
+                    proxyHandlers, preferGraphQLResolver, introspectionEnabled,
+                    coroutineContext ?: Dispatchers.Default)
         }
     }
 

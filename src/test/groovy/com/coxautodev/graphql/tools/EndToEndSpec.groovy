@@ -560,4 +560,21 @@ class EndToEndSpec extends Specification {
         then:
             data.dataFetcherResult.name == "item1"
     }
+
+    def "generated schema supports Kotlin suspend functions"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                {
+                    coroutineItems {
+                        id
+                        name
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.coroutineItems == [[id:0, name:"item1"], [id:1, name:"item2"]]
+    }
 }

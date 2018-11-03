@@ -9,6 +9,8 @@ import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
+import kotlin.reflect.full.valueParameters
+import kotlin.reflect.jvm.kotlinFunction
 
 /**
  * @author Andrew Potter
@@ -112,7 +114,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             true
         }
 
-        val correctParameterCount = method.parameterCount == requiredCount || (method.parameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(method.parameterTypes.last()))
+        val correctParameterCount = method.parameterCount == requiredCount ||
+                (method.parameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(method.parameterTypes.last())) ||
+                (method.kotlinFunction?.run { isSuspend && valueParameters.size == requiredCount } == true)
         return correctParameterCount && appropriateFirstParameter
     }
 

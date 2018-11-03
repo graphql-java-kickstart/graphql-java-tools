@@ -7,6 +7,7 @@ import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import kotlinx.coroutines.CompletableDeferred
 import org.reactivestreams.Publisher
 import java.util.Optional
 import java.util.UUID
@@ -73,6 +74,8 @@ type Query {
 
     propertyField: String!
     dataFetcherResult: Item!
+
+    coroutineItems: [Item!]!
 }
 
 type ExtendedType {
@@ -268,12 +271,13 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun propertyMapWithComplexItems() = propertyMapWithComplexItems
     fun propertyMapWithNestedComplexItems() = propertyMapWithNestedComplexItems
 
-
     private val propertyField = "test"
 
     fun dataFetcherResult(): DataFetcherResult<Item> {
         return DataFetcherResult(items.first(), listOf())
     }
+
+    suspend fun coroutineItems(): List<Item> = CompletableDeferred(items).await()
 }
 
 class UnusedRootResolver: GraphQLQueryResolver
