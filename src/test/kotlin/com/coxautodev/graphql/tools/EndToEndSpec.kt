@@ -7,7 +7,9 @@ import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import org.reactivestreams.Publisher
 import java.util.Optional
 import java.util.UUID
@@ -107,6 +109,8 @@ type Mutation {
 
 type Subscription {
     onItemCreated: Item!
+    onItemCreatedCoroutineChannel: Item!
+    onItemCreatedCoroutineChannelAndSuspendFunction: Item!
 }
 
 input ItemSearchInput {
@@ -306,6 +310,20 @@ class Subscription : GraphQLSubscriptionResolver {
             subscriber.onNext(env.getContext<OnItemCreatedContext>().newItem)
 //            subscriber.onComplete()
         }
+
+    fun onItemCreatedCoroutineChannel(env: DataFetchingEnvironment): ReceiveChannel<Item> {
+        val channel = Channel<Item>(1)
+        channel.offer(env.getContext<OnItemCreatedContext>().newItem)
+        return channel
+    }
+
+    suspend fun onItemCreatedCoroutineChannelAndSuspendFunction(env: DataFetchingEnvironment): ReceiveChannel<Item> {
+        return coroutineScope {
+            val channel = Channel<Item>(1)
+            channel.offer(env.getContext<OnItemCreatedContext>().newItem)
+            channel
+        }
+    }
 }
 
 class ItemResolver : GraphQLResolver<Item> {

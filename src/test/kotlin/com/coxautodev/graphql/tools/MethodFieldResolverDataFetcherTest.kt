@@ -11,8 +11,12 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import org.junit.Assert
 import org.junit.Test
+import org.reactivestreams.Publisher
+import org.reactivestreams.tck.TestEnvironment
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
@@ -37,6 +41,53 @@ class MethodFieldResolverDataFetcherTest {
         @Suppress("UNCHECKED_CAST")
         val future = resolver.get(createEnvironment(DataClass())) as CompletableFuture<Boolean>
         Assert.assertTrue(future.get())
+    }
+
+    @Test
+    fun `canceling subscription Publisher also cancels underlying Kotlin coroutine channel`() {
+        // setup
+        val channel = Channel<String>(10)
+        channel.offer("A")
+        channel.offer("B")
+
+        val resolver = createFetcher("onDataNameChanged", object : GraphQLResolver<DataClass> {
+            fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
+                return channel
+            }
+        })
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val publisher = resolver.get(createEnvironment(DataClass())) as Publisher<String>
+        val subscriber = TestEnvironment().newManualSubscriber(publisher)
+
+        Assert.assertEquals("A", subscriber.requestNextElement())
+
+        subscriber.cancel()
+        Thread.sleep(100)
+        Assert.assertTrue(channel.isClosedForReceive)
+    }
+
+    @Test
+    fun `canceling underlying Kotlin coroutine channel also cancels subscription Publisher`() {
+        // setup
+        val channel = Channel<String>(10)
+        channel.offer("A")
+        channel.close(IllegalStateException("Channel error"))
+
+        val resolver = createFetcher("onDataNameChanged", object : GraphQLResolver<DataClass> {
+            fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
+                return channel
+            }
+        })
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val publisher = resolver.get(createEnvironment(DataClass())) as Publisher<String>
+        val subscriber = TestEnvironment().newManualSubscriber(publisher)
+
+        Assert.assertEquals("A", subscriber.requestNextElement())
+        subscriber.expectErrorWithMessage(IllegalStateException::class.java, "Channel error")
     }
 
     private fun createFetcher(

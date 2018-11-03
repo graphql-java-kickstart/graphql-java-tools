@@ -9,6 +9,9 @@ import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.reactive.publish
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.reactivestreams.Publisher
@@ -331,20 +334,31 @@ data class SchemaParserOptions internal constructor(
         }
 
         fun build(): SchemaParserOptions {
+            val coroutineContext = coroutineContext ?: Dispatchers.Default
             val wrappers = if (useDefaultGenericWrappers) {
                 genericWrappers + listOf(
                         GenericWrapper(Future::class, 0),
                         GenericWrapper(CompletableFuture::class, 0),
                         GenericWrapper(CompletionStage::class, 0),
-                        GenericWrapper(Publisher::class, 0)
+                        GenericWrapper(Publisher::class, 0),
+                        GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel ->
+                            GlobalScope.publish(coroutineContext) {
+                                try {
+                                    for (item in receiveChannel) {
+                                        send(item)
+                                    }
+                                } finally {
+                                    receiveChannel.cancel()
+                                }
+                            }
+                        })
                 )
             } else {
                 genericWrappers
             }
 
             return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider,
-                    proxyHandlers, preferGraphQLResolver, introspectionEnabled,
-                    coroutineContext ?: Dispatchers.Default)
+                    proxyHandlers, preferGraphQLResolver, introspectionEnabled, coroutineContext)
         }
     }
 

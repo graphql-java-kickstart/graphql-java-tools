@@ -7,6 +7,7 @@ import graphql.execution.batched.BatchedExecutionStrategy
 import graphql.schema.GraphQLSchema
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
+import org.reactivestreams.tck.TestEnvironment
 import spock.lang.Shared
 import spock.lang.Specification
 
@@ -563,18 +564,56 @@ class EndToEndSpec extends Specification {
 
     def "generated schema supports Kotlin suspend functions"() {
         when:
-        def data = Utils.assertNoGraphQlErrors(gql) {
-            '''
-                {
-                    coroutineItems {
-                        id
-                        name
-                    }
-                }
+            def data = Utils.assertNoGraphQlErrors(gql) {
                 '''
-        }
+                    {
+                        coroutineItems {
+                            id
+                            name
+                        }
+                    }
+                    '''
+            }
 
         then:
-        data.coroutineItems == [[id:0, name:"item1"], [id:1, name:"item2"]]
+            data.coroutineItems == [[id:0, name:"item1"], [id:1, name:"item2"]]
+    }
+
+    def "generated schema supports Kotlin coroutine channels for the subscription query"() {
+        when:
+            def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+            def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
+                '''
+                    subscription {
+                        onItemCreatedCoroutineChannel {
+                            id
+                        }
+                    } 
+                    '''
+            }
+            def subscriber = new TestEnvironment().newManualSubscriber(data as Publisher<ExecutionResult>)
+
+        then:
+            subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannel").id == 1
+            subscriber.expectCompletion()
+    }
+
+    def "generated schema supports Kotlin coroutine channels with suspend function for the subscription query"() {
+        when:
+            def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+            def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
+                '''
+                        subscription {
+                            onItemCreatedCoroutineChannelAndSuspendFunction {
+                                id
+                            }
+                        } 
+                        '''
+            }
+            def subscriber = new TestEnvironment().newManualSubscriber(data as Publisher<ExecutionResult>)
+
+        then:
+            subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannelAndSuspendFunction").id == 1
+            subscriber.expectCompletion()
     }
 }

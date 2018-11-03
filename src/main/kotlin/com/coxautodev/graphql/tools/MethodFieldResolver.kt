@@ -155,29 +155,24 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
         val source = sourceResolver(environment)
         val args = this.args.map { it(environment) }.toTypedArray()
 
-        val result = if (isSuspendFunction) {
+        return if (isSuspendFunction) {
             GlobalScope.future(options.coroutineContext) {
                 suspendCoroutineUninterceptedOrReturn<Any?> { continuation ->
-                    methodAccess.invoke(source, methodIndex, *args + continuation)
+                    methodAccess.invoke(source, methodIndex, *args + continuation)?.transformWithGenericWrapper(environment)
                 }
             }
         } else {
-            methodAccess.invoke(source, methodIndex, *args)
+            methodAccess.invoke(source, methodIndex, *args)?.transformWithGenericWrapper(environment)
         }
-        return if (result == null) {
-            null
-        } else {
-            val wrapper = options.genericWrappers
-                    .asSequence()
-                    .filter { it.type.isInstance(result) }
-                    .sortedWith(CompareGenericWrappers)
-                    .firstOrNull()
-            if (wrapper == null) {
-                result
-            } else {
-                wrapper.transformer.invoke(result, environment)
-            }
-        }
+    }
+
+    private fun Any.transformWithGenericWrapper(environment: DataFetchingEnvironment): Any? {
+        return options.genericWrappers
+                .asSequence()
+                .filter { it.type.isInstance(this) }
+                .sortedWith(CompareGenericWrappers)
+                .firstOrNull()
+                ?.transformer?.invoke(this, environment) ?: this
     }
 
     /**
