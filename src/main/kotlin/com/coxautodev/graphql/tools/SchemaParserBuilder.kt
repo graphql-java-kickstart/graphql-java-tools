@@ -8,6 +8,10 @@ import graphql.language.Document
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.reactive.publish
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.reactivestreams.Publisher
@@ -15,6 +19,7 @@ import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
 /**
@@ -247,7 +252,16 @@ class SchemaParserDictionary {
     }
 }
 
-data class SchemaParserOptions internal constructor(val contextClass: Class<*>?, val genericWrappers: List<GenericWrapper>, val allowUnimplementedResolvers: Boolean, val objectMapperProvider: PerFieldObjectMapperProvider, val proxyHandlers: List<ProxyHandler>, val preferGraphQLResolver: Boolean, val introspectionEnabled: Boolean) {
+data class SchemaParserOptions internal constructor(
+        val contextClass: Class<*>?,
+        val genericWrappers: List<GenericWrapper>,
+        val allowUnimplementedResolvers: Boolean,
+        val objectMapperProvider: PerFieldObjectMapperProvider,
+        val proxyHandlers: List<ProxyHandler>,
+        val preferGraphQLResolver: Boolean,
+        val introspectionEnabled: Boolean,
+        val coroutineContext: CoroutineContext
+) {
     companion object {
         @JvmStatic
         fun newOptions() = Builder()
@@ -265,6 +279,7 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
         private var preferGraphQLResolver = false
         private var introspectionEnabled = true
+        private var coroutineContext: CoroutineContext? = null
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -314,19 +329,36 @@ data class SchemaParserOptions internal constructor(val contextClass: Class<*>?,
             this.introspectionEnabled = introspectionEnabled
         }
 
+        fun coroutineContext(context: CoroutineContext) = this.apply {
+            this.coroutineContext = context
+        }
+
         fun build(): SchemaParserOptions {
+            val coroutineContext = coroutineContext ?: Dispatchers.Default
             val wrappers = if (useDefaultGenericWrappers) {
                 genericWrappers + listOf(
                         GenericWrapper(Future::class, 0),
                         GenericWrapper(CompletableFuture::class, 0),
                         GenericWrapper(CompletionStage::class, 0),
-                        GenericWrapper(Publisher::class, 0)
+                        GenericWrapper(Publisher::class, 0),
+                        GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel ->
+                            GlobalScope.publish(coroutineContext) {
+                                try {
+                                    for (item in receiveChannel) {
+                                        send(item)
+                                    }
+                                } finally {
+                                    receiveChannel.cancel()
+                                }
+                            }
+                        })
                 )
             } else {
                 genericWrappers
             }
 
-            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider, proxyHandlers, preferGraphQLResolver, introspectionEnabled)
+            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider,
+                    proxyHandlers, preferGraphQLResolver, introspectionEnabled, coroutineContext)
         }
     }
 

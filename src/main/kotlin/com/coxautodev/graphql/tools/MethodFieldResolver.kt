@@ -8,10 +8,14 @@ import graphql.language.FieldDefinition
 import graphql.language.NonNullType
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
-import java.lang.reflect.ParameterizedType
-import java.lang.reflect.TypeVariable
 import java.util.*
+import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
+import kotlin.reflect.full.valueParameters
+import kotlin.reflect.jvm.javaType
+import kotlin.reflect.jvm.kotlinFunction
 
 /**
  * @author Andrew Potter
@@ -31,7 +35,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         }
     }
 
-    private val additionalLastArgument = method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+    private val additionalLastArgument = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
         val batched = isBatched(method, search)
@@ -99,7 +103,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val batched = isBatched(method, search)
-        val unwrappedGenericType = genericType.unwrapGenericType(method.genericReturnType)
+        val unwrappedGenericType = genericType.unwrapGenericType(method.kotlinFunction?.returnType?.javaType ?: method.returnType)
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
@@ -136,6 +140,7 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     // Convert to reflactasm reflection
     private val methodAccess = MethodAccess.get(method.declaringClass)!!
     private val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
+    private val isSuspendFunction = method.kotlinFunction?.isSuspend == true
 
     private class CompareGenericWrappers {
         companion object : Comparator<GenericWrapper> {
@@ -149,21 +154,23 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     override fun get(environment: DataFetchingEnvironment): Any? {
         val source = sourceResolver(environment)
         val args = this.args.map { it(environment) }.toTypedArray()
-        val result = methodAccess.invoke(source, methodIndex, *args)
-        return if (result == null) {
-            result
-        } else {
-            val wrapper = options.genericWrappers
-                    .asSequence()
-                    .filter { it.type.isInstance(result) }
-                    .sortedWith(CompareGenericWrappers)
-                    .firstOrNull()
-            if (wrapper == null) {
-                result
-            } else {
-                wrapper.transformer.invoke(result, environment)
+
+        return if (isSuspendFunction) {
+            GlobalScope.future(options.coroutineContext) {
+                methodAccess.invokeSuspend(source, methodIndex, args)?.transformWithGenericWrapper(environment)
             }
+        } else {
+            methodAccess.invoke(source, methodIndex, *args)?.transformWithGenericWrapper(environment)
         }
+    }
+
+    private fun Any.transformWithGenericWrapper(environment: DataFetchingEnvironment): Any? {
+        return options.genericWrappers
+                .asSequence()
+                .filter { it.type.isInstance(this) }
+                .sortedWith(CompareGenericWrappers)
+                .firstOrNull()
+                ?.transformer?.invoke(this, environment) ?: this
     }
 
     /**
@@ -173,6 +180,12 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     @Suppress("unused")
     open fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
         return sourceResolver(environment)
+    }
+}
+
+private suspend inline fun MethodAccess.invokeSuspend(target: Any, methodIndex: Int, args: Array<Any?>): Any? {
+    return suspendCoroutineUninterceptedOrReturn { continuation ->
+        invoke(target, methodIndex, *args + continuation)
     }
 }
 
