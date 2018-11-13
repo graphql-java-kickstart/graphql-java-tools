@@ -17,8 +17,8 @@ import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
+import graphql.schema.idl.SchemaDirectiveWiring
 import org.slf4j.LoggerFactory
-import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /**
@@ -134,7 +134,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         val dictionary = try {
             Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, JavaType>().also {
                 dictionary.filter {
-                            it.value.javaType != null
+                    it.value.javaType != null
                             && it.value.typeClass() != java.lang.Object::class.java
                             && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
                             && it.key !is InputObjectTypeDefinition
@@ -216,9 +216,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }
     }
 
-    private fun getResolverInfoFromTypeDictionary(typeName: String) : ResolverInfo? {
+    private fun getResolverInfoFromTypeDictionary(typeName: String): ResolverInfo? {
         val dictionaryType = initialDictionary[typeName]?.get()
-        return if(dictionaryType != null) {
+        return if (dictionaryType != null) {
             resolverInfosByDataClass[dictionaryType] ?: DataClassResolverInfo(dictionaryType);
         } else {
             null
@@ -233,13 +233,13 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         val resolverInfo: ResolverInfo? = if (resolverInfoList.size > 1) {
             MultiResolverInfo(resolverInfoList)
         } else {
-            if(item.clazz.equals(Object::class.java)) {
+            if (item.clazz.equals(Object::class.java)) {
                 getResolverInfoFromTypeDictionary(item.type.name)
             } else {
                 resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
             }
         }
-        if(resolverInfo == null) {
+        if (resolverInfo == null) {
             throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
         }
 
@@ -287,7 +287,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
                     log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
-                    if(java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
+                    if (java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
                         throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
                     }
                     throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.unwrap()}:\n|   ${reference.getDescription()}")

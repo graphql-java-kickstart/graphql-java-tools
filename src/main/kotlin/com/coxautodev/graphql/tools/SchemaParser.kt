@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.introspection.Introspection
 import graphql.language.AbstractNode
 import graphql.language.ArrayValue
 import graphql.language.BooleanValue
@@ -22,6 +23,7 @@ import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.language.Value
+import graphql.schema.GraphQLDirective
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLInputObjectType
@@ -36,7 +38,12 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolverProxy
+import graphql.schema.idl.DirectiveBehavior
+import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
+import graphql.schema.idl.SchemaGeneratorHelper
+import java.util.ArrayList
+import java.util.HashSet
 import kotlin.reflect.KClass
 
 /**
@@ -44,7 +51,7 @@ import kotlin.reflect.KClass
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, private val options: SchemaParserOptions) {
+class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, private val options: SchemaParserOptions, private val runtimeWiring: RuntimeWiring) {
 
     companion object {
         const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
@@ -78,6 +85,9 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             unionDefinitions.map { it.name }).toSet()
     private val permittedTypesForInputObject: Set<String> =
             (inputObjectDefinitions.map { it.name } + enumDefinitions.map { it.name }).toSet()
+
+    private val schemaGeneratorHelper = SchemaGeneratorHelper()
+    private val directiveGenerator = DirectiveBehavior()
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -124,19 +134,42 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             .definition(definition)
             .description(getDocumentation(definition))
 
+        val directiveDefinitions = setOf<GraphQLDirective>()
+        builder.withDirectives(*buildDirectives(definition.directives, directiveDefinitions, Introspection.DirectiveLocation.OBJECT))
+
         definition.implements.forEach { implementsDefinition ->
             val interfaceName = (implementsDefinition as TypeName).name
             builder.withInterface(interfaces.find { it.name == interfaceName } ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
         }
 
         definition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
+            fieldDefinition.description
             builder.field { field ->
                 createField(field, fieldDefinition)
+                // todo: apply directives to the fieldDefinition to use to find dataFetcher we're really after
                 field.dataFetcher(fieldResolversByType[definition]?.get(fieldDefinition)?.createDataFetcher() ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools"))
+
+                val wiredField = directiveGenerator.onField(field.build(), DirectiveBehavior.Params(runtimeWiring))
+                GraphQLFieldDefinition.Builder(wiredField)
             }
         }
 
-        return builder.build()
+        val objectType = builder.build()
+
+        return directiveGenerator.onObject(objectType, DirectiveBehavior.Params(runtimeWiring))
+    }
+
+    private fun buildDirectives(directives: List<Directive>, directiveDefinitions: Set<GraphQLDirective>, directiveLocation: Introspection.DirectiveLocation): Array<GraphQLDirective> {
+        val names = HashSet<String>()
+
+        val output = ArrayList<GraphQLDirective>()
+        for (directive in directives) {
+            if (!names.contains(directive.name)) {
+                names.add(directive.name)
+                output.add(schemaGeneratorHelper.buildDirective(directive, directiveDefinitions, directiveLocation))
+            }
+        }
+        return output.toTypedArray()
     }
 
     private fun createInputObject(definition: InputObjectTypeDefinition): GraphQLInputObjectType {
@@ -243,6 +276,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                 argument.type(determineInputType(argumentDefinition.type))
             }
         }
+        field.withDirectives(*buildDirectives(fieldDefinition.directives, setOf(), Introspection.DirectiveLocation.FIELD_DEFINITION))
         return field
     }
 

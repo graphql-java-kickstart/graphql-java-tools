@@ -8,6 +8,8 @@ import graphql.language.Document
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import graphql.schema.idl.RuntimeWiring
+import graphql.schema.idl.SchemaDirectiveWiring
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -31,6 +33,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     private val files = mutableListOf<String>()
     private val resolvers = mutableListOf<GraphQLResolver<*>>()
     private val scalars = mutableListOf<GraphQLScalarType>()
+    private val runtimeWiringBuilder = RuntimeWiring.newRuntimeWiring()
     private var options = SchemaParserOptions.defaultOptions()
 
     /**
@@ -76,6 +79,10 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
      */
     fun scalars(vararg scalars: GraphQLScalarType) = this.apply {
         this.scalars.addAll(scalars)
+    }
+
+    fun directive(name: String, directive: SchemaDirectiveWiring) = this.apply {
+        this.runtimeWiringBuilder.directive(name, directive)
     }
 
     /**
@@ -181,7 +188,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     /**
      * Build the parser with the supplied schema and dictionary.
      */
-    fun build() = SchemaParser(scan(), options)
+    fun build() = SchemaParser(scan(), options, runtimeWiringBuilder.build())
 }
 
 class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException) : RuntimeException(pce) {
