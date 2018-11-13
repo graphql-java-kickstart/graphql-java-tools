@@ -1,5 +1,4 @@
 directive @connection on FIELD_DEFINITION
-directive @uppercase on FIELD_DEFINITION
 
 type Query {
     users(first: Int, after: String): UserConnection @connection
@@ -17,7 +16,7 @@ type UserEdge {
 
 type User {
     id: ID!
-    name: String @uppercase
+    name: String
 }
 
 type PageInfo {

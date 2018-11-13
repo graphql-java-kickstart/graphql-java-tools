@@ -4,8 +4,13 @@ import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
+import graphql.schema.DataFetcher
+import graphql.schema.DataFetcherFactories
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLSchema
+import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import spock.lang.Specification
 
 class RelayConnectionSpec extends Specification {
@@ -51,7 +56,7 @@ class RelayConnectionSpec extends Specification {
                         }
                     ''')
                     .resolvers(new QueryResolver())
-                    .directive("uppercase", new RelayConnectionTest.UppercaseDirective())
+                    .directive("uppercase", new UppercaseDirective())
                     .build()
                     .makeExecutableSchema()
             GraphQL gql = GraphQL.newGraphQL(schema)
@@ -113,6 +118,22 @@ class RelayConnectionSpec extends Specification {
 
         AnotherType(String echo) {
             this.echo = echo
+        }
+    }
+
+    static class UppercaseDirective implements SchemaDirectiveWiring {
+
+        @Override
+        GraphQLFieldDefinition onField(SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition> env) {
+            GraphQLFieldDefinition field = env.getElement();
+            DataFetcher dataFetcher = DataFetcherFactories.wrapDataFetcher(field.getDataFetcher(), {
+                dataFetchingEnvironment, value ->
+                    if (value == null) {
+                        return null
+                    }
+                    return  ((String) value).toUpperCase()
+            })
+            return field.transform({ builder -> builder.dataFetcher(dataFetcher) });
         }
     }
 

@@ -22,7 +22,6 @@ public class RelayConnectionTest {
                 .resolvers(new QueryResolver())
                 .dictionary(User.class)
                 .directive("connection", new RelayConnection())
-                .directive("uppercase", new UppercaseDirective())
                 .build()
                 .makeExecutableSchema();
     }
@@ -50,19 +49,5 @@ public class RelayConnectionTest {
 
     }
 
-    static class UppercaseDirective implements SchemaDirectiveWiring {
 
-        @Override
-        public GraphQLFieldDefinition onField(SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition> env) {
-            GraphQLFieldDefinition field = env.getElement();
-            DataFetcher dataFetcher = DataFetcherFactories.wrapDataFetcher(field.getDataFetcher(), ((dataFetchingEnvironment, value) -> {
-                if (value == null) {
-                    return null;
-                }
-                String uppercase = ((String) value).toUpperCase();
-                return uppercase;
-            }));
-            return field.transform(builder -> builder.dataFetcher(dataFetcher));
-        }
-    }
 }
