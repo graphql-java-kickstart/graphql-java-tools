@@ -1,0 +1,12 @@
+type Query {
+    organization(organizationId: ID): Organization
+}
+
+type Organization {
+    user: User
+}
+
+type User {
+    id: ID
+    name: String
+}

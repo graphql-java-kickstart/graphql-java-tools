@@ -4,8 +4,13 @@ import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
+import graphql.schema.DataFetcher
+import graphql.schema.DataFetcherFactories
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLSchema
+import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import spock.lang.Specification
 
 class RelayConnectionSpec extends Specification {
@@ -13,6 +18,8 @@ class RelayConnectionSpec extends Specification {
     def "relay connection types are compatible"() {
         when:
             GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+                        directive @uppercase on FIELD_DEFINITION
+                        
                         type Query {
                             users(first: Int, after: String): UserConnection
                             otherTypes: AnotherTypeConnection
@@ -27,9 +34,10 @@ class RelayConnectionSpec extends Specification {
                             node: User!
                         }
                         
+                        
                         type User {
                             id: ID!
-                            name: String
+                            name: String @uppercase
                         }
                         
                         type PageInfo {
@@ -48,6 +56,7 @@ class RelayConnectionSpec extends Specification {
                         }
                     ''')
                     .resolvers(new QueryResolver())
+                    .directive("uppercase", new UppercaseDirective())
                     .build()
                     .makeExecutableSchema()
             GraphQL gql = GraphQL.newGraphQL(schema)
@@ -79,7 +88,7 @@ class RelayConnectionSpec extends Specification {
             noExceptionThrown()
             data.users.edges.size == 1
             data.users.edges[0].node.id == "1"
-            data.users.edges[0].node.name == "name"
+            data.users.edges[0].node.name == "NAME"
             data.otherTypes.edges.size == 1
             data.otherTypes.edges[0].node.echo == "echo"
     }
@@ -109,6 +118,22 @@ class RelayConnectionSpec extends Specification {
 
         AnotherType(String echo) {
             this.echo = echo
+        }
+    }
+
+    static class UppercaseDirective implements SchemaDirectiveWiring {
+
+        @Override
+        GraphQLFieldDefinition onField(SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition> env) {
+            GraphQLFieldDefinition field = env.getElement();
+            DataFetcher dataFetcher = DataFetcherFactories.wrapDataFetcher(field.getDataFetcher(), {
+                dataFetchingEnvironment, value ->
+                    if (value == null) {
+                        return null
+                    }
+                    return  ((String) value).toUpperCase()
+            })
+            return field.transform({ builder -> builder.dataFetcher(dataFetcher) });
         }
     }
 
