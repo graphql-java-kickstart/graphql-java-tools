@@ -185,6 +185,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                 field.description(getDocumentation(inputDefinition))
                 field.defaultValue(inputDefinition.defaultValue)
                 field.type(determineInputType(inputDefinition.type))
+                field.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
             }
         }
 
@@ -280,6 +281,8 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                 argument.description(getDocumentation(argumentDefinition))
                 argument.defaultValue(buildDefaultValue(argumentDefinition.defaultValue))
                 argument.type(determineInputType(argumentDefinition.type))
+                argument.withDirectives(*buildDirectives(argumentDefinition.directives, setOf(), Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
+
             }
         }
         field.withDirectives(*buildDirectives(fieldDefinition.directives, setOf(), Introspection.DirectiveLocation.FIELD_DEFINITION))
