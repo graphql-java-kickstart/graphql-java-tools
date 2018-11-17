@@ -31,11 +31,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>5.3.3</version>
+    <version>5.4.0</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java-kickstart:graphql-java-tools:5.3.3'
+compile 'com.graphql-java-kickstart:graphql-java-tools:5.4.0'
 ```
 
 New releases will be available faster in the JCenter repository than in Maven Central. Add the following to use for Maven
