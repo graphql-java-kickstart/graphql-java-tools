@@ -167,7 +167,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
 
     private fun appendDynamicDefinitions(baseDefinitions: List<Definition<*>>): List<Definition<*>> {
         val definitions = baseDefinitions.toMutableList()
-        options.typeDefinitionFactories.forEach { definitions.addAll(it.create(baseDefinitions)) }
+        options.typeDefinitionFactories.forEach { definitions.addAll(it.create(definitions)) }
         return definitions.toList()
     }
 
