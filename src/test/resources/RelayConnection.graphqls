@@ -1,24 +1,8 @@
-directive @connection on FIELD_DEFINITION
-
 type Query {
-    users(first: Int, after: String): UserConnection @connection
-}
-
-type UserConnection {
-    edges: [UserEdge!]!
-    pageInfo: PageInfo!
-}
-
-type UserEdge {
-    cursor: String!
-    node: User!
+    users(first: Int, after: String): UserConnection @connection(for: "User")
 }
 
 type User {
     id: ID!
     name: String
-}
-
-type PageInfo {
-
 }

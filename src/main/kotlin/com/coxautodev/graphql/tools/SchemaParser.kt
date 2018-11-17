@@ -146,7 +146,6 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             fieldDefinition.description
             builder.field { field ->
                 createField(field, fieldDefinition)
-                // todo: apply directives to the fieldDefinition to use to find dataFetcher we're really after
                 field.dataFetcher(fieldResolversByType[definition]?.get(fieldDefinition)?.createDataFetcher() ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools"))
 
                 val wiredField = directiveGenerator.onField(field.build(), DirectiveBehavior.Params(runtimeWiring))

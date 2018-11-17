@@ -15,8 +15,8 @@ class DirectiveBehavior {
         return directiveHelper.onField(element, params.toParameters())
     }
 
-
     data class Params(val runtimeWiring: RuntimeWiring) {
         internal fun toParameters() = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, null)
     }
+
 }

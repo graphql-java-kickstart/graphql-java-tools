@@ -1,10 +1,17 @@
 package com.coxautodev.graphql.tools
 
+import com.coxautodev.graphql.tools.relay.RelayConnectionFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.collect.Maps
+import graphql.language.Definition
 import graphql.language.Document
+import graphql.language.FieldDefinition
+import graphql.language.ListType
+import graphql.language.NonNullType
+import graphql.language.ObjectTypeDefinition
+import graphql.language.TypeName
 import graphql.parser.Parser
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
@@ -149,7 +156,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
      * Scan for classes with the supplied schema and dictionary.  Used for testing.
      */
     private fun scan(): ScannedSchemaObjects {
-        val definitions = parseDefinitions()
+        val definitions = appendDynamicDefinitions(parseDefinitions())
         val customScalars = scalars.associateBy { it.name }
 
         return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options)
@@ -157,6 +164,12 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
     }
 
     private fun parseDefinitions() = parseDocuments().flatMap { it.definitions }
+
+    private fun appendDynamicDefinitions(baseDefinitions: List<Definition<*>>): List<Definition<*>> {
+        val definitions = baseDefinitions.toMutableList()
+        options.typeDefinitionFactories.forEach { definitions.addAll(it.create(baseDefinitions)) }
+        return definitions.toList()
+    }
 
     private fun parseDocuments(): List<Document> {
         val parser = Parser()
@@ -267,7 +280,8 @@ data class SchemaParserOptions internal constructor(
         val proxyHandlers: List<ProxyHandler>,
         val preferGraphQLResolver: Boolean,
         val introspectionEnabled: Boolean,
-        val coroutineContext: CoroutineContext
+        val coroutineContext: CoroutineContext,
+        val typeDefinitionFactories: List<TypeDefinitionFactory>
 ) {
     companion object {
         @JvmStatic
@@ -287,6 +301,7 @@ data class SchemaParserOptions internal constructor(
         private var preferGraphQLResolver = false
         private var introspectionEnabled = true
         private var coroutineContext: CoroutineContext? = null
+        private var typeDefinitionFactories: MutableList<TypeDefinitionFactory> = mutableListOf(RelayConnectionFactory())
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -340,6 +355,10 @@ data class SchemaParserOptions internal constructor(
             this.coroutineContext = context
         }
 
+        fun typeDefinitionFactory(factory: TypeDefinitionFactory) = this.apply {
+            this.typeDefinitionFactories.add(factory)
+        }
+
         fun build(): SchemaParserOptions {
             val coroutineContext = coroutineContext ?: Dispatchers.Default
             val wrappers = if (useDefaultGenericWrappers) {
@@ -365,7 +384,7 @@ data class SchemaParserOptions internal constructor(
             }
 
             return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider,
-                    proxyHandlers, preferGraphQLResolver, introspectionEnabled, coroutineContext)
+                    proxyHandlers, preferGraphQLResolver, introspectionEnabled, coroutineContext, typeDefinitionFactories)
         }
     }
 

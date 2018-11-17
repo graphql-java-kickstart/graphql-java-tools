@@ -20,10 +20,14 @@ public class RelayConnectionTest {
 
     @Test
     public void compiles() {
+        SchemaParserOptions options = SchemaParserOptions.newOptions()
+
+                .build();
         GraphQLSchema schema = SchemaParser.newParser().file("RelayConnection.graphqls")
                 .resolvers(new QueryResolver())
                 .dictionary(User.class)
                 .directive("connection", new ConnectionDirective())
+                .options(options)
                 .build()
                 .makeExecutableSchema();
 
@@ -39,10 +43,15 @@ public class RelayConnectionTest {
                 return  "query {\n" +
                         "   users {\n" +
                         "       edges {\n" +
+                        "           cursor\n" +
                         "           node {\n" +
                         "               id\n" +
                         "               name\n" +
                         "           }\n" +
+                        "       },\n" +
+                        "       pageInfo {\n" +
+                        "           hasPreviousPage,\n" +
+                        "           hasNextPage\n" +
                         "       }\n" +
                         "   }\n" +
                         "}";

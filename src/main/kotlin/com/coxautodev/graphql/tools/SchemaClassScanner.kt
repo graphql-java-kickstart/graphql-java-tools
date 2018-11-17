@@ -8,6 +8,8 @@ import graphql.language.FieldDefinition
 import graphql.language.InputObjectTypeDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
+import graphql.language.ListType
+import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.ScalarTypeDefinition
@@ -17,7 +19,6 @@ import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.idl.SchemaDirectiveWiring
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 
@@ -230,7 +231,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
         val resolverInfoList = this.resolverInfos.filter { it.dataClassType == item.clazz }
-        val resolverInfo: ResolverInfo? = if (resolverInfoList.size > 1) {
+        val resolverInfo: ResolverInfo = (if (resolverInfoList.size > 1) {
             MultiResolverInfo(resolverInfoList)
         } else {
             if (item.clazz.equals(Object::class.java)) {
@@ -238,24 +239,42 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             } else {
                 resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
             }
-        }
-        if (resolverInfo == null) {
-            throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
-        }
+        }) ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
     }
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
+//            val searchField = applyDirective(field)
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
+
             fieldResolver.scanForMatches().forEach { potentialMatch ->
-                handleFoundType(typeClassMatcher.match(potentialMatch))
+//                if (potentialMatch.graphQLType is TypeName && !definitionsByName.containsKey((potentialMatch.graphQLType.name))) {
+//                    val typeDefinition = ObjectTypeDefinition.newObjectTypeDefinition()
+//                            .name(potentialMatch.graphQLType.name)
+//                            .build()
+//                    handleFoundType(TypeClassMatcher.ValidMatch(typeDefinition, typeClassMatcher.toRealType(potentialMatch), potentialMatch.reference))
+//                } else {
+                    handleFoundType(typeClassMatcher.match(potentialMatch))
+//                }
             }
         }
     }
+
+//    private fun applyDirective(field: FieldDefinition): FieldDefinition {
+//        val connectionDirectives = field.directives.filter { it.name == "connection" }
+//        if (connectionDirectives.isNotEmpty()) {
+//            val directive = connectionDirectives.first()
+//            val originalType:TypeName = field.type as TypeName
+//            val wrappedField = field.deepCopy()
+//            wrappedField.type = TypeName(originalType.name + "Connection")
+//            return wrappedField
+//        }
+//        return field
+//    }
 
     private fun handleFoundType(match: TypeClassMatcher.Match) {
         when (match) {
