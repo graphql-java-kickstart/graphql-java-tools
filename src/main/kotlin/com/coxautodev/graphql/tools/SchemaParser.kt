@@ -134,8 +134,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             .definition(definition)
             .description(getDocumentation(definition))
 
-        val directiveDefinitions = setOf<GraphQLDirective>()
-        builder.withDirectives(*buildDirectives(definition.directives, directiveDefinitions, Introspection.DirectiveLocation.OBJECT))
+        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.OBJECT))
 
         definition.implements.forEach { implementsDefinition ->
             val interfaceName = (implementsDefinition as TypeName).name
@@ -177,6 +176,8 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             .definition(definition)
             .description(getDocumentation(definition))
 
+        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INPUT_OBJECT))
+
         definition.inputValueDefinitions.forEach { inputDefinition ->
             builder.field { field ->
                 field.name(inputDefinition.name)
@@ -187,7 +188,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             }
         }
 
-        return builder.build()
+        return directiveGenerator.onInputObject(builder.build(), DirectiveBehavior.Params(runtimeWiring))
     }
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
@@ -200,6 +201,8 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             .definition(definition)
             .description(getDocumentation(definition))
 
+        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.ENUM))
+
         definition.enumValueDefinitions.forEach { enumDefinition ->
             val enumName = enumDefinition.name
             val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName } ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
@@ -211,7 +214,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             }
         }
 
-        return builder.build()
+        return directiveGenerator.onEnum(builder.build(), DirectiveBehavior.Params(runtimeWiring))
     }
 
     private fun createInterfaceObject(definition: InterfaceTypeDefinition): GraphQLInterfaceType {
@@ -222,11 +225,13 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             .description(getDocumentation(definition))
             .typeResolver(TypeResolverProxy())
 
+        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INTERFACE))
+
         definition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field -> createField(field, fieldDefinition) }
         }
 
-        return builder.build()
+        return directiveGenerator.onInterface(builder.build(), DirectiveBehavior.Params(runtimeWiring))
     }
 
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
@@ -237,8 +242,10 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             .description(getDocumentation(definition))
             .typeResolver(TypeResolverProxy())
 
+        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.UNION))
+
         getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
-        return builder.build()
+        return directiveGenerator.onUnion(builder.build(), DirectiveBehavior.Params(runtimeWiring))
     }
 
     private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
