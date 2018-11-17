@@ -1,5 +1,5 @@
 type Query {
-    users(first: Int, after: String): UserConnection @connection(for: "User")
+    users(first: Int, after: String): UserRelayConnection @connection(for: "User")
 }
 
 type User {
