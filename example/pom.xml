@@ -22,7 +22,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
-        <graphql-spring-boot-starter.version>5.0.6</graphql-spring-boot-starter.version>
+        <graphql-spring-boot-starter.version>5.2</graphql-spring-boot-starter.version>
+        <graphql-java-tools.version>5.4.1-SNAPSHOT</graphql-java-tools.version>
     </properties>
 
     <dependencies>
@@ -63,8 +64,13 @@
         <dependency>
             <groupId>com.graphql-java-kickstart</groupId>
             <artifactId>graphql-java-tools</artifactId>
-            <version>5.3.5</version>
+            <version>${graphql-java-tools.version}</version>
         </dependency>
+        <!--<dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+            <version>1.3.10</version>
+        </dependency>-->
     </dependencies>
 
     <build>
@@ -72,6 +78,20 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <version>1.3.10</version>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
