@@ -18,6 +18,7 @@ import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.reactive.publish
@@ -359,6 +360,7 @@ data class SchemaParserOptions internal constructor(
             this.typeDefinitionFactories.add(factory)
         }
 
+        @ExperimentalCoroutinesApi
         fun build(): SchemaParserOptions {
             val coroutineContext = coroutineContext ?: Dispatchers.Default
             val wrappers = if (useDefaultGenericWrappers) {

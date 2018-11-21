@@ -10,6 +10,7 @@ import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentBuilder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -43,6 +44,7 @@ class MethodFieldResolverDataFetcherTest {
         Assert.assertTrue(future.get())
     }
 
+    @ExperimentalCoroutinesApi
     @Test
     fun `canceling subscription Publisher also cancels underlying Kotlin coroutine channel`() {
         // setup
