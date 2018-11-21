@@ -50,6 +50,7 @@ type Query {
     itemsWithOptionalInputExplicit(itemsInput: ItemSearchInput): [Item!]
     enumInputType(type: Type!): Type!
     customScalarMapInputType(customScalarMap: customScalarMap): customScalarMap
+    itemWithGenericProperties: ItemWithGenericProperties!
 
     defaultArgument(arg: Boolean = true): Boolean!
     defaultEnumListArgument(types: [Type] = [TYPE_1]): [Type]
@@ -199,6 +200,10 @@ type Tag {
     id: Int!
     name: String!
 }
+
+type ItemWithGenericProperties {
+    keys: [String!]!
+}
 """
 
 
@@ -254,6 +259,7 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>) = if(input.isPresent) items(input.get()) else items
     fun enumInputType(type: Type) = type
     fun customScalarMapInputType(customScalarMap: Map<String, Any>) = customScalarMap
+    fun itemWithGenericProperties() = ItemWithGenericProperties(listOf("A", "B"))
 
     fun defaultArgument(arg: Boolean) = arg
     fun defaultEnumListArgument(types: List<Type>) = types
@@ -355,6 +361,7 @@ data class NewItemInput(val name: String, val type: Type)
 data class ComplexNullable(val first: String, val second: String, val third: String)
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
+data class ItemWithGenericProperties(val keys: List<String>)
 
 val customScalarId = GraphQLScalarType("ID", "Overrides built-in ID", object : Coercing<UUID, String> {
     override fun serialize(input: Any): String? = when (input) {

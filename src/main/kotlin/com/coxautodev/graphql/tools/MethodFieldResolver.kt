@@ -103,7 +103,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val batched = isBatched(method, search)
-        val unwrappedGenericType = genericType.unwrapGenericType(method.kotlinFunction?.returnType?.javaType ?: method.returnType)
+        val unwrappedGenericType = genericType.unwrapGenericType(method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType)
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->

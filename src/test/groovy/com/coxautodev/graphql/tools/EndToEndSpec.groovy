@@ -495,6 +495,24 @@ class EndToEndSpec extends Specification {
             ]
     }
 
+    def "generated schema supports generic properties"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    itemWithGenericProperties {
+                        keys
+                    }
+                }
+                '''
+        }
+
+        then:
+        data.itemWithGenericProperties == [
+                keys: ["A", "B"]
+        ]
+    }
+
     def "generated schema supports batched datafetchers"() {
         when:
             def data = Utils.assertNoGraphQlErrors(batchedGql) {
