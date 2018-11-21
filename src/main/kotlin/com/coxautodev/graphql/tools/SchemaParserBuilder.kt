@@ -298,7 +298,7 @@ data class SchemaParserOptions internal constructor(
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
-        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler())
+        private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
         private var preferGraphQLResolver = false
         private var introspectionEnabled = true
         private var coroutineContext: CoroutineContext? = null
