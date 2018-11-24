@@ -24,7 +24,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
         fun getAllMethods(type: JavaType) =
-                (type.unwrap().declaredMethods.toList() + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
+                (type.unwrap().declaredMethods.toList()
+                        + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
+                        + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
                         .asSequence()
                         .filter { !it.isSynthetic }
                         .filter { !Modifier.isPrivate(it.modifiers) }
@@ -70,7 +72,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             }
         }
 
-        if(java.util.Map::class.java.isAssignableFrom(search.type.unwrap())) {
+        if (java.util.Map::class.java.isAssignableFrom(search.type.unwrap())) {
             return PropertyMapResolver(field, search, options, search.type.unwrap())
         }
 
@@ -116,7 +118,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
 
         val methodParameterCount = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
-        val methodLastParameter = method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType ?: method.parameterTypes.lastOrNull()
+        val methodLastParameter = method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
+                ?: method.parameterTypes.lastOrNull()
 
         val correctParameterCount = methodParameterCount == requiredCount ||
                 (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
