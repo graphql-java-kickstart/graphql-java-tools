@@ -86,7 +86,13 @@ class RelayConnectionFactory : TypeDefinitionFactory {
     }
 
     class DirectiveWithField(val field: FieldDefinition, name: String, arguments: List<Argument>, sourceLocation: SourceLocation, comments: List<Comment>) : Directive(name, arguments, sourceLocation, comments) {
-        fun getTypeName() = (field.type as TypeName).name
+        fun getTypeName(): String {
+            val type = field.type
+            if (type is NonNullType) {
+                return (type.type as TypeName).name
+            }
+            return (field.type as TypeName).name
+        }
     }
 
 }
