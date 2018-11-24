@@ -89,6 +89,13 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
         this.scalars.addAll(scalars)
     }
 
+    /**
+     * Add scalars to the parser's dictionary.
+     */
+    fun scalars(scalars: List<GraphQLScalarType>) = this.apply {
+        this.scalars.addAll(scalars)
+    }
+
     fun directive(name: String, directive: SchemaDirectiveWiring) = this.apply {
         this.runtimeWiringBuilder.directive(name, directive)
     }
