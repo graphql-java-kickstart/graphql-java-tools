@@ -71,6 +71,8 @@ class RelayConnectionFactory : TypeDefinitionFactory {
                     .name("PageInfo")
                     .fieldDefinition(FieldDefinition("hasPreviousPage", NonNullType(TypeName("Boolean"))))
                     .fieldDefinition(FieldDefinition("hasNextPage", NonNullType(TypeName("Boolean"))))
+                    .fieldDefinition(FieldDefinition("startCursor", TypeName("String")))
+                    .fieldDefinition(FieldDefinition("endCursor", TypeName("String")))
                     .build()
 
     private fun Directive.forTypeName(): String {

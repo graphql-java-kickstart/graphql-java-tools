@@ -1,9 +1,9 @@
 package com.coxautodev.graphql.tools
 
+import com.fasterxml.classmate.TypeResolver
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import java.lang.reflect.ParameterizedType
 
 /**
  * @author Nick Weedon
@@ -14,12 +14,17 @@ internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolver
 
     var mapGenericValue : JavaType = getMapGenericType(relativeTo)
 
+    /**
+     * Takes a type which implements Map and tries to find the
+     * value type of that map. For some reason, mapClass is losing
+     * its generics somewhere along the way and is always a raw
+     * type
+     */
     fun getMapGenericType(mapClass : JavaType) : JavaType {
-        if(mapClass is ParameterizedType) {
-            return mapClass.actualTypeArguments[1]
-        } else {
-            return Object::class.java
-        }
+        val resolvedType = TypeResolver().resolve(mapClass)
+
+        val typeParameters = resolvedType.typeParametersFor(Map::class.java)
+        return typeParameters.elementAtOrElse(1) { Object::class.java }
     }
 
     override fun createDataFetcher(): DataFetcher<*> {

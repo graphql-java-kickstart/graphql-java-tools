@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import com.fasterxml.classmate.ResolvedType
 import com.google.common.primitives.Primitives
 import org.apache.commons.lang3.reflect.TypeUtils
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
@@ -130,6 +131,14 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                 is ParameterizedType -> {
                     val actualTypeArguments = type.actualTypeArguments.map { replaceTypeVariable(it) }.toTypedArray()
                     ParameterizedTypeImpl.make(type.rawType as Class<*>?, actualTypeArguments, type.ownerType)
+                }
+                is ResolvedType -> {
+                    if (type.typeParameters.isEmpty()) {
+                        type.erasedType
+                    } else {
+                        val actualTypeArguments = type.typeParameters.map { replaceTypeVariable(it) }.toTypedArray()
+                        ParameterizedTypeImpl.make(type.erasedType, actualTypeArguments, null)
+                    }
                 }
                 is TypeVariable<*> -> {
                     if (declaringType is ParameterizedType) {
