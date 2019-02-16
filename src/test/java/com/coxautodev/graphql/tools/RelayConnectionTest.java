@@ -44,6 +44,8 @@ public class RelayConnectionTest {
                         "       pageInfo {\n" +
                         "           hasPreviousPage,\n" +
                         "           hasNextPage\n" +
+                        "           startCursor\n" +
+                        "           endCursor\n" +
                         "       }\n" +
                         "   }\n" +
                         "}";
