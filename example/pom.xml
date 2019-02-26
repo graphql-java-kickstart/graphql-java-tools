@@ -22,8 +22,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
-        <graphql-spring-boot-starter.version>5.2</graphql-spring-boot-starter.version>
-        <graphql-java-tools.version>5.4.0</graphql-java-tools.version>
+        <graphql-spring-boot-starter.version>5.5.0</graphql-spring-boot-starter.version>
+        <graphql-java-tools.version>5.5.0</graphql-java-tools.version>
         <kotlin.version>1.3.10</kotlin.version>
     </properties>
 
