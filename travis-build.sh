@@ -24,6 +24,8 @@ saveMavenSettings() {
 EOL
 }
 
+mvn -B verify
+
 if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "${TRAVIS_BRANCH}" = "master" ]; then
     saveMavenSettings
     git checkout -f ${TRAVIS_BRANCH}
