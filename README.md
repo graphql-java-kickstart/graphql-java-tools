@@ -54,11 +54,11 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>5.5.0</version>
+    <version>5.5.1</version>
 </dependency>
 ```
 ```groovy
-compile 'com.graphql-java-kickstart:graphql-java-tools:5.5.0'
+compile 'com.graphql-java-kickstart:graphql-java-tools:5.5.1'
 ```
 
 New releases will be available faster in the JCenter repository than in Maven Central. Add the following to use for Maven
