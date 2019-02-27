@@ -634,4 +634,20 @@ class EndToEndSpec extends Specification {
             subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannelAndSuspendFunction").id == 1
             subscriber.expectCompletion()
     }
+
+    def "generated schema supports arrays"() {
+        when:
+            def data = Utils.assertNoGraphQlErrors(gql) {
+                '''
+                {
+                    arrayItems {
+                        name
+                    }
+                }
+                '''
+            }
+
+        then:
+            data.arrayItems.collect { it.name } == ['item1', 'item2']
+    }
 }

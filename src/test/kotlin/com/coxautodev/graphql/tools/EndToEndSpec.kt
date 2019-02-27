@@ -79,6 +79,8 @@ type Query {
     dataFetcherResult: Item!
 
     coroutineItems: [Item!]!
+
+    arrayItems: [Item!]!
 }
 
 type ExtendedType {
@@ -288,6 +290,8 @@ class Query: GraphQLQueryResolver, ListListResolver<String>() {
     }
 
     suspend fun coroutineItems(): List<Item> = CompletableDeferred(items).await()
+
+    fun arrayItems() = items.toTypedArray()
 }
 
 class UnusedRootResolver: GraphQLQueryResolver
