@@ -158,6 +158,8 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
 
                 val wiredField = directiveGenerator.onField(field.build(), DirectiveBehavior.Params(runtimeWiring))
                 GraphQLFieldDefinition.Builder(wiredField)
+                        .clearArguments()
+                        .argument(wiredField.arguments)
             }
         }
 

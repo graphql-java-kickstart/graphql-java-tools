@@ -12,8 +12,13 @@ class SuperclassResolverSpec extends Specification {
                             bar: Bar!
                         }
                         
-                        type Bar {
+                        type Bar implements Foo{
                             value: String
+                            getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
+                        }
+                        
+                        interface Foo {
+                            getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
                         }
                         ''')
                     .resolvers(new QueryResolver(), new BarResolver())
@@ -36,6 +41,14 @@ class SuperclassResolverSpec extends Specification {
     abstract class FooResolver<T> implements GraphQLResolver<Bar> {
         String getValue(T foo) {
             return "value"
+        }
+
+        String getValueWithSeveralParameters(T foo, boolean arg1, String arg2) {
+            if (arg1) {
+                return "value"
+            } else {
+                return arg2
+            }
         }
     }
 
