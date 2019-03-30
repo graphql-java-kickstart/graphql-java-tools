@@ -154,7 +154,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }.map { definition ->
             val provided = scalars[definition.name]
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
-            GraphQLScalarType(provided.name, SchemaParser.getDocumentation(definition)
+            GraphQLScalarType(provided.name,
+                    if (definition.description != null) definition.description.content else SchemaParser.getDocumentation(definition)
                     ?: provided.description, provided.coercing, listOf(), definition)
         }.associateBy { it.name!! }
 
