@@ -8,14 +8,12 @@ import graphql.execution.ExecutionId
 import graphql.execution.ExecutionStrategy
 import graphql.execution.ExecutionStrategyParameters
 import graphql.execution.instrumentation.SimpleInstrumentation
-import graphql.language.BooleanValue
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.NonNullType
 import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.DataFetchingEnvironmentBuilder
 import graphql.schema.DataFetchingEnvironmentImpl
 import spock.lang.Specification
 
@@ -213,11 +211,10 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetchingEnvironment createEnvironment(Object context, Object source, Map<String, Object> arguments = [:]) {
-        DataFetchingEnvironmentBuilder.newDataFetchingEnvironment()
+        DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
                 .source(source)
                 .arguments(arguments)
                 .context(context)
-                .executionContext(buildExecutionContext())
                 .build()
     }
 

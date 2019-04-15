@@ -20,7 +20,8 @@ class DirectiveBehavior {
     }
 
     fun onField(element: GraphQLFieldDefinition, params: Params): GraphQLFieldDefinition {
-        return directiveHelper.onField(element, params.toParameters())
+        // noop, since the actual behaviour has moved to onObject/onInterface since graphql-java 12.0
+        return element
     }
 
     fun onInterface(element: GraphQLInterfaceType, params: Params): GraphQLInterfaceType =
@@ -35,17 +36,23 @@ class DirectiveBehavior {
     fun onEnum(element: GraphQLEnumType, params: Params): GraphQLEnumType =
             directiveHelper.onEnum(element, params.toParameters())
 
-    fun onEnumValue(element: GraphQLEnumValueDefinition, params: Params): GraphQLEnumValueDefinition =
-            directiveHelper.onEnumValue(element, params.toParameters())
+    fun onEnumValue(element: GraphQLEnumValueDefinition, params: Params): GraphQLEnumValueDefinition {
+        // noop, since the actual behaviour has moved to onEnum since graphql-java 12.0
+        return element
+    }
 
-    fun onArgument(element: GraphQLArgument, params: Params): GraphQLArgument =
-            directiveHelper.onArgument(element, params.toParameters())
+    fun onArgument(element: GraphQLArgument, params: Params): GraphQLArgument {
+        // noop, since the actual behaviour has moved to onObject/onInterface since graphql-java 12.0
+        return element
+    }
 
     fun onInputObject(element: GraphQLInputObjectType, params: Params): GraphQLInputObjectType =
             directiveHelper.onInputObjectType(element, params.toParameters())
 
-    fun onInputObjectField(element: GraphQLInputObjectField, params: Params): GraphQLInputObjectField =
-            directiveHelper.onInputObjectField(element, params.toParameters())
+    fun onInputObjectField(element: GraphQLInputObjectField, params: Params): GraphQLInputObjectField {
+        // noop, since the actual behaviour has moved to onInputObjectType since graphql-java 12.0
+        return element
+    }
 
     data class Params(val runtimeWiring: RuntimeWiring) {
         internal fun toParameters() = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, null)
