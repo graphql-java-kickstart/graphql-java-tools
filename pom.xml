@@ -48,7 +48,7 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
-            <version>11.0</version>
+            <version>12.0</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml</groupId>
@@ -217,6 +217,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.1</version>
                 <executions>
                     <execution>
                         <id>test-jar</id>

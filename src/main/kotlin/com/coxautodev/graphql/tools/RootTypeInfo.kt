@@ -13,9 +13,9 @@ internal class RootTypeInfo private constructor(val queryType: TypeName?, val mu
         const val DEFAULT_SUBSCRIPTION_NAME = "Subscription"
 
         fun fromSchemaDefinitions(definitions: List<SchemaDefinition>): RootTypeInfo {
-            val queryType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "query" }?.type as TypeName?
-            val mutationType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "mutation" }?.type as TypeName?
-            val subscriptionType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "subscription" }?.type as TypeName?
+            val queryType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "query" }?.typeName
+            val mutationType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "mutation" }?.typeName
+            val subscriptionType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "subscription" }?.typeName
 
             return RootTypeInfo(queryType, mutationType, subscriptionType)
         }

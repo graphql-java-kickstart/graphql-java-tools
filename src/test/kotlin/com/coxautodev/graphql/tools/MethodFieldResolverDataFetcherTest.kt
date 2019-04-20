@@ -8,7 +8,7 @@ import graphql.language.InputValueDefinition
 import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.DataFetchingEnvironmentBuilder
+import graphql.schema.DataFetchingEnvironmentImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -108,11 +108,10 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     private fun createEnvironment(source: Any, arguments: Map<String, Any> = emptyMap(), context: Any? = null): DataFetchingEnvironment {
-        return DataFetchingEnvironmentBuilder.newDataFetchingEnvironment()
+        return DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
                 .source(source)
                 .arguments(arguments)
                 .context(context)
-                .executionContext(buildExecutionContext())
                 .build()
     }
 
