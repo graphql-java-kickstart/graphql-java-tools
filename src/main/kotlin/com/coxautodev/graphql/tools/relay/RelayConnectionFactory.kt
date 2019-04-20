@@ -6,6 +6,7 @@ import graphql.language.Comment
 import graphql.language.Definition
 import graphql.language.Directive
 import graphql.language.FieldDefinition
+import graphql.language.IgnoredChars
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
@@ -87,7 +88,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
         return this.directives.map { it.withField(this) }
     }
 
-    class DirectiveWithField(val field: FieldDefinition, name: String, arguments: List<Argument>, sourceLocation: SourceLocation, comments: List<Comment>) : Directive(name, arguments, sourceLocation, comments) {
+    class DirectiveWithField(val field: FieldDefinition, name: String, arguments: List<Argument>, sourceLocation: SourceLocation, comments: List<Comment>) : Directive(name, arguments, sourceLocation, comments, IgnoredChars.EMPTY) {
         fun getTypeName(): String {
             val type = field.type
             if (type is NonNullType) {
