@@ -9,6 +9,7 @@ import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Type
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
@@ -117,13 +118,29 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             true
         }
 
-        val methodParameterCount = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
-        val methodLastParameter = method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
-                ?: method.parameterTypes.lastOrNull()
+        val methodParameterCount = getMethodParameterCount(method)
+        val methodLastParameter = getMethodLastParameter(method)
 
         val correctParameterCount = methodParameterCount == requiredCount ||
                 (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
         return correctParameterCount && appropriateFirstParameter
+    }
+
+    private fun getMethodParameterCount(method: java.lang.reflect.Method): Int {
+        return try {
+            method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+        } catch (e: InternalError) {
+            method.parameterCount
+        }
+    }
+
+    private fun getMethodLastParameter(method: java.lang.reflect.Method): Type? {
+        return try {
+            method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
+                    ?: method.parameterTypes.lastOrNull()
+        } catch (e: InternalError) {
+            method.parameterTypes.lastOrNull()
+        }
     }
 
     private fun verifyBatchedMethodFirstArgument(firstType: JavaType?, requiredFirstParameterType: Class<*>?): Boolean {

@@ -35,7 +35,12 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         }
     }
 
-    private val additionalLastArgument = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+    private val additionalLastArgument =
+            try {
+                method.kotlinFunction?.valueParameters?.size ?: method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+            } catch (e: InternalError) {
+                method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+            }
 
     override fun createDataFetcher(): DataFetcher<*> {
         val batched = isBatched(method, search)
@@ -103,7 +108,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val batched = isBatched(method, search)
-        val unwrappedGenericType = genericType.unwrapGenericType(method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType)
+        val unwrappedGenericType = genericType.unwrapGenericType(try { method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType } catch (e: InternalError) { method.genericReturnType })
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
@@ -140,7 +145,7 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     // Convert to reflactasm reflection
     private val methodAccess = MethodAccess.get(method.declaringClass)!!
     private val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
-    private val isSuspendFunction = method.kotlinFunction?.isSuspend == true
+    private val isSuspendFunction = try {method.kotlinFunction?.isSuspend == true } catch (e: InternalError) { false }
 
     private class CompareGenericWrappers {
         companion object : Comparator<GenericWrapper> {
