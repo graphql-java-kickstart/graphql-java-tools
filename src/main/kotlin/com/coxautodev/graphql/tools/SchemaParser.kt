@@ -184,7 +184,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
         for (directive in directives) {
             if (!names.contains(directive.name)) {
                 names.add(directive.name)
-                output.add(schemaGeneratorHelper.buildDirective(directive, directiveDefinitions, directiveLocation))
+                output.add(schemaGeneratorHelper.buildDirective(directive, directiveDefinitions, directiveLocation, runtimeWiring.comparatorRegistry))
             }
         }
         return output.toTypedArray()

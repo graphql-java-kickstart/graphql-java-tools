@@ -88,7 +88,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
         return this.directives.map { it.withField(this) }
     }
 
-    class DirectiveWithField(val field: FieldDefinition, name: String, arguments: List<Argument>, sourceLocation: SourceLocation, comments: List<Comment>) : Directive(name, arguments, sourceLocation, comments, IgnoredChars.EMPTY) {
+    class DirectiveWithField(val field: FieldDefinition, name: String, arguments: List<Argument>, sourceLocation: SourceLocation, comments: List<Comment>) : Directive(name, arguments, sourceLocation, comments, IgnoredChars.EMPTY, emptyMap()) {
         fun getTypeName(): String {
             val type = field.type
             if (type is NonNullType) {
