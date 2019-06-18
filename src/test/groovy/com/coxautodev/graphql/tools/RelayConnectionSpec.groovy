@@ -88,7 +88,7 @@ class RelayConnectionSpec extends Specification {
             noExceptionThrown()
             data.users.edges.size == 1
             data.users.edges[0].node.id == "1"
-            data.users.edges[0].node.name == "NAME"
+            data.users.edges[0].node.name == "name"
             data.otherTypes.edges.size == 1
             data.otherTypes.edges[0].node.echo == "echo"
     }

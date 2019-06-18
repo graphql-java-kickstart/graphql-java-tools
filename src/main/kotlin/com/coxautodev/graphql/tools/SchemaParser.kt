@@ -23,7 +23,9 @@ import graphql.language.TypeDefinition
 import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.language.Value
+import graphql.schema.FieldCoordinates
 import graphql.schema.GraphQLArgument
+import graphql.schema.GraphQLCodeRegistry
 import graphql.schema.GraphQLDirective
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLEnumValueDefinition
@@ -40,15 +42,12 @@ import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
-import graphql.schema.TypeResolverProxy
 import graphql.schema.idl.DirectiveBehavior
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.SchemaGeneratorHelper
 import java.util.*
 import kotlin.reflect.KClass
-import kotlin.reflect.full.memberProperties
-import kotlin.reflect.jvm.isAccessible
 
 /**
  * Parses a GraphQL Schema and maps object fields to provided class methods.
@@ -95,6 +94,8 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
     private val schemaGeneratorHelper = SchemaGeneratorHelper()
     private val directiveGenerator = DirectiveBehavior()
 
+    private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
+
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
      */
@@ -107,16 +108,9 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
         val inputObjects = inputObjectDefinitions.map { createInputObject(it) }
         val enums = enumDefinitions.map { createEnumObject(it) }
 
-        // Unfortunately, since graphql-java 12, the getTypeResolver method has been made package-protected,
-        // so we need reflection to access the 'typeResolver' field on GraphQLInterfaceType and GraphQLUnionType
-        val interfaceTypeResolverField = GraphQLInterfaceType::class.memberProperties.find { it.name == "typeResolver" }
-        interfaceTypeResolverField!!.isAccessible = true
-        val unionTypeResolverField = GraphQLUnionType::class.memberProperties.find { it.name == "typeResolver" }
-        unionTypeResolverField!!.isAccessible = true
-
         // Assign type resolver to interfaces now that we know all of the object types
-        interfaces.forEach { (interfaceTypeResolverField.get(it) as TypeResolverProxy).typeResolver = InterfaceTypeResolver(dictionary.inverse(), it, objects) }
-        unions.forEach { (unionTypeResolverField.get(it) as TypeResolverProxy).typeResolver = UnionTypeResolver(dictionary.inverse(), it, objects) }
+        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it, objects)) }
+        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it, objects)) }
 
         // Find query type and mutation/subscription type (if mutation/subscription type exists)
         val queryName = rootInfo.getQueryName()
@@ -130,7 +124,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
         val subscription = objects.find { it.name == subscriptionName }
                 ?: if (rootInfo.isSubscriptionRequired()) throw SchemaError("Expected a Subscription object with name '$subscriptionName' but found none!") else null
 
-        return SchemaObjects(query, mutation, subscription, (objects + inputObjects + enums + interfaces + unions).toSet())
+        return SchemaObjects(query, mutation, subscription, (objects + inputObjects + enums + interfaces + unions).toSet(), codeRegistryBuilder)
     }
 
     /**
@@ -141,29 +135,33 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
     /**
      * Returns any unused type definitions that were found in the schema
      */
+    @Suppress("unused")
     fun getUnusedDefinitions(): Set<TypeDefinition<*>> = unusedDefinitions
 
-    private fun createObject(definition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {
-        val name = definition.name
+    private fun createObject(objectDefinition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>): GraphQLObjectType {
+        val name = objectDefinition.name
         val builder = GraphQLObjectType.newObject()
                 .name(name)
-                .definition(definition)
-                .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
+                .definition(objectDefinition)
+                .description(if (objectDefinition.description != null) objectDefinition.description.content else getDocumentation(objectDefinition))
 
-        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.OBJECT))
+        builder.withDirectives(*buildDirectives(objectDefinition.directives, setOf(), Introspection.DirectiveLocation.OBJECT))
 
-        definition.implements.forEach { implementsDefinition ->
+        objectDefinition.implements.forEach { implementsDefinition ->
             val interfaceName = (implementsDefinition as TypeName).name
             builder.withInterface(interfaces.find { it.name == interfaceName }
                     ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
         }
 
-        definition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
+        objectDefinition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
             fieldDefinition.description
             builder.field { field ->
                 createField(field, fieldDefinition)
-                field.dataFetcher(fieldResolversByType[definition]?.get(fieldDefinition)?.createDataFetcher()
-                        ?: throw SchemaError("No resolver method found for object type '${definition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools"))
+                codeRegistryBuilder.dataFetcher(
+                        FieldCoordinates.coordinates(objectDefinition.name, fieldDefinition.name),
+                        fieldResolversByType[objectDefinition]?.get(fieldDefinition)?.createDataFetcher()
+                                ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
+                )
 
                 val wiredField = directiveGenerator.onField(field.build(), DirectiveBehavior.Params(runtimeWiring))
                 GraphQLFieldDefinition.Builder(wiredField)
@@ -246,17 +244,16 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
         return directiveGenerator.onEnum(builder.build(), DirectiveBehavior.Params(runtimeWiring))
     }
 
-    private fun createInterfaceObject(definition: InterfaceTypeDefinition): GraphQLInterfaceType {
-        val name = definition.name
+    private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition): GraphQLInterfaceType {
+        val name = interfaceDefinition.name
         val builder = GraphQLInterfaceType.newInterface()
                 .name(name)
-                .definition(definition)
-                .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
-                .typeResolver(TypeResolverProxy())
+                .definition(interfaceDefinition)
+                .description(if (interfaceDefinition.description != null) interfaceDefinition.description.content else getDocumentation(interfaceDefinition))
 
-        builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INTERFACE))
+        builder.withDirectives(*buildDirectives(interfaceDefinition.directives, setOf(), Introspection.DirectiveLocation.INTERFACE))
 
-        definition.fieldDefinitions.forEach { fieldDefinition ->
+        interfaceDefinition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field -> createField(field, fieldDefinition) }
         }
 
@@ -269,7 +266,6 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                 .name(name)
                 .definition(definition)
                 .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
-                .typeResolver(TypeResolverProxy())
 
         builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.UNION))
 
