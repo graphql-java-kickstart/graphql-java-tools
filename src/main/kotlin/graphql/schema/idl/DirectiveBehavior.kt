@@ -1,5 +1,6 @@
 package graphql.schema.idl
 
+import graphql.schema.GraphQLCodeRegistry
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLInterfaceType
@@ -30,8 +31,8 @@ class DirectiveBehavior {
     fun onInputObject(element: GraphQLInputObjectType, params: Params): GraphQLInputObjectType =
             directiveHelper.onInputObjectType(element, params.toParameters())
 
-    data class Params(val runtimeWiring: RuntimeWiring) {
-        internal fun toParameters() = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, null)
+    data class Params(val runtimeWiring: RuntimeWiring, val codeRegistryBuilder: GraphQLCodeRegistry.Builder) {
+        internal fun toParameters() = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
     }
 
 }

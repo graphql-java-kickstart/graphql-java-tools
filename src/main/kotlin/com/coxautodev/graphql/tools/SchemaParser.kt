@@ -172,7 +172,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
 
         val objectType = builder.build()
 
-        return directiveGenerator.onObject(objectType, DirectiveBehavior.Params(runtimeWiring))
+        return directiveGenerator.onObject(objectType, DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
     }
 
     private fun buildDirectives(directives: List<Directive>, directiveDefinitions: Set<GraphQLDirective>, directiveLocation: Introspection.DirectiveLocation): Array<GraphQLDirective> {
@@ -207,7 +207,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             builder.field(fieldBuilder.build())
         }
 
-        return directiveGenerator.onInputObject(builder.build(), DirectiveBehavior.Params(runtimeWiring))
+        return directiveGenerator.onInputObject(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
     }
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
@@ -241,7 +241,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             }
         }
 
-        return directiveGenerator.onEnum(builder.build(), DirectiveBehavior.Params(runtimeWiring))
+        return directiveGenerator.onEnum(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
     }
 
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition): GraphQLInterfaceType {
@@ -257,7 +257,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             builder.field { field -> createField(field, fieldDefinition) }
         }
 
-        return directiveGenerator.onInterface(builder.build(), DirectiveBehavior.Params(runtimeWiring))
+        return directiveGenerator.onInterface(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
     }
 
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
@@ -270,7 +270,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
         builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.UNION))
 
         getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
-        return directiveGenerator.onUnion(builder.build(), DirectiveBehavior.Params(runtimeWiring))
+        return directiveGenerator.onUnion(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
     }
 
     private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
