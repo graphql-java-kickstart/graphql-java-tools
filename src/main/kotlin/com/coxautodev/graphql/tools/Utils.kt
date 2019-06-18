@@ -6,7 +6,7 @@ import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.Type
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
+import java.lang.reflect.ParameterizedType
 
 /**
  * @author Andrew Potter
@@ -28,8 +28,8 @@ internal fun ObjectTypeDefinition.getExtendedFieldDefinitions(extensions: List<O
 }
 
 internal fun JavaType.unwrap(): Class<out Any> =
-        if (this is ParameterizedTypeImpl) {
-            this.rawType
+        if (this is ParameterizedType) {
+            this.rawType as Class<*>
         } else {
             this as Class<*>
         }

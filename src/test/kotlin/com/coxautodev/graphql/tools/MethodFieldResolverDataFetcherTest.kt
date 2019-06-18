@@ -25,18 +25,9 @@ class MethodFieldResolverDataFetcherTest {
     @Test
     fun `data fetcher executes suspend function on coroutineContext defined by options`() {
         // setup
-        val dispatcher = Dispatchers.IO
-        val job = Job()
-        val options = SchemaParserOptions.Builder()
-                .coroutineContext(dispatcher + job)
-                .build()
+        val suspendClass = SuspendClass()
 
-        val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
-            suspend fun isActive(data: DataClass): Boolean {
-                return coroutineContext[dispatcher.key] == dispatcher &&
-                        coroutineContext[Job] == job.children.first()
-            }
-        }, options = options)
+        val resolver = createFetcher("active", suspendClass, options = suspendClass.options)
 
         // expect
         @Suppress("UNCHECKED_CAST")
@@ -44,19 +35,26 @@ class MethodFieldResolverDataFetcherTest {
         Assert.assertTrue(future.get())
     }
 
+    class SuspendClass : GraphQLResolver<DataClass> {
+        val dispatcher = Dispatchers.IO
+        val job = Job()
+        val options = SchemaParserOptions.Builder()
+                .coroutineContext(dispatcher + job)
+                .build()
+
+        suspend fun isActive(data: DataClass): Boolean {
+            return coroutineContext[dispatcher.key] == dispatcher &&
+                    coroutineContext[Job] == job.children.first()
+        }
+    }
+
     @ExperimentalCoroutinesApi
     @Test
     fun `canceling subscription Publisher also cancels underlying Kotlin coroutine channel`() {
         // setup
-        val channel = Channel<String>(10)
-        channel.offer("A")
-        channel.offer("B")
+        val doubleChannel = DoubleChannel()
 
-        val resolver = createFetcher("onDataNameChanged", object : GraphQLResolver<DataClass> {
-            fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
-                return channel
-            }
-        })
+        val resolver = createFetcher("onDataNameChanged", doubleChannel)
 
         // expect
         @Suppress("UNCHECKED_CAST")
@@ -67,21 +65,25 @@ class MethodFieldResolverDataFetcherTest {
 
         subscriber.cancel()
         Thread.sleep(100)
-        Assert.assertTrue(channel.isClosedForReceive)
+        Assert.assertTrue(doubleChannel.channel.isClosedForReceive)
+    }
+
+    class DoubleChannel : GraphQLResolver<DataClass> {
+        val channel = Channel<String>(10)
+        init {
+            channel.offer("A")
+            channel.offer("B")
+        }
+
+        fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
+            return channel
+        }
     }
 
     @Test
     fun `canceling underlying Kotlin coroutine channel also cancels subscription Publisher`() {
         // setup
-        val channel = Channel<String>(10)
-        channel.offer("A")
-        channel.close(IllegalStateException("Channel error"))
-
-        val resolver = createFetcher("onDataNameChanged", object : GraphQLResolver<DataClass> {
-            fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
-                return channel
-            }
-        })
+        val resolver = createFetcher("onDataNameChanged", OnDataNameChanged())
 
         // expect
         @Suppress("UNCHECKED_CAST")
@@ -91,6 +93,19 @@ class MethodFieldResolverDataFetcherTest {
         Assert.assertEquals("A", subscriber.requestNextElement())
         subscriber.expectErrorWithMessage(IllegalStateException::class.java, "Channel error")
     }
+
+    class OnDataNameChanged : GraphQLResolver<DataClass> {
+        val channel = Channel<String>(10)
+        init {
+            channel.offer("A")
+            channel.close(IllegalStateException("Channel error"))
+        }
+
+        fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
+            return channel
+        }
+    }
+
 
     private fun createFetcher(
             methodName: String,

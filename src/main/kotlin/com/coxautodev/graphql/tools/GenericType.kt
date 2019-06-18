@@ -3,10 +3,9 @@ package com.coxautodev.graphql.tools
 import com.fasterxml.classmate.ResolvedType
 import com.google.common.primitives.Primitives
 import org.apache.commons.lang3.reflect.TypeUtils
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
-import sun.reflect.generics.reflectiveObjects.WildcardTypeImpl
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
+import java.lang.reflect.WildcardType
 
 /**
  * @author Andrew Potter
@@ -103,7 +102,7 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                         error("Could not resolve type variable '${TypeUtils.toLongString(type)}' because declaring type is not parameterized: ${TypeUtils.toString(declaringType)}")
                     }
                 }
-                is WildcardTypeImpl -> type.upperBounds.firstOrNull()
+                is WildcardType -> type.upperBounds.firstOrNull()
                         ?: throw error("Unable to unwrap type, wildcard has no upper bound: $type")
                 is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
                 else -> error("Unable to unwrap type: $type")
