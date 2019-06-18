@@ -203,7 +203,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                     .description(if (inputDefinition.description != null) inputDefinition.description.content else getDocumentation(inputDefinition))
                     .defaultValue(inputDefinition.defaultValue)
                     .type(determineInputType(inputDefinition.type))
-                    .withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
+                    .withDirectives(*buildDirectives(inputDefinition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
             builder.field(fieldBuilder.build())
         }
 
