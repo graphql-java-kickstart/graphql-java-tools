@@ -8,8 +8,6 @@ import graphql.language.FieldDefinition
 import graphql.language.InputObjectTypeDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.InterfaceTypeDefinition
-import graphql.language.ListType
-import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.ScalarTypeDefinition
@@ -154,17 +152,22 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }.map { definition ->
             val provided = scalars[definition.name]
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
-            GraphQLScalarType(provided.name,
-                    if (definition.description != null) definition.description.content else SchemaParser.getDocumentation(definition)
-                    ?: provided.description, provided.coercing, listOf(), definition)
+            GraphQLScalarType.newScalar()
+                    .name(provided.name)
+                    .description(
+                            if (definition.description != null) definition.description.content
+                            else SchemaParser.getDocumentation(definition) ?: provided.description)
+                    .coercing(provided.coercing)
+                    .definition(definition)
+                    .build()
         }.associateBy { it.name!! }
 
         val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
         unusedDefinitions
                 .filter { definition -> definition.name != "PageInfo" }
                 .forEach { definition ->
-            log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
-        }
+                    log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
+                }
 
         val fieldResolvers = fieldResolversByType.flatMap { it.value.map { it.value } }
         val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<NormalResolverInfo>()
@@ -242,26 +245,27 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             } else {
                 resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
             }
-        }) ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
+        })
+                ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
     }
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
-//            val searchField = applyDirective(field)
+            //            val searchField = applyDirective(field)
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
 
             fieldResolver.scanForMatches().forEach { potentialMatch ->
-//                if (potentialMatch.graphQLType is TypeName && !definitionsByName.containsKey((potentialMatch.graphQLType.name))) {
+                //                if (potentialMatch.graphQLType is TypeName && !definitionsByName.containsKey((potentialMatch.graphQLType.name))) {
 //                    val typeDefinition = ObjectTypeDefinition.newObjectTypeDefinition()
 //                            .name(potentialMatch.graphQLType.name)
 //                            .build()
 //                    handleFoundType(TypeClassMatcher.ValidMatch(typeDefinition, typeClassMatcher.toRealType(potentialMatch), potentialMatch.reference))
 //                } else {
-                    handleFoundType(typeClassMatcher.match(potentialMatch))
+                handleFoundType(typeClassMatcher.match(potentialMatch))
 //                }
             }
         }

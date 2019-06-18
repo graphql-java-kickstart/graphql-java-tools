@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.schema.GraphQLCodeRegistry
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
@@ -21,7 +22,11 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
                 .additionalTypes(dictionary)
 
         if (!introspectionEnabled) {
-            builder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
+            builder.codeRegistry(
+                    GraphQLCodeRegistry.newCodeRegistry()
+                            .fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
+                            .build()
+            )
         }
 
         return builder.build()

@@ -23,6 +23,7 @@ import kotlin.coroutines.coroutineContext
 
 class MethodFieldResolverDataFetcherTest {
     @Test
+    @ExperimentalCoroutinesApi
     fun `data fetcher executes suspend function on coroutineContext defined by options`() {
         // setup
         val suspendClass = SuspendClass()
@@ -38,10 +39,12 @@ class MethodFieldResolverDataFetcherTest {
     class SuspendClass : GraphQLResolver<DataClass> {
         val dispatcher = Dispatchers.IO
         val job = Job()
+        @ExperimentalCoroutinesApi
         val options = SchemaParserOptions.Builder()
                 .coroutineContext(dispatcher + job)
                 .build()
 
+        @Suppress("UNUSED_PARAMETER")
         suspend fun isActive(data: DataClass): Boolean {
             return coroutineContext[dispatcher.key] == dispatcher &&
                     coroutineContext[Job] == job.children.first()
@@ -75,6 +78,7 @@ class MethodFieldResolverDataFetcherTest {
             channel.offer("B")
         }
 
+        @Suppress("UNUSED_PARAMETER")
         fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
             return channel
         }
@@ -101,6 +105,7 @@ class MethodFieldResolverDataFetcherTest {
             channel.close(IllegalStateException("Channel error"))
         }
 
+        @Suppress("UNUSED_PARAMETER")
         fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
             return channel
         }

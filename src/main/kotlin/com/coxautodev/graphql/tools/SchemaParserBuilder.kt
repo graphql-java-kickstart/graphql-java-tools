@@ -290,6 +290,7 @@ data class SchemaParserOptions internal constructor(
         fun newOptions() = Builder()
 
         @JvmStatic
+        @ExperimentalCoroutinesApi
         fun defaultOptions() = Builder().build()
     }
 
