@@ -46,6 +46,7 @@ import graphql.schema.idl.DirectiveBehavior
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.SchemaGeneratorHelper
+import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.reflect.KClass
 
@@ -57,6 +58,7 @@ import kotlin.reflect.KClass
 class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, private val options: SchemaParserOptions, private val runtimeWiring: RuntimeWiring) {
 
     companion object {
+        val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
         const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
 
         @JvmStatic
@@ -201,7 +203,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                     .name(inputDefinition.name)
                     .definition(inputDefinition)
                     .description(if (inputDefinition.description != null) inputDefinition.description.content else getDocumentation(inputDefinition))
-                    .defaultValue(inputDefinition.defaultValue)
+                    .defaultValue(buildDefaultValue(inputDefinition.defaultValue))
                     .type(determineInputType(inputDefinition.type))
                     .withDirectives(*buildDirectives(inputDefinition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
             builder.field(fieldBuilder.build())
@@ -226,6 +228,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
             val enumName = enumDefinition.name
             val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
                     ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
+
             val enumValueDirectives = buildDirectives(enumDefinition.directives, setOf(), Introspection.DirectiveLocation.ENUM_VALUE)
             getDeprecated(enumDefinition.directives).let {
                 val enumValueDefinition = GraphQLEnumValueDefinition.newEnumValueDefinition()
