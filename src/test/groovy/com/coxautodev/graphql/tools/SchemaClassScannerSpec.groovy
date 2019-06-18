@@ -227,25 +227,6 @@ class SchemaClassScannerSpec extends Specification {
             objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 2
     }
 
-    class MultipleInterfaces implements GraphQLQueryResolver {
-        NamedResourceImpl query1() { null }
-        VersionedResourceImpl query2() { null }
-
-        static interface NamedResource {
-            String name()
-        }
-        static interface VersionedResource {
-            int version()
-        }
-
-        static class NamedResourceImpl implements NamedResource {
-            String name() {}
-        }
-        static class VersionedResourceImpl implements VersionedResource {
-            int version() {}
-        }
-    }
-
     def "scanner handles interface implementation that is not used as field type"() {
         when:
         ScannedSchemaObjects objects = SchemaParser.newParser()
@@ -269,19 +250,6 @@ class SchemaClassScannerSpec extends Specification {
 
         then:
         objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 1
-    }
-
-    class InterfaceImplementation implements GraphQLQueryResolver {
-        NamedResource query1() { null }
-        NamedResourceImpl query2() { null }
-
-        static interface NamedResource {
-            String name()
-        }
-
-        static class NamedResourceImpl implements NamedResource {
-            String name() {}
-        }
     }
 
     def "scanner handles custom scalars when matching input types"() {
@@ -395,10 +363,6 @@ class SchemaClassScannerSpec extends Specification {
 
     class NestedInterfaceTypeQuery implements GraphQLQueryResolver {
         Animal animal() { null }
-
-        interface Animal {
-            ComplexType type()
-        }
 
         class Dog implements Animal {
             @Override
