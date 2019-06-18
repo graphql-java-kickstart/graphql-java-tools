@@ -163,7 +163,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                                 ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
                 )
 
-                val wiredField = directiveGenerator.onField(field.build(), DirectiveBehavior.Params(runtimeWiring))
+                val wiredField = field.build()
                 GraphQLFieldDefinition.Builder(wiredField)
                         .clearArguments()
                         .arguments(wiredField.arguments)
@@ -204,7 +204,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                     .defaultValue(inputDefinition.defaultValue)
                     .type(determineInputType(inputDefinition.type))
                     .withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
-            builder.field(directiveGenerator.onInputObjectField(fieldBuilder.build(), DirectiveBehavior.Params(runtimeWiring)))
+            builder.field(fieldBuilder.build())
         }
 
         return directiveGenerator.onInputObject(builder.build(), DirectiveBehavior.Params(runtimeWiring))
@@ -237,7 +237,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                         .definition(enumDefinition)
                         .build()
 
-                builder.value(directiveGenerator.onEnumValue(enumValueDefinition, DirectiveBehavior.Params(runtimeWiring)))
+                builder.value(enumValueDefinition)
             }
         }
 
@@ -307,7 +307,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
                     .defaultValue(buildDefaultValue(argumentDefinition.defaultValue))
                     .type(determineInputType(argumentDefinition.type))
                     .withDirectives(*buildDirectives(argumentDefinition.directives, setOf(), Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
-            field.argument(directiveGenerator.onArgument(argumentBuilder.build(), DirectiveBehavior.Params(runtimeWiring)))
+            field.argument(argumentBuilder.build())
         }
         field.withDirectives(*buildDirectives(fieldDefinition.directives, setOf(), Introspection.DirectiveLocation.FIELD_DEFINITION))
         return field
