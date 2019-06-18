@@ -142,6 +142,7 @@
 
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
+<!--        <testSourceDirectory>${project.basedir}/src/test/groovy</testSourceDirectory>-->
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -157,6 +158,7 @@
                         <configuration>
                             <sources>
                                 <source>src/test/kotlin</source>
+<!--                                <source>src/test/java</source>-->
                             </sources>
                         </configuration>
                     </execution>
@@ -195,6 +197,7 @@
                 <executions>
                     <execution>
                         <goals>
+                            <goal>testGenerateStubs</goal>
                             <goal>addTestSources</goal>
                             <goal>testCompile</goal>
                         </goals>
