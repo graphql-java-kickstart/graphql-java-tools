@@ -1,5 +1,6 @@
 package com.coxautodev.graphql.tools
 
+import graphql.parser.InvalidSyntaxException
 import spock.lang.Specification
 import spock.lang.Unroll
 
@@ -16,12 +17,12 @@ class SchemaParserBuilderSpec extends Specification {
                 .build()
 
         then:
-            def e = thrown(InvalidSchemaError)
+            def e = thrown(InvalidSyntaxException)
             e.toString().contains(error)
 
         where:
             schema | error
-            "invalid"                   | "0,0:6='invalid'"
-            "type Query {\ninvalid!\n}" | "4,20:20='!'"
+            "invalid"                   | "offending token 'invalid' at line 1 column 1"
+            "type Query {\ninvalid!\n}" | "offending token '!' at line 2 column 8"
     }
 }

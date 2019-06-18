@@ -197,7 +197,11 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     private static DataFetcher createFetcher(SchemaParserOptions options, String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {
-        def field = new FieldDefinition(methodName, new TypeName('Boolean')).with { getInputValueDefinitions().addAll(arguments); it }
+        def field = FieldDefinition.newFieldDefinition()
+                .name(methodName)
+                .type(new TypeName('Boolean'))
+                .inputValueDefinitions(arguments)
+                .build()
 
         new FieldResolverScanner(options).findFieldResolver(field, resolver instanceof GraphQLQueryResolver ? new RootResolverInfo([resolver], options) : new NormalResolverInfo(resolver, options)).createDataFetcher()
     }
@@ -227,12 +231,12 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
         }
         ExecutionId executionId = ExecutionId.from("executionId123")
         ExecutionContextBuilder.newExecutionContextBuilder()
-            .instrumentation(SimpleInstrumentation.INSTANCE)
-            .executionId(executionId)
-            .queryStrategy(executionStrategy)
-            .mutationStrategy(executionStrategy)
-            .subscriptionStrategy(executionStrategy)
-            .build()
+                .instrumentation(SimpleInstrumentation.INSTANCE)
+                .executionId(executionId)
+                .queryStrategy(executionStrategy)
+                .mutationStrategy(executionStrategy)
+                .subscriptionStrategy(executionStrategy)
+                .build()
     }
 
     class DataClass {

@@ -91,8 +91,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
         // Add DataFetchingEnvironment/Context argument
         if (this.additionalLastArgument) {
-            val lastArgumentType = this.method.parameterTypes.last()
-            when (lastArgumentType) {
+            when (this.method.parameterTypes.last()) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
                 options.contextClass -> args.add { environment -> environment.getContext() }
                 else -> args.add { environment -> environment }

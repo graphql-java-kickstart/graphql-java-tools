@@ -57,7 +57,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
      * Add a GraphQL schema string directly.
      */
     fun schemaString(string: String) = this.apply {
-        if (!schemaString.isEmpty()) {
+        if (schemaString.isNotEmpty()) {
             schemaString.append("\n")
         }
         schemaString.append(string)
@@ -180,7 +180,7 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
         try {
             files.forEach { documents.add(parser.parseDocument(readFile(it), it)) }
 
-            if (!schemaString.isEmpty()) {
+            if (schemaString.isNotEmpty()) {
                 documents.add(parser.parseDocument(this.schemaString.toString()))
             }
         } catch (pce: ParseCancellationException) {
