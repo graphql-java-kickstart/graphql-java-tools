@@ -197,6 +197,7 @@
                 <executions>
                     <execution>
                         <goals>
+                            <goal>generateStubs</goal>
                             <goal>testGenerateStubs</goal>
                             <goal>addTestSources</goal>
                             <goal>testCompile</goal>

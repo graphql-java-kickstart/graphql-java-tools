@@ -26,7 +26,7 @@ class EndToEndSpec extends Specification {
     GraphQL gql
 
     def setupSpec() {
-        GraphQLSchema schema = EndToEndSpecKt.createSchema()
+        GraphQLSchema schema = EndToEndSpecHelperKt.createSchema()
 
         batchedGql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(new BatchedExecutionStrategy())
