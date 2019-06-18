@@ -160,7 +160,9 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         }.associateBy { it.name!! }
 
         val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
-        unusedDefinitions.forEach { definition ->
+        unusedDefinitions
+                .filter { definition -> definition.name != "PageInfo" }
+                .forEach { definition ->
             log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
         }
 
