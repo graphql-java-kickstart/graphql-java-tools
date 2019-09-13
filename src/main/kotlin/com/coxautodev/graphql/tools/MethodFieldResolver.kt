@@ -81,7 +81,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
                     null
                 }
 
-                if (value == null && isOptional) {
+                if (value == null && isOptional && environment.containsArgument(definition.name)) {
                     return@add Optional.empty<Any>()
                 }
 
