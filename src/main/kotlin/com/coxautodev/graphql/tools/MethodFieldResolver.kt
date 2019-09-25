@@ -81,8 +81,12 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
                     null
                 }
 
-                if (value == null && isOptional && environment.containsArgument(definition.name)) {
-                    return@add Optional.empty<Any>()
+                if (value == null && isOptional) {
+                    if (environment.containsArgument(definition.name)) {
+                        return@add Optional.empty<Any>()
+                    } else {
+                        return@add null;
+                    }
                 }
 
                 return@add mapper.convertValue(value, typeReference)
