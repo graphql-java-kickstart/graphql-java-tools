@@ -94,6 +94,10 @@ class SchemaParserBuilder constructor(private val dictionary: SchemaParserDictio
         this.runtimeWiringBuilder.directive(name, directive)
     }
 
+    fun directiveWiring(directive: SchemaDirectiveWiring) = this.apply {
+        this.runtimeWiringBuilder.directiveWiring(directive)
+    }
+
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
      */
