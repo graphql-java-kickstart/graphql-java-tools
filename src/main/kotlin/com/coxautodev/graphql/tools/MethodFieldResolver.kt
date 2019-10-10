@@ -5,13 +5,18 @@ import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.execution.batched.Batched
 import graphql.language.FieldDefinition
+import graphql.language.ListType
 import graphql.language.NonNullType
+import graphql.language.Type
+import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLTypeUtil.isScalar
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
-import java.util.*
+import java.util.Comparator
+import java.util.Optional
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
@@ -89,6 +94,12 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
                     }
                 }
 
+                if (value != null
+                        && genericParameterType.unwrap().isAssignableFrom(value.javaClass)
+                        && isScalarType(environment, definition.type, genericParameterType)) {
+                    return@add value
+                }
+
                 return@add mapper.convertValue(value, typeReference)
             }
         }
@@ -109,9 +120,24 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         }
     }
 
+    private fun isScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
+            when (type) {
+                is ListType ->
+                    List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
+                        && isScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
+                is TypeName ->
+                    environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) } ?: false
+                else ->
+                    false
+            }
+
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val batched = isBatched(method, search)
-        val unwrappedGenericType = genericType.unwrapGenericType(try { method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType } catch (e: InternalError) { method.genericReturnType })
+        val unwrappedGenericType = genericType.unwrapGenericType(try {
+            method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
+        } catch (e: InternalError) {
+            method.genericReturnType
+        })
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
@@ -148,7 +174,11 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     // Convert to reflactasm reflection
     private val methodAccess = MethodAccess.get(method.declaringClass)!!
     private val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
-    private val isSuspendFunction = try {method.kotlinFunction?.isSuspend == true } catch (e: InternalError) { false }
+    private val isSuspendFunction = try {
+        method.kotlinFunction?.isSuspend == true
+    } catch (e: InternalError) {
+        false
+    }
 
     private class CompareGenericWrappers {
         companion object : Comparator<GenericWrapper> {
