@@ -126,7 +126,9 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
         val subscription = objects.find { it.name == subscriptionName }
                 ?: if (rootInfo.isSubscriptionRequired()) throw SchemaError("Expected a Subscription object with name '$subscriptionName' but found none!") else null
 
-        return SchemaObjects(query, mutation, subscription, (objects + inputObjects + enums + interfaces + unions).toSet(), codeRegistryBuilder)
+        val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
+
+        return SchemaObjects(query, mutation, subscription, (additionalObjects + inputObjects + enums + interfaces + unions).toSet(), codeRegistryBuilder)
     }
 
     /**
