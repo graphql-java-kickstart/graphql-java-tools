@@ -3,6 +3,7 @@ package com.coxautodev.graphql.tools
 import com.coxautodev.graphql.tools.SchemaParserOptions.GenericWrapper
 import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
+import graphql.TrivialDataFetcher
 import graphql.execution.batched.Batched
 import graphql.language.FieldDefinition
 import graphql.language.NonNullType
@@ -105,7 +106,17 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         return if (batched) {
             BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
         } else {
-            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            if (args.size == 0
+                    && this.method.parameterCount == 0
+                    && this.method.name.startsWith("get")
+                    && this.search.type is java.lang.Class<*>
+                    && (this.search.type as java.lang.Class<*>).getMethod(this.method.getName()) != null
+            ) {
+                TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            } else {
+                MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            }
+
         }
     }
 
@@ -189,6 +200,10 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     open fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
         return sourceResolver(environment)
     }
+}
+
+open class TrivialMethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>, private val options: SchemaParserOptions) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options), TrivialDataFetcher<Any> {
+
 }
 
 private suspend inline fun MethodAccess.invokeSuspend(target: Any, methodIndex: Int, args: Array<Any?>): Any? {
