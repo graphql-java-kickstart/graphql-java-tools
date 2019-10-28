@@ -19,13 +19,8 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
     override val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<out Any> {
-        // Grab the parent interface with type GraphQLResolver from our resolver and get its first type argument.
-        val interfaceType = GenericType(resolverType, options).getGenericInterface(GraphQLResolver::class.java)
-        if (interfaceType == null || interfaceType !is ParameterizedType) {
-            error("${GraphQLResolver::class.java.simpleName} interface was not parameterized for: ${resolverType.name}")
-        }
 
-        val type = TypeUtils.determineTypeArguments(resolverType, interfaceType)[GraphQLResolver::class.java.typeParameters[0]]
+        val type = TypeUtils.getTypeArguments(resolverType, GraphQLResolver::class.java)[GraphQLResolver::class.java.typeParameters[0]]
 
         if (type == null || type !is Class<*>) {
             throw ResolverError("Unable to determine data class for resolver '${resolverType.name}' from generic interface! This is most likely a bug with graphql-java-tools.")
