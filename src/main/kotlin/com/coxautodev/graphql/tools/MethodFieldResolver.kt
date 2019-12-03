@@ -11,7 +11,7 @@ import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLTypeUtil.isScalar
+import graphql.schema.GraphQLTypeUtil.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
@@ -121,12 +121,14 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     }
 
     private fun isScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
-            when (type) {
-                is ListType ->
+            when {
+                type is ListType ->
                     List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
                         && isScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
-                is TypeName ->
+                type is TypeName ->
                     environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) } ?: false
+                type is NonNullType && type.type is TypeName ->
+                    environment.graphQLSchema?.getType((type.type as TypeName).name)?.let { isScalar(unwrapNonNull(it)) } ?: false
                 else ->
                     false
             }
