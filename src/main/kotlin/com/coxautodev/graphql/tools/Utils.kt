@@ -7,6 +7,7 @@ import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.Type
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Proxy
 
 /**
  * @author Andrew Potter
@@ -15,6 +16,7 @@ import java.lang.reflect.ParameterizedType
 internal typealias GraphQLRootResolver = GraphQLResolver<Void>
 
 internal typealias JavaType = java.lang.reflect.Type
+internal typealias JavaMethod = java.lang.reflect.Method
 internal typealias GraphQLLangType = graphql.language.Type<*>
 
 internal fun Type<*>.unwrap(): Type<*> = when (this) {
@@ -33,3 +35,11 @@ internal fun JavaType.unwrap(): Class<out Any> =
         } else {
             this as Class<*>
         }
+
+internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
+    get() {
+        return when {
+            Proxy.isProxyClass(this) -> emptyList()
+            else -> this.declaredMethods.toList()
+        }
+    }
