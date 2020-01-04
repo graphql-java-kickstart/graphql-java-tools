@@ -6,6 +6,9 @@ import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.Type
+import graphql.schema.DataFetchingEnvironment
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.GlobalScope
 import java.lang.reflect.ParameterizedType
 
 /**
@@ -33,3 +36,8 @@ internal fun JavaType.unwrap(): Class<out Any> =
         } else {
             this as Class<*>
         }
+
+internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
+    val context: Any = this.getContext()
+    return if (context is CoroutineScope) context else GlobalScope
+}

@@ -12,7 +12,6 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLTypeUtil.isScalar
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
 import java.util.Comparator
@@ -194,7 +193,7 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
         val args = this.args.map { it(environment) }.toTypedArray()
 
         return if (isSuspendFunction) {
-            GlobalScope.future(options.coroutineContextProvider.provide()) {
+            environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
                 methodAccess.invokeSuspend(source, methodIndex, args)?.transformWithGenericWrapper(environment)
             }
         } else {
