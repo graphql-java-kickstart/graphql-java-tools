@@ -38,6 +38,6 @@ internal fun JavaType.unwrap(): Class<out Any> =
         }
 
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
-    val context: Any = this.getContext()
+    val context: Any? = this.getContext()
     return if (context is CoroutineScope) context else GlobalScope
 }
