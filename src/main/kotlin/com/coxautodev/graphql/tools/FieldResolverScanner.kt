@@ -9,6 +9,7 @@ import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Proxy
 import java.lang.reflect.Type
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
@@ -25,7 +26,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
         fun getAllMethods(type: JavaType) =
-                (type.unwrap().declaredMethods.toList()
+                (type.unwrap().declaredNonProxyMethods.toList()
                         + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
                         + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
                         .asSequence()

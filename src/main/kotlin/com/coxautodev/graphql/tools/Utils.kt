@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Proxy
 
 /**
  * @author Andrew Potter
@@ -19,6 +20,7 @@ import java.lang.reflect.ParameterizedType
 internal typealias GraphQLRootResolver = GraphQLResolver<Void>
 
 internal typealias JavaType = java.lang.reflect.Type
+internal typealias JavaMethod = java.lang.reflect.Method
 internal typealias GraphQLLangType = graphql.language.Type<*>
 
 internal fun Type<*>.unwrap(): Type<*> = when (this) {
@@ -39,10 +41,20 @@ internal fun JavaType.unwrap(): Class<out Any> =
         }
 
 
+
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
     val context: Any? = this.getContext()
     return if (context is CoroutineScope) context else GlobalScope
 }
+
+internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
+    get() {
+        return when {
+            Proxy.isProxyClass(this) -> emptyList()
+            else -> this.declaredMethods.toList()
+        }
+    }
+
 
 /**
  * Simple heuristic to check is a method is a trivial data fetcher.
@@ -61,3 +73,4 @@ internal fun isTrivialDataFetcher(method: Method): Boolean {
 private fun isBooleanGetter(method: Method) = (method.name.startsWith("is")
         && (method.returnType == java.lang.Boolean::class.java)
         || method.returnType == Boolean::class.java)
+

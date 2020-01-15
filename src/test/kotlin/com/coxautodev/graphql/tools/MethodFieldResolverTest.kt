@@ -7,11 +7,15 @@ import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
 import org.junit.Assert
 import org.junit.Test
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Method
+import java.lang.reflect.Proxy
+import java.util.*
 
 class MethodFieldResolverTest {
 
     @Test
-    fun `should handle scalar types as method input argument`() {
+    fun shouldHandleScalarTypesAsMethodInputArgument() {
         val schema = SchemaParser.newParser()
                 .schemaString("""
                     scalar CustomScalar
@@ -44,7 +48,7 @@ class MethodFieldResolverTest {
     }
 
     @Test
-    fun `should handle lists of scalar types`() {
+    fun shouldHandleListsOfScalarTypes() {
         val schema = SchemaParser.newParser()
                 .schemaString("""
                     scalar CustomScalar
@@ -76,6 +80,55 @@ class MethodFieldResolverTest {
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }
 
+    @Test
+    fun shouldHandleProxies() {
+        val invocationHandler = object : InvocationHandler {
+            override fun invoke(proxy: Any, method: Method, args: Array<out Any>): Any {
+                return when (method.name) {
+                    "toString" -> "Proxy$" + System.identityHashCode(this)
+                    "hashCode" -> System.identityHashCode(this)
+                    "equals" -> Proxy.isProxyClass(args[0].javaClass)
+                    "test" -> (args[0] as List<*>).map { (it as CustomScalar).value.length }.sum()
+                    else -> UnsupportedOperationException()
+                }
+            }
+        }
+
+        val resolver = Proxy.newProxyInstance(
+                MethodFieldResolverTest::class.java.classLoader,
+                arrayOf(Resolver::class.java, GraphQLQueryResolver::class.java),
+                invocationHandler
+        )  as GraphQLQueryResolver
+
+        val schema = SchemaParser.newParser()
+                .schemaString("""
+                    scalar CustomScalar
+                    type Query {
+                        test(input: [CustomScalar]): Int
+                    }
+                    """.trimIndent()
+                )
+                .scalars(customScalarType)
+                .resolvers(resolver)
+                .build()
+                .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val result = gql
+                .execute(ExecutionInput.newExecutionInput()
+                        .query("""
+                            query Test(${"$"}input: [CustomScalar]) {
+                                test(input: ${"$"}input)
+                            }
+                            """.trimIndent())
+                        .variables(mapOf("input" to listOf("Foo", "Bar")))
+                        .context(Object())
+                        .root(Object()))
+
+        Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
+    }
+
     /**
      * Custom Scalar Class type that doesn't work with Jackson serialization/deserialization
      */
@@ -88,6 +141,10 @@ class MethodFieldResolverTest {
                 else -> null
             }
         }
+    }
+
+    interface Resolver {
+        fun test(scalars: List<CustomScalar>): Int
     }
 
     private val customScalarType: GraphQLScalarType = GraphQLScalarType.newScalar()
