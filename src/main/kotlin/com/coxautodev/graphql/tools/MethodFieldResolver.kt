@@ -3,6 +3,7 @@ package com.coxautodev.graphql.tools
 import com.coxautodev.graphql.tools.SchemaParserOptions.GenericWrapper
 import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
+import graphql.TrivialDataFetcher
 import graphql.execution.batched.Batched
 import graphql.language.FieldDefinition
 import graphql.language.ListType
@@ -11,7 +12,7 @@ import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLTypeUtil.isScalar
+import graphql.schema.GraphQLTypeUtil.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
@@ -116,17 +117,24 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
         return if (batched) {
             BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
         } else {
-            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            if (args.isEmpty() && isTrivialDataFetcher(this.method)) {
+                TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            } else {
+                MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            }
+
         }
     }
 
     private fun isScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
-            when (type) {
-                is ListType ->
+            when {
+                type is ListType ->
                     List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
                         && isScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
-                is TypeName ->
+                type is TypeName ->
                     environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) } ?: false
+                type is NonNullType && type.type is TypeName ->
+                    environment.graphQLSchema?.getType((type.type as TypeName).name)?.let { isScalar(unwrapNonNull(it)) } ?: false
                 else ->
                     false
             }
@@ -219,6 +227,10 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     open fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
         return sourceResolver(environment)
     }
+}
+
+open class TrivialMethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>, private val options: SchemaParserOptions) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options), TrivialDataFetcher<Any> {
+
 }
 
 private suspend inline fun MethodAccess.invokeSuspend(target: Any, methodIndex: Int, args: Array<Any?>): Any? {
