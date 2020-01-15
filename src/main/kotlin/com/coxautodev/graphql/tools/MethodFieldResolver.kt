@@ -202,7 +202,7 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
         val args = this.args.map { it(environment) }.toTypedArray()
 
         return if (isSuspendFunction) {
-            GlobalScope.future(options.coroutineContextProvider.provide()) {
+            environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
                 methodAccess.invokeSuspend(source, methodIndex, args)?.transformWithGenericWrapper(environment)
             }
         } else {

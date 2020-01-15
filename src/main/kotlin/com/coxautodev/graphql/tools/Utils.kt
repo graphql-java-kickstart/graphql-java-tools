@@ -6,6 +6,9 @@ import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.Type
+import graphql.schema.DataFetchingEnvironment
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.GlobalScope
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
@@ -38,6 +41,12 @@ internal fun JavaType.unwrap(): Class<out Any> =
         }
 
 
+
+internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
+    val context: Any? = this.getContext()
+    return if (context is CoroutineScope) context else GlobalScope
+}
+
 internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
     get() {
         return when {
@@ -45,6 +54,7 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
             else -> this.declaredMethods.toList()
         }
     }
+
 
 /**
  * Simple heuristic to check is a method is a trivial data fetcher.

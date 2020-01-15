@@ -14,7 +14,6 @@ import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.reactive.publish
 import org.antlr.v4.runtime.RecognitionException
@@ -383,8 +382,8 @@ data class SchemaParserOptions internal constructor(
                         GenericWrapper(CompletableFuture::class, 0),
                         GenericWrapper(CompletionStage::class, 0),
                         GenericWrapper(Publisher::class, 0),
-                        GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel ->
-                            GlobalScope.publish(coroutineContextProvider.provide()) {
+                        GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel, environment ->
+                            environment.coroutineScope().publish(coroutineContextProvider.provide()) {
                                 try {
                                     for (item in receiveChannel) {
                                         send(item)
