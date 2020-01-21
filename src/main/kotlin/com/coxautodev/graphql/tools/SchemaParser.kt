@@ -128,7 +128,8 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
 
         val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
 
-        return SchemaObjects(query, mutation, subscription, (additionalObjects + inputObjects + enums + interfaces + unions).toSet(), codeRegistryBuilder)
+        @Suppress("UNCHECKED_CAST") val dictionary = (additionalObjects + inputObjects + enums + interfaces + unions).toSet() as Set<GraphQLType>
+        return SchemaObjects(query, mutation, subscription, dictionary, codeRegistryBuilder)
     }
 
     /**
