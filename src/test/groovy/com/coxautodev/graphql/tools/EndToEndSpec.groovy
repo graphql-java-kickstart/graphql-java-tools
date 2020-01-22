@@ -197,6 +197,19 @@ class EndToEndSpec extends Specification {
             data.itemByUUID
     }
 
+    def "generated schema should handle non nullable scalar types"() {
+        when:
+        def fileParts = [new MockPart("test.doc", "Hello"), new MockPart("test.doc", "World")]
+        def args = ["fileParts": fileParts]
+        def data = Utils.assertNoGraphQlErrors( gql,  args) {
+            '''
+              mutation ($fileParts: [Upload!]!) { echoFiles(fileParts: $fileParts)}
+            '''
+        }
+        then:
+        data
+    }
+
     def "generated schema should handle any java.util.Map (using HashMap) types as property maps"() {
         when:
         def data = Utils.assertNoGraphQlErrors(gql) {
