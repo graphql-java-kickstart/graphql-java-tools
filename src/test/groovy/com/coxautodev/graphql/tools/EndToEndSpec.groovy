@@ -207,7 +207,7 @@ class EndToEndSpec extends Specification {
             '''
         }
         then:
-        data
+        (data["echoFiles"] as ArrayList<String>).join(",") == "Hello,World"
     }
 
     def "generated schema should handle any java.util.Map (using HashMap) types as property maps"() {
