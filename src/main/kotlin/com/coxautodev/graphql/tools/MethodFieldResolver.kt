@@ -13,7 +13,6 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLTypeUtil.*
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
 import java.util.Comparator
