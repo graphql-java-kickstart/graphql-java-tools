@@ -127,16 +127,12 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     }
 
     private fun isScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
-            when {
-                type is ListType ->
-                    List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
+            when (type) {
+                is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
                         && isScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
-                type is TypeName ->
-                    environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) } ?: false
-                type is NonNullType && type.type is TypeName ->
-                    environment.graphQLSchema?.getType((type.type as TypeName).name)?.let { isScalar(unwrapNonNull(it)) } ?: false
-                else ->
-                    false
+                is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) } ?: false
+                is NonNullType -> isScalarType(environment, type.type, genericParameterType)
+                else -> false
             }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {

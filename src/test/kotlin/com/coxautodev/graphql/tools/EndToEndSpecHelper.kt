@@ -4,21 +4,21 @@ import graphql.execution.DataFetcherResult
 import graphql.execution.batched.Batched
 import graphql.language.ObjectValue
 import graphql.language.StringValue
-import graphql.schema.Coercing
-import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLScalarType
+import graphql.schema.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import org.reactivestreams.Publisher
+import java.io.InputStream
 import java.util.*
 import java.util.concurrent.CompletableFuture
+import javax.servlet.http.Part
 
 fun createSchema() = SchemaParser.newParser()
         .schemaString(schemaDefinition)
-        .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver())
-        .scalars(customScalarUUID, customScalarMap, customScalarId)
+        .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver(), EchoFilesResolver())
+        .scalars(customScalarUUID, customScalarMap, customScalarId, uploadScalar)
         .dictionary("OtherItem", OtherItemWithWrongName::class)
         .dictionary("ThirdItem", ThirdItem::class)
         .dictionary("ComplexMapItem", ComplexMapItem::class)
@@ -31,6 +31,7 @@ val schemaDefinition = """
 ## Private comment!
 scalar UUID
 scalar customScalarMap
+scalar Upload
 
 type Query {
     # Check if items list is empty
@@ -108,6 +109,7 @@ input ComplexInputTypeTwo {
 
 type Mutation {
     addItem(newItem: NewItemInput!): Item!
+    echoFiles(fileParts: [Upload!]!): [String!]!
 }
 
 type Subscription {
@@ -353,6 +355,10 @@ class ItemResolver : GraphQLResolver<Item> {
     }
 }
 
+class EchoFilesResolver: GraphQLMutationResolver{
+    fun echoFiles(fileParts: List<Part>): List<String> = fileParts.map { String(it.inputStream.readBytes()) }
+}
+
 interface ItemInterface {
     val name: String
     val type: Type
@@ -373,6 +379,18 @@ data class ComplexNullable(val first: String, val second: String, val third: Str
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)
 data class ItemWithGenericProperties(val keys: List<String>)
+class MockPart(private val name: String, private val content: String):Part{
+    override fun getSubmittedFileName(): String  = name
+    override fun getName(): String = name
+    override fun write(fileName: String?) = throw IllegalArgumentException("Not supported")
+    override fun getHeader(name: String): String? = null
+    override fun getSize(): Long  = content.toByteArray().size.toLong()
+    override fun getContentType(): String? =null
+    override fun getHeaders(name: String?): Collection<String> = listOf()
+    override fun getHeaderNames(): Collection<String>  = listOf()
+    override fun getInputStream(): InputStream  = content.byteInputStream()
+    override fun delete()  = throw IllegalArgumentException("Not supported")
+}
 
 val customScalarId = GraphQLScalarType.newScalar()
         .name("ID")
@@ -427,3 +445,33 @@ val customScalarMap = GraphQLScalarType.newScalar()
             override fun parseLiteral(input: Any?): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
         })
         .build()
+
+//Definition from https://github.com/graphql-java-kickstart/graphql-java-servlet/blob/master/src/main/java/graphql/servlet/core/ApolloScalars.java
+val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
+        .name("Upload")
+        .description("A file part in a multipart request")
+        .coercing(object : Coercing<Part?, Void?> {
+            override fun serialize(dataFetcherResult: Any): Void? {
+                throw CoercingSerializeException("Upload is an input-only type")
+            }
+
+            override fun parseValue(input: Any?): Part? {
+                return when (input) {
+                    is Part -> {
+                        input
+                    }
+                    null -> {
+                        null
+                    }
+                    else -> {
+                        throw CoercingParseValueException("Expected type ${Part::class.java.name} but was ${input.javaClass.name}")
+                    }
+                }
+            }
+
+            override fun parseLiteral(input: Any): Part? {
+                throw CoercingParseLiteralException(
+                        "Must use variables to specify Upload values")
+            }
+        }).build()
+
