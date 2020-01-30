@@ -1,4 +1,4 @@
-package com.coxautodev.graphql.tools.example;
+package graphql.kickstart.tools.example;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -1,9 +1,9 @@
-package com.coxautodev.graphql.tools.example;
+package graphql.kickstart.tools.example;
 
-import com.coxautodev.graphql.tools.example.types.Character;
-import com.coxautodev.graphql.tools.example.types.Droid;
-import com.coxautodev.graphql.tools.example.types.Episode;
-import com.coxautodev.graphql.tools.example.types.Human;
+import graphql.kickstart.tools.example.types.Character;
+import graphql.kickstart.tools.example.types.Droid;
+import graphql.kickstart.tools.example.types.Episode;
+import graphql.kickstart.tools.example.types.Human;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;

@@ -1,7 +1,7 @@
-package com.coxautodev.graphql.tools.example.resolvers;
+package graphql.kickstart.tools.example.resolvers;
 
-import com.coxautodev.graphql.tools.GraphQLMutationResolver;
-import com.coxautodev.graphql.tools.example.types.Human;
+import graphql.kickstart.tools.GraphQLMutationResolver;
+import graphql.kickstart.tools.example.types.Human;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;

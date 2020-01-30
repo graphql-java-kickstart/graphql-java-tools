@@ -1,11 +1,11 @@
-package com.coxautodev.graphql.tools.example.resolvers;
+package graphql.kickstart.tools.example.resolvers;
 
-import com.coxautodev.graphql.tools.GraphQLQueryResolver;
-import com.coxautodev.graphql.tools.example.CharacterRepository;
-import com.coxautodev.graphql.tools.example.types.Character;
-import com.coxautodev.graphql.tools.example.types.Droid;
-import com.coxautodev.graphql.tools.example.types.Episode;
-import com.coxautodev.graphql.tools.example.types.Human;
+import graphql.kickstart.tools.GraphQLQueryResolver;
+import graphql.kickstart.tools.example.CharacterRepository;
+import graphql.kickstart.tools.example.types.Character;
+import graphql.kickstart.tools.example.types.Droid;
+import graphql.kickstart.tools.example.types.Episode;
+import graphql.kickstart.tools.example.types.Human;
 import graphql.schema.DataFetchingEnvironment;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

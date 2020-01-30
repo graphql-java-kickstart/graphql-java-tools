@@ -1,4 +1,4 @@
-package com.coxautodev.graphql.tools.example.types;
+package graphql.kickstart.tools.example.types;
 
 import java.util.List;
 
