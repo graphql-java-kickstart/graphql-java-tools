@@ -8,7 +8,7 @@ import graphql.language.ObjectTypeExtensionDefinition
 import graphql.language.Type
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
@@ -44,7 +44,7 @@ internal fun JavaType.unwrap(): Class<out Any> =
 
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
     val context: Any? = this.getContext()
-    return if (context is CoroutineScope) context else GlobalScope
+    return if (context is CoroutineScope) context else CoroutineScope(Dispatchers.Default)
 }
 
 internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
