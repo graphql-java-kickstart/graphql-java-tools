@@ -9,7 +9,7 @@ class PlaceTest {
     @Test
     fun shouldHandleGenericsDeepHierarchy() {
         val schema = SchemaParser.newParser()
-                .file("place.graphqls")
+                .file("Place.graphqls")
                 .resolvers(PlaceQuery())
                 .build().makeExecutableSchema()
 
