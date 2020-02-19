@@ -33,7 +33,7 @@ class SchemaParserSpec extends Specification {
 
     def "builder doesn't throw FileNotFound exception when file is present"() {
         when:
-            SchemaParser.newParser().file("test.graphqls")
+            SchemaParser.newParser().file("Test.graphqls")
                     .resolvers(new GraphQLQueryResolver() {
                 String getId() { "1" }
             })
@@ -286,7 +286,7 @@ class SchemaParserSpec extends Specification {
     def "parser should include source location for field definition when loaded from single classpath file"() {
         when:
             GraphQLSchema schema = SchemaParser.newParser()
-                    .file("test.graphqls")
+                    .file("Test.graphqls")
                     .resolvers(new QueryWithIdResolver())
                     .build()
                     .makeExecutableSchema()
@@ -298,7 +298,7 @@ class SchemaParserSpec extends Specification {
             sourceLocation != null
             sourceLocation.line == 2
             sourceLocation.column == 5
-            sourceLocation.sourceName == "test.graphqls"
+            sourceLocation.sourceName == "Test.graphqls"
     }
 
     def "support enum types if only used as input type"() {

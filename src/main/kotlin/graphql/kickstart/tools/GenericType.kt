@@ -121,9 +121,17 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     }
                 }
 
-        private fun unwrapGenericType(declaringType: ParameterizedType, type: TypeVariable<*>) =
-                unwrapGenericType(TypeUtils.determineTypeArguments(getRawClass(mostSpecificType), declaringType)[type]
-                        ?: error("No type variable found for: ${TypeUtils.toLongString(type)}"))
+        private fun unwrapGenericType(declaringType: ParameterizedType, type: TypeVariable<*>): JavaType {
+            val rawClass = getRawClass(mostSpecificType)
+            val arguments = TypeUtils.determineTypeArguments(rawClass, declaringType)
+            val matchingType = arguments
+                    .filter { it.key.name == type.name }
+                    .values
+                    .firstOrNull()
+                    ?: error("No type variable found for: ${TypeUtils.toLongString(type)}")
+
+            return unwrapGenericType(matchingType)
+        }
 
         private fun replaceTypeVariable(type: JavaType): JavaType {
             return when (type) {
