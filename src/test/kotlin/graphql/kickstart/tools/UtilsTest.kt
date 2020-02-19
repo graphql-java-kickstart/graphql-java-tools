@@ -24,7 +24,7 @@ class UtilsTest {
     }
 
     @Test
-    fun `isTrivialDataFetcher`() {
+    fun isTrivialDataFetcher() {
         val clazz = Bean::class.java
 
         Assert.assertTrue(isTrivialDataFetcher(clazz.getMethod("getterValid")))
