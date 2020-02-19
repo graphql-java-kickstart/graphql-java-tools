@@ -3,7 +3,6 @@ package graphql.kickstart.tools
 import graphql.introspection.Introspection
 import graphql.language.*
 import graphql.schema.*
-import graphql.schema.idl.DirectiveBehavior
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.SchemaGeneratorHelper
