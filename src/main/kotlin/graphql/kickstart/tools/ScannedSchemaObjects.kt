@@ -1,6 +1,6 @@
 package graphql.kickstart.tools
 
-import com.google.common.collect.BiMap
+import graphql.kickstart.tools.util.BiMap
 import graphql.language.FieldDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.TypeDefinition

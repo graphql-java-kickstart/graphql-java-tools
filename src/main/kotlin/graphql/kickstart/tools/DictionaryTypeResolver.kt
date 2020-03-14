@@ -1,7 +1,7 @@
 package graphql.kickstart.tools
 
-import com.google.common.collect.BiMap
 import graphql.TypeResolutionEnvironment
+import graphql.kickstart.tools.util.BiMap
 import graphql.language.TypeDefinition
 import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLObjectType
