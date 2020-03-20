@@ -133,7 +133,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
   private fun isJavaLanguageType(type: JavaType): Boolean =
       when (type) {
         is ParameterizedType -> isJavaLanguageType(type.actualTypeArguments[0])
-        else -> type.javaClass.packageName == "java.lang"
+        else -> type.javaClass.`package`.name == "java.lang"
       }
 
   override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
