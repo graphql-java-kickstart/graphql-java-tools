@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>6.0.1-SNAPSHOT</version>
+    <version>6.0.1</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -393,6 +393,6 @@
         <developerConnection>scm:git:https://github.com/graphql-java-kickstart/graphql-java-tools.git
         </developerConnection>
         <url>https://github.com/graphql-java-kickstart/graphql-java-tools</url>
-        <tag>HEAD</tag>
+        <tag>6.0.1</tag>
     </scm>
 </project>
