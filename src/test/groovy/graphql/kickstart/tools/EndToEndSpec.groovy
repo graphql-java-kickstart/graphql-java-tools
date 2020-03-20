@@ -29,23 +29,23 @@ class EndToEndSpec extends Specification {
         GraphQLSchema schema = EndToEndSpecHelperKt.createSchema()
 
         batchedGql = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(new BatchedExecutionStrategy())
-            .build()
+                .queryExecutionStrategy(new BatchedExecutionStrategy())
+                .build()
 
         gql = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(new AsyncExecutionStrategy())
-            .build()
+                .queryExecutionStrategy(new AsyncExecutionStrategy())
+                .build()
     }
 
     def "schema comments are used as descriptions"() {
         expect:
-            gql.graphQLSchema.allTypesAsList.find { it.name == 'Type' }?.valueDefinitionMap?.TYPE_1?.description == "Item type 1"
+        gql.graphQLSchema.allTypesAsList.find { it.name == 'Type' }?.valueDefinitionMap?.TYPE_1?.description == "Item type 1"
     }
 
     def "generated schema should respond to simple queries"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     items(itemsInput: {name: "item1"}) {
                         id
@@ -53,16 +53,16 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "generated schema should respond to simple mutations"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql, [name: "new1", type: Type.TYPE_2.toString()]) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql, [name: "new1", type: Type.TYPE_2.toString()]) {
+            '''
                 mutation addNewItem($name: String!, $type: Type!) {
                     addItem(newItem: {name: $name, type: $type}) {
                         id
@@ -71,56 +71,56 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.addItem
+        data.addItem
     }
 
     def "generated schema should execute the subscription query"() {
         when:
-            def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
-            def returnedItem = null
-            def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
-                '''
+        def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+        def returnedItem = null
+        def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
+            '''
                 subscription {
                     onItemCreated {
                         id
                     }
                 } 
                 '''
+        }
+        CountDownLatch latch = new CountDownLatch(1)
+        (data as Publisher<ExecutionResult>).subscribe(new Subscriber<ExecutionResult>() {
+            @Override
+            void onSubscribe(org.reactivestreams.Subscription s) {
+
             }
-            CountDownLatch latch = new CountDownLatch(1)
-            (data as Publisher<ExecutionResult>).subscribe(new Subscriber<ExecutionResult>() {
-                @Override
-                void onSubscribe(org.reactivestreams.Subscription s) {
 
-                }
+            @Override
+            void onNext(ExecutionResult executionResult) {
+                returnedItem = executionResult.data
+                latch.countDown()
+            }
 
-                @Override
-                void onNext(ExecutionResult executionResult) {
-                    returnedItem = executionResult.data
-                    latch.countDown()
-                }
+            @Override
+            void onError(Throwable t) {
+            }
 
-                @Override
-                void onError(Throwable t) {
-                }
-
-                @Override
-                void onComplete() {
-                }
-            })
-            latch.await(3, TimeUnit.SECONDS)
+            @Override
+            void onComplete() {
+            }
+        })
+        latch.await(3, TimeUnit.SECONDS)
 
         then:
-            returnedItem.get("onItemCreated").id == 1
+        returnedItem.get("onItemCreated").id == 1
     }
 
     def "generated schema should handle interface types"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     itemsByInterface {
                         name
@@ -128,16 +128,16 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.itemsByInterface
+        data.itemsByInterface
     }
 
     def "generated schema should handle union types"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     allItems {
                         ... on Item {
@@ -151,16 +151,16 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.allItems
+        data.allItems
     }
 
     def "generated schema should handle nested union types"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                     {
                         nestedUnionItems {
                             ... on Item {
@@ -175,33 +175,33 @@ class EndToEndSpec extends Specification {
                         }
                     }
                     '''
-            }
+        }
 
         then:
-            data.nestedUnionItems == [[itemId: 0], [itemId: 1], [otherItemId: 0], [otherItemId: 1], [thirdItemId: 100]]
+        data.nestedUnionItems == [[itemId: 0], [itemId: 1], [otherItemId: 0], [otherItemId: 1], [thirdItemId: 100]]
     }
 
     def "generated schema should handle scalar types"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
                         uuid
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.itemByUUID
+        data.itemByUUID
     }
 
     def "generated schema should handle non nullable scalar types"() {
         when:
         def fileParts = [new MockPart("test.doc", "Hello"), new MockPart("test.doc", "World")]
         def args = ["fileParts": fileParts]
-        def data = Utils.assertNoGraphQlErrors( gql,  args) {
+        def data = Utils.assertNoGraphQlErrors(gql, args) {
             '''
               mutation ($fileParts: [Upload!]!) { echoFiles(fileParts: $fileParts)}
             '''
@@ -224,7 +224,7 @@ class EndToEndSpec extends Specification {
         }
 
         then:
-            data.propertyHashMapItems == [ [name: "bob", age:55] ]
+        data.propertyHashMapItems == [[name: "bob", age: 55]]
     }
 
     def "generated schema should handle any java.util.Map (using SortedMap) types as property maps"() {
@@ -241,7 +241,7 @@ class EndToEndSpec extends Specification {
         }
 
         then:
-        data.propertySortedMapItems == [ [name: "Arthur", age:76], [name: "Jane", age:28] ]
+        data.propertySortedMapItems == [[name: "Arthur", age: 76], [name: "Jane", age: 28]]
     }
 
     // In this test a dictionary entry for the schema type ComplexMapItem is defined
@@ -251,7 +251,7 @@ class EndToEndSpec extends Specification {
     // resolver/POJO graph.
     def "generated schema should handle java.util.Map types as property maps when containing complex data"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
+        def data = Utils.assertNoGraphQlErrors(gql) {
             '''
                 {
                     propertyMapWithComplexItems {
@@ -265,7 +265,7 @@ class EndToEndSpec extends Specification {
         }
 
         then:
-            data.propertyMapWithComplexItems == [ [nameId:[id:150], age:72] ]
+        data.propertyMapWithComplexItems == [[nameId: [id: 150], age: 72]]
     }
 
     // This behavior is consistent with PropertyDataFetcher
@@ -283,7 +283,7 @@ class EndToEndSpec extends Specification {
         }
 
         then:
-        data.propertyMapMissingNamePropItems == [ [name: null, age:55] ]
+        data.propertyMapMissingNamePropItems == [[name: null, age: 55]]
     }
 
     // In this test a dictonary entry for the schema type NestedComplexMapItem is defined
@@ -308,14 +308,14 @@ class EndToEndSpec extends Specification {
         }
 
         then:
-        data.propertyMapWithNestedComplexItems == [ [ nested:[ item: [id:63] ], age:72] ]
+        data.propertyMapWithNestedComplexItems == [[nested: [item: [id: 63]], age: 72]]
     }
 
 
     def "generated schema should handle optional arguments"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     missing: itemsWithOptionalInput {
                         id
@@ -326,17 +326,17 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.missing?.size > 1
-            data.present?.size == 1
+        data.missing?.size > 1
+        data.present?.size == 1
     }
 
     def "generated schema should handle optional arguments using java.util.Optional"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     missing: itemsWithOptionalInputExplicit {
                         id
@@ -347,17 +347,17 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.missing?.size > 1
-            data.present?.size == 1
+        data.missing?.size > 1
+        data.present?.size == 1
     }
 
     def "generated schema should handle optional return types using java.util.Optional"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     missing: optionalItem(itemsInput: {name: "item?"}) {
                         id
@@ -368,31 +368,31 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.missing == null
-            data.present
+        data.missing == null
+        data.present
     }
 
     def "generated schema should pass default arguments"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     defaultArgument
                 }
                 '''
-            }
+        }
 
         then:
-            data.defaultArgument == true
+        data.defaultArgument == true
     }
 
     def "introspection shouldn't fail for arguments of type list with a default value (defaultEnumListArgument)"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                    __type(name: "Query") {
                        name
@@ -406,16 +406,16 @@ class EndToEndSpec extends Specification {
                    }
                 }
                 '''
-            }
+        }
 
         then:
-            data.__type
+        data.__type
     }
 
     def "generated schema should return null without errors for null value with nested fields"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     complexNullableType {
                         first
@@ -424,31 +424,31 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.containsKey('complexNullableType')
-            data.complexNullableType == null
+        data.containsKey('complexNullableType')
+        data.complexNullableType == null
     }
 
     def "generated schema handles nested lists in input type fields"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     complexInputType(complexInput: [[{first: "foo", second: [[{first: "bar"}]]}]])
                 }
                 '''
-            }
+        }
 
         then:
-            data.complexInputType
+        data.complexInputType
     }
 
     def "generated schema should use type extensions"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     extendedType {
                         first
@@ -456,62 +456,62 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.extendedType
-            data.extendedType.first
-            data.extendedType.second
+        data.extendedType
+        data.extendedType.first
+        data.extendedType.second
     }
 
     def "generated schema uses properties if no methods are found"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     propertyField
                 }
                 '''
-            }
+        }
 
         then:
-            data.propertyField
+        data.propertyField
     }
 
     def "generated schema allows enums in input types"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     enumInputType(type: TYPE_2)
                 }
                 '''
-            }
+        }
 
         then:
-            data.enumInputType == "TYPE_2"
+        data.enumInputType == "TYPE_2"
     }
 
     def "generated schema works with custom scalars as input values"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     customScalarMapInputType(customScalarMap: { test: "me" })
                 }
                 '''
-            }
+        }
 
         then:
-            data.customScalarMapInputType == [
+        data.customScalarMapInputType == [
                 test: "me"
-            ]
+        ]
     }
 
     def "generated schema supports generic properties"() {
         when:
         def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+            '''
                 {
                     itemWithGenericProperties {
                         keys
@@ -528,24 +528,24 @@ class EndToEndSpec extends Specification {
 
     def "generated schema supports batched datafetchers"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(batchedGql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(batchedGql) {
+            '''
                 {
                     allBaseItems {
                         name: batchedName
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.allBaseItems.collect { it.name } == ['item1', 'item2']
+        data.allBaseItems.collect { it.name } == ['item1', 'item2']
     }
 
     def "generated schema supports batched datafetchers with params"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(batchedGql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(batchedGql) {
+            '''
                 {
                     allBaseItems {
                         tags: batchedWithParamsTags(names: ["item2-tag1"]) {
@@ -554,49 +554,49 @@ class EndToEndSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
+        data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
     }
 
     def "generated schema supports overriding built-in scalars"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     itemByBuiltInId(id: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
                         name
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            noExceptionThrown()
-            data.itemByBuiltInId != null
+        noExceptionThrown()
+        data.itemByBuiltInId != null
     }
 
     def "generated schema supports DataFetcherResult"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     dataFetcherResult {
                         name
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.dataFetcherResult.name == "item1"
+        data.dataFetcherResult.name == "item1"
     }
 
     def "generated schema supports Kotlin suspend functions"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                     {
                         coroutineItems {
                             id
@@ -604,63 +604,65 @@ class EndToEndSpec extends Specification {
                         }
                     }
                     '''
-            }
+        }
 
         then:
-            data.coroutineItems == [[id:0, name:"item1"], [id:1, name:"item2"]]
+        data.coroutineItems == [[id: 0, name: "item1"], [id: 1, name: "item2"]]
     }
 
     def "generated schema supports Kotlin coroutine channels for the subscription query"() {
         when:
-            def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
-            def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
-                '''
+        def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+        def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
+            '''
                     subscription {
                         onItemCreatedCoroutineChannel {
                             id
                         }
                     } 
                     '''
-            }
-            def subscriber = new TestEnvironment().newManualSubscriber(data as Publisher<ExecutionResult>)
+        }
+        def subscriber = new TestEnvironment().newManualSubscriber(data as Publisher<ExecutionResult>)
 
         then:
-            subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannel").id == 1
-            subscriber.expectCompletion()
+        subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannel").id == 1
+        subscriber.expectCompletion()
     }
 
     def "generated schema supports Kotlin coroutine channels with suspend function for the subscription query"() {
         when:
-            def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
-            def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
-                '''
+        def newItem = new Item(1, "item", Type.TYPE_1, UUID.randomUUID(), [])
+        def data = Utils.assertNoGraphQlErrors(gql, [:], new OnItemCreatedContext(newItem)) {
+            '''
                         subscription {
                             onItemCreatedCoroutineChannelAndSuspendFunction {
                                 id
                             }
                         } 
                         '''
-            }
-            def subscriber = new TestEnvironment().newManualSubscriber(data as Publisher<ExecutionResult>)
+        }
+        def subscriber = new TestEnvironment().newManualSubscriber(data as Publisher<ExecutionResult>)
 
         then:
-            subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannelAndSuspendFunction").id == 1
-            subscriber.expectCompletion()
+        subscriber.requestNextElement().data.get("onItemCreatedCoroutineChannelAndSuspendFunction").id == 1
+        subscriber.expectCompletion()
     }
 
     def "generated schema supports arrays"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
                 {
                     arrayItems {
                         name
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.arrayItems.collect { it.name } == ['item1', 'item2']
+        data.arrayItems.collect { it.name } == ['item1', 'item2']
     }
+
+
 }
