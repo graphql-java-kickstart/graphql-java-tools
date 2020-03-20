@@ -135,7 +135,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
       when (type) {
         is ParameterizedType -> isJavaLanguageType(type.actualTypeArguments[0])
         is WildcardType -> isJavaLanguageType(type.upperBounds[0])
-        else -> genericType.getRawClass(type).packageName == "java.lang"
+        else -> genericType.getRawClass(type).`package`.name == "java.lang"
       }
 
   override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
