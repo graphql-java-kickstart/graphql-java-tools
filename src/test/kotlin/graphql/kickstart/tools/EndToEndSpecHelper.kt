@@ -26,7 +26,7 @@ fun createSchema() = SchemaParser.newParser()
     .build()
     .makeExecutableSchema()
 
-val schemaDefinition = """
+private const val schemaDefinition = """
 
 ## Private comment!
 scalar UUID
@@ -82,9 +82,6 @@ type Query {
     coroutineItems: [Item!]!
 
     arrayItems: [Item!]!
-    
-    byLongId(id: ID!): Item!
-    byListOfLongId(ids: [ID!]!): [Item!]!
 }
 
 type ExtendedType {

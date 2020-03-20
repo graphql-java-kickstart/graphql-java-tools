@@ -664,5 +664,4 @@ class EndToEndSpec extends Specification {
         data.arrayItems.collect { it.name } == ['item1', 'item2']
     }
 
-
 }
