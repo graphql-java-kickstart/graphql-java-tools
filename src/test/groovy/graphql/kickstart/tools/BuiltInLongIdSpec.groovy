@@ -52,7 +52,7 @@ class BuiltInLongIdSpec extends Specification {
         def data = Utils.assertNoGraphQlErrors(gql) {
             '''
                 {
-                    itemsByLongIds(id: [1,2,3]) {
+                    itemsByLongIds(ids: [1,2,3]) {
                         id
                     }
                 }
