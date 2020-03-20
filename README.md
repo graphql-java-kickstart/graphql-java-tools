@@ -2,7 +2,7 @@
 
 [![TravisCI Build](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools)
-[![Chat on Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/graphql-java-kickstart/Lobby)
+[![Chat on Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://graphqljavakickstart.slack.com)
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
 Inspired by [graphql-tools](https://github.com/apollographql/graphql-tools), it parses the given GraphQL schema and allows you to BYOO (bring your own object) to fill in the implementations.
@@ -12,8 +12,9 @@ GraphQL Java Tools aims for seamless integration with Java, but works for any JV
 
 ## WARNING: NoClassDefFoundError when using Spring Boot
 
-If you're using `graphl-java-tools` you need to set the `kotlin.version` in your Spring Boot project explicitly to 
-version 1.3.10, because Spring Boot Starter parent currently overrides it with a 1.2.* version of Kotlin. 
+If you're using `graphl-java-tools` with Spring Boot version lower than 2.2 you need to set the `kotlin.version` in 
+your Spring Boot project explicitly to version 1.3.70, because Spring Boot Starter parent currently overrides it with 
+a 1.2.* version of Kotlin. 
 `graphql-java-tools` requires 1.3.* however because of its coroutine support. If you don't override this version
 you will run into a `NoClassDefFoundError`.
 
@@ -22,14 +23,14 @@ Spring Boot team has indicated the Kotlin version will be upgraded to 1.3 in Spr
 ### Using Gradle
 Set the Kotlin version in your `gradle.properties`
 ```
-kotlin.version=1.3.10
+kotlin.version=1.3.70
 ```
 
 ### Using Maven
 Set the Kotlin version in your `<properties>` section
 ```xml
 <properties>
-  <kotlin.version>1.3.10</kotlin.version>
+  <kotlin.version>1.3.70</kotlin.version>
 </properties>
 ```
 
