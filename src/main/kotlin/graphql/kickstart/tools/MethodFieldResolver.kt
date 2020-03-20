@@ -11,6 +11,7 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLTypeUtil.isScalar
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
+import java.lang.reflect.ParameterizedType
 import java.util.*
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.reflect.full.valueParameters
@@ -124,9 +125,15 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
       when (type) {
         is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
             && isScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
-        is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) } ?: false
+        is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && !isJavaLanguageType(genericParameterType) } ?: false
         is NonNullType -> isScalarType(environment, type.type, genericParameterType)
         else -> false
+      }
+
+  private fun isJavaLanguageType(type: JavaType): Boolean =
+      when (type) {
+        is ParameterizedType -> isJavaLanguageType(type.actualTypeArguments[0])
+        else -> type.javaClass.packageName == "java.lang"
       }
 
   override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
