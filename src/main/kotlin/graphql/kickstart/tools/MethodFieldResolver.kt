@@ -12,6 +12,7 @@ import graphql.schema.GraphQLTypeUtil.isScalar
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.WildcardType
 import java.util.*
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.reflect.full.valueParameters
@@ -133,7 +134,8 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
   private fun isJavaLanguageType(type: JavaType): Boolean =
       when (type) {
         is ParameterizedType -> isJavaLanguageType(type.actualTypeArguments[0])
-        else -> type.javaClass.`package`.name == "java.lang"
+        is WildcardType -> isJavaLanguageType(type.upperBounds[0])
+        else -> genericType.getRawClass(type).packageName == "java.lang"
       }
 
   override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
