@@ -1,7 +1,7 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.classmate.ResolvedType
-import com.google.common.primitives.Primitives
+import graphql.kickstart.tools.util.Primitives
 import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable

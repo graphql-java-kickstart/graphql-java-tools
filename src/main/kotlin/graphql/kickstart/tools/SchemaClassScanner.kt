@@ -1,8 +1,6 @@
 package graphql.kickstart.tools
 
-import com.google.common.collect.BiMap
-import com.google.common.collect.HashBiMap
-import com.google.common.collect.Maps
+import graphql.kickstart.tools.util.BiMap
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
@@ -120,7 +118,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
         // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
-            Maps.unmodifiableBiMap(HashBiMap.create<TypeDefinition<*>, JavaType>().also {
+            BiMap.unmodifiableBiMap(BiMap.create<TypeDefinition<*>, JavaType>().also {
                 dictionary.filter {
                     it.value.javaType != null
                             && it.value.typeClass() != java.lang.Object::class.java

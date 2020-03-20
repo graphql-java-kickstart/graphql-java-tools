@@ -1,10 +1,8 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.google.common.collect.BiMap
-import com.google.common.collect.HashBiMap
-import com.google.common.collect.Maps
 import graphql.kickstart.tools.relay.RelayConnectionFactory
+import graphql.kickstart.tools.util.BiMap
 import graphql.language.Definition
 import graphql.language.Document
 import graphql.parser.Parser
@@ -216,9 +214,9 @@ class InvalidSchemaError(pce: ParseCancellationException, private val recognitio
 
 class SchemaParserDictionary {
 
-    private val dictionary: BiMap<String, Class<*>> = HashBiMap.create()
+    private val dictionary: BiMap<String, Class<*>> = BiMap.create()
 
-    fun getDictionary(): BiMap<String, Class<*>> = Maps.unmodifiableBiMap(dictionary)
+    fun getDictionary(): BiMap<String, Class<*>> = BiMap.unmodifiableBiMap(dictionary)
 
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
