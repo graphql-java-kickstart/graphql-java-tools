@@ -1,4 +1,4 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools.directive;
 
 import graphql.Internal;
 import graphql.language.NamedNode;

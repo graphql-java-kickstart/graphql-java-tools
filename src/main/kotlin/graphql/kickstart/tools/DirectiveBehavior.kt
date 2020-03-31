@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.directive.SchemaGeneratorDirectiveHelper
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 
