@@ -40,7 +40,7 @@ import static java.util.stream.Collectors.toList;
 @Internal
 public class SchemaGeneratorDirectiveHelper {
 
-  static class Parameters {
+  public static class Parameters {
     private final TypeDefinitionRegistry typeRegistry;
     private final RuntimeWiring runtimeWiring;
     private final NodeParentTree<NamedNode> nodeParentTree;
@@ -50,7 +50,7 @@ public class SchemaGeneratorDirectiveHelper {
     private final GraphQLFieldsContainer fieldsContainer;
     private final GraphQLFieldDefinition fieldDefinition;
 
-    Parameters(TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring, Map<String, Object> context, GraphQLCodeRegistry.Builder codeRegistry) {
+    public Parameters(TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring, Map<String, Object> context, GraphQLCodeRegistry.Builder codeRegistry) {
       this(typeRegistry, runtimeWiring, context, codeRegistry, null, null, null, null);
     }
 
