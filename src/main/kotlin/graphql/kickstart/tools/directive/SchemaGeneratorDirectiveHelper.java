@@ -34,13 +34,14 @@ import static graphql.Assert.assertNotNull;
 import static java.util.stream.Collectors.toList;
 
 /**
- * This contains the helper code that allows {@link graphql.schema.idl.SchemaDirectiveWiring} implementations
- * to be invoked during schema generation.
+ * This contains the helper code that allows {@link graphql.schema.idl.SchemaDirectiveWiring} implementations to be
+ * invoked during schema generation.
  */
 @Internal
 public class SchemaGeneratorDirectiveHelper {
 
   public static class Parameters {
+
     private final TypeDefinitionRegistry typeRegistry;
     private final RuntimeWiring runtimeWiring;
     private final NodeParentTree<NamedNode> nodeParentTree;
@@ -50,11 +51,15 @@ public class SchemaGeneratorDirectiveHelper {
     private final GraphQLFieldsContainer fieldsContainer;
     private final GraphQLFieldDefinition fieldDefinition;
 
-    public Parameters(TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring, Map<String, Object> context, GraphQLCodeRegistry.Builder codeRegistry) {
+    public Parameters(TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring, Map<String, Object> context,
+        GraphQLCodeRegistry.Builder codeRegistry) {
       this(typeRegistry, runtimeWiring, context, codeRegistry, null, null, null, null);
     }
 
-    Parameters(TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring, Map<String, Object> context, GraphQLCodeRegistry.Builder codeRegistry, NodeParentTree<NamedNode> nodeParentTree, GraphqlElementParentTree elementParentTree, GraphQLFieldsContainer fieldsContainer, GraphQLFieldDefinition fieldDefinition) {
+    Parameters(TypeDefinitionRegistry typeRegistry, RuntimeWiring runtimeWiring, Map<String, Object> context,
+        GraphQLCodeRegistry.Builder codeRegistry, NodeParentTree<NamedNode> nodeParentTree,
+        GraphqlElementParentTree elementParentTree, GraphQLFieldsContainer fieldsContainer,
+        GraphQLFieldDefinition fieldDefinition) {
       this.typeRegistry = typeRegistry;
       this.runtimeWiring = runtimeWiring;
       this.nodeParentTree = nodeParentTree;
@@ -97,16 +102,21 @@ public class SchemaGeneratorDirectiveHelper {
       return fieldDefinition;
     }
 
-    public Parameters newParams(GraphQLFieldsContainer fieldsContainer, NodeParentTree<NamedNode> nodeParentTree, GraphqlElementParentTree elementParentTree) {
-      return new Parameters(this.typeRegistry, this.runtimeWiring, this.context, this.codeRegistry, nodeParentTree, elementParentTree, fieldsContainer, fieldDefinition);
+    public Parameters newParams(GraphQLFieldsContainer fieldsContainer, NodeParentTree<NamedNode> nodeParentTree,
+        GraphqlElementParentTree elementParentTree) {
+      return new Parameters(this.typeRegistry, this.runtimeWiring, this.context, this.codeRegistry, nodeParentTree,
+          elementParentTree, fieldsContainer, fieldDefinition);
     }
 
-    public Parameters newParams(GraphQLFieldDefinition fieldDefinition, GraphQLFieldsContainer fieldsContainer, NodeParentTree<NamedNode> nodeParentTree, GraphqlElementParentTree elementParentTree) {
-      return new Parameters(this.typeRegistry, this.runtimeWiring, this.context, this.codeRegistry, nodeParentTree, elementParentTree, fieldsContainer, fieldDefinition);
+    public Parameters newParams(GraphQLFieldDefinition fieldDefinition, GraphQLFieldsContainer fieldsContainer,
+        NodeParentTree<NamedNode> nodeParentTree, GraphqlElementParentTree elementParentTree) {
+      return new Parameters(this.typeRegistry, this.runtimeWiring, this.context, this.codeRegistry, nodeParentTree,
+          elementParentTree, fieldsContainer, fieldDefinition);
     }
 
     public Parameters newParams(NodeParentTree<NamedNode> nodeParentTree, GraphqlElementParentTree elementParentTree) {
-      return new Parameters(this.typeRegistry, this.runtimeWiring, this.context, this.codeRegistry, nodeParentTree, elementParentTree, this.fieldsContainer, fieldDefinition);
+      return new Parameters(this.typeRegistry, this.runtimeWiring, this.context, this.codeRegistry, nodeParentTree,
+          elementParentTree, this.fieldsContainer, fieldDefinition);
     }
   }
 
@@ -126,10 +136,13 @@ public class SchemaGeneratorDirectiveHelper {
     return new GraphqlElementParentTree(nodeStack);
   }
 
-  private List<GraphQLArgument> wireArguments(GraphQLFieldDefinition fieldDefinition, GraphQLFieldsContainer fieldsContainer, NamedNode fieldsContainerNode, Parameters params, GraphQLFieldDefinition field) {
+  private List<GraphQLArgument> wireArguments(GraphQLFieldDefinition fieldDefinition,
+      GraphQLFieldsContainer fieldsContainer, NamedNode fieldsContainerNode, Parameters params,
+      GraphQLFieldDefinition field) {
     return field.getArguments().stream().map(argument -> {
 
-      NodeParentTree<NamedNode> nodeParentTree = buildAstTree(fieldsContainerNode, field.getDefinition(), argument.getDefinition());
+      NodeParentTree<NamedNode> nodeParentTree = buildAstTree(fieldsContainerNode, field.getDefinition(),
+          argument.getDefinition());
       GraphqlElementParentTree elementParentTree = buildRuntimeTree(fieldsContainer, field, argument);
 
       Parameters argParams = params.newParams(fieldDefinition, fieldsContainer, nodeParentTree, elementParentTree);
@@ -138,11 +151,13 @@ public class SchemaGeneratorDirectiveHelper {
     }).collect(toList());
   }
 
-  private List<GraphQLFieldDefinition> wireFields(GraphQLFieldsContainer fieldsContainer, NamedNode fieldsContainerNode, Parameters params) {
+  private List<GraphQLFieldDefinition> wireFields(GraphQLFieldsContainer fieldsContainer, NamedNode fieldsContainerNode,
+      Parameters params) {
     return fieldsContainer.getFieldDefinitions().stream().map(fieldDefinition -> {
 
       // and for each argument in the fieldDefinition run the wiring for them - and note that they can change
-      List<GraphQLArgument> newArgs = wireArguments(fieldDefinition, fieldsContainer, fieldsContainerNode, params, fieldDefinition);
+      List<GraphQLArgument> newArgs = wireArguments(fieldDefinition, fieldsContainer, fieldsContainerNode, params,
+          fieldDefinition);
 
       // they may have changed the arguments to the fieldDefinition so reflect that
       fieldDefinition = fieldDefinition.transform(builder -> builder.clearArguments().arguments(newArgs));
@@ -189,7 +204,8 @@ public class SchemaGeneratorDirectiveHelper {
 
     List<GraphQLEnumValueDefinition> newEnums = enumType.getValues().stream().map(enumValueDefinition -> {
 
-      NodeParentTree<NamedNode> nodeParentTree = buildAstTree(enumType.getDefinition(), enumValueDefinition.getDefinition());
+      NodeParentTree<NamedNode> nodeParentTree = buildAstTree(enumType.getDefinition(),
+          enumValueDefinition.getDefinition());
       GraphqlElementParentTree elementParentTree = buildRuntimeTree(enumType, enumValueDefinition);
       Parameters fieldParams = params.newParams(nodeParentTree, elementParentTree);
 
@@ -211,7 +227,8 @@ public class SchemaGeneratorDirectiveHelper {
   public GraphQLInputObjectType onInputObjectType(GraphQLInputObjectType inputObjectType, Parameters params) {
     List<GraphQLInputObjectField> newFields = inputObjectType.getFieldDefinitions().stream().map(inputField -> {
 
-      NodeParentTree<NamedNode> nodeParentTree = buildAstTree(inputObjectType.getDefinition(), inputField.getDefinition());
+      NodeParentTree<NamedNode> nodeParentTree = buildAstTree(inputObjectType.getDefinition(),
+          inputField.getDefinition());
       GraphqlElementParentTree elementParentTree = buildRuntimeTree(inputObjectType, inputField);
       Parameters fieldParams = params.newParams(nodeParentTree, elementParentTree);
 
@@ -219,7 +236,8 @@ public class SchemaGeneratorDirectiveHelper {
       return onInputObjectField(inputField, fieldParams);
     }).collect(toList());
 
-    GraphQLInputObjectType newInputObjectType = inputObjectType.transform(builder -> builder.clearFields().fields(newFields));
+    GraphQLInputObjectType newInputObjectType = inputObjectType
+        .transform(builder -> builder.clearFields().fields(newFields));
 
     NodeParentTree<NamedNode> nodeParentTree = buildAstTree(newInputObjectType.getDefinition());
     GraphqlElementParentTree elementParentTree = buildRuntimeTree(newInputObjectType);
@@ -280,13 +298,16 @@ public class SchemaGeneratorDirectiveHelper {
   // builds a type safe SchemaDirectiveWiringEnvironment
   //
   interface EnvBuilder<T extends GraphQLDirectiveContainer> {
-    SchemaDirectiveWiringEnvironment<T> apply(T outputElement, List<GraphQLDirective> allDirectives, GraphQLDirective registeredDirective);
+
+    SchemaDirectiveWiringEnvironment<T> apply(T outputElement, List<GraphQLDirective> allDirectives,
+        GraphQLDirective registeredDirective);
   }
 
   //
   // invokes the SchemaDirectiveWiring with the provided environment
   //
   interface EnvInvoker<T extends GraphQLDirectiveContainer> {
+
     T apply(SchemaDirectiveWiring schemaDirectiveWiring, SchemaDirectiveWiringEnvironment<T> env);
   }
 
@@ -322,16 +343,19 @@ public class SchemaGeneratorDirectiveHelper {
     // wiring factory is last (if present)
     env = envBuilder.apply(outputObject, allDirectives, null);
     if (wiringFactory.providesSchemaDirectiveWiring(env)) {
-      schemaDirectiveWiring = assertNotNull(wiringFactory.getSchemaDirectiveWiring(env), "Your WiringFactory MUST provide a non null SchemaDirectiveWiring");
+      schemaDirectiveWiring = assertNotNull(wiringFactory.getSchemaDirectiveWiring(env),
+          "Your WiringFactory MUST provide a non null SchemaDirectiveWiring");
       outputObject = invokeWiring(outputObject, invoker, schemaDirectiveWiring, env);
     }
 
     return outputObject;
   }
 
-  private <T extends GraphQLDirectiveContainer> T invokeWiring(T element, EnvInvoker<T> invoker, SchemaDirectiveWiring schemaDirectiveWiring, SchemaDirectiveWiringEnvironment<T> env) {
+  private <T extends GraphQLDirectiveContainer> T invokeWiring(T element, EnvInvoker<T> invoker,
+      SchemaDirectiveWiring schemaDirectiveWiring, SchemaDirectiveWiringEnvironment<T> env) {
     T newElement = invoker.apply(schemaDirectiveWiring, env);
-    assertNotNull(newElement, "The SchemaDirectiveWiring MUST return a non null return value for element '" + element.getName() + "'");
+    assertNotNull(newElement,
+        "The SchemaDirectiveWiring MUST return a non null return value for element '" + element.getName() + "'");
     return newElement;
   }
 }
