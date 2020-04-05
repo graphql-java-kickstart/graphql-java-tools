@@ -6,6 +6,7 @@ import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.SchemaGeneratorHelper
+import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
 import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.reflect.KClass
@@ -62,9 +63,13 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
      */
     fun parseSchemaObjects(): SchemaObjects {
+        if (!options.introspectionEnabled) {
+            codeRegistryBuilder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
+        }
+        // this overrides the above introspection enabled setting obviously... todo: add documentation
+        options.fieldVisilibity?.let { codeRegistryBuilder.fieldVisibility(it) }
 
         // Create GraphQL objects
-//        val inputObjects = inputObjectDefinitions.map { createInputObject(it, listOf())}
         val inputObjects: MutableList<GraphQLInputObjectType> = mutableListOf()
         inputObjectDefinitions.forEach {
             if (inputObjects.none { io -> io.name == it.name }) {
@@ -101,7 +106,7 @@ class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, privat
     /**
      * Parses the given schema with respect to the given dictionary and returns a GraphQLSchema
      */
-    fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema(options.introspectionEnabled)
+    fun makeExecutableSchema(): GraphQLSchema = parseSchemaObjects().toSchema()
 
     /**
      * Returns any unused type definitions that were found in the schema

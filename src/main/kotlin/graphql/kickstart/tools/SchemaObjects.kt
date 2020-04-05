@@ -4,7 +4,6 @@ import graphql.schema.GraphQLCodeRegistry
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
-import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
 
 /**
  * @author Andrew Potter
@@ -14,11 +13,7 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
     /**
      * Makes a GraphQLSchema with query, mutation and subscription.
      */
-    fun toSchema(introspectionEnabled: Boolean): GraphQLSchema {
-        if (!introspectionEnabled) {
-            codeRegistryBuilder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
-        }
-
+    fun toSchema(): GraphQLSchema {
         return GraphQLSchema.newSchema()
                 .query(query)
                 .mutation(mutation)
