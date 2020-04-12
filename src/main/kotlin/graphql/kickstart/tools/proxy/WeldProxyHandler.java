@@ -1,7 +1,9 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools.proxy;
 
-public class WeldProxyHandler implements ProxyHandler
-{
+import graphql.kickstart.tools.GraphQLResolver;
+
+public class WeldProxyHandler implements ProxyHandler {
+
     @Override
     public boolean canHandle(GraphQLResolver<?> resolver) {
         return isWeldProxy(resolver);

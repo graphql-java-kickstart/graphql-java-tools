@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
 class MethodFieldResolverDataFetcherTest {
+
     @Test
     @ExperimentalCoroutinesApi
     fun `data fetcher executes suspend function on coroutineContext defined by options`() {
@@ -110,7 +111,6 @@ class MethodFieldResolverDataFetcherTest {
             return channel
         }
     }
-
 
     private fun createFetcher(
         methodName: String,

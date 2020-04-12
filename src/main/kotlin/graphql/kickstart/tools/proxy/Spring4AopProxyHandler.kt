@@ -1,12 +1,12 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.proxy
 
+import graphql.kickstart.tools.GraphQLResolver
 import org.springframework.aop.support.AopUtils
 
 /**
  * @author Andrew Potter
  */
-
-class Spring4AopProxyHandler: ProxyHandler {
+class Spring4AopProxyHandler : ProxyHandler {
 
     val isEnabled: Boolean =
         try {
@@ -16,9 +16,9 @@ class Spring4AopProxyHandler: ProxyHandler {
             false
         }
 
-    override fun canHandle(resolver: GraphQLResolver<*>?): Boolean {
+    override fun canHandle(resolver: GraphQLResolver<*>): Boolean {
         return isEnabled && AopUtils.isAopProxy(resolver)
     }
 
-    override fun getTargetClass(resolver: GraphQLResolver<*>?): Class<*> = AopUtils.getTargetClass(resolver)
+    override fun getTargetClass(resolver: GraphQLResolver<*>): Class<*> = AopUtils.getTargetClass(resolver)
 }

@@ -27,7 +27,6 @@ fun createSchema() = SchemaParser.newParser()
     .makeExecutableSchema()
 
 private const val schemaDefinition = """
-
 ## Private comment!
 scalar UUID
 scalar customScalarMap
@@ -211,38 +210,38 @@ type ItemWithGenericProperties {
 """
 
 
-val items = mutableListOf(
+val items = listOf(
     Item(0, "item1", Type.TYPE_1, UUID.fromString("38f685f1-b460-4a54-a17f-7fd69e8cf3f8"), listOf(Tag(1, "item1-tag1"), Tag(2, "item1-tag2"))),
     Item(1, "item2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-b17f-7fd69e8cf3f8"), listOf(Tag(3, "item2-tag1"), Tag(4, "item2-tag2")))
 )
 
-val otherItems = mutableListOf(
+val otherItems = listOf(
     OtherItemWithWrongName(0, "otherItem1", Type.TYPE_1, UUID.fromString("38f685f1-b460-4a54-c17f-7fd69e8cf3f8")),
     OtherItemWithWrongName(1, "otherItem2", Type.TYPE_2, UUID.fromString("38f685f1-b460-4a54-d17f-7fd69e8cf3f8"))
 )
 
-val thirdItems = mutableListOf(
+val thirdItems = listOf(
     ThirdItem(100)
 )
 
-val propetyHashMapItems = mutableListOf(
+val propetyHashMapItems = listOf(
     hashMapOf("name" to "bob", "age" to 55)
 )
 
-val propertyMapMissingNamePropItems = mutableListOf(
+val propertyMapMissingNamePropItems = listOf(
     hashMapOf<String, Any>("age" to 55)
 )
 
-val propetySortedMapItems = mutableListOf(
+val propetySortedMapItems = listOf(
     sortedMapOf("name" to "Arthur", "age" to 76),
     sortedMapOf("name" to "Jane", "age" to 28)
 )
 
-val propertyMapWithComplexItems = mutableListOf(
+val propertyMapWithComplexItems = listOf(
     hashMapOf("nameId" to ComplexMapItem(150), "age" to 72)
 )
 
-val propertyMapWithNestedComplexItems = mutableListOf(
+val propertyMapWithNestedComplexItems = listOf(
     hashMapOf("nested" to NestedComplexMapItem(UndiscoveredItem(63)), "age" to 72)
 )
 
@@ -446,7 +445,7 @@ val customScalarMap = GraphQLScalarType.newScalar()
     })
     .build()
 
-//Definition from https://github.com/graphql-java-kickstart/graphql-java-servlet/blob/master/src/main/java/graphql/servlet/core/ApolloScalars.java
+// definition from https://github.com/graphql-java-kickstart/graphql-java-servlet/blob/master/src/main/java/graphql/servlet/core/ApolloScalars.java
 val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
     .name("Upload")
     .description("A file part in a multipart request")

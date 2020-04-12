@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import graphql.kickstart.tools.proxy.*
 import graphql.kickstart.tools.relay.RelayConnectionFactory
 import graphql.kickstart.tools.util.BiMap
 import graphql.kickstart.tools.util.JavaType

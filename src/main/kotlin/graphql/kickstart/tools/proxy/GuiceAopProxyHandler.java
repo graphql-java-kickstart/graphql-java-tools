@@ -1,6 +1,9 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools.proxy;
+
+import graphql.kickstart.tools.GraphQLResolver;
 
 public class GuiceAopProxyHandler implements ProxyHandler {
+
     @Override
     public boolean canHandle(GraphQLResolver<?> resolver) {
         return isGuiceProxy(resolver);

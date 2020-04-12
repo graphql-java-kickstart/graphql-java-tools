@@ -7,11 +7,11 @@ import org.junit.Test
 class PlaceTest {
 
     @Test
-    fun shouldHandleGenericsDeepHierarchy() {
+    fun `should handle generics deep hierarchy`() {
         val schema = SchemaParser.newParser()
-                .file("Place.graphqls")
-                .resolvers(PlaceQuery())
-                .build().makeExecutableSchema()
+            .file("Place.graphqls")
+            .resolvers(PlaceQuery())
+            .build().makeExecutableSchema()
 
         val graphql = GraphQL.newGraphQL(schema).build()
         val query = "query { places1 { id } places2 { id } }"
