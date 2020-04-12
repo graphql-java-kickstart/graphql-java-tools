@@ -1,4 +1,4 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.util
 
 import org.junit.Assert
 import org.junit.Test
@@ -6,7 +6,7 @@ import org.junit.Test
 class UtilsTest {
 
     @Suppress("unused")
-    class Bean {
+    private class Bean {
         fun getterValid(): String = ""
 
         fun getterWithArgument(@Suppress("UNUSED_PARAMETER") arg1: String): String = ""
@@ -21,6 +21,10 @@ class UtilsTest {
         fun isJavaBoolean(): java.lang.Boolean = java.lang.Boolean(false)
 
         fun isKotlinBoolean(): Boolean = false
+    }
+
+    private class UtilsTestTrivialDataFetcherBean {
+        val isBooleanPrimitive = false
     }
 
     @Test

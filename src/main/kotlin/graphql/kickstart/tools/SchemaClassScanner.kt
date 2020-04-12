@@ -1,6 +1,9 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.util.BiMap
+import graphql.kickstart.tools.util.*
+import graphql.kickstart.tools.util.GraphQLRootResolver
+import graphql.kickstart.tools.util.JavaType
+import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo

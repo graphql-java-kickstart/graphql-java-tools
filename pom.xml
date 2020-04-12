@@ -203,7 +203,6 @@
                         <configuration>
                             <sources>
                                 <source>src/test/kotlin</source>
-                                <source>src/test/java</source>
                                 <source>src/test/groovy</source>
                             </sources>
                         </configuration>

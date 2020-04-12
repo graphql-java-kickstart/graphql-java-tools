@@ -1,5 +1,6 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.util
 
+import graphql.kickstart.tools.GraphQLResolver
 import graphql.language.*
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.CoroutineScope

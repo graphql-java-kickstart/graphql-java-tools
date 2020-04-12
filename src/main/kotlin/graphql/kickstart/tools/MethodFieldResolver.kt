@@ -5,6 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
 import graphql.execution.batched.Batched
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
+import graphql.kickstart.tools.util.JavaType
+import graphql.kickstart.tools.util.coroutineScope
+import graphql.kickstart.tools.util.isTrivialDataFetcher
+import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment

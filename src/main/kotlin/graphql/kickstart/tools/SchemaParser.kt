@@ -1,6 +1,8 @@
 package graphql.kickstart.tools
 
 import graphql.introspection.Introspection
+import graphql.kickstart.tools.util.getExtendedFieldDefinitions
+import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring

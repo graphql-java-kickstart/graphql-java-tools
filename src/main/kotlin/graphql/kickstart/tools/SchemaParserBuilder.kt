@@ -3,6 +3,8 @@ package graphql.kickstart.tools
 import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.kickstart.tools.relay.RelayConnectionFactory
 import graphql.kickstart.tools.util.BiMap
+import graphql.kickstart.tools.util.JavaType
+import graphql.kickstart.tools.util.coroutineScope
 import graphql.language.Definition
 import graphql.language.Document
 import graphql.parser.Parser

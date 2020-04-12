@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.classmate.TypeResolver
+import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment

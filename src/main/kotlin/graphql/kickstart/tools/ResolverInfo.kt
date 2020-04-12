@@ -1,5 +1,7 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.util.GraphQLRootResolver
+import graphql.kickstart.tools.util.JavaType
 import org.apache.commons.lang3.reflect.TypeUtils
 
 internal abstract class ResolverInfo {

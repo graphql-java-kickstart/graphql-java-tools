@@ -1,6 +1,8 @@
 package graphql.kickstart.tools
 
 import graphql.execution.DataFetcherResult
+import graphql.kickstart.tools.util.GraphQLLangType
+import graphql.kickstart.tools.util.JavaType
 import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import java.lang.reflect.ParameterizedType

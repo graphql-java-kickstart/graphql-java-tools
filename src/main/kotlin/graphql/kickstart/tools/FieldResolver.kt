@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment

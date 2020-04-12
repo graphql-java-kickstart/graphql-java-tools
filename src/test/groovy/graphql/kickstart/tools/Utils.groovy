@@ -14,12 +14,12 @@ class Utils {
 
     static Map<String, Object> assertNoGraphQlErrors(GraphQL gql, Map<String, Object> args = [:], Object context = new Object(), Closure<String> closure) {
         def result = gql.execute(ExecutionInput.newExecutionInput()
-            .query(closure())
-            .context(context)
-            .root(context)
-            .variables(args))
+                .query(closure())
+                .context(context)
+                .root(context)
+                .variables(args))
 
-        if(!result.errors.isEmpty()) {
+        if (!result.errors.isEmpty()) {
             throw new AssertionError("GraphQL result contained errors!\n${result.errors.collect { mapper.writeValueAsString(it) }.join("\n")}")
         }
 
