@@ -1,6 +1,5 @@
 package graphql.kickstart.tools
 
-import com.esotericsoftware.reflectasm.MethodAccess
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
 import graphql.execution.batched.Batched
@@ -182,9 +181,7 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
 
 open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>, private val options: SchemaParserOptions) : DataFetcher<Any> {
 
-  // Convert to reflactasm reflection
-  private val methodAccess = MethodAccess.get(method.declaringClass)!!
-  private val methodIndex = methodAccess.getIndex(method.name, *method.parameterTypes)
+  private val resolverMethod = method
   private val isSuspendFunction = try {
     method.kotlinFunction?.isSuspend == true
   } catch (e: InternalError) {
@@ -206,10 +203,10 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
 
     return if (isSuspendFunction) {
       environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
-        methodAccess.invokeSuspend(source, methodIndex, args)?.transformWithGenericWrapper(environment)
+        invokeSuspend(source, resolverMethod, args)?.transformWithGenericWrapper(environment)
       }
     } else {
-      methodAccess.invoke(source, methodIndex, *args)?.transformWithGenericWrapper(environment)
+      invoke(resolverMethod, source, args)?.transformWithGenericWrapper(environment)
     }
   }
 
@@ -236,9 +233,26 @@ open class TrivialMethodFieldResolverDataFetcher(sourceResolver: SourceResolver,
 
 }
 
-private suspend inline fun MethodAccess.invokeSuspend(target: Any, methodIndex: Int, args: Array<Any?>): Any? {
+private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, args: Array<Any?>): Any? {
   return suspendCoroutineUninterceptedOrReturn { continuation ->
-    invoke(target, methodIndex, *args + continuation)
+    invoke(resolverMethod, target, args + continuation)
+  }
+}
+
+@Suppress("NOTHING_TO_INLINE")
+private inline fun invoke(method: Method, instance:Any, args: Array<Any?>): Any? {
+  try {
+    return method.invoke(instance, *args)
+  } catch (invocationException: java.lang.reflect.InvocationTargetException) {
+    val e = invocationException.cause
+    if (e is RuntimeException) {
+      throw e
+    }
+    if (e is Error) {
+      throw e
+    }
+
+    throw java.lang.reflect.UndeclaredThrowableException(e);
   }
 }
 

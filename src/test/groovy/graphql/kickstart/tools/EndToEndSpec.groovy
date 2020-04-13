@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.ExecutionInput
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
@@ -664,4 +665,17 @@ class EndToEndSpec extends Specification {
         data.arrayItems.collect { it.name } == ['item1', 'item2']
     }
 
+    def "generated schema should re-throw original runtime exception when executing a resolver method"() {
+        when:
+
+        gql.execute(ExecutionInput.newExecutionInput().query('''
+                {
+                    throwsIllegalArgumentException
+                }
+                '''
+        ))
+
+        then:
+        IllegalArgumentException
+    }
 }

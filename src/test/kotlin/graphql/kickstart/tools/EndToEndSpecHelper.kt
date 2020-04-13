@@ -81,6 +81,8 @@ type Query {
     coroutineItems: [Item!]!
 
     arrayItems: [Item!]!
+    
+    throwsIllegalArgumentException: String
 }
 
 type ExtendedType {
@@ -296,6 +298,10 @@ class Query : GraphQLQueryResolver, ListListResolver<String>() {
   suspend fun coroutineItems(): List<Item> = CompletableDeferred(items).await()
 
   fun arrayItems() = items.toTypedArray()
+
+  fun throwsIllegalArgumentException(): String {
+    throw IllegalArgumentException("Expected")
+  }
 }
 
 class UnusedRootResolver : GraphQLQueryResolver
