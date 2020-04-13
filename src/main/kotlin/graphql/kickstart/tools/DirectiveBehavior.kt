@@ -10,28 +10,27 @@ import graphql.schema.idl.RuntimeWiring
  */
 class DirectiveBehavior {
 
-  private val directiveHelper = SchemaGeneratorDirectiveHelper()
+    private val directiveHelper = SchemaGeneratorDirectiveHelper()
 
-  fun onObject(element: GraphQLObjectType, params: Params): GraphQLObjectType =
-      directiveHelper.onObject(element, params.toParameters()) as GraphQLObjectType
+    fun onObject(element: GraphQLObjectType, params: Params): GraphQLObjectType =
+        directiveHelper.onObject(element, params.toParameters()) as GraphQLObjectType
 
-  fun onInterface(element: GraphQLInterfaceType, params: Params): GraphQLInterfaceType =
-      directiveHelper.onInterface(element, params.toParameters()) as GraphQLInterfaceType
+    fun onInterface(element: GraphQLInterfaceType, params: Params): GraphQLInterfaceType =
+        directiveHelper.onInterface(element, params.toParameters()) as GraphQLInterfaceType
 
-  fun onUnion(element: GraphQLUnionType, params: Params): GraphQLUnionType =
-      directiveHelper.onUnion(element, params.toParameters()) as GraphQLUnionType
+    fun onUnion(element: GraphQLUnionType, params: Params): GraphQLUnionType =
+        directiveHelper.onUnion(element, params.toParameters()) as GraphQLUnionType
 
-  fun onScalar(element: GraphQLScalarType, params: Params): GraphQLScalarType =
-      directiveHelper.onScalar(element, params.toParameters()) as GraphQLScalarType
+    fun onScalar(element: GraphQLScalarType, params: Params): GraphQLScalarType =
+        directiveHelper.onScalar(element, params.toParameters()) as GraphQLScalarType
 
-  fun onEnum(element: GraphQLEnumType, params: Params): GraphQLEnumType =
-      directiveHelper.onEnum(element, params.toParameters()) as GraphQLEnumType
+    fun onEnum(element: GraphQLEnumType, params: Params): GraphQLEnumType =
+        directiveHelper.onEnum(element, params.toParameters()) as GraphQLEnumType
 
-  fun onInputObject(element: GraphQLInputObjectType, params: Params): GraphQLInputObjectType =
-      directiveHelper.onInputObjectType(element, params.toParameters()) as GraphQLInputObjectType
+    fun onInputObject(element: GraphQLInputObjectType, params: Params): GraphQLInputObjectType =
+        directiveHelper.onInputObjectType(element, params.toParameters()) as GraphQLInputObjectType
 
-  data class Params(val runtimeWiring: RuntimeWiring, val codeRegistryBuilder: GraphQLCodeRegistry.Builder) {
-    internal fun toParameters() = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
-  }
-
+    data class Params(val runtimeWiring: RuntimeWiring, val codeRegistryBuilder: GraphQLCodeRegistry.Builder) {
+        internal fun toParameters() = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
+    }
 }

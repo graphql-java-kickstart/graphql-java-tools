@@ -7,7 +7,7 @@ class GenericResolverSpec extends Specification {
 
     def "methods from generic resolvers are resolved"() {
         when:
-            SchemaParser.newParser().schemaString('''\
+        SchemaParser.newParser().schemaString('''\
                         type Query {
                             bar: Bar!
                         }
@@ -16,12 +16,12 @@ class GenericResolverSpec extends Specification {
                             value: String
                         }
                         ''')
-                    .resolvers(new QueryResolver1(), new BarResolver())
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new QueryResolver1(), new BarResolver())
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     class QueryResolver1 implements GraphQLQueryResolver {

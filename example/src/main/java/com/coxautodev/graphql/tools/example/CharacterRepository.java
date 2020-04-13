@@ -21,7 +21,7 @@ public class CharacterRepository {
     private Map<Episode, Character> heroes;
 
     public CharacterRepository() {
-        Human lukeSkywalker = new Human("1000", "Luke Skywalker", Arrays.asList(Episode.NEWHOPE, Episode.JEDI, Episode.EMPIRE),"Tatooine");
+        Human lukeSkywalker = new Human("1000", "Luke Skywalker", Arrays.asList(Episode.NEWHOPE, Episode.JEDI, Episode.EMPIRE), "Tatooine");
         Human darthVader = new Human("1001", "Darth Vader", Arrays.asList(Episode.NEWHOPE, Episode.JEDI, Episode.EMPIRE), "Tatooine");
         Human hanSolo = new Human("1002", "Han Solo", Arrays.asList(Episode.NEWHOPE, Episode.JEDI, Episode.EMPIRE), null);
         Human leiaOrgana = new Human("1003", "Leia Organa", Arrays.asList(Episode.NEWHOPE, Episode.JEDI, Episode.EMPIRE), "Alderaan");

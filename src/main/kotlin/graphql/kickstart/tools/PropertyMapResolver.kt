@@ -11,9 +11,9 @@ import graphql.schema.DataFetchingEnvironment
  *
  * The PropertyMapResolver implements the Map (i.e. property map) specific portion of the logic within the GraphQL PropertyDataFetcher class.
  */
-internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, relativeTo: JavaType): FieldResolver(field, search, options, relativeTo) {
+internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, relativeTo: JavaType) : FieldResolver(field, search, options, relativeTo) {
 
-    var mapGenericValue : JavaType = getMapGenericType(relativeTo)
+    var mapGenericValue: JavaType = getMapGenericType(relativeTo)
 
     /**
      * Takes a type which implements Map and tries to find the
@@ -21,7 +21,7 @@ internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolver
      * its generics somewhere along the way and is always a raw
      * type
      */
-    fun getMapGenericType(mapClass : JavaType) : JavaType {
+    fun getMapGenericType(mapClass: JavaType): JavaType {
         val resolvedType = TypeResolver().resolve(mapClass)
 
         val typeParameters = resolvedType.typeParametersFor(Map::class.java)
@@ -39,10 +39,10 @@ internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolver
     override fun toString() = "PropertyMapResolverDataFetcher{key=${field.name}}"
 }
 
-class PropertyMapResolverDataFetcher(private val sourceResolver: SourceResolver, val key : String): DataFetcher<Any> {
+class PropertyMapResolverDataFetcher(private val sourceResolver: SourceResolver, val key: String) : DataFetcher<Any> {
     override fun get(environment: DataFetchingEnvironment): Any? {
         val resolvedSourceObject = sourceResolver(environment)
-        if(resolvedSourceObject is Map<*, *>) {
+        if (resolvedSourceObject is Map<*, *>) {
             return resolvedSourceObject[key]
         } else {
             throw RuntimeException("PropertyMapResolverDataFetcher attempt to fetch a field from an object instance that was not a map")

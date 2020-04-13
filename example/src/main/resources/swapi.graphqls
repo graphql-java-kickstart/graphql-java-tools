@@ -1,72 +1,72 @@
 type Query {
-    # If episode omitted, returns the hero of the whole saga. If provided, returns the hero of that particular episode
-    hero(episode: Episode): Character
-    # Find human by id
-    human(id: String!): Human
-    # Find droid by id
-    droid(id: String!): Droid
-    # Find character by id
-    character(id: String!): Character
+  # If episode omitted, returns the hero of the whole saga. If provided, returns the hero of that particular episode
+  hero(episode: Episode): Character
+  # Find human by id
+  human(id: String!): Human
+  # Find droid by id
+  droid(id: String!): Droid
+  # Find character by id
+  character(id: String!): Character
 }
 
 # One of the films in the Star Wars Trilogy
 enum Episode {
-    # Released in 1977
-    NEWHOPE,
-    # Released in 1980
-    EMPIRE,
-    # Released in 1983
-    JEDI
+  # Released in 1977
+  NEWHOPE,
+  # Released in 1980
+  EMPIRE,
+  # Released in 1983
+  JEDI
 }
 
 # A character in the Star Wars Trilogy
 interface Character {
-    # The id of the character
-    id: String!
-    # The name of the character
-    name: String
-    # The friends of the character, or an empty list if they have none
-    friends: [Character]
-    # Which movies they appear in
-    appearsIn: [Episode]
+  # The id of the character
+  id: String!
+  # The name of the character
+  name: String
+  # The friends of the character, or an empty list if they have none
+  friends: [Character]
+  # Which movies they appear in
+  appearsIn: [Episode]
 }
 
 # A humanoid creature in the Star Wars universe
 type Human implements Character {
-    # The id of the human
-    id: String!
-    # The name of the human
-    name: String
-    # The friends of the human, or an empty list if they have none
-    friends: [Character]
-    # Which movies they appear in
-    appearsIn: [Episode]
-    # The home planet of the human, or null if unknown
-    homePlanet: String
+  # The id of the human
+  id: String!
+  # The name of the human
+  name: String
+  # The friends of the human, or an empty list if they have none
+  friends: [Character]
+  # Which movies they appear in
+  appearsIn: [Episode]
+  # The home planet of the human, or null if unknown
+  homePlanet: String
 }
 
 # A mechanical creature in the Star Wars universe
 type Droid implements Character {
-    # The id of the droid
-    id: String!
-    # The name of the droid
-    name: String
-    # The friends of the droid, or an empty list if they have none
-    friends: [Character]
-    # Which movies they appear in
-    appearsIn: [Episode]
-    # The primary function of the droid
-    primaryFunction: String
+  # The id of the droid
+  id: String!
+  # The name of the droid
+  name: String
+  # The friends of the droid, or an empty list if they have none
+  friends: [Character]
+  # Which movies they appear in
+  appearsIn: [Episode]
+  # The primary function of the droid
+  primaryFunction: String
 }
 
 type Mutation {
-    # Creates a new human character
-    createHuman(input: CreateHumanInput!): Human
+  # Creates a new human character
+  createHuman(input: CreateHumanInput!): Human
 }
 
 input CreateHumanInput {
-    # The name of the human
-    name: String
-    # The home planet of the human, or null if unknown
-    homePlanet: String
+  # The name of the human
+  name: String
+  # The home planet of the human, or null if unknown
+  homePlanet: String
 }

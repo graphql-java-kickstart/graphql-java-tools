@@ -1,8 +1,8 @@
 type Query {
-    users(first: Int, after: String): UserRelayConnection @connection(for: "User")
+  users(first: Int, after: String): UserRelayConnection @connection(for: "User")
 }
 
 type User {
-    id: ID!
-    name: String
+  id: ID!
+  name: String
 }

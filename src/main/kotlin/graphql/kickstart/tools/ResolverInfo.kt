@@ -8,7 +8,9 @@ internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
 
     fun getRealResolverClass(resolver: GraphQLResolver<*>, options: SchemaParserOptions) =
-            options.proxyHandlers.find { it.canHandle(resolver) }?.getTargetClass(resolver) ?: resolver.javaClass
+        options.proxyHandlers.find { it.canHandle(resolver) }
+            ?.getTargetClass(resolver)
+            ?: resolver.javaClass
 }
 
 internal interface DataClassTypeResolverInfo {
@@ -36,8 +38,8 @@ internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val 
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return listOf(
-                FieldResolverScanner.Search(resolverType, this, resolver, dataClassType, true),
-                FieldResolverScanner.Search(dataClassType, this, null)
+            FieldResolverScanner.Search(resolverType, this, resolver, dataClassType, true),
+            FieldResolverScanner.Search(dataClassType, this, null)
         )
     }
 }
@@ -60,21 +62,21 @@ internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>)
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return resolverInfoList
-                .asSequence()
-                .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, dataClassType, true) }
-                .plus(FieldResolverScanner.Search(dataClassType, this, null))
-                .toList()
+            .asSequence()
+            .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, dataClassType, true) }
+            .plus(FieldResolverScanner.Search(dataClassType, this, null))
+            .toList()
     }
 }
 
 internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, private val options: SchemaParserOptions) : ResolverInfo() {
     override fun getFieldSearches() =
-            resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
+        resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
 }
 
 internal class DataClassResolverInfo(private val dataClass: JavaType) : ResolverInfo() {
     override fun getFieldSearches() =
-            listOf(FieldResolverScanner.Search(dataClass, this, null))
+        listOf(FieldResolverScanner.Search(dataClass, this, null))
 }
 
 internal class MissingResolverInfo : ResolverInfo() {

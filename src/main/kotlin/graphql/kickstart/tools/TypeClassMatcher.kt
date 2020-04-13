@@ -85,8 +85,8 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
             is TypeName -> {
                 val typeDefinition = ScalarInfo.STANDARD_SCALAR_DEFINITIONS[graphQLType.name]
-                        ?: definitionsByName[graphQLType.name]
-                        ?: throw error(potentialMatch, "No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
+                    ?: definitionsByName[graphQLType.name]
+                    ?: throw error(potentialMatch, "No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
                 if (typeDefinition is ScalarTypeDefinition) {
                     ScalarMatch(typeDefinition)
                 } else {
@@ -125,11 +125,10 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     internal data class PotentialMatch(val graphQLType: GraphQLLangType, val javaType: JavaType, val generic: GenericType.RelativeTo, val reference: SchemaClassScanner.Reference, val location: Location, val batched: Boolean) {
         companion object {
             fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference, batched: Boolean) =
-                    PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE, batched)
+                PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE, batched)
 
             fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference, batched: Boolean) =
-                    PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE, batched)
+                PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE, batched)
         }
     }
-
 }

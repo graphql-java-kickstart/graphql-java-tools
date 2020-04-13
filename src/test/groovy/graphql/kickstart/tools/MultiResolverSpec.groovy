@@ -36,8 +36,8 @@ class MultiResolverSpec extends Specification {
 
     def "multiple resolvers for one data class should resolve methods with arguments"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql, [friendName: "name"]) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql, [friendName: "name"]) {
+            '''
                 query friendOfPerson($friendName: String!) {
                     person {
                         friends(friendName: $friendName) {
@@ -46,10 +46,10 @@ class MultiResolverSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.person
+        data.person
     }
 
     class QueryWithPersonResolver implements GraphQLQueryResolver {

@@ -1,6 +1,7 @@
 package graphql.kickstart.tools.util;
 
 public final class Primitives {
+
     @SuppressWarnings("unchecked")
     public static <T> Class<T> wrap(Class<T> type) {
         if (boolean.class.equals(type)) {

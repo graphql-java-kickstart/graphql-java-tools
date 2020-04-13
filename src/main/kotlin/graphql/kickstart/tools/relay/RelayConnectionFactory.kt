@@ -8,17 +8,17 @@ class RelayConnectionFactory : TypeDefinitionFactory {
     override fun create(existing: List<Definition<*>>): List<Definition<*>> {
         val definitions = mutableListOf<Definition<*>>()
         val definitionsByName = existing.filterIsInstance<TypeDefinition<*>>()
-                .associateBy { it.name }
-                .toMutableMap()
+            .associateBy { it.name }
+            .toMutableMap()
 
         findConnectionDirectives(existing)
-                .flatMap { createDefinitions(it) }
-                .forEach {
-                    if (!definitionsByName.containsKey(it.name)) {
-                        definitionsByName[it.name] = it
-                        definitions.add(it)
-                    }
+            .flatMap { createDefinitions(it) }
+            .forEach {
+                if (!definitionsByName.containsKey(it.name)) {
+                    definitionsByName[it.name] = it
+                    definitions.add(it)
                 }
+            }
 
         if (!definitionsByName.containsKey("PageInfo")) {
             definitions.add(createPageInfo())
@@ -29,9 +29,9 @@ class RelayConnectionFactory : TypeDefinitionFactory {
 
     private fun findConnectionDirectives(definitions: List<Definition<*>>): List<DirectiveWithField> {
         return definitions.filterIsInstance<ObjectTypeDefinition>()
-                .flatMap { it.fieldDefinitions }
-                .flatMap { it.directivesWithField() }
-                .filter { it.name == "connection" }
+            .flatMap { it.fieldDefinitions }
+            .flatMap { it.directivesWithField() }
+            .filter { it.name == "connection" }
     }
 
     private fun createDefinitions(directive: DirectiveWithField): List<ObjectTypeDefinition> {
@@ -42,27 +42,27 @@ class RelayConnectionFactory : TypeDefinitionFactory {
     }
 
     private fun createConnectionDefinition(type: String): ObjectTypeDefinition =
-            ObjectTypeDefinition.newObjectTypeDefinition()
-                    .name(type)
-                    .fieldDefinition(FieldDefinition("edges", ListType(TypeName(type + "Edge"))))
-                    .fieldDefinition(FieldDefinition("pageInfo", TypeName("PageInfo")))
-                    .build()
+        ObjectTypeDefinition.newObjectTypeDefinition()
+            .name(type)
+            .fieldDefinition(FieldDefinition("edges", ListType(TypeName(type + "Edge"))))
+            .fieldDefinition(FieldDefinition("pageInfo", TypeName("PageInfo")))
+            .build()
 
     private fun createEdgeDefinition(connectionType: String, nodeType: String): ObjectTypeDefinition =
-            ObjectTypeDefinition.newObjectTypeDefinition()
-                    .name(connectionType + "Edge")
-                    .fieldDefinition(FieldDefinition("cursor", TypeName("String")))
-                    .fieldDefinition(FieldDefinition("node", TypeName(nodeType)))
-                    .build()
+        ObjectTypeDefinition.newObjectTypeDefinition()
+            .name(connectionType + "Edge")
+            .fieldDefinition(FieldDefinition("cursor", TypeName("String")))
+            .fieldDefinition(FieldDefinition("node", TypeName(nodeType)))
+            .build()
 
     private fun createPageInfo(): ObjectTypeDefinition =
-            ObjectTypeDefinition.newObjectTypeDefinition()
-                    .name("PageInfo")
-                    .fieldDefinition(FieldDefinition("hasPreviousPage", NonNullType(TypeName("Boolean"))))
-                    .fieldDefinition(FieldDefinition("hasNextPage", NonNullType(TypeName("Boolean"))))
-                    .fieldDefinition(FieldDefinition("startCursor", TypeName("String")))
-                    .fieldDefinition(FieldDefinition("endCursor", TypeName("String")))
-                    .build()
+        ObjectTypeDefinition.newObjectTypeDefinition()
+            .name("PageInfo")
+            .fieldDefinition(FieldDefinition("hasPreviousPage", NonNullType(TypeName("Boolean"))))
+            .fieldDefinition(FieldDefinition("hasNextPage", NonNullType(TypeName("Boolean"))))
+            .fieldDefinition(FieldDefinition("startCursor", TypeName("String")))
+            .fieldDefinition(FieldDefinition("endCursor", TypeName("String")))
+            .build()
 
     private fun Directive.forTypeName(): String {
         return (this.getArgument("for").value as StringValue).value
@@ -85,5 +85,4 @@ class RelayConnectionFactory : TypeDefinitionFactory {
             return (field.type as TypeName).name
         }
     }
-
 }

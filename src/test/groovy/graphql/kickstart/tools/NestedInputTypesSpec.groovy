@@ -9,7 +9,7 @@ class NestedInputTypesSpec extends Specification {
 
     def "nested input types are parsed"() {
         when:
-            GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+        GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
                         type Query {
                             materials(filter: MaterialFilter): [Material!]!
                         }
@@ -33,24 +33,24 @@ class NestedInputTypesSpec extends Specification {
                             id: ID!
                         }
                     ''').resolvers(new QueryResolver())
-                    .build()
-                    .makeExecutableSchema()
-            GraphQL gql = GraphQL.newGraphQL(schema)
-                    .queryExecutionStrategy(new AsyncExecutionStrategy())
-                    .build()
-            def data = Utils.assertNoGraphQlErrors(gql, [filter: [title: "title", requestFilter: [discountTypeFilter: [name: "discount"]]]]) {
-                '''
+                .build()
+                .makeExecutableSchema()
+        GraphQL gql = GraphQL.newGraphQL(schema)
+                .queryExecutionStrategy(new AsyncExecutionStrategy())
+                .build()
+        def data = Utils.assertNoGraphQlErrors(gql, [filter: [title: "title", requestFilter: [discountTypeFilter: [name: "discount"]]]]) {
+            '''
                 query materials($filter: MaterialFilter!) {
                     materials(filter: $filter) {
                         id
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            noExceptionThrown()
-            data.materials == []
+        noExceptionThrown()
+        data.materials == []
     }
 
     class QueryResolver implements GraphQLQueryResolver {

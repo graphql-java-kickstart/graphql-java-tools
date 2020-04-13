@@ -36,8 +36,8 @@ class ParameterizedGetterSpec extends Specification {
 
     def "parameterized query is resolved on data type instead of on its resolver"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql, [limit: 10]) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql, [limit: 10]) {
+            '''
                 query allFriends($limit: Int!) {
                     human {
                         allFriends(limit: $limit) {
@@ -46,10 +46,10 @@ class ParameterizedGetterSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            data.human
+        data.human
     }
 
     class QueryResolver implements GraphQLQueryResolver {

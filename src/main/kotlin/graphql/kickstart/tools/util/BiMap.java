@@ -9,6 +9,7 @@ import static java.util.Collections.unmodifiableMap;
 
 @SuppressWarnings({"NullableProblems", "SuspiciousMethodCalls"})
 public class BiMap<K, V> implements Map<K, V> {
+
     private final Map<K, V> delegate;
     private final Map<V, K> inverse;
 

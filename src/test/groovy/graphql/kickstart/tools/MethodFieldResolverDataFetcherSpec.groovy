@@ -22,170 +22,170 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
 
     def "data fetcher throws exception if resolver has too many arguments"() {
         when:
-            createFetcher("active", new GraphQLQueryResolver() {
-                boolean active(def arg1, def arg2) { true }
-            })
+        createFetcher("active", new GraphQLQueryResolver() {
+            boolean active(def arg1, def arg2) { true }
+        })
 
         then:
-            thrown(FieldResolverError)
+        thrown(FieldResolverError)
     }
 
     def "data fetcher throws exception if resolver has too few arguments"() {
         when:
-            createFetcher("active", [new InputValueDefinition("doesNotExist", new TypeName("Boolean"))], new GraphQLQueryResolver() {
-                boolean active() { true }
-            })
+        createFetcher("active", [new InputValueDefinition("doesNotExist", new TypeName("Boolean"))], new GraphQLQueryResolver() {
+            boolean active() { true }
+        })
 
         then:
-            thrown(FieldResolverError)
+        thrown(FieldResolverError)
     }
 
     def "data fetcher prioritizes methods on the resolver"() {
         setup:
-            def name = "Resolver Name"
-            def resolver = createFetcher("name", new GraphQLResolver<DataClass>() {
-                String getName(DataClass dataClass) { name }
-            })
+        def name = "Resolver Name"
+        def resolver = createFetcher("name", new GraphQLResolver<DataClass>() {
+            String getName(DataClass dataClass) { name }
+        })
 
         expect:
-            resolver.get(createEnvironment(new DataClass())) == name
+        resolver.get(createEnvironment(new DataClass())) == name
     }
 
     def "data fetcher uses data class methods if no resolver method is given"() {
         setup:
-            def resolver = createFetcher("name", new GraphQLResolver<DataClass>() {})
+        def resolver = createFetcher("name", new GraphQLResolver<DataClass>() {})
 
         expect:
-            resolver.get(createEnvironment(new DataClass())) == DataClass.name
+        resolver.get(createEnvironment(new DataClass())) == DataClass.name
     }
 
     def "data fetcher prioritizes methods without a prefix"() {
         setup:
-            def name = "correct name"
-            def resolver = createFetcher("name", new GraphQLResolver<DataClass>() {
-                String name(DataClass dataClass) { name }
+        def name = "correct name"
+        def resolver = createFetcher("name", new GraphQLResolver<DataClass>() {
+            String name(DataClass dataClass) { name }
 
-                String getName(DataClass dataClass) { "in" + name }
-            })
+            String getName(DataClass dataClass) { "in" + name }
+        })
 
         expect:
-            resolver.get(createEnvironment(new DataClass())) == name
+        resolver.get(createEnvironment(new DataClass())) == name
     }
 
     def "data fetcher uses 'is' prefix for booleans (primitive type)"() {
         setup:
-            def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
-                boolean isActive(DataClass dataClass) { true }
+        def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
+            boolean isActive(DataClass dataClass) { true }
 
-                boolean getActive(DataClass dataClass) { true }
-            })
+            boolean getActive(DataClass dataClass) { true }
+        })
 
         expect:
-            resolver.get(createEnvironment(new DataClass()))
+        resolver.get(createEnvironment(new DataClass()))
     }
 
     def "data fetcher uses 'is' prefix for Booleans (Object type)"() {
         setup:
-            def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
-                Boolean isActive(DataClass dataClass) { Boolean.TRUE }
+        def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
+            Boolean isActive(DataClass dataClass) { Boolean.TRUE }
 
-                Boolean getActive(DataClass dataClass) { Boolean.TRUE }
-            })
+            Boolean getActive(DataClass dataClass) { Boolean.TRUE }
+        })
 
         expect:
-            resolver.get(createEnvironment(new DataClass()))
+        resolver.get(createEnvironment(new DataClass()))
     }
 
     def "data fetcher passes environment if method has extra argument"() {
         setup:
-            def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
-                boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
-                    env instanceof DataFetchingEnvironment
-                }
-            })
+        def resolver = createFetcher("active", new GraphQLResolver<DataClass>() {
+            boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
+                env instanceof DataFetchingEnvironment
+            }
+        })
 
         expect:
-            resolver.get(createEnvironment(new DataClass()))
+        resolver.get(createEnvironment(new DataClass()))
     }
 
     def "data fetcher passes environment if method has extra argument even if context is specified"() {
         setup:
-            def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
-            def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
-                boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
-                    env instanceof DataFetchingEnvironment
-                }
-            })
+        def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+        def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
+            boolean isActive(DataClass dataClass, DataFetchingEnvironment env) {
+                env instanceof DataFetchingEnvironment
+            }
+        })
 
         expect:
-            resolver.get(createEnvironment(new ContextClass(), new DataClass()))
+        resolver.get(createEnvironment(new ContextClass(), new DataClass()))
     }
 
     def "data fetcher passes context if method has extra argument and context is specified"() {
         setup:
-            def context = new ContextClass()
-            def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
-            def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
-                boolean isActive(DataClass dataClass, ContextClass ctx) {
-                    ctx == context
-                }
-            })
+        def context = new ContextClass()
+        def options = SchemaParserOptions.newOptions().contextClass(ContextClass).build()
+        def resolver = createFetcher(options, "active", new GraphQLResolver<DataClass>() {
+            boolean isActive(DataClass dataClass, ContextClass ctx) {
+                ctx == context
+            }
+        })
 
         expect:
-            resolver.get(createEnvironment(context, new DataClass()))
+        resolver.get(createEnvironment(context, new DataClass()))
     }
 
     def "data fetcher marshalls input object if required"() {
         setup:
-            def name = "correct name"
-            def resolver = createFetcher("active", [new InputValueDefinition("input", new TypeName("InputClass"))], new GraphQLQueryResolver() {
-                boolean active(InputClass input) {
-                    input instanceof InputClass && input.name == name
-                }
-            })
+        def name = "correct name"
+        def resolver = createFetcher("active", [new InputValueDefinition("input", new TypeName("InputClass"))], new GraphQLQueryResolver() {
+            boolean active(InputClass input) {
+                input instanceof InputClass && input.name == name
+            }
+        })
 
         expect:
-            resolver.get(createEnvironment([input: [name: name]]))
+        resolver.get(createEnvironment([input: [name: name]]))
     }
 
     def "data fetcher doesn't marshall input object if not required"() {
         setup:
-            def name = "correct name"
-            def resolver = createFetcher("active", [new InputValueDefinition("input", new TypeName("Map"))], new GraphQLQueryResolver() {
-                boolean active(Map input) {
-                    input instanceof Map && input.name == name
-                }
-            })
+        def name = "correct name"
+        def resolver = createFetcher("active", [new InputValueDefinition("input", new TypeName("Map"))], new GraphQLQueryResolver() {
+            boolean active(Map input) {
+                input instanceof Map && input.name == name
+            }
+        })
 
         expect:
-            resolver.get(createEnvironment([input: [name: name]]))
+        resolver.get(createEnvironment([input: [name: name]]))
     }
 
     def "data fetcher returns null if nullable argument is passed null"() {
         setup:
-            def resolver = createFetcher("echo", [new InputValueDefinition("message", new TypeName("String"))], new GraphQLQueryResolver() {
-                String echo(String message) {
-                    return message
-                }
-            })
+        def resolver = createFetcher("echo", [new InputValueDefinition("message", new TypeName("String"))], new GraphQLQueryResolver() {
+            String echo(String message) {
+                return message
+            }
+        })
 
         expect:
-            resolver.get(createEnvironment()) == null
+        resolver.get(createEnvironment()) == null
     }
 
     def "data fetcher throws exception if non-null argument is passed null"() {
         setup:
-            def resolver = createFetcher("echo", [new InputValueDefinition("message", new NonNullType(new TypeName("String")))], new GraphQLQueryResolver() {
-                String echo(String message) {
-                    return message
-                }
-            })
+        def resolver = createFetcher("echo", [new InputValueDefinition("message", new NonNullType(new TypeName("String")))], new GraphQLQueryResolver() {
+            String echo(String message) {
+                return message
+            }
+        })
 
         when:
-            resolver.get(createEnvironment())
+        resolver.get(createEnvironment())
 
         then:
-            thrown(ResolverError)
+        thrown(ResolverError)
     }
 
     private static DataFetcher createFetcher(String methodName, List<InputValueDefinition> arguments = [], GraphQLResolver<?> resolver) {

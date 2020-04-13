@@ -18,19 +18,19 @@ class TypeClassMatcherSpec extends Specification {
     private static final TypeDefinition unwrappedCustomDefinition = new ObjectTypeDefinition("UnwrappedGenericCustomType")
 
     private static final TypeClassMatcher matcher = new TypeClassMatcher([
-            CustomType: customDefinition,
+            CustomType                : customDefinition,
             UnwrappedGenericCustomType: unwrappedCustomDefinition
     ])
     private static final SchemaParserOptions options = SchemaParserOptions.newOptions().genericWrappers(
-        new SchemaParserOptions.GenericWrapper(
-            GenericCustomType.class,
-            0
-        ),
-        SchemaParserOptions.GenericWrapper.listCollectionWithTransformer(
-            GenericCustomListType.class,
-            0,
-            { x -> x }
-        )
+            new SchemaParserOptions.GenericWrapper(
+                    GenericCustomType.class,
+                    0
+            ),
+            SchemaParserOptions.GenericWrapper.listCollectionWithTransformer(
+                    GenericCustomListType.class,
+                    0,
+                    { x -> x }
+            )
     ).build()
     private static final FieldResolverScanner scanner = new FieldResolverScanner(options)
 
@@ -38,112 +38,129 @@ class TypeClassMatcherSpec extends Specification {
 
     private TypeClassMatcher.PotentialMatch createPotentialMatch(String methodName, graphql.language.Type graphQLType) {
         scanner.findFieldResolver(new FieldDefinition(methodName, graphQLType), resolver)
-            .scanForMatches()
-            .find { it.location == TypeClassMatcher.Location.RETURN_TYPE }
+                .scanForMatches()
+                .find { it.location == TypeClassMatcher.Location.RETURN_TYPE }
     }
 
     private graphql.language.Type list(graphql.language.Type other = customType) {
         new ListType(other)
     }
 
-    private graphql.language.Type nonNull(graphql.language.Type other = customType) { new NonNullType(other)
+    private graphql.language.Type nonNull(graphql.language.Type other = customType) {
+        new NonNullType(other)
     }
 
     @Unroll
     def "matcher verifies that nested return type matches graphql definition for method #methodName"() {
         when:
-            def match = matcher.match(createPotentialMatch(methodName, type))
+        def match = matcher.match(createPotentialMatch(methodName, type))
 
         then:
-            noExceptionThrown()
-            match.type == customDefinition
-            match.javaType == CustomType
+        noExceptionThrown()
+        match.type == customDefinition
+        match.javaType == CustomType
 
         where:
-            methodName            | type
-            "type"                | customType
-            "futureType"          | customType
-            "listType"            | list()
-            "listListType"        | list(list())
-            "futureListType"      | list()
-            "listFutureType"      | list()
-            "listListFutureType"  | list(list())
-            "futureListListType"  | list(list())
-            "superType"           | customType
-            "superListFutureType" | list()
-            "nullableType"        | customType
-            "nullableListType"    | list(nonNull(customType))
-            "genericCustomType"   | customType
-            "genericListType"     | list()
+        methodName            | type
+        "type"                | customType
+        "futureType"          | customType
+        "listType"            | list()
+        "listListType"        | list(list())
+        "futureListType"      | list()
+        "listFutureType"      | list()
+        "listListFutureType"  | list(list())
+        "futureListListType"  | list(list())
+        "superType"           | customType
+        "superListFutureType" | list()
+        "nullableType"        | customType
+        "nullableListType"    | list(nonNull(customType))
+        "genericCustomType"   | customType
+        "genericListType"     | list()
     }
 
     @Unroll
     def "matcher verifies that nested return type doesn't match graphql definition for method #methodName"() {
         when:
-            matcher.match(createPotentialMatch(methodName, type))
+        matcher.match(createPotentialMatch(methodName, type))
 
         then:
-            thrown(SchemaClassScannerError)
+        thrown(SchemaClassScannerError)
 
         where:
-            methodName     | type
-            "type"         | list()
-            "futureType"   | list()
+        methodName   | type
+        "type"       | list()
+        "futureType" | list()
     }
 
     @Unroll
     def "matcher verifies return value optionals are used incorrectly for method #methodName"() {
         when:
-            matcher.match(createPotentialMatch(methodName, type))
+        matcher.match(createPotentialMatch(methodName, type))
 
         then:
-            thrown(SchemaClassScannerError)
+        thrown(SchemaClassScannerError)
 
         where:
-            methodName             | type
-            "nullableType"         | nonNull(customType)
-            "nullableNullableType" | customType
-            "listNullableType"     | list(customType)
+        methodName             | type
+        "nullableType"         | nonNull(customType)
+        "nullableNullableType" | customType
+        "listNullableType"     | list(customType)
     }
 
     def "matcher allows unwrapped parameterized types as root types"() {
         when:
-            def match = matcher.match(createPotentialMatch("genericCustomUnwrappedType", unwrappedCustomType))
+        def match = matcher.match(createPotentialMatch("genericCustomUnwrappedType", unwrappedCustomType))
 
         then:
-            noExceptionThrown()
-            match.type  == unwrappedCustomDefinition
-            match.javaType.getRawType() == UnwrappedGenericCustomType
+        noExceptionThrown()
+        match.type == unwrappedCustomDefinition
+        match.javaType.getRawType() == UnwrappedGenericCustomType
     }
 
     private class Super<Unused, Type, ListFutureType> implements GraphQLQueryResolver {
         Type superType() { null }
+
         ListFutureType superListFutureType() { null }
     }
 
     private class QueryMethods extends Super<Void, CustomType, List<CompletableFuture<CustomType>>> {
         CustomType type() { null }
+
         Future<CustomType> futureType() { null }
+
         List<CustomType> listType() { null }
+
         List<List<CustomType>> listListType() { null }
+
         CompletableFuture<List<CustomType>> futureListType() { null }
+
         List<CompletableFuture<CustomType>> listFutureType() { null }
+
         List<List<CompletableFuture<CustomType>>> listListFutureType() { null }
+
         CompletableFuture<List<List<CustomType>>> futureListListType() { null }
 
         Optional<CustomType> nullableType() { null }
+
         Optional<List<CustomType>> nullableListType() { null }
+
         Optional<Optional<CustomType>> nullableNullableType() { null }
+
         List<Optional<CustomType>> listNullableType() { null }
 
         GenericCustomType<CustomType> genericCustomType() { null }
+
         GenericCustomListType<CustomType> genericListType() { null }
+
         UnwrappedGenericCustomType<CustomType> genericCustomUnwrappedType() { null }
     }
 
     private class CustomType {}
+
     private static class GenericCustomType<T> {}
+
     private static class GenericCustomListType<T> {}
+
     private static class UnwrappedGenericCustomType<T> {}
 
 }

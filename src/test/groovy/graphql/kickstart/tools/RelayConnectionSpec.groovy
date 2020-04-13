@@ -13,7 +13,7 @@ class RelayConnectionSpec extends Specification {
 
     def "relay connection types are compatible"() {
         when:
-            GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+        GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
                         directive @uppercase on FIELD_DEFINITION
                         
                         type Query {
@@ -51,15 +51,15 @@ class RelayConnectionSpec extends Specification {
                             echo: String
                         }
                     ''')
-                    .resolvers(new QueryResolver())
-                    .directive("uppercase", new UppercaseDirective())
-                    .build()
-                    .makeExecutableSchema()
-            GraphQL gql = GraphQL.newGraphQL(schema)
-                    .queryExecutionStrategy(new AsyncExecutionStrategy())
-                    .build()
-            def data = Utils.assertNoGraphQlErrors(gql, [limit: 10]) {
-                '''
+                .resolvers(new QueryResolver())
+                .directive("uppercase", new UppercaseDirective())
+                .build()
+                .makeExecutableSchema()
+        GraphQL gql = GraphQL.newGraphQL(schema)
+                .queryExecutionStrategy(new AsyncExecutionStrategy())
+                .build()
+        def data = Utils.assertNoGraphQlErrors(gql, [limit: 10]) {
+            '''
                 query {
                     users {
                         edges {
@@ -78,15 +78,15 @@ class RelayConnectionSpec extends Specification {
                     }
                 }
                 '''
-            }
+        }
 
         then:
-            noExceptionThrown()
-            data.users.edges.size == 1
-            data.users.edges[0].node.id == "1"
-            data.users.edges[0].node.name == "name"
-            data.otherTypes.edges.size == 1
-            data.otherTypes.edges[0].node.echo == "echo"
+        noExceptionThrown()
+        data.users.edges.size == 1
+        data.users.edges[0].node.id == "1"
+        data.users.edges[0].node.name == "name"
+        data.otherTypes.edges.size == 1
+        data.otherTypes.edges[0].node.echo == "echo"
     }
 
     static class QueryResolver implements GraphQLQueryResolver {
@@ -127,7 +127,7 @@ class RelayConnectionSpec extends Specification {
                     if (value == null) {
                         return null
                     }
-                    return  ((String) value).toUpperCase()
+                    return ((String) value).toUpperCase()
             })
             return field.transform({ builder -> builder.dataFetcher(dataFetcher) });
         }

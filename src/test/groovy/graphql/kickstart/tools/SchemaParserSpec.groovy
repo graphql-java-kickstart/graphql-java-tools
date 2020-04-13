@@ -25,70 +25,70 @@ class SchemaParserSpec extends Specification {
 
     def "builder throws FileNotFound exception when file is missing"() {
         when:
-            builder.file("/404").build()
+        builder.file("/404").build()
 
         then:
-            thrown(FileNotFoundException)
+        thrown(FileNotFoundException)
     }
 
     def "builder doesn't throw FileNotFound exception when file is present"() {
         when:
-            SchemaParser.newParser().file("Test.graphqls")
-                    .resolvers(new GraphQLQueryResolver() {
-                String getId() { "1" }
-            })
-                    .build()
+        SchemaParser.newParser().file("Test.graphqls")
+                .resolvers(new GraphQLQueryResolver() {
+                    String getId() { "1" }
+                })
+                .build()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser throws SchemaError when Query resolver is missing"() {
         when:
-            builder.build().makeExecutableSchema()
+        builder.build().makeExecutableSchema()
 
         then:
-            thrown(SchemaClassScannerError)
+        thrown(SchemaClassScannerError)
     }
 
     def "parser throws ResolverError when Query resolver is given without correct method"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Query {
                         get(int: Int!): Int!
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {})
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {})
+                .build()
+                .makeExecutableSchema()
 
         then:
-            thrown(FieldResolverError)
+        thrown(FieldResolverError)
     }
 
     def "parser should parse correctly when Query resolver is given"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Query {
                         get(int: Int!): Int!
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                int get(int i) { return i }
-            })
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {
+                    int get(int i) { return i }
+                })
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser should parse correctly when multiple query resolvers are given"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Obj {
                         name: String
                     }
@@ -102,22 +102,22 @@ class SchemaParserSpec extends Specification {
                         anotherObj: AnotherObj
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                Obj getObj() { return new Obj() }
-            }, new GraphQLQueryResolver() {
-                AnotherObj getAnotherObj() { return new AnotherObj() }
-            })
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {
+                    Obj getObj() { return new Obj() }
+                }, new GraphQLQueryResolver() {
+                    AnotherObj getAnotherObj() { return new AnotherObj() }
+                })
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser should parse correctly when multiple resolvers for the same data type are given"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type RootObj {
                         obj: Obj
                         anotherObj: AnotherObj
@@ -135,24 +135,24 @@ class SchemaParserSpec extends Specification {
                         rootObj: RootObj
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                RootObj getRootObj() { return new RootObj() }
-            }, new GraphQLResolver<RootObj>() {
-                Obj getObj(RootObj rootObj) { return new Obj() }
-            }, new GraphQLResolver<RootObj>() {
-                AnotherObj getAnotherObj(RootObj rootObj) { return new AnotherObj() }
-            })
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {
+                    RootObj getRootObj() { return new RootObj() }
+                }, new GraphQLResolver<RootObj>() {
+                    Obj getObj(RootObj rootObj) { return new Obj() }
+                }, new GraphQLResolver<RootObj>() {
+                    AnotherObj getAnotherObj(RootObj rootObj) { return new AnotherObj() }
+                })
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser should allow setting custom generic wrappers"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Query {
                         one: Object!
                         two: Object!
@@ -162,23 +162,23 @@ class SchemaParserSpec extends Specification {
                         name: String!
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                CustomGenericWrapper<Integer, Obj> one() { null }
+                .resolvers(new GraphQLQueryResolver() {
+                    CustomGenericWrapper<Integer, Obj> one() { null }
 
-                Obj two() { null }
-            })
-                    .options(SchemaParserOptions.newOptions().genericWrappers(new SchemaParserOptions.GenericWrapper(CustomGenericWrapper, 1)).build())
-                    .build()
-                    .makeExecutableSchema()
+                    Obj two() { null }
+                })
+                .options(SchemaParserOptions.newOptions().genericWrappers(new SchemaParserOptions.GenericWrapper(CustomGenericWrapper, 1)).build())
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser should allow turning off default generic wrappers"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Query {
                         one: Object!
                         two: Object!
@@ -188,23 +188,23 @@ class SchemaParserSpec extends Specification {
                         toString: String!
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                Future<Obj> one() { null }
+                .resolvers(new GraphQLQueryResolver() {
+                    Future<Obj> one() { null }
 
-                Obj two() { null }
-            })
-                    .options(SchemaParserOptions.newOptions().useDefaultGenericWrappers(false).build())
-                    .build()
-                    .makeExecutableSchema()
+                    Obj two() { null }
+                })
+                .options(SchemaParserOptions.newOptions().useDefaultGenericWrappers(false).build())
+                .build()
+                .makeExecutableSchema()
 
         then:
-            thrown(SchemaClassScannerError)
+        thrown(SchemaClassScannerError)
     }
 
     def "parser should throw descriptive exception when object is used as input type incorrectly"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Query {
                         name(filter: Filter): [String]
                     }
@@ -213,37 +213,37 @@ class SchemaParserSpec extends Specification {
                         filter: String
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                List<String> name(Filter filter) { null }
-            })
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {
+                    List<String> name(Filter filter) { null }
+                })
+                .build()
+                .makeExecutableSchema()
 
         then:
-            def t = thrown(SchemaError)
-            t.message.contains("Was a type only permitted for object types incorrectly used as an input type, or vice-versa")
+        def t = thrown(SchemaError)
+        t.message.contains("Was a type only permitted for object types incorrectly used as an input type, or vice-versa")
     }
 
     def "parser handles spring AOP proxied resolvers by default"() {
         when:
-            def resolver = new ProxyFactory(new ProxiedResolver()).getProxy() as GraphQLQueryResolver
+        def resolver = new ProxyFactory(new ProxiedResolver()).getProxy() as GraphQLQueryResolver
 
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     type Query {
                         test: [String]
                     }
                 ''')
-                    .resolvers(resolver)
-                    .build()
+                .resolvers(resolver)
+                .build()
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser handles enums with overridden toString method"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString('''
+        SchemaParser.newParser()
+                .schemaString('''
                     enum CustomEnum {
                         FOO
                     }
@@ -252,58 +252,58 @@ class SchemaParserSpec extends Specification {
                         customEnum: CustomEnum
                     }
                 ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                CustomEnum customEnum() { null }
-            })
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLQueryResolver() {
+                    CustomEnum customEnum() { null }
+                })
+                .build()
+                .makeExecutableSchema()
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "parser should include source location for field definition"() {
         when:
-            GraphQLSchema schema = SchemaParser.newParser()
-                    .schemaString('''\
+        GraphQLSchema schema = SchemaParser.newParser()
+                .schemaString('''\
                                 type Query {
                                     id: ID!
                                 }
                             '''.stripIndent())
-                    .resolvers(new QueryWithIdResolver())
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new QueryWithIdResolver())
+                .build()
+                .makeExecutableSchema()
 
         then:
-            SourceLocation sourceLocation = schema.getObjectType("Query")
-                    .getFieldDefinition("id")
-                    .definition.sourceLocation
-            sourceLocation != null
-            sourceLocation.line == 2
-            sourceLocation.column == 5
-            sourceLocation.sourceName == null
+        SourceLocation sourceLocation = schema.getObjectType("Query")
+                .getFieldDefinition("id")
+                .definition.sourceLocation
+        sourceLocation != null
+        sourceLocation.line == 2
+        sourceLocation.column == 5
+        sourceLocation.sourceName == null
     }
 
     def "parser should include source location for field definition when loaded from single classpath file"() {
         when:
-            GraphQLSchema schema = SchemaParser.newParser()
-                    .file("Test.graphqls")
-                    .resolvers(new QueryWithIdResolver())
-                    .build()
-                    .makeExecutableSchema()
+        GraphQLSchema schema = SchemaParser.newParser()
+                .file("Test.graphqls")
+                .resolvers(new QueryWithIdResolver())
+                .build()
+                .makeExecutableSchema()
 
         then:
-            SourceLocation sourceLocation = schema.getObjectType("Query")
-                    .getFieldDefinition("id")
-                    .definition.sourceLocation
-            sourceLocation != null
-            sourceLocation.line == 2
-            sourceLocation.column == 5
-            sourceLocation.sourceName == "Test.graphqls"
+        SourceLocation sourceLocation = schema.getObjectType("Query")
+                .getFieldDefinition("id")
+                .definition.sourceLocation
+        sourceLocation != null
+        sourceLocation.line == 2
+        sourceLocation.column == 3
+        sourceLocation.sourceName == "Test.graphqls"
     }
 
     def "support enum types if only used as input type"() {
         when:
-            SchemaParser.newParser().schemaString('''\
+        SchemaParser.newParser().schemaString('''\
                     type Query { test: Boolean }
                     
                     type Mutation {
@@ -318,27 +318,27 @@ class SchemaParserSpec extends Specification {
                         TEST
                     }
                 '''.stripIndent())
-                    .resolvers(new GraphQLMutationResolver() {
-                boolean save(SaveInput input) { false }
+                .resolvers(new GraphQLMutationResolver() {
+                    boolean save(SaveInput input) { false }
 
-                class SaveInput {
-                    EnumType type;
-                }
+                    class SaveInput {
+                        EnumType type;
+                    }
 
-            }, new GraphQLQueryResolver() {
-                boolean test() { false }
-            })
-                    .dictionary(EnumType.class)
-                    .build()
-                    .makeExecutableSchema()
+                }, new GraphQLQueryResolver() {
+                    boolean test() { false }
+                })
+                .dictionary(EnumType.class)
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     def "support enum types if only used in input Map"() {
         when:
-            SchemaParser.newParser().schemaString('''\
+        SchemaParser.newParser().schemaString('''\
                     type Query { test: Boolean }
                     
                     type Mutation {
@@ -354,20 +354,22 @@ class SchemaParserSpec extends Specification {
                         TEST
                     }
                 '''.stripIndent())
-                    .resolvers(new GraphQLMutationResolver() {
-                boolean save(Map input) { false }
-            }, new GraphQLQueryResolver() {
-                boolean test() { false }
-            })
-                    .dictionary(EnumType.class)
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new GraphQLMutationResolver() {
+                    boolean save(Map input) { false }
+                }, new GraphQLQueryResolver() {
+                    boolean test() { false }
+                })
+                .dictionary(EnumType.class)
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
-    enum EnumType { TEST }
+    enum EnumType {
+        TEST
+    }
 
     class QueryWithIdResolver implements GraphQLQueryResolver {
         String getId() { null }

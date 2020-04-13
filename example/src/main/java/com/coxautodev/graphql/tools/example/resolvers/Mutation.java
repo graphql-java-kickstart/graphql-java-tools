@@ -10,7 +10,7 @@ import java.util.UUID;
 @Component
 public class Mutation implements GraphQLMutationResolver {
 
-    public Human createHuman(Map<String,String> createHumanInput) {
+    public Human createHuman(Map<String, String> createHumanInput) {
         String name = null;
         if (createHumanInput.containsKey("name")) {
             name = createHumanInput.get("name");
@@ -21,5 +21,4 @@ public class Mutation implements GraphQLMutationResolver {
         }
         return new Human(UUID.randomUUID().toString(), name, null, homePlanet);
     }
-
 }

@@ -16,32 +16,32 @@ class MethodFieldResolverTest {
     @Test
     fun shouldHandleScalarTypesAsMethodInputArgument() {
         val schema = SchemaParser.newParser()
-                .schemaString("""
+            .schemaString("""
                     scalar CustomScalar
                     type Query {
                         test(input: CustomScalar): Int
                     }
                     """.trimIndent()
-                )
-                .scalars(customScalarType)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun test(scalar: CustomScalar) = scalar.value.length
-                })
-                .build()
-                .makeExecutableSchema()
+            )
+            .scalars(customScalarType)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(scalar: CustomScalar) = scalar.value.length
+            })
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
         val result = gql
-                .execute(ExecutionInput.newExecutionInput()
-                        .query("""
+            .execute(ExecutionInput.newExecutionInput()
+                .query("""
                             query Test(${"$"}input: CustomScalar) {
                                 test(input: ${"$"}input)
                             }
                             """.trimIndent())
-                        .variables(mapOf("input" to "FooBar"))
-                        .context(Object())
-                        .root(Object()))
+                .variables(mapOf("input" to "FooBar"))
+                .context(Object())
+                .root(Object()))
 
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }
@@ -49,32 +49,32 @@ class MethodFieldResolverTest {
     @Test
     fun shouldHandleListsOfScalarTypes() {
         val schema = SchemaParser.newParser()
-                .schemaString("""
+            .schemaString("""
                     scalar CustomScalar
                     type Query {
                         test(input: [CustomScalar]): Int
                     }
                     """.trimIndent()
-                )
-                .scalars(customScalarType)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun test(scalars: List<CustomScalar>) = scalars.map { it.value.length }.sum()
-                })
-                .build()
-                .makeExecutableSchema()
+            )
+            .scalars(customScalarType)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(scalars: List<CustomScalar>) = scalars.map { it.value.length }.sum()
+            })
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
         val result = gql
-                .execute(ExecutionInput.newExecutionInput()
-                        .query("""
+            .execute(ExecutionInput.newExecutionInput()
+                .query("""
                             query Test(${"$"}input: [CustomScalar]) {
                                 test(input: ${"$"}input)
                             }
                             """.trimIndent())
-                        .variables(mapOf("input" to listOf("Foo", "Bar")))
-                        .context(Object())
-                        .root(Object()))
+                .variables(mapOf("input" to listOf("Foo", "Bar")))
+                .context(Object())
+                .root(Object()))
 
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }
@@ -94,36 +94,36 @@ class MethodFieldResolverTest {
         }
 
         val resolver = Proxy.newProxyInstance(
-                MethodFieldResolverTest::class.java.classLoader,
-                arrayOf(Resolver::class.java, GraphQLQueryResolver::class.java),
-                invocationHandler
-        )  as GraphQLQueryResolver
+            MethodFieldResolverTest::class.java.classLoader,
+            arrayOf(Resolver::class.java, GraphQLQueryResolver::class.java),
+            invocationHandler
+        ) as GraphQLQueryResolver
 
         val schema = SchemaParser.newParser()
-                .schemaString("""
+            .schemaString("""
                     scalar CustomScalar
                     type Query {
                         test(input: [CustomScalar]): Int
                     }
                     """.trimIndent()
-                )
-                .scalars(customScalarType)
-                .resolvers(resolver)
-                .build()
-                .makeExecutableSchema()
+            )
+            .scalars(customScalarType)
+            .resolvers(resolver)
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
         val result = gql
-                .execute(ExecutionInput.newExecutionInput()
-                        .query("""
+            .execute(ExecutionInput.newExecutionInput()
+                .query("""
                             query Test(${"$"}input: [CustomScalar]) {
                                 test(input: ${"$"}input)
                             }
                             """.trimIndent())
-                        .variables(mapOf("input" to listOf("Foo", "Bar")))
-                        .context(Object())
-                        .root(Object()))
+                .variables(mapOf("input" to listOf("Foo", "Bar")))
+                .context(Object())
+                .root(Object()))
 
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }
@@ -147,22 +147,21 @@ class MethodFieldResolverTest {
     }
 
     private val customScalarType: GraphQLScalarType = GraphQLScalarType.newScalar()
-            .name("CustomScalar")
-            .description("customScalar")
-            .coercing(object : Coercing<CustomScalar, String> {
+        .name("CustomScalar")
+        .description("customScalar")
+        .coercing(object : Coercing<CustomScalar, String> {
 
-                override fun parseValue(input: Any?) = CustomScalar.of(input)
+            override fun parseValue(input: Any?) = CustomScalar.of(input)
 
-                override fun parseLiteral(input: Any?) = when (input) {
-                    is StringValue -> CustomScalar.of(input.value)
-                    else -> null
-                }
+            override fun parseLiteral(input: Any?) = when (input) {
+                is StringValue -> CustomScalar.of(input.value)
+                else -> null
+            }
 
-                override fun serialize(dataFetcherResult: Any?) = when (dataFetcherResult) {
-                    is CustomScalar -> dataFetcherResult.value
-                    else -> null
-                }
-            })
-            .build()
-
+            override fun serialize(dataFetcherResult: Any?) = when (dataFetcherResult) {
+                is CustomScalar -> dataFetcherResult.value
+                else -> null
+            }
+        })
+        .build()
 }

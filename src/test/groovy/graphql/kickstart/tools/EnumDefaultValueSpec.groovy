@@ -9,7 +9,7 @@ class EnumDefaultValueSpec extends Specification {
 
     def "enumvalue is not passed down to graphql-java"() {
         when:
-            GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+        GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
                         type Query {
                             test(input: MySortSpecifier): SortBy
                         }
@@ -23,27 +23,27 @@ class EnumDefaultValueSpec extends Specification {
                         }
                     ''').resolvers(new GraphQLQueryResolver() {
 
-                            SortBy test(MySortSpecifier input) {
-                                return input.sortBy
-                            }
+            SortBy test(MySortSpecifier input) {
+                return input.sortBy
+            }
 
-                        })
-                    .build()
-                    .makeExecutableSchema()
-            GraphQL gql = GraphQL.newGraphQL(schema)
-                    .queryExecutionStrategy(new AsyncExecutionStrategy())
-                    .build()
-            def data = Utils.assertNoGraphQlErrors(gql, [input: [value: 1]]) {
-                '''
+        })
+                .build()
+                .makeExecutableSchema()
+        GraphQL gql = GraphQL.newGraphQL(schema)
+                .queryExecutionStrategy(new AsyncExecutionStrategy())
+                .build()
+        def data = Utils.assertNoGraphQlErrors(gql, [input: [value: 1]]) {
+            '''
                 query test($input: MySortSpecifier) {
                     test(input: $input)
                 }
                 '''
-            }
+        }
 
         then:
-            noExceptionThrown()
-            data.test == 'createdOn'
+        noExceptionThrown()
+        data.test == 'createdOn'
     }
 
     static class MySortSpecifier {

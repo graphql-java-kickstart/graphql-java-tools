@@ -15,60 +15,60 @@ class FieldResolverScannerSpec extends Specification {
 
     def "scanner finds fields on multiple root types"() {
         setup:
-            def resolver = new RootResolverInfo([new RootQuery1(), new RootQuery2()], options)
+        def resolver = new RootResolverInfo([new RootQuery1(), new RootQuery2()], options)
 
         when:
-            def result1 = scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
-            def result2 = scanner.findFieldResolver(new FieldDefinition("field2", new TypeName("String")), resolver)
+        def result1 = scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
+        def result2 = scanner.findFieldResolver(new FieldDefinition("field2", new TypeName("String")), resolver)
 
         then:
-            result1.search.source != result2.search.source
+        result1.search.source != result2.search.source
     }
 
     def "scanner throws exception when more than one resolver method is found"() {
         setup:
-            def resolver = new RootResolverInfo([new RootQuery1(), new DuplicateQuery()], options)
+        def resolver = new RootResolverInfo([new RootQuery1(), new DuplicateQuery()], options)
 
         when:
-            scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
+        scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
 
         then:
-            thrown(FieldResolverError)
+        thrown(FieldResolverError)
     }
 
     def "scanner throws exception when no resolver methods are found"() {
         setup:
-            def resolver = new RootResolverInfo([], options)
+        def resolver = new RootResolverInfo([], options)
 
         when:
-            scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
+        scanner.findFieldResolver(new FieldDefinition("field1", new TypeName("String")), resolver)
 
         then:
-            thrown(FieldResolverError)
+        thrown(FieldResolverError)
     }
 
     def "scanner finds properties when no method is found"() {
         setup:
-            def resolver = new RootResolverInfo([new PropertyQuery()], options)
+        def resolver = new RootResolverInfo([new PropertyQuery()], options)
 
         when:
-            def name = scanner.findFieldResolver(new FieldDefinition("name", new TypeName("String")), resolver)
-            def version = scanner.findFieldResolver(new FieldDefinition("version", new TypeName("Integer")), resolver)
+        def name = scanner.findFieldResolver(new FieldDefinition("name", new TypeName("String")), resolver)
+        def version = scanner.findFieldResolver(new FieldDefinition("version", new TypeName("Integer")), resolver)
 
         then:
-            name instanceof PropertyFieldResolver
-            version instanceof PropertyFieldResolver
+        name instanceof PropertyFieldResolver
+        version instanceof PropertyFieldResolver
     }
 
     def "scanner finds generic return type"() {
         setup:
-            def resolver = new RootResolverInfo([new GenericQuery()], options)
+        def resolver = new RootResolverInfo([new GenericQuery()], options)
 
         when:
-            def users = scanner.findFieldResolver(new FieldDefinition("users", new TypeName("UserConnection")), resolver)
+        def users = scanner.findFieldResolver(new FieldDefinition("users", new TypeName("UserConnection")), resolver)
 
         then:
-            users instanceof MethodFieldResolver
+        users instanceof MethodFieldResolver
     }
 
     class RootQuery1 implements GraphQLQueryResolver {
@@ -96,6 +96,6 @@ class FieldResolverScannerSpec extends Specification {
     }
 
     class GenericQuery implements GraphQLQueryResolver {
-        Connection<User> getUsers() { }
+        Connection<User> getUsers() {}
     }
 }

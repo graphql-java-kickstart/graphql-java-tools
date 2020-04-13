@@ -6,11 +6,11 @@ import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import graphql.language.FieldDefinition
 
 class PerFieldConfiguringObjectMapperProvider(
-		private val objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ -> }) : PerFieldObjectMapperProvider {
+    private val objectMapperConfigurer: ObjectMapperConfigurer = ObjectMapperConfigurer { _, _ -> }) : PerFieldObjectMapperProvider {
 
-	override fun provide(fieldDefinition: FieldDefinition): ObjectMapper {
-		return ObjectMapper().apply {
-			objectMapperConfigurer.configure(this, ObjectMapperConfigurerContext(fieldDefinition))
-		}.registerModule(Jdk8Module()).registerKotlinModule()
-	}
+    override fun provide(fieldDefinition: FieldDefinition): ObjectMapper {
+        return ObjectMapper().apply {
+            objectMapperConfigurer.configure(this, ObjectMapperConfigurerContext(fieldDefinition))
+        }.registerModule(Jdk8Module()).registerKotlinModule()
+    }
 }

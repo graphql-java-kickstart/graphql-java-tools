@@ -15,12 +15,12 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
      */
     fun toSchema(): GraphQLSchema {
         return GraphQLSchema.newSchema()
-                .query(query)
-                .mutation(mutation)
-                .subscription(subscription)
-                .additionalTypes(dictionary)
-                .codeRegistry(codeRegistryBuilder.build())
-                .build()
+            .query(query)
+            .mutation(mutation)
+            .subscription(subscription)
+            .additionalTypes(dictionary)
+            .codeRegistry(codeRegistryBuilder.build())
+            .build()
     }
 
     /**
@@ -28,7 +28,7 @@ data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObje
      */
     @Suppress("unused")
     fun toReadOnlySchema(): GraphQLSchema = GraphQLSchema.newSchema()
-            .query(query)
-            .additionalTypes(dictionary)
-            .build()
+        .query(query)
+        .additionalTypes(dictionary)
+        .build()
 }

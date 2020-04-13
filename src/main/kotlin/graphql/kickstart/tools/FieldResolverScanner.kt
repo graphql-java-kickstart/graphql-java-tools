@@ -29,16 +29,16 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
 
         fun getAllMethods(type: JavaType) =
-                (type.unwrap().declaredNonProxyMethods.toList()
-                        + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
-                        + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
-                        .asSequence()
-                        .filter { !it.isSynthetic }
-                        .filter { !Modifier.isPrivate(it.modifiers) }
-                        // discard any methods that are coming off the root of the class hierarchy
-                        // to avoid issues with duplicate method declarations
-                        .filter { it.declaringClass != Object::class.java }
-                        .toList()
+            (type.unwrap().declaredNonProxyMethods.toList()
+                + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
+                + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
+                .asSequence()
+                .filter { !it.isSynthetic }
+                .filter { !Modifier.isPrivate(it.modifiers) }
+                // discard any methods that are coming off the root of the class hierarchy
+                // to avoid issues with duplicate method declarations
+                .filter { it.declaringClass != Object::class.java }
+                .toList()
     }
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
@@ -126,7 +126,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         val methodLastParameter = getMethodLastParameter(method)
 
         val correctParameterCount = methodParameterCount == requiredCount ||
-                (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
+            (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
         return correctParameterCount && appropriateFirstParameter
     }
 
@@ -141,7 +141,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun getMethodLastParameter(method: java.lang.reflect.Method): Type? {
         return try {
             method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
-                    ?: method.parameterTypes.lastOrNull()
+                ?: method.parameterTypes.lastOrNull()
         } catch (e: InternalError) {
             method.parameterTypes.lastOrNull()
         }
@@ -166,7 +166,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun findResolverProperty(field: FieldDefinition, search: Search) =
-            FieldUtils.getAllFields(search.type.unwrap()).find { it.name == field.name }
+        FieldUtils.getAllFields(search.type.unwrap()).find { it.name == field.name }
 
     private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")

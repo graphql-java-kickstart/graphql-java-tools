@@ -18,17 +18,17 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles futures and immediate return types"() {
         when:
-            SchemaParser.newParser()
-                    .resolvers(new FutureImmediateQuery())
-                    .schemaString("""
+        SchemaParser.newParser()
+                .resolvers(new FutureImmediateQuery())
+                .schemaString("""
                     type Query {
                         future: Int!
                         immediate: Int!
                     }
                 """)
-                    .scan()
+                .scan()
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     private class FutureImmediateQuery implements GraphQLQueryResolver {
@@ -43,17 +43,17 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles primitive and boxed return types"() {
         when:
-            SchemaParser.newParser()
-                    .resolvers(new PrimitiveBoxedQuery())
-                    .schemaString("""
+        SchemaParser.newParser()
+                .resolvers(new PrimitiveBoxedQuery())
+                .schemaString("""
                     type Query {
                         primitive: Int!
                         boxed: Int!
                     }
                 """)
-                    .scan()
+                .scan()
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     private class PrimitiveBoxedQuery implements GraphQLQueryResolver {
@@ -68,18 +68,18 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles different scalars with same java class"() {
         when:
-            SchemaParser.newParser()
-                    .resolvers(new ScalarDuplicateQuery())
-                    .schemaString("""
+        SchemaParser.newParser()
+                .resolvers(new ScalarDuplicateQuery())
+                .schemaString("""
                     type Query {
                         string: String!
                         id: ID!
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     private class ScalarDuplicateQuery implements GraphQLQueryResolver {
@@ -90,9 +90,9 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles interfaces referenced by objects that aren't explicitly used"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .resolvers(new InterfaceMissingQuery())
-                    .schemaString("""
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .resolvers(new InterfaceMissingQuery())
+                .schemaString("""
                     interface Interface {
                         id: ID!
                     }
@@ -101,10 +101,10 @@ class SchemaClassScannerSpec extends Specification {
                         id: ID!
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions.find { it instanceof InterfaceTypeDefinition } != null
+        objects.definitions.find { it instanceof InterfaceTypeDefinition } != null
     }
 
     private class InterfaceMissingQuery implements GraphQLQueryResolver {
@@ -113,9 +113,9 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles input types that reference other input types"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .resolvers(new MultipleInputTypeQuery())
-                    .schemaString("""
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .resolvers(new MultipleInputTypeQuery())
+                .schemaString("""
                     input FirstInput {
                         id: String!
                         second: SecondInput!
@@ -132,10 +132,10 @@ class SchemaClassScannerSpec extends Specification {
                         test(input: FirstInput): String!
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions.findAll { it instanceof InputObjectTypeDefinition }.size() == 3
+        objects.definitions.findAll { it instanceof InputObjectTypeDefinition }.size() == 3
 
     }
 
@@ -161,25 +161,25 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner allows multiple return types for custom scalars"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .resolvers(new ScalarsWithMultipleTypes())
-                    .scalars(new GraphQLScalarType("UUID", "Test scalars with duplicate types", new Coercing() {
-                        @Override
-                        Object serialize(Object input) {
-                            return null
-                        }
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .resolvers(new ScalarsWithMultipleTypes())
+                .scalars(new GraphQLScalarType("UUID", "Test scalars with duplicate types", new Coercing() {
+                    @Override
+                    Object serialize(Object input) {
+                        return null
+                    }
 
-                        @Override
-                        Object parseValue(Object input) {
-                            return null
-                        }
+                    @Override
+                    Object parseValue(Object input) {
+                        return null
+                    }
 
-                        @Override
-                        Object parseLiteral(Object input) {
-                            return null
-                        }
-                    }))
-                    .schemaString("""
+                    @Override
+                    Object parseLiteral(Object input) {
+                        return null
+                    }
+                }))
+                .schemaString("""
                     scalar UUID
                     
                     type Query {
@@ -187,10 +187,10 @@ class SchemaClassScannerSpec extends Specification {
                         second: UUID
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions.findAll { it instanceof ScalarTypeDefinition }.size() == 1
+        objects.definitions.findAll { it instanceof ScalarTypeDefinition }.size() == 1
     }
 
     class ScalarsWithMultipleTypes implements GraphQLQueryResolver {
@@ -201,9 +201,9 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner handles multiple interfaces that are not used as field types"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .resolvers(new MultipleInterfaces())
-                    .schemaString("""
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .resolvers(new MultipleInterfaces())
+                .schemaString("""
                     type Query {
                         query1: NamedResourceImpl
                         query2: VersionedResourceImpl
@@ -225,19 +225,19 @@ class SchemaClassScannerSpec extends Specification {
                         version: Int!
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 2
+        objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 2
     }
 
     def "scanner handles interface implementation that is not used as field type"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-            // uncommenting the line below makes the test succeed
-                    .dictionary(InterfaceImplementation.NamedResourceImpl.class)
-                    .resolvers(new InterfaceImplementation())
-                    .schemaString("""
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+        // uncommenting the line below makes the test succeed
+                .dictionary(InterfaceImplementation.NamedResourceImpl.class)
+                .resolvers(new InterfaceImplementation())
+                .schemaString("""
                     type Query {
                         query1: NamedResource
                     }
@@ -250,39 +250,39 @@ class SchemaClassScannerSpec extends Specification {
                         name: String!
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 1
+        objects.definitions.findAll { it instanceof InterfaceTypeDefinition }.size() == 1
     }
 
     def "scanner handles custom scalars when matching input types"() {
         when:
-            GraphQLScalarType customMap = new GraphQLScalarType('customMap', '', new Coercing<Map<String, Object>, Map<String, Object>>() {
-                @Override
-                Map<String, Object> serialize(Object dataFetcherResult) {
-                    return [:]
-                }
+        GraphQLScalarType customMap = new GraphQLScalarType('customMap', '', new Coercing<Map<String, Object>, Map<String, Object>>() {
+            @Override
+            Map<String, Object> serialize(Object dataFetcherResult) {
+                return [:]
+            }
 
-                @Override
-                Map<String, Object> parseValue(Object input) {
-                    return [:]
-                }
+            @Override
+            Map<String, Object> parseValue(Object input) {
+                return [:]
+            }
 
-                @Override
-                Map<String, Object> parseLiteral(Object input) {
-                    return [:]
-                }
-            })
+            @Override
+            Map<String, Object> parseLiteral(Object input) {
+                return [:]
+            }
+        })
 
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .resolvers(new GraphQLQueryResolver() {
-                        boolean hasRawScalar(Map<String, Object> rawScalar) { true }
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .resolvers(new GraphQLQueryResolver() {
+                    boolean hasRawScalar(Map<String, Object> rawScalar) { true }
 
-                        boolean hasMapField(HasMapField mapField) { true }
-                    })
-                    .scalars(customMap)
-                    .schemaString("""
+                    boolean hasMapField(HasMapField mapField) { true }
+                })
+                .scalars(customMap)
+                .schemaString("""
                     type Query {
                         hasRawScalar(customMap: customMap): Boolean
                         hasMapField(mapField: HasMapField): Boolean
@@ -294,10 +294,10 @@ class SchemaClassScannerSpec extends Specification {
                     
                     scalar customMap
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions.findAll { it instanceof ScalarTypeDefinition }.size() == 2 // Boolean and customMap
+        objects.definitions.findAll { it instanceof ScalarTypeDefinition }.size() == 2 // Boolean and customMap
     }
 
     class HasMapField {
@@ -306,11 +306,11 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner allows class to be used for object type and input object type"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .resolvers(new GraphQLQueryResolver() {
-                        Pojo test(Pojo pojo) { pojo }
-                    })
-                    .schemaString("""
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .resolvers(new GraphQLQueryResolver() {
+                    Pojo test(Pojo pojo) { pojo }
+                })
+                .schemaString("""
                     type Query {
                         test(inPojo: InPojo): OutPojo
                     }
@@ -323,10 +323,10 @@ class SchemaClassScannerSpec extends Specification {
                         name: String
                     }
                 """)
-                    .scan()
+                .scan()
 
         then:
-            objects.definitions
+        objects.definitions
     }
 
     class Pojo {
@@ -335,8 +335,8 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner should handle nested types in input types"() {
         when:
-            ScannedSchemaObjects objects = SchemaParser.newParser()
-                    .schemaString(''' 
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString(''' 
                     schema {
                         query: Query
                     }
@@ -357,12 +357,12 @@ class SchemaClassScannerSpec extends Specification {
                         id: String
                     }
                 ''')
-                    .resolvers(new NestedInterfaceTypeQuery())
-                    .dictionary(NestedInterfaceTypeQuery.Dog)
-                    .scan()
+                .resolvers(new NestedInterfaceTypeQuery())
+                .dictionary(NestedInterfaceTypeQuery.Dog)
+                .scan()
 
         then:
-            objects.definitions.findAll { it instanceof ObjectTypeDefinition }.size() == 3
+        objects.definitions.findAll { it instanceof ObjectTypeDefinition }.size() == 3
 
     }
 
@@ -381,27 +381,27 @@ class SchemaClassScannerSpec extends Specification {
 
     def "scanner throws if @Batched is used on root resolver"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString(''' 
+        SchemaParser.newParser()
+                .schemaString(''' 
                         type Query {
                             test: String
                         }
                     ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                        @Batched
-                        List<String> test() { null }
-                    })
-                    .scan()
+                .resolvers(new GraphQLQueryResolver() {
+                    @Batched
+                    List<String> test() { null }
+                })
+                .scan()
 
         then:
-            def e = thrown(ResolverError)
-            e.message.contains('The @Batched annotation is only allowed on non-root resolver methods')
+        def e = thrown(ResolverError)
+        e.message.contains('The @Batched annotation is only allowed on non-root resolver methods')
     }
 
     def "scanner throws if @Batched is used on data class"() {
         when:
-            SchemaParser.newParser()
-                    .schemaString(''' 
+        SchemaParser.newParser()
+                .schemaString(''' 
                         type Query {
                             test: DataClass
                         }
@@ -410,19 +410,19 @@ class SchemaClassScannerSpec extends Specification {
                             test: String
                         }
                     ''')
-                    .resolvers(new GraphQLQueryResolver() {
-                        DataClass test() { null }
+                .resolvers(new GraphQLQueryResolver() {
+                    DataClass test() { null }
 
-                        class DataClass {
-                            @Batched
-                            List<String> test() { null }
-                        }
-                    })
-                    .scan()
+                    class DataClass {
+                        @Batched
+                        List<String> test() { null }
+                    }
+                })
+                .scan()
 
         then:
-            def e = thrown(ResolverError)
-            e.message.contains('The @Batched annotation is only allowed on non-root resolver methods')
+        def e = thrown(ResolverError)
+        e.message.contains('The @Batched annotation is only allowed on non-root resolver methods')
     }
 
 }

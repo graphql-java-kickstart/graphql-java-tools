@@ -1,12 +1,12 @@
 type Query {
-    organization(organizationId: ID): Organization
+  organization(organizationId: ID): Organization
 }
 
 type Organization {
-    user: User
+  user: User
 }
 
 type User {
-    id: ID
-    name: String
+  id: ID
+  name: String
 }

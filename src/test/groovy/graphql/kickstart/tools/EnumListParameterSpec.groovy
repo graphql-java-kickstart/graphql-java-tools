@@ -38,8 +38,8 @@ class EnumListParameterSpec extends Specification {
 
     def "query with parameter type list of enums should resolve correctly"() {
         when:
-            def data = Utils.assertNoGraphQlErrors(gql, [regions: ["EUROPE", "ASIA"]]) {
-                '''
+        def data = Utils.assertNoGraphQlErrors(gql, [regions: ["EUROPE", "ASIA"]]) {
+            '''
                 query getCountries($regions: [Region!]!) {
                   countries(regions: $regions){
                     code
@@ -48,10 +48,10 @@ class EnumListParameterSpec extends Specification {
                   }
                 }
                 '''
-            }
+        }
 
         then:
-            data.countries == []
+        data.countries == []
     }
 
     class QueryResolver implements GraphQLQueryResolver {

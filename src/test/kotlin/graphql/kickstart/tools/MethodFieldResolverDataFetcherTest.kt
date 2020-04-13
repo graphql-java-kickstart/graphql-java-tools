@@ -40,15 +40,16 @@ class MethodFieldResolverDataFetcherTest {
     class SuspendClass : GraphQLResolver<DataClass> {
         val dispatcher = Dispatchers.IO
         val job = Job()
+
         @ExperimentalCoroutinesApi
         val options = SchemaParserOptions.Builder()
-                .coroutineContext(dispatcher + job)
-                .build()
+            .coroutineContext(dispatcher + job)
+            .build()
 
         @Suppress("UNUSED_PARAMETER")
         suspend fun isActive(data: DataClass): Boolean {
             return coroutineContext[dispatcher.key] == dispatcher &&
-                    coroutineContext[Job] == job.children.first()
+                coroutineContext[Job] == job.children.first()
         }
     }
 
@@ -74,6 +75,7 @@ class MethodFieldResolverDataFetcherTest {
 
     class DoubleChannel : GraphQLResolver<DataClass> {
         val channel = Channel<String>(10)
+
         init {
             channel.offer("A")
             channel.offer("B")
@@ -101,6 +103,7 @@ class MethodFieldResolverDataFetcherTest {
 
     class OnDataNameChanged : GraphQLResolver<DataClass> {
         val channel = Channel<String>(10)
+
         init {
             channel.offer("A")
             channel.close(IllegalStateException("Channel error"))
@@ -129,10 +132,10 @@ class MethodFieldResolverDataFetcherTest {
 
     private fun createEnvironment(source: Any, arguments: Map<String, Any> = emptyMap(), context: Any? = null): DataFetchingEnvironment {
         return DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
-                .source(source)
-                .arguments(arguments)
-                .context(context)
-                .build()
+            .source(source)
+            .arguments(arguments)
+            .context(context)
+            .build()
     }
 
     private fun buildExecutionContext(): ExecutionContext {
@@ -143,12 +146,12 @@ class MethodFieldResolverDataFetcherTest {
         }
         val executionId = ExecutionId.from("executionId123")
         return ExecutionContextBuilder.newExecutionContextBuilder()
-                .instrumentation(SimpleInstrumentation.INSTANCE)
-                .executionId(executionId)
-                .queryStrategy(executionStrategy)
-                .mutationStrategy(executionStrategy)
-                .subscriptionStrategy(executionStrategy)
-                .build()
+            .instrumentation(SimpleInstrumentation.INSTANCE)
+            .executionId(executionId)
+            .queryStrategy(executionStrategy)
+            .mutationStrategy(executionStrategy)
+            .subscriptionStrategy(executionStrategy)
+            .build()
     }
 
     data class DataClass(val name: String = "TestName")

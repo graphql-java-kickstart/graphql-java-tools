@@ -30,13 +30,11 @@ internal fun ObjectTypeDefinition.getExtendedFieldDefinitions(extensions: List<O
 }
 
 internal fun JavaType.unwrap(): Class<out Any> =
-        if (this is ParameterizedType) {
-            this.rawType as Class<*>
-        } else {
-            this as Class<*>
-        }
-
-
+    if (this is ParameterizedType) {
+        this.rawType as Class<*>
+    } else {
+        this as Class<*>
+    }
 
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
     val context: Any? = this.getContext()
@@ -51,7 +49,6 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
         }
     }
 
-
 /**
  * Simple heuristic to check is a method is a trivial data fetcher.
  *
@@ -61,12 +58,12 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
  */
 internal fun isTrivialDataFetcher(method: Method): Boolean {
     return (method.parameterCount == 0
-            && (
-            method.name.startsWith("get")
-                    || isBooleanGetter(method)))
+        && (
+        method.name.startsWith("get")
+            || isBooleanGetter(method)))
 }
 
 private fun isBooleanGetter(method: Method) = (method.name.startsWith("is")
-        && (method.returnType == java.lang.Boolean::class.java)
-        || method.returnType == Boolean::class.java)
+    && (method.returnType == java.lang.Boolean::class.java)
+    || method.returnType == Boolean::class.java)
 

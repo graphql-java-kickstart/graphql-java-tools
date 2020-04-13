@@ -7,7 +7,7 @@ class SuperclassResolverSpec extends Specification {
 
     def "methods from generic resolvers are resolved"() {
         when:
-            SchemaParser.newParser().schemaString('''\
+        SchemaParser.newParser().schemaString('''\
                         type Query {
                             bar: Bar!
                         }
@@ -21,12 +21,12 @@ class SuperclassResolverSpec extends Specification {
                             getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
                         }
                         ''')
-                    .resolvers(new QueryResolver(), new BarResolver())
-                    .build()
-                    .makeExecutableSchema()
+                .resolvers(new QueryResolver(), new BarResolver())
+                .build()
+                .makeExecutableSchema()
 
         then:
-            noExceptionThrown()
+        noExceptionThrown()
     }
 
     class QueryResolver implements GraphQLQueryResolver {

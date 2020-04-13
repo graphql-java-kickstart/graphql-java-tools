@@ -1,9 +1,6 @@
 package graphql.kickstart.tools
 
 import graphql.kickstart.tools.util.*
-import graphql.kickstart.tools.util.GraphQLRootResolver
-import graphql.kickstart.tools.util.JavaType
-import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
@@ -124,10 +121,10 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             BiMap.unmodifiableBiMap(BiMap.create<TypeDefinition<*>, JavaType>().also {
                 dictionary.filter {
                     it.value.javaType != null
-                            && it.value.typeClass() != java.lang.Object::class.java
-                            && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
-                            && it.key !is InputObjectTypeDefinition
-                            && it.key !is UnionTypeDefinition
+                        && it.value.typeClass() != java.lang.Object::class.java
+                        && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
+                        && it.key !is InputObjectTypeDefinition
+                        && it.key !is UnionTypeDefinition
                 }.mapValuesTo(it) { it.value.javaType }
             })
         } catch (t: Throwable) {
@@ -141,23 +138,23 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
             scalars.containsKey(it.name) || !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name)
         }.map { definition ->
             val provided = scalars[definition.name]
-                    ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
+                ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
             GraphQLScalarType.newScalar()
-                    .name(provided.name)
-                    .description(
-                            if (definition.description != null) definition.description.content
-                            else SchemaParser.getDocumentation(definition) ?: provided.description)
-                    .coercing(provided.coercing)
-                    .definition(definition)
-                    .build()
+                .name(provided.name)
+                .description(
+                    if (definition.description != null) definition.description.content
+                    else SchemaParser.getDocumentation(definition) ?: provided.description)
+                .coercing(provided.coercing)
+                .definition(definition)
+                .build()
         }.associateBy { it.name!! }
 
         val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
         unusedDefinitions
-                .filter { definition -> definition.name != "PageInfo" }
-                .forEach { definition ->
-                    log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
-                }
+            .filter { definition -> definition.name != "PageInfo" }
+            .forEach { definition ->
+                log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
+            }
 
         val fieldResolvers = fieldResolversByType.flatMap { it.value.map { it.value } }
         val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<NormalResolverInfo>()
@@ -198,7 +195,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
             union.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
                 objectDefinitionsByName[it.name]
-                        ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union")
+                    ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union")
             }
         }.flatten().distinct()
     }
@@ -207,7 +204,8 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
-                val initialEntry = initialDictionary[type.name] ?: throw SchemaClassScannerError(failureMessage(type))
+                val initialEntry = initialDictionary[type.name]
+                    ?: throw SchemaClassScannerError(failureMessage(type))
                 handleFoundType(type, initialEntry.get(), DictionaryReference())
             }
         }
@@ -236,7 +234,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                 resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
             }
         })
-                ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
+            ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
     }
@@ -336,11 +334,11 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
                         val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
                         if (inputValueJavaType != null) {
                             handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
-                                    inputValueDefinition.type,
-                                    inputValueJavaType,
-                                    GenericType(javaType, options).relativeToType(inputValueJavaType),
-                                    InputObjectReference(inputValueDefinition),
-                                    false
+                                inputValueDefinition.type,
+                                inputValueJavaType,
+                                GenericType(javaType, options).relativeToType(inputValueJavaType),
+                                InputObjectReference(inputValueDefinition),
+                                false
                             )))
                         } else {
                             var mappingAdvice = "Try adding it manually to the dictionary"
@@ -359,7 +357,7 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         graphQLType.implements.forEach {
             if (it is TypeName) {
                 handleFoundType(interfaceDefinitionsByName[it.name]
-                        ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
+                    ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
             }
         }
     }
