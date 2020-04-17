@@ -1,9 +1,6 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools
 
 /**
  * @author Andrew Potter
  */
-public interface GraphQLResolver<DataClass> {
-
-}
-
+interface GraphQLResolver<DataClass> 

@@ -1,8 +1,7 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools
 
-import kotlin.coroutines.CoroutineContext;
+import kotlin.coroutines.CoroutineContext
 
-public interface CoroutineContextProvider {
-
-    CoroutineContext provide();
+interface CoroutineContextProvider {
+    fun provide(): CoroutineContext?
 }

@@ -1,9 +1,9 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import graphql.language.FieldDefinition;
+import com.fasterxml.jackson.databind.ObjectMapper
+import graphql.language.FieldDefinition
 
-public interface PerFieldObjectMapperProvider {
+interface PerFieldObjectMapperProvider {
 
-    ObjectMapper provide(FieldDefinition fieldDefinition);
+    fun provide(fieldDefinition: FieldDefinition?): ObjectMapper?
 }

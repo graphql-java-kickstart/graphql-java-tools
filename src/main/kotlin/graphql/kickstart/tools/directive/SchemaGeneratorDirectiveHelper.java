@@ -21,8 +21,8 @@ import static java.util.stream.Collectors.toList;
  */
 
 /**
- * This contains the helper code that allows {@link graphql.schema.idl.SchemaDirectiveWiring} implementations to be invoked during
- * schema generation.
+ * This contains the helper code that allows {@link graphql.schema.idl.SchemaDirectiveWiring} implementations to be invoked
+ * during schema generation.
  */
 @Internal
 public class SchemaGeneratorDirectiveHelper {

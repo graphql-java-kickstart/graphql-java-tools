@@ -36,7 +36,6 @@ import java.util.StringJoiner;
 /**
  * Implementing class for ParameterizedType interface.
  */
-
 class ParameterizedTypeImpl implements ParameterizedType {
 
     private final Type[] actualTypeArguments;
@@ -64,20 +63,19 @@ class ParameterizedTypeImpl implements ParameterizedType {
     }
 
     /**
-     * Static factory. Given a (generic) class, actual type arguments and an owner type, creates a parameterized type. This class can
-     * be instantiated with a raw type that does not represent a generic type, provided the list of actual type arguments is empty. If
-     * the ownerType argument is null, the declaring class of the raw type is used as the owner type.
+     * Static factory. Given a (generic) class, actual type arguments and an owner type, creates a parameterized type. This
+     * class can be instantiated with a raw type that does not represent a generic type, provided the list of actual type
+     * arguments is empty. If the ownerType argument is null, the declaring class of the raw type is used as the owner type.
      * <p> This method throws a MalformedParameterizedTypeException
-     * under the following circumstances: If the number of actual type arguments (i.e., the size of the array {@code typeArgs}) does
-     * not correspond to the number of formal type arguments. If any of the actual type arguments is not an instance of the bounds on
-     * the corresponding formal.
+     * under the following circumstances: If the number of actual type arguments (i.e., the size of the array {@code
+     * typeArgs}) does not correspond to the number of formal type arguments. If any of the actual type arguments is not an
+     * instance of the bounds on the corresponding formal.
      *
      * @param rawType             the Class representing the generic type declaration being instantiated
-     * @param actualTypeArguments a (possibly empty) array of types representing the actual type arguments to the parameterized type
+     * @param actualTypeArguments a (possibly empty) array of types representing the actual type arguments to the
+     *                            parameterized type
      * @param ownerType           the enclosing type, if known.
-     *
      * @return An instance of {@code ParameterizedType}
-     *
      * @throws MalformedParameterizedTypeException if the instantiation is invalid
      */
     public static ParameterizedTypeImpl make(
@@ -92,10 +90,10 @@ class ParameterizedTypeImpl implements ParameterizedType {
      * if this type represents a non-parameterized type nested within a parameterized type.
      *
      * @return an array of {@code Type} objects representing the actual type arguments to this type
-     *
-     * @throws TypeNotPresentException             if any of the actual type arguments refers to a non-existent type declaration
-     * @throws MalformedParameterizedTypeException if any of the actual type parameters refer to a parameterized type that cannot be
-     *                                             instantiated for any reason
+     * @throws TypeNotPresentException             if any of the actual type arguments refers to a non-existent type
+     *                                             declaration
+     * @throws MalformedParameterizedTypeException if any of the actual type parameters refer to a parameterized type that
+     *                                             cannot be instantiated for any reason
      * @since 1.5
      */
     public Type[] getActualTypeArguments() {
@@ -112,16 +110,15 @@ class ParameterizedTypeImpl implements ParameterizedType {
     }
 
     /**
-     * Returns a {@code Type} object representing the type that this type is a member of.  For example, if this type is {@code
-     * O<T>.I<S>}, return a representation of {@code O<T>}.
+     * Returns a {@code Type} object representing the type that this type is a member of.  For example, if this type is
+     * {@code O<T>.I<S>}, return a representation of {@code O<T>}.
      * <p>If this type is a top-level type, {@code null} is returned.
      *
-     * @return a {@code Type} object representing the type that this type is a member of. If this type is a top-level type, {@code
-     * null} is returned
-     *
+     * @return a {@code Type} object representing the type that this type is a member of. If this type is a top-level type,
+     * {@code null} is returned
      * @throws TypeNotPresentException             if the owner type refers to a non-existent type declaration
-     * @throws MalformedParameterizedTypeException if the owner type refers to a parameterized type that cannot be instantiated for any
-     *                                             reason
+     * @throws MalformedParameterizedTypeException if the owner type refers to a parameterized type that cannot be
+     *                                             instantiated for any reason
      */
     public Type getOwnerType() {
         return ownerType;

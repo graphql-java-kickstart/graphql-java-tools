@@ -1,11 +1,10 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
  * @author Andrew Potter
  */
-public interface ObjectMapperConfigurer {
-
-    void configure(ObjectMapper mapper, ObjectMapperConfigurerContext context);
+interface ObjectMapperConfigurer {
+    fun configure(mapper: ObjectMapper?, context: ObjectMapperConfigurerContext?)
 }

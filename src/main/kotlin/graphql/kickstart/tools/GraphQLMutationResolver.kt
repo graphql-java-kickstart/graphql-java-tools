@@ -1,8 +1,6 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools
 
 /**
  * @author Andrew Potter
  */
-public interface GraphQLMutationResolver extends GraphQLResolver<Void> {
-
-}
+interface GraphQLMutationResolver : GraphQLResolver<Void?> 

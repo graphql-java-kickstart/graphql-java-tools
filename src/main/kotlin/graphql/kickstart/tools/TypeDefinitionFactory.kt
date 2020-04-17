@@ -1,10 +1,8 @@
-package graphql.kickstart.tools;
+package graphql.kickstart.tools
 
-import graphql.language.Definition;
+import graphql.language.Definition
 
-import java.util.List;
-
-public interface TypeDefinitionFactory {
+interface TypeDefinitionFactory {
 
     /**
      * Called after parsing the SDL for creating any additional type definitions. All existing definitions are passed in. Return only
@@ -14,5 +12,5 @@ public interface TypeDefinitionFactory {
      *
      * @return any new definitions that should be added
      */
-    List<Definition<?>> create(final List<Definition<?>> existing);
+    fun create(existing: List<Definition<*>?>?): List<Definition<*>?>?
 }
