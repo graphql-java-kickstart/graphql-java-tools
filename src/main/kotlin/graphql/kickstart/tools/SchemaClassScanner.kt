@@ -10,7 +10,13 @@ import java.lang.reflect.Method
 /**
  * @author Andrew Potter
  */
-internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, allDefinitions: List<Definition<*>>, resolvers: List<GraphQLResolver<*>>, private val scalars: CustomScalarMap, private val options: SchemaParserOptions) {
+internal class SchemaClassScanner(
+    initialDictionary: BiMap<String, Class<*>>,
+    allDefinitions: List<Definition<*>>,
+    resolvers: List<GraphQLResolver<*>>,
+    private val scalars: CustomScalarMap,
+    private val options: SchemaParserOptions
+) {
 
     companion object {
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
@@ -465,7 +471,14 @@ internal class SchemaClassScanner(initialDictionary: BiMap<String, Class<*>>, al
         override fun getDescription() = "type of field $field"
     }
 
-    class RootTypesHolder(options: SchemaParserOptions, rootInfo: RootTypeInfo, definitionsByName: Map<String, TypeDefinition<*>>, queryResolvers: List<GraphQLQueryResolver>, mutationResolvers: List<GraphQLMutationResolver>, subscriptionResolvers: List<GraphQLSubscriptionResolver>) {
+    class RootTypesHolder(
+        options: SchemaParserOptions,
+        rootInfo: RootTypeInfo,
+        definitionsByName: Map<String, TypeDefinition<*>>,
+        queryResolvers: List<GraphQLQueryResolver>,
+        mutationResolvers: List<GraphQLMutationResolver>,
+        subscriptionResolvers: List<GraphQLSubscriptionResolver>
+    ) {
         private val queryName = rootInfo.getQueryName()
         private val mutationName = rootInfo.getMutationName()
         private val subscriptionName = rootInfo.getSubscriptionName()

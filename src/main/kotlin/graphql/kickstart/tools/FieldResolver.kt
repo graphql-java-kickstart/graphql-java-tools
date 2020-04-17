@@ -8,7 +8,12 @@ import graphql.schema.DataFetchingEnvironment
 /**
  * @author Andrew Potter
  */
-internal abstract class FieldResolver(val field: FieldDefinition, val search: FieldResolverScanner.Search, val options: SchemaParserOptions, relativeTo: JavaType) {
+internal abstract class FieldResolver(
+    val field: FieldDefinition,
+    val search: FieldResolverScanner.Search,
+    val options: SchemaParserOptions,
+    relativeTo: JavaType
+) {
     val resolverInfo: ResolverInfo = search.resolverInfo
     val genericType = GenericType(search.type, options).relativeToPotentialParent(relativeTo)
 

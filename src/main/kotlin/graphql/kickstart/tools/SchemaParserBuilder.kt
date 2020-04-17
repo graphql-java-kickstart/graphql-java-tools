@@ -425,12 +425,10 @@ data class SchemaParserOptions internal constructor(
         val transformer: (Any, DataFetchingEnvironment) -> Any? = { x, _ -> x },
         val schemaWrapper: (JavaType) -> JavaType = { x -> x }
     ) {
-
         constructor(type: Class<*>, index: Int) : this(type, index, { x, _ -> x })
         constructor(type: KClass<*>, index: Int) : this(type.java, index, { x, _ -> x })
 
         companion object {
-
             @Suppress("UNCHECKED_CAST")
             @JvmStatic
             fun <T> withTransformer(

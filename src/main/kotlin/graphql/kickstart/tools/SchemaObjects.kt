@@ -8,8 +8,13 @@ import graphql.schema.GraphQLType
 /**
  * @author Andrew Potter
  */
-data class SchemaObjects(val query: GraphQLObjectType, val mutation: GraphQLObjectType?, val subscription: GraphQLObjectType?, val dictionary: Set<GraphQLType>, val codeRegistryBuilder: GraphQLCodeRegistry.Builder) {
-
+data class SchemaObjects(
+    val query: GraphQLObjectType,
+    val mutation: GraphQLObjectType?,
+    val subscription: GraphQLObjectType?,
+    val dictionary: Set<GraphQLType>,
+    val codeRegistryBuilder: GraphQLCodeRegistry.Builder
+) {
     /**
      * Makes a GraphQLSchema with query, mutation and subscription.
      */

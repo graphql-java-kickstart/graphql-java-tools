@@ -17,12 +17,15 @@ internal interface DataClassTypeResolverInfo {
     val dataClassType: Class<out Any>
 }
 
-internal class NormalResolverInfo(val resolver: GraphQLResolver<*>, private val options: SchemaParserOptions) : DataClassTypeResolverInfo, ResolverInfo() {
+internal class NormalResolverInfo(
+    val resolver: GraphQLResolver<*>,
+    options: SchemaParserOptions
+) : DataClassTypeResolverInfo, ResolverInfo() {
+
     val resolverType = getRealResolverClass(resolver, options)
     override val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<out Any> {
-
         val type = TypeUtils.getTypeArguments(resolverType, GraphQLResolver::class.java)[GraphQLResolver::class.java.typeParameters[0]]
 
         if (type == null || type !is Class<*>) {
@@ -69,7 +72,10 @@ internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>)
     }
 }
 
-internal class RootResolverInfo(val resolvers: List<GraphQLRootResolver>, private val options: SchemaParserOptions) : ResolverInfo() {
+internal class RootResolverInfo(
+    val resolvers: List<GraphQLRootResolver>,
+    private val options: SchemaParserOptions
+) : ResolverInfo() {
     override fun getFieldSearches() =
         resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
 }

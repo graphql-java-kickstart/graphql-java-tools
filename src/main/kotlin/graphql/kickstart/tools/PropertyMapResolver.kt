@@ -11,7 +11,12 @@ import graphql.schema.DataFetchingEnvironment
  *
  * The PropertyMapResolver implements the Map (i.e. property map) specific portion of the logic within the GraphQL PropertyDataFetcher class.
  */
-internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, relativeTo: JavaType) : FieldResolver(field, search, options, relativeTo) {
+internal class PropertyMapResolver(
+    field: FieldDefinition,
+    search: FieldResolverScanner.Search,
+    options: SchemaParserOptions,
+    relativeTo: JavaType
+) : FieldResolver(field, search, options, relativeTo) {
 
     var mapGenericValue: JavaType = getMapGenericType(relativeTo)
 
@@ -19,12 +24,12 @@ internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolver
      * Takes a type which implements Map and tries to find the
      * value type of that map. For some reason, mapClass is losing
      * its generics somewhere along the way and is always a raw
-     * type
+     * type.
      */
     fun getMapGenericType(mapClass: JavaType): JavaType {
         val resolvedType = TypeResolver().resolve(mapClass)
-
         val typeParameters = resolvedType.typeParametersFor(Map::class.java)
+
         return typeParameters.elementAtOrElse(1) { Object::class.java }
     }
 
@@ -39,7 +44,11 @@ internal class PropertyMapResolver(field: FieldDefinition, search: FieldResolver
     override fun toString() = "PropertyMapResolverDataFetcher{key=${field.name}}"
 }
 
-class PropertyMapResolverDataFetcher(private val sourceResolver: SourceResolver, val key: String) : DataFetcher<Any> {
+class PropertyMapResolverDataFetcher(
+    private val sourceResolver: SourceResolver,
+    val key: String
+) : DataFetcher<Any> {
+
     override fun get(environment: DataFetchingEnvironment): Any? {
         val resolvedSourceObject = sourceResolver(environment)
         if (resolvedSourceObject is Map<*, *>) {

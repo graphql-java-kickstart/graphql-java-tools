@@ -1,3 +1,3 @@
 package graphql.kickstart.tools
 
-interface GraphQLSubscriptionResolver : GraphQLResolver<Void?> 
+interface GraphQLSubscriptionResolver : GraphQLResolver<Void>

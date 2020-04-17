@@ -18,8 +18,11 @@ import kotlin.reflect.KClass
  *
  * @author Andrew Potter
  */
-class SchemaParser internal constructor(scanResult: ScannedSchemaObjects, private val options: SchemaParserOptions, private val runtimeWiring: RuntimeWiring) {
-
+class SchemaParser internal constructor(
+    scanResult: ScannedSchemaObjects,
+    private val options: SchemaParserOptions,
+    private val runtimeWiring: RuntimeWiring
+) {
     companion object {
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
         const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"

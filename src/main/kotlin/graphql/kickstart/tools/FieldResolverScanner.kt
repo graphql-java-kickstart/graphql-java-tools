@@ -111,7 +111,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
-            if (MethodFieldResolver.Companion.isBatched(method, search)) {
+            if (MethodFieldResolver.isBatched(method, search)) {
                 verifyBatchedMethodFirstArgument(method.genericParameterTypes.firstOrNull(), search.requiredFirstParameterType)
             } else {
                 method.genericParameterTypes.firstOrNull()?.let {
@@ -156,7 +156,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             return false
         }
 
-        if (!TypeClassMatcher.Companion.isListType(firstType, GenericType(firstType, options))) {
+        if (!TypeClassMatcher.isListType(firstType, GenericType(firstType, options))) {
             return false
         }
 

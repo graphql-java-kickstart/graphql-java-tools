@@ -78,9 +78,7 @@ class ParameterizedTypeImpl implements ParameterizedType {
      * @return An instance of {@code ParameterizedType}
      * @throws MalformedParameterizedTypeException if the instantiation is invalid
      */
-    public static ParameterizedTypeImpl make(
-        Class<?> rawType, Type[] actualTypeArguments, Type ownerType
-    ) {
+    public static ParameterizedTypeImpl make(Class<?> rawType, Type[] actualTypeArguments, Type ownerType) {
         return new ParameterizedTypeImpl(rawType, actualTypeArguments, ownerType);
     }
 

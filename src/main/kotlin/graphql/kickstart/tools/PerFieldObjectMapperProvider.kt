@@ -5,5 +5,5 @@ import graphql.language.FieldDefinition
 
 interface PerFieldObjectMapperProvider {
 
-    fun provide(fieldDefinition: FieldDefinition?): ObjectMapper?
+    fun provide(fieldDefinition: FieldDefinition): ObjectMapper
 }

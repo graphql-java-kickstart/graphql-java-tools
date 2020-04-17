@@ -5,8 +5,7 @@ import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 
 /**
- * Directive behavior is used to wire up directives during schema parsing. Unfortunately, SchemaGeneratorDirectiveHelper
- * which contains the logic has package-private access to some members and must be therefore accessed via reflection.
+ * Directive behavior is used to wire up directives during schema parsing.
  */
 class DirectiveBehavior {
 

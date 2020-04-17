@@ -25,7 +25,12 @@ import kotlin.reflect.jvm.kotlinFunction
 /**
  * @author Andrew Potter
  */
-internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolverScanner.Search, options: SchemaParserOptions, val method: Method) : FieldResolver(field, search, options, search.type) {
+internal class MethodFieldResolver(
+    field: FieldDefinition,
+    search: FieldResolverScanner.Search,
+    options: SchemaParserOptions,
+    val method: Method
+) : FieldResolver(field, search, options, search.type) {
 
     companion object {
         fun isBatched(method: Method, search: FieldResolverScanner.Search): Boolean {
@@ -179,7 +184,12 @@ internal class MethodFieldResolver(field: FieldDefinition, search: FieldResolver
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceResolver, method: Method, private val args: List<ArgumentPlaceholder>, private val options: SchemaParserOptions) : DataFetcher<Any> {
+open class MethodFieldResolverDataFetcher(
+    private val sourceResolver: SourceResolver,
+    method: Method,
+    private val args: List<ArgumentPlaceholder>,
+    private val options: SchemaParserOptions
+) : DataFetcher<Any> {
 
     private val resolverMethod = method
     private val isSuspendFunction = try {
@@ -220,8 +230,8 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     }
 
     /**
-     * Function that return the object used to fetch the data
-     * It can be a DataFetcher or an entity
+     * Function that returns the object used to fetch the data.
+     * It can be a DataFetcher or an entity.
      */
     @Suppress("unused")
     open fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
@@ -229,9 +239,12 @@ open class MethodFieldResolverDataFetcher(private val sourceResolver: SourceReso
     }
 }
 
-open class TrivialMethodFieldResolverDataFetcher(sourceResolver: SourceResolver, method: Method, args: List<ArgumentPlaceholder>, options: SchemaParserOptions) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options), TrivialDataFetcher<Any> {
-
-}
+open class TrivialMethodFieldResolverDataFetcher(
+    sourceResolver: SourceResolver,
+    method: Method,
+    args: List<ArgumentPlaceholder>,
+    options: SchemaParserOptions
+) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options), TrivialDataFetcher<Any>
 
 private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, args: Array<Any?>): Any? {
     return suspendCoroutineUninterceptedOrReturn { continuation ->
@@ -256,7 +269,12 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
     }
 }
 
-class BatchedMethodFieldResolverDataFetcher(sourceResolver: SourceResolver, method: Method, args: List<ArgumentPlaceholder>, options: SchemaParserOptions) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options) {
+class BatchedMethodFieldResolverDataFetcher(
+    sourceResolver: SourceResolver,
+    method: Method,
+    args: List<ArgumentPlaceholder>,
+    options: SchemaParserOptions
+) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options) {
     @Batched
     override fun get(environment: DataFetchingEnvironment) = super.get(environment)
 }
