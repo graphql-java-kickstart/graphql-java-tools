@@ -4,6 +4,7 @@ import graphql.Assert
 import graphql.ExecutionResult
 import graphql.execution.*
 import graphql.execution.instrumentation.SimpleInstrumentation
+import graphql.kickstart.tools.scanner.*
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.NonNullType

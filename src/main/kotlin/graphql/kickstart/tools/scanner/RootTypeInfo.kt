@@ -1,4 +1,4 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
 import graphql.language.SchemaDefinition
 import graphql.language.TypeName

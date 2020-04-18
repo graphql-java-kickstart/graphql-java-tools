@@ -3,6 +3,9 @@ package graphql.kickstart.tools
 import graphql.ExecutionResult
 import graphql.execution.*
 import graphql.execution.instrumentation.SimpleInstrumentation
+import graphql.kickstart.tools.scanner.FieldResolverScanner
+import graphql.kickstart.tools.scanner.NormalResolverInfo
+import graphql.kickstart.tools.scanner.RootResolverInfo
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.TypeName

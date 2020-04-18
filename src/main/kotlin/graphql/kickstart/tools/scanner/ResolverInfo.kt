@@ -1,5 +1,7 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
+import graphql.kickstart.tools.GraphQLResolver
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.GraphQLRootResolver
 import graphql.kickstart.tools.util.JavaType
 import org.apache.commons.lang3.reflect.TypeUtils
@@ -89,4 +91,4 @@ internal class MissingResolverInfo : ResolverInfo() {
     override fun getFieldSearches(): List<FieldResolverScanner.Search> = listOf()
 }
 
-class ResolverError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+internal class ResolverError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

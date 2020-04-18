@@ -1,6 +1,7 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
 import com.fasterxml.classmate.TypeResolver
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
@@ -44,7 +45,7 @@ internal class PropertyMapResolver(
     override fun toString() = "PropertyMapResolverDataFetcher{key=${field.name}}"
 }
 
-class PropertyMapResolverDataFetcher(
+internal class PropertyMapResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     val key: String
 ) : DataFetcher<Any> {

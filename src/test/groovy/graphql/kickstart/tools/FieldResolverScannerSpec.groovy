@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.scanner.*
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.relay.Connection

@@ -2,6 +2,8 @@ package graphql.kickstart.tools
 
 import graphql.introspection.Introspection
 import graphql.kickstart.tools.directive.SchemaGeneratorDirectiveHelper
+import graphql.kickstart.tools.scanner.ScannedSchemaObjects
+import graphql.kickstart.tools.scanner.SchemaClassScanner
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
@@ -74,7 +76,7 @@ class SchemaParser internal constructor(
             codeRegistryBuilder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
         }
         // this overrides the above introspection enabled setting obviously... todo: add documentation
-        options.fieldVisilibity?.let { codeRegistryBuilder.fieldVisibility(it) }
+        options.fieldVisibility?.let { codeRegistryBuilder.fieldVisibility(it) }
 
         // Create GraphQL objects
         val inputObjects: MutableList<GraphQLInputObjectType> = mutableListOf()

@@ -1,8 +1,9 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
 import graphql.execution.batched.Batched
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
@@ -184,7 +185,7 @@ internal class MethodFieldResolver(
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-open class MethodFieldResolverDataFetcher(
+internal open class MethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     method: Method,
     private val args: List<ArgumentPlaceholder>,
@@ -239,7 +240,7 @@ open class MethodFieldResolverDataFetcher(
     }
 }
 
-open class TrivialMethodFieldResolverDataFetcher(
+internal open class TrivialMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,
@@ -269,7 +270,7 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
     }
 }
 
-class BatchedMethodFieldResolverDataFetcher(
+internal class BatchedMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,

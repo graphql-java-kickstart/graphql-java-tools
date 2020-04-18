@@ -23,7 +23,7 @@
  *
  */
 
-package graphql.kickstart.tools;
+package graphql.kickstart.tools.util;
 
 import java.lang.reflect.MalformedParameterizedTypeException;
 import java.lang.reflect.ParameterizedType;
@@ -36,7 +36,7 @@ import java.util.StringJoiner;
 /**
  * Implementing class for ParameterizedType interface.
  */
-class ParameterizedTypeImpl implements ParameterizedType {
+public class ParameterizedTypeImpl implements ParameterizedType {
 
     private final Type[] actualTypeArguments;
     private final Class<?> rawType;

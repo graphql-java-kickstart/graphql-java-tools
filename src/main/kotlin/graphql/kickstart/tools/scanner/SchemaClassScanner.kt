@@ -1,5 +1,6 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
+import graphql.kickstart.tools.*
 import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
@@ -17,7 +18,6 @@ internal class SchemaClassScanner(
     private val scalars: CustomScalarMap,
     private val options: SchemaParserOptions
 ) {
-
     companion object {
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
     }
@@ -458,20 +458,20 @@ internal class SchemaClassScanner(
         }
     }
 
-    class ReturnValueReference(private val method: Method) : Reference() {
+    internal class ReturnValueReference(private val method: Method) : Reference() {
         fun getMethod() = method
         override fun getDescription() = "return type of method $method"
     }
 
-    class MethodParameterReference(private val method: Method, private val index: Int) : Reference() {
+    internal class MethodParameterReference(private val method: Method, private val index: Int) : Reference() {
         override fun getDescription() = "parameter $index of method $method"
     }
 
-    class FieldTypeReference(private val field: String) : Reference() {
+    internal class FieldTypeReference(private val field: String) : Reference() {
         override fun getDescription() = "type of field $field"
     }
 
-    class RootTypesHolder(
+    private class RootTypesHolder(
         options: SchemaParserOptions,
         rootInfo: RootTypeInfo,
         definitionsByName: Map<String, TypeDefinition<*>>,
@@ -517,7 +517,7 @@ internal class SchemaClassScanner(
         }
     }
 
-    class RootType(val name: String, val type: ObjectTypeDefinition, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
+    internal class RootType(val name: String, val type: ObjectTypeDefinition, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
 }
 
-class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)
+internal class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)

@@ -1,6 +1,7 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
 import graphql.Scalars
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.GraphQLLangType
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.declaredNonProxyMethods
@@ -210,4 +211,4 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     data class Search(val type: JavaType, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
 }
 
-class FieldResolverError(msg: String) : RuntimeException(msg)
+internal class FieldResolverError(msg: String) : RuntimeException(msg)

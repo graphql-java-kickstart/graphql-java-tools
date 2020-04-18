@@ -1,5 +1,6 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.scanner
 
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -32,7 +33,7 @@ internal class PropertyFieldResolver(
     override fun toString() = "PropertyFieldResolver{property=$property}"
 }
 
-class PropertyFieldResolverDataFetcher(
+internal class PropertyFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val field: Field
 ) : DataFetcher<Any> {
