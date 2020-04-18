@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.introspection.Introspection
+import graphql.kickstart.tools.directive.SchemaGeneratorDirectiveHelper
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
@@ -59,10 +60,11 @@ class SchemaParser internal constructor(
     private val permittedTypesForInputObject: Set<String> =
         (inputObjectDefinitions.map { it.name } + enumDefinitions.map { it.name }).toSet()
 
-    private val schemaGeneratorHelper = SchemaGeneratorHelper()
-    private val directiveGenerator = DirectiveBehavior()
-
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
+
+    private val schemaGeneratorHelper = SchemaGeneratorHelper()
+    private val schemaGeneratorDirectiveHelper = SchemaGeneratorDirectiveHelper()
+    private val schemaDirectiveParameters = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -152,8 +154,9 @@ class SchemaParser internal constructor(
         }
 
         val objectType = builder.build()
+        val directiveHelperParameters = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
 
-        return directiveGenerator.onObject(objectType, DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
+        return schemaGeneratorDirectiveHelper.onObject(objectType, directiveHelperParameters)
     }
 
     private fun buildDirectives(directives: List<Directive>, directiveDefinitions: Set<GraphQLDirective>, directiveLocation: Introspection.DirectiveLocation): Array<GraphQLDirective> {
@@ -188,7 +191,7 @@ class SchemaParser internal constructor(
             builder.field(fieldBuilder.build())
         }
 
-        return directiveGenerator.onInputObject(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
+        return schemaGeneratorDirectiveHelper.onInputObjectType(builder.build(), schemaDirectiveParameters)
     }
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
@@ -224,7 +227,7 @@ class SchemaParser internal constructor(
             }
         }
 
-        return directiveGenerator.onEnum(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
+        return schemaGeneratorDirectiveHelper.onEnum(builder.build(), schemaDirectiveParameters)
     }
 
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
@@ -240,7 +243,7 @@ class SchemaParser internal constructor(
             builder.field { field -> createField(field, fieldDefinition, inputObjects) }
         }
 
-        return directiveGenerator.onInterface(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
+        return schemaGeneratorDirectiveHelper.onInterface(builder.build(), schemaDirectiveParameters)
     }
 
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
@@ -253,7 +256,7 @@ class SchemaParser internal constructor(
         builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.UNION))
 
         getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
-        return directiveGenerator.onUnion(builder.build(), DirectiveBehavior.Params(runtimeWiring, codeRegistryBuilder))
+        return schemaGeneratorDirectiveHelper.onUnion(builder.build(), schemaDirectiveParameters)
     }
 
     private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
