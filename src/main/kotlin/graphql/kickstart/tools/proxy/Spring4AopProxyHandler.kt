@@ -8,7 +8,7 @@ import org.springframework.aop.support.AopUtils
  */
 class Spring4AopProxyHandler : ProxyHandler {
 
-    val isEnabled: Boolean =
+    private val isEnabled: Boolean =
         try {
             Class.forName("org.springframework.aop.support.AopUtils")
             true

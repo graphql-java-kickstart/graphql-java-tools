@@ -19,7 +19,7 @@ internal class PropertyMapResolver(
     relativeTo: JavaType
 ) : FieldResolver(field, search, options, relativeTo) {
 
-    var mapGenericValue: JavaType = getMapGenericType(relativeTo)
+    private var mapGenericValue: JavaType = getMapGenericType(relativeTo)
 
     /**
      * Takes a type which implements Map and tries to find the
@@ -27,7 +27,7 @@ internal class PropertyMapResolver(
      * its generics somewhere along the way and is always a raw
      * type.
      */
-    fun getMapGenericType(mapClass: JavaType): JavaType {
+    private fun getMapGenericType(mapClass: JavaType): JavaType {
         val resolvedType = TypeResolver().resolve(mapClass)
         val typeParameters = resolvedType.typeParametersFor(Map::class.java)
 
@@ -47,7 +47,7 @@ internal class PropertyMapResolver(
 
 internal class PropertyMapResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    val key: String
+    private val key: String
 ) : DataFetcher<Any> {
 
     override fun get(environment: DataFetchingEnvironment): Any? {

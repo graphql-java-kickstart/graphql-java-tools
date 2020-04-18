@@ -153,7 +153,7 @@ data class SchemaParserOptions internal constructor(
         }
     }
 
-    internal class DefaultCoroutineContextProvider(val coroutineContext: CoroutineContext) : CoroutineContextProvider {
+    internal class DefaultCoroutineContextProvider(private val coroutineContext: CoroutineContext) : CoroutineContextProvider {
         override fun provide(): CoroutineContext {
             return coroutineContext
         }

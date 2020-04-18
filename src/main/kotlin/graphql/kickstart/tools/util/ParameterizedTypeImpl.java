@@ -58,7 +58,7 @@ public class ParameterizedTypeImpl implements ParameterizedType {
             throw new MalformedParameterizedTypeException();
         }
         for (int i = 0; i < actualTypeArguments.length; i++) {
-            // check actuals against formals' bounds
+            // TODO check actual against formal bounds
         }
     }
 

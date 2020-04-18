@@ -234,7 +234,7 @@ internal class SchemaClassScanner(
         val resolverInfo: ResolverInfo = (if (resolverInfoList.size > 1) {
             MultiResolverInfo(resolverInfoList)
         } else {
-            if (item.clazz.equals(Object::class.java)) {
+            if (item.clazz == Object::class.java) {
                 getResolverInfoFromTypeDictionary(item.type.name)
             } else {
                 resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)

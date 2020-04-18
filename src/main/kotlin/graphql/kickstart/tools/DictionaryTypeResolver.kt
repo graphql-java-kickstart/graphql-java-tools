@@ -44,7 +44,7 @@ internal class InterfaceTypeResolver(
     types: List<GraphQLObjectType>
 ) : DictionaryTypeResolver(
     dictionary,
-    types.filter { it.interfaces.any { it.name == thisInterface.name } }.associateBy { it.name }
+    types.filter { type -> type.interfaces.any { it.name == thisInterface.name } }.associateBy { it.name }
 ) {
     override fun getError(name: String) = "Expected object type with name '$name' to implement interface '${thisInterface.name}', but it doesn't!"
 }

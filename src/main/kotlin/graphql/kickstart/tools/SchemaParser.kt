@@ -274,7 +274,7 @@ class SchemaParser internal constructor(
             if (nestedUnion != null) {
                 leafObjects.addAll(getLeafUnionObjects(nestedUnion, types))
             } else {
-                leafObjects.add(types.find { it.name == typeName }
+                leafObjects.add(types.find { type -> type.name == typeName }
                     ?: throw SchemaError("Expected object type '$typeName' for union type '$name', but found none!"))
             }
         }
@@ -386,7 +386,7 @@ class SchemaParser internal constructor(
      * Returns an optional [String] describing a deprecated field/enum.
      * If a deprecation directive was defined using the @deprecated directive,
      * then a String containing either the contents of the 'reason' argument, if present, or a default
-     * message defined in [DEFAULT_DEPRECATION_MESSAGE] will be returned. Otherwise, [null] will be returned
+     * message defined in [DEFAULT_DEPRECATION_MESSAGE] will be returned. Otherwise, `null` will be returned
      * indicating no deprecation directive was found within the directives list.
      */
     private fun getDeprecated(directives: List<Directive>): String? =

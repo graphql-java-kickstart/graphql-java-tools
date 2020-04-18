@@ -266,7 +266,7 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
             throw e
         }
 
-        throw java.lang.reflect.UndeclaredThrowableException(e);
+        throw java.lang.reflect.UndeclaredThrowableException(e)
     }
 }
 
