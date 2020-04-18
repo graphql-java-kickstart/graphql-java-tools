@@ -376,7 +376,7 @@ data class SchemaParserOptions internal constructor(
             this.typeDefinitionFactories.add(factory)
         }
 
-        fun fieldVisibility(fieldVisilibity: GraphqlFieldVisibility) = this.apply {
+        fun fieldVisibility(fieldVisibility: GraphqlFieldVisibility) = this.apply {
             this.fieldVisibility = fieldVisibility
         }
 
