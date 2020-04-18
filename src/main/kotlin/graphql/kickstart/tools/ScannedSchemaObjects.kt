@@ -1,4 +1,4 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
 import graphql.kickstart.tools.util.BiMap
 import graphql.kickstart.tools.util.JavaType

@@ -1,7 +1,6 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
 import graphql.Scalars
-import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.GraphQLLangType
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.declaredNonProxyMethods

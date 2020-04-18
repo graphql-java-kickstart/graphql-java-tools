@@ -1,9 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.scanner.FieldResolverScanner
-import graphql.kickstart.tools.scanner.RootResolverInfo
-import graphql.kickstart.tools.scanner.SchemaClassScannerError
-import graphql.kickstart.tools.scanner.TypeClassMatcher
+
 import graphql.language.*
 import spock.lang.Specification
 import spock.lang.Unroll

@@ -1,7 +1,5 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
-import graphql.kickstart.tools.GraphQLResolver
-import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.GraphQLRootResolver
 import graphql.kickstart.tools.util.JavaType
 import org.apache.commons.lang3.reflect.TypeUtils

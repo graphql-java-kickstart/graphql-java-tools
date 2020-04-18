@@ -1,7 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.scanner.FieldResolverError
-import graphql.kickstart.tools.scanner.SchemaClassScannerError
+
 import graphql.language.SourceLocation
 import graphql.schema.GraphQLSchema
 import org.springframework.aop.framework.ProxyFactory

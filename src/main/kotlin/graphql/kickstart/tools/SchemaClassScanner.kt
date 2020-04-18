@@ -1,6 +1,5 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
-import graphql.kickstart.tools.*
 import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType

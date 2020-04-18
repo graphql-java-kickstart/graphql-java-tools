@@ -1,7 +1,5 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.scanner.ScannedSchemaObjects
-import graphql.kickstart.tools.scanner.SchemaClassScanner
 import graphql.language.Definition
 import graphql.language.Document
 import graphql.parser.Parser

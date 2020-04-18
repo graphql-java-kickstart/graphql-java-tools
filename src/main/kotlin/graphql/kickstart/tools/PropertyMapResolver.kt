@@ -1,7 +1,6 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
 import com.fasterxml.classmate.TypeResolver
-import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher

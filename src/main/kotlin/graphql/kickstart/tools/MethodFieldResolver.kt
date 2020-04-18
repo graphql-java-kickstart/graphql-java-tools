@@ -1,9 +1,8 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
 import graphql.execution.batched.Batched
-import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope

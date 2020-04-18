@@ -1,4 +1,4 @@
-package graphql.kickstart.tools.scanner
+package graphql.kickstart.tools
 
 import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.util.GraphQLLangType

@@ -1,8 +1,6 @@
 package graphql.kickstart.tools
 
 import graphql.execution.batched.Batched
-import graphql.kickstart.tools.scanner.ResolverError
-import graphql.kickstart.tools.scanner.ScannedSchemaObjects
 import graphql.language.InputObjectTypeDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
