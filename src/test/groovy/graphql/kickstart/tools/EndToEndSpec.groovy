@@ -509,6 +509,20 @@ class EndToEndSpec extends Specification {
         ]
     }
 
+    def "generated schema should handle extended input types"() {
+        when:
+        def data = Utils.assertNoGraphQlErrors(gql) {
+            '''
+                mutation {
+                    saveUser(input: {name: "John", password: "secret"})
+                }
+                '''
+        }
+
+        then:
+        data.saveUser == "John/secret"
+    }
+
     def "generated schema supports generic properties"() {
         when:
         def data = Utils.assertNoGraphQlErrors(gql) {

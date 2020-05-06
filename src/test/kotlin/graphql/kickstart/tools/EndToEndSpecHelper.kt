@@ -111,12 +111,21 @@ input ComplexInputTypeTwo {
 type Mutation {
     addItem(newItem: NewItemInput!): Item!
     echoFiles(fileParts: [Upload!]!): [String!]!
+    saveUser(input: UserInput!): String
 }
 
 type Subscription {
     onItemCreated: Item!
     onItemCreatedCoroutineChannel: Item!
     onItemCreatedCoroutineChannelAndSuspendFunction: Item!
+}
+
+input UserInput {
+    name: String                        
+}
+
+extend input UserInput {
+    password: String
 }
 
 input ItemSearchInput {
@@ -320,6 +329,15 @@ abstract class ListListResolver<out E> {
 class Mutation : GraphQLMutationResolver {
     fun addItem(input: NewItemInput): Item {
         return Item(items.size, input.name, input.type, UUID.randomUUID(), listOf()) // Don't actually add the item to the list, since we want the test to be deterministic
+    }
+
+    fun saveUser(userInput: UserInput): String {
+        return userInput.name + "/" + userInput.password;
+    }
+
+    class UserInput {
+        var name: String = ""
+        var password: String = ""
     }
 }
 

@@ -45,9 +45,10 @@ class SchemaParser internal constructor(
     private val unusedDefinitions = scanResult.unusedDefinitions
 
     private val extensionDefinitions = definitions.filterIsInstance<ObjectTypeExtensionDefinition>()
+    private val inputExtensionDefinitions = definitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
 
     private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
-    private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
+    private val inputObjectDefinitions = (definitions.filterIsInstance<InputObjectTypeDefinition>() - inputExtensionDefinitions)
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
 
@@ -173,22 +174,27 @@ class SchemaParser internal constructor(
     }
 
     private fun createInputObject(definition: InputObjectTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInputObjectType {
+        val extensionDefinitions = inputExtensionDefinitions.filter { it.name == definition.name }
+
         val builder = GraphQLInputObjectType.newInputObject()
             .name(definition.name)
             .definition(definition)
+            .extensionDefinitions(extensionDefinitions)
             .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
 
         builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INPUT_OBJECT))
 
-        definition.inputValueDefinitions.forEach { inputDefinition ->
-            val fieldBuilder = GraphQLInputObjectField.newInputObjectField()
-                .name(inputDefinition.name)
-                .definition(inputDefinition)
-                .description(if (inputDefinition.description != null) inputDefinition.description.content else getDocumentation(inputDefinition))
-                .defaultValue(buildDefaultValue(inputDefinition.defaultValue))
-                .type(determineInputType(inputDefinition.type, inputObjects))
-                .withDirectives(*buildDirectives(inputDefinition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
-            builder.field(fieldBuilder.build())
+        extensionDefinitions.plus(definition).forEach {
+            it.inputValueDefinitions.forEach { inputDefinition ->
+                val fieldBuilder = GraphQLInputObjectField.newInputObjectField()
+                        .name(inputDefinition.name)
+                        .definition(inputDefinition)
+                        .description(if (inputDefinition.description != null) inputDefinition.description.content else getDocumentation(inputDefinition))
+                        .defaultValue(buildDefaultValue(inputDefinition.defaultValue))
+                        .type(determineInputType(inputDefinition.type, inputObjects))
+                        .withDirectives(*buildDirectives(inputDefinition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
+                builder.field(fieldBuilder.build())
+            }
         }
 
         return schemaGeneratorDirectiveHelper.onInputObjectType(builder.build(), schemaDirectiveParameters)
