@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.execution.batched.Batched
 import graphql.language.InputObjectTypeDefinition
+import graphql.language.InputObjectTypeExtensionDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
@@ -157,6 +158,37 @@ class SchemaClassScannerSpec extends Specification {
         class ThirdInput {
             String id
         }
+    }
+
+    def "scanner handles input types extensions"() {
+        when:
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString('''
+                    type Query { }
+
+                    type Mutation {
+                        save(input: UserInput!): Boolean
+                    }
+                    
+                    input UserInput {
+                        name: String                        
+                    }
+                    
+                    extend input UserInput {
+                        password: String
+                    }
+                ''')
+                .resolvers(
+                        new GraphQLMutationResolver() {
+                            boolean save(Map map) { true }
+                        },
+                        new GraphQLQueryResolver() {}
+                )
+                .scan()
+
+        then:
+        objects.definitions.findAll { (it.class == InputObjectTypeExtensionDefinition.class) }.size() == 1
+        objects.definitions.findAll { (it.class == InputObjectTypeDefinition.class) }.size() == 1
     }
 
     def "scanner allows multiple return types for custom scalars"() {

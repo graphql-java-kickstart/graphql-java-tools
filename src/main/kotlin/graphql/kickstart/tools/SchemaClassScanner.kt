@@ -32,8 +32,9 @@ internal class SchemaClassScanner(
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
     private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
+    private val inputExtensionDefinitions = allDefinitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
 
-    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions).associateBy { it.name }
+    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions - inputExtensionDefinitions).associateBy { it.name }
     private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
@@ -173,7 +174,7 @@ internal class SchemaClassScanner(
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions + inputExtensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
