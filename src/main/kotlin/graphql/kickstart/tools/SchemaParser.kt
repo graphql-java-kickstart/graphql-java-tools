@@ -184,7 +184,7 @@ class SchemaParser internal constructor(
 
         builder.withDirectives(*buildDirectives(definition.directives, setOf(), Introspection.DirectiveLocation.INPUT_OBJECT))
 
-        extensionDefinitions.plus(definition).forEach {
+        (extensionDefinitions + definition).forEach {
             it.inputValueDefinitions.forEach { inputDefinition ->
                 val fieldBuilder = GraphQLInputObjectField.newInputObjectField()
                         .name(inputDefinition.name)

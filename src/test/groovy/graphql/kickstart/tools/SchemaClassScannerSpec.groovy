@@ -177,11 +177,13 @@ class SchemaClassScannerSpec extends Specification {
                     extend input UserInput {
                         password: String
                     }
-                '''.stripIndent())
-                .resolvers(new GraphQLMutationResolver() {
-                    boolean save(Map map) { true }
-                }, new GraphQLQueryResolver() {
-                })
+                ''')
+                .resolvers(
+                        new GraphQLMutationResolver() {
+                            boolean save(Map map) { true }
+                        },
+                        new GraphQLQueryResolver() {}
+                )
                 .scan()
 
         then:
