@@ -25,6 +25,7 @@ data class SchemaParserOptions internal constructor(
     val allowUnimplementedResolvers: Boolean,
     val objectMapperProvider: PerFieldObjectMapperProvider,
     val proxyHandlers: List<ProxyHandler>,
+    val inputArgumentOptionalDetectOmission: Boolean,
     val preferGraphQLResolver: Boolean,
     val introspectionEnabled: Boolean,
     val coroutineContextProvider: CoroutineContextProvider,
@@ -50,6 +51,7 @@ data class SchemaParserOptions internal constructor(
         private var allowUnimplementedResolvers = false
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
+        private var inputArgumentOptionalDetectOmission = false
         private var preferGraphQLResolver = false
         private var introspectionEnabled = true
         private var coroutineContextProvider: CoroutineContextProvider? = null
@@ -78,6 +80,10 @@ data class SchemaParserOptions internal constructor(
 
         fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
+        }
+
+        fun inputArgumentOptionalDetectOmission(inputArgumentOptionalDetectOmission: Boolean) = this.apply {
+            this.inputArgumentOptionalDetectOmission = inputArgumentOptionalDetectOmission
         }
 
         fun preferGraphQLResolver(preferGraphQLResolver: Boolean) = this.apply {
@@ -146,9 +152,18 @@ data class SchemaParserOptions internal constructor(
                 genericWrappers
             }
 
-            return SchemaParserOptions(contextClass, wrappers, allowUnimplementedResolvers, objectMapperProvider,
-                proxyHandlers, preferGraphQLResolver, introspectionEnabled, coroutineContextProvider,
-                typeDefinitionFactories, fieldVisibility
+            return SchemaParserOptions(
+                contextClass,
+                wrappers,
+                allowUnimplementedResolvers,
+                objectMapperProvider,
+                proxyHandlers,
+                inputArgumentOptionalDetectOmission,
+                preferGraphQLResolver,
+                introspectionEnabled,
+                coroutineContextProvider,
+                typeDefinitionFactories,
+                fieldVisibility
             )
         }
     }

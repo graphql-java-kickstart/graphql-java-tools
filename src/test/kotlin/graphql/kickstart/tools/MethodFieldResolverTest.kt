@@ -10,11 +10,101 @@ import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import java.util.*
 
 class MethodFieldResolverTest {
 
     @Test
-    fun shouldHandleScalarTypesAsMethodInputArgument() {
+    fun `should handle Optional type as method input argument`() {
+        val schema = SchemaParser.newParser()
+            .schemaString("""
+                    type Query {
+                        testValue(input: String): String
+                        testOmitted(input: String): String
+                        testNull(input: String): String
+                    }
+                    """
+            )
+            .scalars(customScalarType)
+            .resolvers(object : GraphQLQueryResolver {
+                fun testValue(input: Optional<String>) = input.toString()
+                fun testOmitted(input: Optional<String>) = input.toString()
+                fun testNull(input: Optional<String>) = input.toString()
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val result = gql
+            .execute(ExecutionInput.newExecutionInput()
+                .query("""
+                            query {
+                                testValue(input: "test-value")
+                                testOmitted
+                                testNull(input: null)
+                            }
+                            """)
+                .context(Object())
+                .root(Object()))
+
+        val expected = mapOf(
+            "testValue" to "Optional[test-value]",
+            "testOmitted" to "Optional.empty",
+            "testNull" to "Optional.empty"
+        )
+
+        Assert.assertEquals(expected, result.getData())
+    }
+
+    @Test
+    fun `should handle Optional type as method input argument with omission detection`() {
+        val schema = SchemaParser.newParser()
+            .schemaString("""
+                    type Query {
+                        testValue(input: String): String
+                        testOmitted(input: String): String
+                        testNull(input: String): String
+                    }
+                    """
+            )
+            .scalars(customScalarType)
+            .resolvers(object : GraphQLQueryResolver {
+                fun testValue(input: Optional<String>) = input.toString()
+                fun testOmitted(input: Optional<String>?) = input.toString()
+                fun testNull(input: Optional<String>) = input.toString()
+            })
+            .options(SchemaParserOptions.newOptions()
+                .inputArgumentOptionalDetectOmission(true)
+                .build())
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val result = gql
+            .execute(ExecutionInput.newExecutionInput()
+                .query("""
+                            query {
+                                testValue(input: "test-value")
+                                testOmitted
+                                testNull(input: null)
+                            }
+                            """)
+                .context(Object())
+                .root(Object()))
+
+        val expected = mapOf(
+            "testValue" to "Optional[test-value]",
+            "testOmitted" to "null",
+            "testNull" to "Optional.empty"
+        )
+
+        Assert.assertEquals(expected, result.getData())
+    }
+
+    @Test
+    fun `should handle scalar types as method input argument`() {
         val schema = SchemaParser.newParser()
             .schemaString("""
                     scalar CustomScalar
@@ -47,7 +137,7 @@ class MethodFieldResolverTest {
     }
 
     @Test
-    fun shouldHandleListsOfScalarTypes() {
+    fun `should handle lists of scalar types`() {
         val schema = SchemaParser.newParser()
             .schemaString("""
                     scalar CustomScalar
@@ -80,7 +170,7 @@ class MethodFieldResolverTest {
     }
 
     @Test
-    fun shouldHandleProxies() {
+    fun `should handle proxies`() {
         val invocationHandler = object : InvocationHandler {
             override fun invoke(proxy: Any, method: Method, args: Array<out Any>): Any {
                 return when (method.name) {

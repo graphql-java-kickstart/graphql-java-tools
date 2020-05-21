@@ -92,11 +92,10 @@ internal class MethodFieldResolver(
                 }
 
                 if (value == null && isOptional) {
-                    if (environment.containsArgument(definition.name)) {
-                        return@add Optional.empty<Any>()
-                    } else {
+                    if (options.inputArgumentOptionalDetectOmission && !environment.containsArgument(definition.name)) {
                         return@add null
                     }
+                    return@add Optional.empty<Any>()
                 }
 
                 if (value != null
