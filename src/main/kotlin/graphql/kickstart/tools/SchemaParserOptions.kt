@@ -25,7 +25,7 @@ data class SchemaParserOptions internal constructor(
     val allowUnimplementedResolvers: Boolean,
     val objectMapperProvider: PerFieldObjectMapperProvider,
     val proxyHandlers: List<ProxyHandler>,
-    val inputArgumentOptionalNullWhenOmitted: Boolean,
+    val inputArgumentOptionalDetectOmission: Boolean,
     val preferGraphQLResolver: Boolean,
     val introspectionEnabled: Boolean,
     val coroutineContextProvider: CoroutineContextProvider,
@@ -51,7 +51,7 @@ data class SchemaParserOptions internal constructor(
         private var allowUnimplementedResolvers = false
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
-        private var inputArgumentOptionalNullWhenOmitted = false
+        private var inputArgumentOptionalDetectOmission = false
         private var preferGraphQLResolver = false
         private var introspectionEnabled = true
         private var coroutineContextProvider: CoroutineContextProvider? = null
@@ -82,8 +82,8 @@ data class SchemaParserOptions internal constructor(
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
         }
 
-        fun inputArgumentOptionalNullWhenOmitted(inputArgumentOptionalNullWhenOmitted: Boolean) = this.apply {
-            this.inputArgumentOptionalNullWhenOmitted = inputArgumentOptionalNullWhenOmitted
+        fun inputArgumentOptionalDetectOmission(inputArgumentOptionalDetectOmission: Boolean) = this.apply {
+            this.inputArgumentOptionalDetectOmission = inputArgumentOptionalDetectOmission
         }
 
         fun preferGraphQLResolver(preferGraphQLResolver: Boolean) = this.apply {
@@ -158,7 +158,7 @@ data class SchemaParserOptions internal constructor(
                 allowUnimplementedResolvers,
                 objectMapperProvider,
                 proxyHandlers,
-                inputArgumentOptionalNullWhenOmitted,
+                inputArgumentOptionalDetectOmission,
                 preferGraphQLResolver,
                 introspectionEnabled,
                 coroutineContextProvider,

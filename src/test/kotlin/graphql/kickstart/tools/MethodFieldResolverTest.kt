@@ -75,7 +75,7 @@ class MethodFieldResolverTest {
                 fun testNull(input: Optional<String>) = input.toString()
             })
             .options(SchemaParserOptions.newOptions()
-                .inputArgumentOptionalNullWhenOmitted(true)
+                .inputArgumentOptionalDetectOmission(true)
                 .build())
             .build()
             .makeExecutableSchema()
