@@ -3,7 +3,7 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.util.BiMap
 import kotlin.reflect.KClass
 
-internal class SchemaParserDictionary {
+class SchemaParserDictionary {
 
     private val dictionary: BiMap<String, Class<*>> = BiMap.create()
 
