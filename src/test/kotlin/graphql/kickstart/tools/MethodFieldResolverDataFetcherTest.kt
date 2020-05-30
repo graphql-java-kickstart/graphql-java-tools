@@ -18,6 +18,8 @@ import org.junit.Assert
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.tck.TestEnvironment
+import org.spockframework.util.NotThreadSafe
+import java.lang.RuntimeException
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
@@ -113,6 +115,46 @@ class MethodFieldResolverDataFetcherTest {
         fun onDataNameChanged(date: DataClass): ReceiveChannel<String> {
             return channel
         }
+    }
+
+    @Test
+    fun `should call method field resolver functions if provided`() {
+        // setup
+        val beforeInvocations = mutableListOf<MethodFieldResolverContext>()
+        val afterInvocations = mutableListOf<Pair<MethodFieldResolverContext, Any?>>()
+
+        val simpleClass = SimpleClass(
+            object : MethodFieldResolverInterceptor {
+                override fun beforeInvoke(context: MethodFieldResolverContext) {
+                    beforeInvocations.add(context)
+                }
+
+                override fun afterInvoke(context: MethodFieldResolverContext, result: Any?) {
+                    afterInvocations.add(context to result)
+                }
+            }
+        )
+
+        val resolver = createFetcher("text", simpleClass, options = simpleClass.options)
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val result = resolver.get(createEnvironment(DataClass())) as String
+
+        Assert.assertEquals(result, "loremipsum")
+        Assert.assertEquals(1, beforeInvocations.size)
+        Assert.assertEquals(1, afterInvocations.size)
+        Assert.assertEquals("loremipsum", afterInvocations.first().second)
+    }
+
+    class SimpleClass(methodFieldResolverInterceptor: MethodFieldResolverInterceptor) : GraphQLResolver<DataClass> {
+        @ExperimentalCoroutinesApi
+        val options = SchemaParserOptions.Builder()
+            .methodFieldResolverInterceptor(methodFieldResolverInterceptor)
+            .build()
+
+        @Suppress("UNUSED_PARAMETER")
+        fun text(data: DataClass): String = "loremipsum"
     }
 
     private fun createFetcher(

@@ -185,7 +185,7 @@ internal class MethodFieldResolver(
 
 internal open class MethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    method: Method,
+    private val method: Method,
     private val args: List<ArgumentPlaceholder>,
     private val options: SchemaParserOptions
 ) : DataFetcher<Any> {
@@ -208,14 +208,23 @@ internal open class MethodFieldResolverDataFetcher(
 
     override fun get(environment: DataFetchingEnvironment): Any? {
         val source = sourceResolver(environment)
-        val args = this.args.map { it(environment) }.toTypedArray()
+        val args = this.args.map { it(environment) }
+
+        val resolverContext = MethodFieldResolverContext(
+            method = method,
+            arguments = args
+        )
+
+        options.methodFieldResolverInterceptor?.beforeInvoke(resolverContext)
 
         return if (isSuspendFunction) {
             environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
-                invokeSuspend(source, resolverMethod, args)?.transformWithGenericWrapper(environment)
+                invokeSuspend(source, resolverMethod, args.toTypedArray())?.transformWithGenericWrapper(environment)
             }
         } else {
-            invoke(resolverMethod, source, args)?.transformWithGenericWrapper(environment)
+            invoke(resolverMethod, source, args.toTypedArray())?.transformWithGenericWrapper(environment)
+        }.also { result ->
+            options.methodFieldResolverInterceptor?.afterInvoke(resolverContext, result)
         }
     }
 

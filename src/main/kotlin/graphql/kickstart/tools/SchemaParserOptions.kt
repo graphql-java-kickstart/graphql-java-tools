@@ -30,7 +30,8 @@ data class SchemaParserOptions internal constructor(
     val introspectionEnabled: Boolean,
     val coroutineContextProvider: CoroutineContextProvider,
     val typeDefinitionFactories: List<TypeDefinitionFactory>,
-    val fieldVisibility: GraphqlFieldVisibility?
+    val fieldVisibility: GraphqlFieldVisibility?,
+    val methodFieldResolverInterceptor: MethodFieldResolverInterceptor?
 ) {
     companion object {
         @JvmStatic
@@ -57,6 +58,7 @@ data class SchemaParserOptions internal constructor(
         private var coroutineContextProvider: CoroutineContextProvider? = null
         private var typeDefinitionFactories: MutableList<TypeDefinitionFactory> = mutableListOf(RelayConnectionFactory())
         private var fieldVisibility: GraphqlFieldVisibility? = null
+        private var methodFieldResolverInterceptor: MethodFieldResolverInterceptor? = null
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -126,6 +128,10 @@ data class SchemaParserOptions internal constructor(
             this.fieldVisibility = fieldVisibility
         }
 
+        fun methodFieldResolverInterceptor(methodFieldResolverInterceptor: MethodFieldResolverInterceptor) = this.apply {
+            this.methodFieldResolverInterceptor = methodFieldResolverInterceptor
+        }
+
         @ExperimentalCoroutinesApi
         fun build(): SchemaParserOptions {
             val coroutineContextProvider = coroutineContextProvider
@@ -163,7 +169,8 @@ data class SchemaParserOptions internal constructor(
                 introspectionEnabled,
                 coroutineContextProvider,
                 typeDefinitionFactories,
-                fieldVisibility
+                fieldVisibility,
+                methodFieldResolverInterceptor
             )
         }
     }
