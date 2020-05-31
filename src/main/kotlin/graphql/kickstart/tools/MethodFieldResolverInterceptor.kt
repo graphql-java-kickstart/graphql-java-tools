@@ -8,6 +8,6 @@ data class MethodFieldResolverContext(
 )
 
 interface MethodFieldResolverInterceptor {
-    fun beforeInvoke(context: MethodFieldResolverContext)
-    fun afterInvoke(context: MethodFieldResolverContext, result: Any?)
+    fun beforeInvoke(context: MethodFieldResolverContext) {}
+    fun afterInvoke(context: MethodFieldResolverContext, result: Any?) {}
 }
