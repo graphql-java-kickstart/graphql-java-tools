@@ -118,12 +118,12 @@ internal class MethodFieldResolver(
         }
 
         return if (batched) {
-            BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options, search.source)
         } else {
             if (args.isEmpty() && isTrivialDataFetcher(this.method)) {
-                TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+                TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options, search.source)
             } else {
-                MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+                MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options, search.source)
             }
         }
     }
@@ -187,7 +187,8 @@ internal open class MethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val method: Method,
     private val args: List<ArgumentPlaceholder>,
-    private val options: SchemaParserOptions
+    private val options: SchemaParserOptions,
+    private val resolver: Any?
 ) : DataFetcher<Any> {
 
     private val resolverMethod = method
@@ -212,7 +213,9 @@ internal open class MethodFieldResolverDataFetcher(
 
         val resolverContext = MethodFieldResolverContext(
             method = method,
-            arguments = args
+            arguments = args,
+            environment = environment,
+            resolver = resolver
         )
 
         options.methodFieldResolverInterceptor?.beforeInvoke(resolverContext)
@@ -251,8 +254,9 @@ internal open class TrivialMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,
-    options: SchemaParserOptions
-) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options), TrivialDataFetcher<Any>
+    options: SchemaParserOptions,
+    resolver: Any?
+) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options, resolver), TrivialDataFetcher<Any>
 
 private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, args: Array<Any?>): Any? {
     return suspendCoroutineUninterceptedOrReturn { continuation ->
@@ -281,8 +285,9 @@ internal class BatchedMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,
-    options: SchemaParserOptions
-) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options) {
+    options: SchemaParserOptions,
+    resolver: Any?
+) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options, resolver) {
     @Batched
     override fun get(environment: DataFetchingEnvironment) = super.get(environment)
 }
