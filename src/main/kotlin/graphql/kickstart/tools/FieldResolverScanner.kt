@@ -111,13 +111,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
-            if (MethodFieldResolver.isBatched(method, search)) {
-                verifyBatchedMethodFirstArgument(method.genericParameterTypes.firstOrNull(), search.requiredFirstParameterType)
-            } else {
-                method.genericParameterTypes.firstOrNull()?.let {
-                    it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
-                } ?: false
-            }
+            method.genericParameterTypes.firstOrNull()?.let {
+                it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
+            } ?: false
         } else {
             true
         }
@@ -145,24 +141,6 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         } catch (e: InternalError) {
             method.parameterTypes.lastOrNull()
         }
-    }
-
-    private fun verifyBatchedMethodFirstArgument(firstType: JavaType?, requiredFirstParameterType: Class<*>?): Boolean {
-        if (firstType == null) {
-            return false
-        }
-
-        if (firstType !is ParameterizedType) {
-            return false
-        }
-
-        if (!TypeClassMatcher.isListType(firstType, GenericType(firstType, options))) {
-            return false
-        }
-
-        val typeArgument = firstType.actualTypeArguments.first() as? Class<*> ?: return false
-
-        return typeArgument == requiredFirstParameterType
     }
 
     private fun findResolverProperty(field: FieldDefinition, search: Search) =
@@ -207,7 +185,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return signatures
     }
 
-    data class Search(val type: JavaType, val resolverInfo: ResolverInfo, val source: Any?, val requiredFirstParameterType: Class<*>? = null, val allowBatched: Boolean = false)
+    data class Search(
+        val type: JavaType,
+        val resolverInfo: ResolverInfo,
+        val source: Any?,
+        val requiredFirstParameterType: Class<*>? = null
+    )
 }
 
 internal class FieldResolverError(msg: String) : RuntimeException(msg)

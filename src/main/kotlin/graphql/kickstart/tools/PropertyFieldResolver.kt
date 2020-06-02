@@ -25,8 +25,8 @@ internal class PropertyFieldResolver(
                 field.type,
                 property.genericType,
                 genericType,
-                SchemaClassScanner.FieldTypeReference(property.toString()),
-                false))
+                SchemaClassScanner.FieldTypeReference(property.toString()))
+        )
     }
 
     override fun toString() = "PropertyFieldResolver{property=$property}"

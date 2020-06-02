@@ -1,7 +1,6 @@
 package graphql.kickstart.tools
 
 import graphql.execution.DataFetcherResult
-import graphql.execution.batched.Batched
 import graphql.language.ObjectValue
 import graphql.language.StringValue
 import graphql.schema.*
@@ -151,8 +150,6 @@ type Item implements ItemInterface {
     type: Type!
     uuid: UUID!
     tags(names: [String!]): [Tag!]
-    batchedName: String!
-    batchedWithParamsTags(names: [String!]): [Tag!]
 }
 
 type OtherItem implements ItemInterface {
@@ -368,16 +365,6 @@ class Subscription : GraphQLSubscriptionResolver {
 class ItemResolver : GraphQLResolver<Item> {
     fun tags(item: Item, names: List<String>?): List<Tag> = item.tags.filter {
         names?.contains(it.name) ?: true
-    }
-
-    @Batched
-    fun batchedName(items: List<Item>) = items.map { it.name }
-
-    @Batched
-    fun batchedWithParamsTags(items: List<Item>, names: List<String>?): List<List<Tag>> = items.map {
-        it.tags.filter {
-            names?.contains(it.name) ?: true
-        }
     }
 }
 

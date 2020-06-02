@@ -4,7 +4,6 @@ import graphql.ExecutionInput
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
-import graphql.execution.batched.BatchedExecutionStrategy
 import graphql.schema.GraphQLSchema
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
@@ -21,17 +20,10 @@ import java.util.concurrent.TimeUnit
 class EndToEndSpec extends Specification {
 
     @Shared
-    GraphQL batchedGql
-
-    @Shared
     GraphQL gql
 
     def setupSpec() {
         GraphQLSchema schema = EndToEndSpecHelperKt.createSchema()
-
-        batchedGql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(new BatchedExecutionStrategy())
-                .build()
 
         gql = GraphQL.newGraphQL(schema)
                 .queryExecutionStrategy(new AsyncExecutionStrategy())
@@ -45,7 +37,7 @@ class EndToEndSpec extends Specification {
 
     def "generated schema should respond to simple queries"() {
         when:
-        def data = Utils.assertNoGraphQlErrors(gql) {
+        Utils.assertNoGraphQlErrors(gql) {
             '''
                 {
                     items(itemsInput: {name: "item1"}) {
@@ -539,40 +531,6 @@ class EndToEndSpec extends Specification {
         data.itemWithGenericProperties == [
                 keys: ["A", "B"]
         ]
-    }
-
-    def "generated schema supports batched datafetchers"() {
-        when:
-        def data = Utils.assertNoGraphQlErrors(batchedGql) {
-            '''
-                {
-                    allBaseItems {
-                        name: batchedName
-                    }
-                }
-                '''
-        }
-
-        then:
-        data.allBaseItems.collect { it.name } == ['item1', 'item2']
-    }
-
-    def "generated schema supports batched datafetchers with params"() {
-        when:
-        def data = Utils.assertNoGraphQlErrors(batchedGql) {
-            '''
-                {
-                    allBaseItems {
-                        tags: batchedWithParamsTags(names: ["item2-tag1"]) {
-                            name
-                        }
-                    }
-                }
-                '''
-        }
-
-        then:
-        data.allBaseItems.collect { it.tags.collect { it.name } } == [[], ['item2-tag1']]
     }
 
     def "generated schema supports overriding built-in scalars"() {

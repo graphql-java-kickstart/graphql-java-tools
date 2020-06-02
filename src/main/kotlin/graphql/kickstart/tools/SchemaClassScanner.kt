@@ -113,9 +113,11 @@ internal class SchemaClassScanner(
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
-        initialDictionary.filter { !it.value.accessed }.forEach {
-            log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
-        }
+        initialDictionary
+            .filter { !it.value.accessed }
+            .forEach {
+                log.warn("Dictionary mapping was provided but never used, and can be safely deleted: \"${it.key}\" -> ${it.value.get().name}")
+            }
 
         val observedDefinitions = dictionary.keys.toSet() + unvalidatedTypes
 
@@ -125,13 +127,14 @@ internal class SchemaClassScanner(
         // Union types can also be excluded, as their possible types are resolved recursively later
         val dictionary = try {
             BiMap.unmodifiableBiMap(BiMap.create<TypeDefinition<*>, JavaType>().also {
-                dictionary.filter {
-                    it.value.javaType != null
-                        && it.value.typeClass() != java.lang.Object::class.java
-                        && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
-                        && it.key !is InputObjectTypeDefinition
-                        && it.key !is UnionTypeDefinition
-                }.mapValuesTo(it) { it.value.javaType }
+                dictionary
+                    .filter {
+                        it.value.javaType != null
+                            && it.value.typeClass() != java.lang.Object::class.java
+                            && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
+                            && it.key !is InputObjectTypeDefinition
+                            && it.key !is UnionTypeDefinition
+                    }.mapValuesTo(it) { it.value.javaType }
             })
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
@@ -139,21 +142,22 @@ internal class SchemaClassScanner(
         val scalarDefinitions = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
         // Ensure all scalar definitions have implementations and add the definition to those.
-        val scalars = scalarDefinitions.filter {
-            // Filter for any defined scalars OR scalars that aren't defined but also aren't standard
-            scalars.containsKey(it.name) || !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name)
-        }.map { definition ->
-            val provided = scalars[definition.name]
-                ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
-            GraphQLScalarType.newScalar()
-                .name(provided.name)
-                .description(
-                    if (definition.description != null) definition.description.content
-                    else SchemaParser.getDocumentation(definition) ?: provided.description)
-                .coercing(provided.coercing)
-                .definition(definition)
-                .build()
-        }.associateBy { it.name!! }
+        val scalars = scalarDefinitions
+            .filter {
+                // Filter for any defined scalars OR scalars that aren't defined but also aren't standard
+                scalars.containsKey(it.name) || !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name)
+            }.map { definition ->
+                val provided = scalars[definition.name]
+                    ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
+                GraphQLScalarType.newScalar()
+                    .name(provided.name)
+                    .description(
+                        if (definition.description != null) definition.description.content
+                        else SchemaParser.getDocumentation(definition) ?: provided.description)
+                    .coercing(provided.coercing)
+                    .definition(definition)
+                    .build()
+            }.associateBy { it.name!! }
 
         val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
         unusedDefinitions
@@ -343,8 +347,7 @@ internal class SchemaClassScanner(
                                 inputValueDefinition.type,
                                 inputValueJavaType,
                                 GenericType(javaType, options).relativeToType(inputValueJavaType),
-                                InputObjectReference(inputValueDefinition),
-                                false
+                                InputObjectReference(inputValueDefinition)
                             )))
                         } else {
                             var mappingAdvice = "Try adding it manually to the dictionary"

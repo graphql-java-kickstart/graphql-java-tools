@@ -2,7 +2,6 @@ package graphql.kickstart.tools
 
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
-import graphql.execution.batched.Batched
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
@@ -32,19 +31,6 @@ internal class MethodFieldResolver(
     val method: Method
 ) : FieldResolver(field, search, options, search.type) {
 
-    companion object {
-        fun isBatched(method: Method, search: FieldResolverScanner.Search): Boolean {
-            if (method.getAnnotation(Batched::class.java) != null) {
-                if (!search.allowBatched) {
-                    throw ResolverError("The @Batched annotation is only allowed on non-root resolver methods, but it was found on ${search.type.unwrap().name}#${method.name}!")
-                }
-
-                return true
-            }
-            return false
-        }
-    }
-
     private val additionalLastArgument =
         try {
             method.kotlinFunction?.valueParameters?.size ?: method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
@@ -53,17 +39,16 @@ internal class MethodFieldResolver(
         }
 
     override fun createDataFetcher(): DataFetcher<*> {
-        val batched = isBatched(method, search)
         val args = mutableListOf<ArgumentPlaceholder>()
         val mapper = options.objectMapperProvider.provide(field)
 
         // Add source argument if this is a resolver (but not a root resolver)
         if (this.search.requiredFirstParameterType != null) {
-            val expectedType = if (batched) Iterable::class.java else this.search.requiredFirstParameterType
+            val expectedType = this.search.requiredFirstParameterType
 
             args.add { environment ->
                 val source = environment.getSource<Any>()
-                if (!(expectedType.isAssignableFrom(source.javaClass))) {
+                if (!expectedType.isAssignableFrom(source.javaClass)) {
                     throw ResolverError("Source type (${source.javaClass.name}) is not expected type (${expectedType.name})!")
                 }
 
@@ -117,14 +102,10 @@ internal class MethodFieldResolver(
             }
         }
 
-        return if (batched) {
-            BatchedMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+        return if (args.isEmpty() && isTrivialDataFetcher(this.method)) {
+            TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
         } else {
-            if (args.isEmpty() && isTrivialDataFetcher(this.method)) {
-                TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
-            } else {
-                MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
-            }
+            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
         }
     }
 
@@ -146,16 +127,15 @@ internal class MethodFieldResolver(
         }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val batched = isBatched(method, search)
         val unwrappedGenericType = genericType.unwrapGenericType(try {
             method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
         } catch (e: InternalError) {
             method.genericReturnType
         })
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method), batched)
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i), batched)
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
 
@@ -238,12 +218,13 @@ internal open class MethodFieldResolverDataFetcher(
     }
 }
 
-internal open class TrivialMethodFieldResolverDataFetcher(
+internal class TrivialMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,
     options: SchemaParserOptions
-) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options), TrivialDataFetcher<Any>
+) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options),
+    TrivialDataFetcher<Any> // just to mark it for tracing and optimizations
 
 private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, args: Array<Any?>): Any? {
     return suspendCoroutineUninterceptedOrReturn { continuation ->
@@ -266,16 +247,6 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
 
         throw java.lang.reflect.UndeclaredThrowableException(e)
     }
-}
-
-internal class BatchedMethodFieldResolverDataFetcher(
-    sourceResolver: SourceResolver,
-    method: Method,
-    args: List<ArgumentPlaceholder>,
-    options: SchemaParserOptions
-) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options) {
-    @Batched
-    override fun get(environment: DataFetchingEnvironment) = super.get(environment)
 }
 
 internal typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
