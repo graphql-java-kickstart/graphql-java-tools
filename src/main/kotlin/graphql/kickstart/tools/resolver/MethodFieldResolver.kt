@@ -1,13 +1,10 @@
 package graphql.kickstart.tools.resolver
 
 import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.TrivialDataFetcher
 import graphql.kickstart.tools.*
-import graphql.kickstart.tools.DataClassTypeResolverInfo
-import graphql.kickstart.tools.ResolverError
-import graphql.kickstart.tools.SchemaClassScanner
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
-import graphql.kickstart.tools.TypeClassMatcher
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
 import graphql.kickstart.tools.util.isTrivialDataFetcher
@@ -64,37 +61,52 @@ internal class MethodFieldResolver(
         // Add an argument for each argument defined in the GraphQL schema
         this.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
-            val genericParameterType = this.getJavaMethodParameterType(index)
+            val parameterType = this.getMethodParameterType(index)
+                ?.apply { genericType.getRawClass(this) }
                 ?: throw ResolverError("Missing method type at position ${this.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
             val isNonNull = definition.type is NonNullType
-            val isOptional = this.genericType.getRawClass(genericParameterType) == Optional::class.java
 
-            val typeReference = object : TypeReference<Any>() {
-                override fun getType() = genericParameterType
-            }
+            // TODO fetch this from settings, also maybe get by field name/graphql type? allow Object to mean all types?
+            val argumentProviders = listOf(
+                object : ArgumentProvider<Optional<*>> {
+                    override fun forType(): Class<Optional<*>> {
+                        return Optional::class.java // TODO this might not be needed, can we grab it from generics?
+                    }
+
+                    override fun provide(definition: InputValueDefinition, environment: DataFetchingEnvironment, mapper: ObjectMapper): Optional<*> {
+                        return Optional.of("hi")
+                    }
+                }
+            )
+
+            val argumentProvidersMap = argumentProviders.associateBy { it.forType() }
 
             args.add { environment ->
-                val value = environment.arguments[definition.name] ?: if (isNonNull) {
+                val argumentPresent = environment.arguments.containsKey(definition.name)
+
+                if (!argumentPresent && isNonNull) {
                     throw ResolverError("Missing required argument with name '${definition.name}', this is most likely a bug with graphql-java-tools")
+                }
+
+                val provider = argumentProvidersMap.get(parameterType)
+
+                if (provider != null) {
+                    return@add provider.provide(definition, environment, mapper)
                 } else {
-                    null
-                }
 
-                if (value == null && isOptional) {
-                    if (options.inputArgumentOptionalDetectOmission && !environment.containsArgument(definition.name)) {
-                        return@add null
+                    val value = environment.arguments[definition.name]
+
+                    if (value != null
+                        && parameterType.unwrap().isAssignableFrom(value.javaClass)
+                        && isScalarType(environment, definition.type, parameterType)) {
+                        return@add value
                     }
-                    return@add Optional.empty<Any>()
-                }
 
-                if (value != null
-                    && genericParameterType.unwrap().isAssignableFrom(value.javaClass)
-                    && isScalarType(environment, definition.type, genericParameterType)) {
-                    return@add value
+                    return@add mapper.convertValue(value, object : TypeReference<Any>() {
+                        override fun getType() = parameterType
+                    })
                 }
-
-                return@add mapper.convertValue(value, typeReference)
             }
         }
 
@@ -140,7 +152,7 @@ internal class MethodFieldResolver(
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
 
@@ -154,12 +166,12 @@ internal class MethodFieldResolver(
 
     private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
 
-    private fun getJavaMethodParameterType(index: Int): JavaType? {
+    private fun getMethodParameterType(index: Int): JavaType? {
         val methodIndex = getJavaMethodParameterIndex(index)
         val parameters = method.parameterTypes
 
         return if (parameters.size > methodIndex) {
-            method.genericParameterTypes[getJavaMethodParameterIndex(index)]
+            method.genericParameterTypes[methodIndex]
         } else {
             null
         }
@@ -255,4 +267,11 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
 }
 
 internal typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
+
+interface ArgumentProvider<T> {
+    fun forType() :Class<T>
+
+    fun provide(definition: InputValueDefinition, environment: DataFetchingEnvironment, mapper: ObjectMapper): T
+}
+
 
