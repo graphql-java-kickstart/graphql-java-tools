@@ -1,5 +1,7 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.resolver.FieldResolver
+import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType

@@ -1,8 +1,13 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.resolver
 
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
+import graphql.kickstart.tools.*
+import graphql.kickstart.tools.DataClassTypeResolverInfo
+import graphql.kickstart.tools.ResolverError
+import graphql.kickstart.tools.SchemaClassScanner
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
+import graphql.kickstart.tools.TypeClassMatcher
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
 import graphql.kickstart.tools.util.isTrivialDataFetcher

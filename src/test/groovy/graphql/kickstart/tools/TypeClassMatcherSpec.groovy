@@ -1,6 +1,6 @@
 package graphql.kickstart.tools
 
-
+import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.language.*
 import spock.lang.Specification
 import spock.lang.Unroll

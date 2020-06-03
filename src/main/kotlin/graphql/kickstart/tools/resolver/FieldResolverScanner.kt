@@ -1,6 +1,9 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.resolver
 
 import graphql.Scalars
+import graphql.kickstart.tools.ResolverInfo
+import graphql.kickstart.tools.RootResolverInfo
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.GraphQLLangType
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.declaredNonProxyMethods
@@ -12,7 +15,6 @@ import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Modifier
-import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
@@ -78,7 +80,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
 
         if (java.util.Map::class.java.isAssignableFrom(search.type.unwrap())) {
-            return PropertyMapResolver(field, search, options, search.type.unwrap())
+            return MapFieldResolver(field, search, options, search.type.unwrap())
         }
 
         return null

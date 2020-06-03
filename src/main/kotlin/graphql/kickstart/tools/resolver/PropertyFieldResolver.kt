@@ -1,5 +1,8 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.resolver
 
+import graphql.kickstart.tools.SchemaClassScanner
+import graphql.kickstart.tools.SchemaParserOptions
+import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment

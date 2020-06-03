@@ -1,6 +1,9 @@
 package graphql.kickstart.tools
 
-
+import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.kickstart.tools.resolver.FieldResolverScanner
+import graphql.kickstart.tools.resolver.MethodFieldResolver
+import graphql.kickstart.tools.resolver.PropertyFieldResolver
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.relay.Connection

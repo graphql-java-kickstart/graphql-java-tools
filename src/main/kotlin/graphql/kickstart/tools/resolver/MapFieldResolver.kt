@@ -1,6 +1,9 @@
-package graphql.kickstart.tools
+package graphql.kickstart.tools.resolver
 
 import com.fasterxml.classmate.TypeResolver
+import graphql.kickstart.tools.SchemaClassScanner
+import graphql.kickstart.tools.SchemaParserOptions
+import graphql.kickstart.tools.TypeClassMatcher
 import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
@@ -9,9 +12,9 @@ import graphql.schema.DataFetchingEnvironment
 /**
  * @author Nick Weedon
  *
- * The PropertyMapResolver implements the Map (i.e. property map) specific portion of the logic within the GraphQL PropertyDataFetcher class.
+ * The MapFieldResolver implements the Map (i.e. property map) specific portion of the logic within the GraphQL PropertyDataFetcher class.
  */
-internal class PropertyMapResolver(
+internal class MapFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
@@ -34,17 +37,17 @@ internal class PropertyMapResolver(
     }
 
     override fun createDataFetcher(): DataFetcher<*> {
-        return PropertyMapResolverDataFetcher(getSourceResolver(), field.name)
+        return MapFieldResolverDataFetcher(getSourceResolver(), field.name)
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         return listOf(TypeClassMatcher.PotentialMatch.returnValue(field.type, mapGenericValue, genericType, SchemaClassScanner.FieldTypeReference(field.name)))
     }
 
-    override fun toString() = "PropertyMapResolverDataFetcher{key=${field.name}}"
+    override fun toString() = "MapFieldResolver{key=${field.name}}"
 }
 
-internal class PropertyMapResolverDataFetcher(
+internal class MapFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val key: String
 ) : DataFetcher<Any> {
@@ -54,7 +57,7 @@ internal class PropertyMapResolverDataFetcher(
         if (resolvedSourceObject is Map<*, *>) {
             return resolvedSourceObject[key]
         } else {
-            throw RuntimeException("PropertyMapResolverDataFetcher attempt to fetch a field from an object instance that was not a map")
+            throw RuntimeException("MapFieldResolver attempt to fetch a field from an object instance that was not a map")
         }
     }
 }
