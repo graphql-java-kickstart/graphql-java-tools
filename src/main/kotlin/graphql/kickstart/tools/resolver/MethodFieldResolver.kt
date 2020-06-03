@@ -80,11 +80,8 @@ internal class MethodFieldResolver(
                 }
             )
 
-            val argumentProvidersMap = argumentProviders.associateBy { it.forType() }
-
             args.add { environment ->
                 val argumentPresent = environment.arguments.containsKey(definition.name)
-
                 if (!argumentPresent && isNonNull) {
                     throw ResolverError("Missing required argument with name '${definition.name}', this is most likely a bug with graphql-java-tools")
                 }
