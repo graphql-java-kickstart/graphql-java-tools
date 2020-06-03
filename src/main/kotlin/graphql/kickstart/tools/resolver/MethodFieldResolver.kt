@@ -3,11 +3,7 @@ package graphql.kickstart.tools.resolver
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.TrivialDataFetcher
 import graphql.kickstart.tools.*
-import graphql.kickstart.tools.DataClassTypeResolverInfo
-import graphql.kickstart.tools.ResolverError
-import graphql.kickstart.tools.SchemaClassScanner
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
-import graphql.kickstart.tools.TypeClassMatcher
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
 import graphql.kickstart.tools.util.isTrivialDataFetcher
@@ -64,22 +60,20 @@ internal class MethodFieldResolver(
         // Add an argument for each argument defined in the GraphQL schema
         this.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
-            val genericParameterType = this.getJavaMethodParameterType(index)
+            val parameterType = this.getMethodParameterType(index)
+                ?.apply { genericType.getRawClass(this) }
                 ?: throw ResolverError("Missing method type at position ${this.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
             val isNonNull = definition.type is NonNullType
-            val isOptional = this.genericType.getRawClass(genericParameterType) == Optional::class.java
-
-            val typeReference = object : TypeReference<Any>() {
-                override fun getType() = genericParameterType
-            }
+            val isOptional = this.genericType.getRawClass(parameterType) == Optional::class.java
 
             args.add { environment ->
-                val value = environment.arguments[definition.name] ?: if (isNonNull) {
+                val argumentPresent = environment.arguments.containsKey(definition.name)
+                if (!argumentPresent && isNonNull) {
                     throw ResolverError("Missing required argument with name '${definition.name}', this is most likely a bug with graphql-java-tools")
-                } else {
-                    null
                 }
+
+                val value = environment.arguments[definition.name]
 
                 if (value == null && isOptional) {
                     if (options.inputArgumentOptionalDetectOmission && !environment.containsArgument(definition.name)) {
@@ -89,12 +83,14 @@ internal class MethodFieldResolver(
                 }
 
                 if (value != null
-                    && genericParameterType.unwrap().isAssignableFrom(value.javaClass)
-                    && isScalarType(environment, definition.type, genericParameterType)) {
+                    && parameterType.unwrap().isAssignableFrom(value.javaClass)
+                    && isScalarType(environment, definition.type, parameterType)) {
                     return@add value
                 }
 
-                return@add mapper.convertValue(value, typeReference)
+                return@add mapper.convertValue(value, object : TypeReference<Any>() {
+                    override fun getType() = parameterType
+                })
             }
         }
 
@@ -140,7 +136,7 @@ internal class MethodFieldResolver(
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getJavaMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
 
@@ -154,12 +150,12 @@ internal class MethodFieldResolver(
 
     private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
 
-    private fun getJavaMethodParameterType(index: Int): JavaType? {
+    private fun getMethodParameterType(index: Int): JavaType? {
         val methodIndex = getJavaMethodParameterIndex(index)
         val parameters = method.parameterTypes
 
         return if (parameters.size > methodIndex) {
-            method.genericParameterTypes[getJavaMethodParameterIndex(index)]
+            method.genericParameterTypes[methodIndex]
         } else {
             null
         }
@@ -255,4 +251,3 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
 }
 
 internal typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
-
