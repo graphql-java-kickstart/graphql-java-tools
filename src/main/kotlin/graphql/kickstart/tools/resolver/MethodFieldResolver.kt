@@ -78,7 +78,8 @@ internal class MethodFieldResolver(
                         return Optional.of("hi")
                     }
                 }
-            )
+            ).associateBy { it.forType() }
+
 
             args.add { environment ->
                 val argumentPresent = environment.arguments.containsKey(definition.name)
@@ -86,8 +87,7 @@ internal class MethodFieldResolver(
                     throw ResolverError("Missing required argument with name '${definition.name}', this is most likely a bug with graphql-java-tools")
                 }
 
-                val provider = argumentProvidersMap.get(parameterType)
-
+                val provider = argumentProviders.get(parameterType)
                 if (provider != null) {
                     return@add provider.provide(definition, environment, mapper)
                 } else {
@@ -266,7 +266,7 @@ private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any
 internal typealias ArgumentPlaceholder = (DataFetchingEnvironment) -> Any?
 
 interface ArgumentProvider<T> {
-    fun forType() :Class<T>
+    fun forType(): Class<T>
 
     fun provide(definition: InputValueDefinition, environment: DataFetchingEnvironment, mapper: ObjectMapper): T
 }
