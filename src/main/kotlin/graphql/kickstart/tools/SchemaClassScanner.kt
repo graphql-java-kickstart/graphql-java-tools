@@ -253,35 +253,15 @@ internal class SchemaClassScanner(
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
-            //            val searchField = applyDirective(field)
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
 
             fieldResolver.scanForMatches().forEach { potentialMatch ->
-                //                if (potentialMatch.graphQLType is TypeName && !definitionsByName.containsKey((potentialMatch.graphQLType.name))) {
-//                    val typeDefinition = ObjectTypeDefinition.newObjectTypeDefinition()
-//                            .name(potentialMatch.graphQLType.name)
-//                            .build()
-//                    handleFoundType(TypeClassMatcher.ValidMatch(typeDefinition, typeClassMatcher.toRealType(potentialMatch), potentialMatch.reference))
-//                } else {
                 handleFoundType(typeClassMatcher.match(potentialMatch))
-//                }
             }
         }
     }
-
-//    private fun applyDirective(field: FieldDefinition): FieldDefinition {
-//        val connectionDirectives = field.directives.filter { it.name == "connection" }
-//        if (connectionDirectives.isNotEmpty()) {
-//            val directive = connectionDirectives.first()
-//            val originalType:TypeName = field.type as TypeName
-//            val wrappedField = field.deepCopy()
-//            wrappedField.type = TypeName(originalType.name + "Connection")
-//            return wrappedField
-//        }
-//        return field
-//    }
 
     private fun handleFoundType(match: TypeClassMatcher.Match) {
         when (match) {
