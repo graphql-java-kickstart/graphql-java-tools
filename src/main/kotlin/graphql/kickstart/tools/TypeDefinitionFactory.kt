@@ -12,5 +12,5 @@ interface TypeDefinitionFactory {
      *
      * @return any new definitions that should be added
      */
-    fun create(existing: List<Definition<*>>): List<Definition<*>>
+    fun create(existing: MutableList<Definition<*>>): List<Definition<*>>
 }
