@@ -1,11 +1,10 @@
 package graphql.kickstart.tools
 
 import graphql.language.Definition
-import graphql.language.Document
-import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.schema.idl.TypeDefinitionRegistry
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import kotlin.reflect.KClass
@@ -147,30 +146,18 @@ class SchemaParserBuilder {
      * Scan for classes with the supplied schema and dictionary.  Used for testing.
      */
     private fun scan(): ScannedSchemaObjects {
-        val definitions = appendDynamicDefinitions(parseDefinitions())
+        val typeDefinitionRegistry = parseSchema()
+//        val definitions = appendDynamicDefinitions(baseDefinitions) TODO
         val customScalars = scalars.associateBy { it.name }
 
-        return SchemaClassScanner(dictionary.getDictionary(), definitions, resolvers, customScalars, options)
-            .scanForClasses()
+        return SchemaClassScanner(typeDefinitionRegistry, dictionary.getDictionary(), resolvers, customScalars, options).scanForClasses()
     }
 
-    private fun parseDefinitions() = parseDocuments().flatMap { it.definitions }
-
-    private fun appendDynamicDefinitions(baseDefinitions: List<Definition<*>>): List<Definition<*>> {
-        val definitions = baseDefinitions.toMutableList()
-        options.typeDefinitionFactories.forEach { definitions.addAll(it.create(definitions)) }
-        return definitions.toList()
-    }
-
-    private fun parseDocuments(): List<Document> {
-        val parser = Parser()
-        val documents = mutableListOf<Document>()
-        try {
-            files.forEach { documents.add(parser.parseDocument(readFile(it), it)) }
-
-            if (schemaString.isNotEmpty()) {
-                documents.add(parser.parseDocument(schemaString.toString()))
-            }
+    private fun parseSchema(): TypeDefinitionRegistry {
+        val parser = graphql.schema.idl.SchemaParser()
+        return try {
+            val schemaStrings = files.joinToString("\n") { readFile(it) } + schemaString
+            parser.parse(schemaStrings)
         } catch (pce: ParseCancellationException) {
             val cause = pce.cause
             if (cause != null && cause is RecognitionException) {
@@ -179,14 +166,13 @@ class SchemaParserBuilder {
                 throw pce
             }
         }
-        return documents
     }
 
     private fun readFile(filename: String): String {
         return java.io.BufferedReader(java.io.InputStreamReader(
             object : Any() {}.javaClass.classLoader.getResourceAsStream(filename)
                 ?: throw java.io.FileNotFoundException("classpath:$filename")
-        )).readText()
+        )).use { it.readText() }
     }
 
     /**

@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.language.SchemaDefinition
 import graphql.language.TypeName
+import graphql.schema.idl.TypeDefinitionRegistry
 
 /**
  * @author Andrew Potter
@@ -16,10 +17,11 @@ internal class RootTypeInfo private constructor(
         const val DEFAULT_MUTATION_NAME = "Mutation"
         const val DEFAULT_SUBSCRIPTION_NAME = "Subscription"
 
-        fun fromSchemaDefinitions(definitions: List<SchemaDefinition>): RootTypeInfo {
-            val queryType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "query" }?.typeName
-            val mutationType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "mutation" }?.typeName
-            val subscriptionType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "subscription" }?.typeName
+        fun fromSchemaDefinitions(typeDefinitionRegistry: TypeDefinitionRegistry): RootTypeInfo {
+            val schemaDefinition: SchemaDefinition? = typeDefinitionRegistry.schemaDefinition().orElse(null)
+            val queryType = schemaDefinition?.operationTypeDefinitions?.find { it.name == "query" }?.typeName
+            val mutationType = schemaDefinition?.operationTypeDefinitions?.find { it.name == "mutation" }?.typeName
+            val subscriptionType = schemaDefinition?.operationTypeDefinitions?.find { it.name == "subscription" }?.typeName
 
             return RootTypeInfo(queryType, mutationType, subscriptionType)
         }

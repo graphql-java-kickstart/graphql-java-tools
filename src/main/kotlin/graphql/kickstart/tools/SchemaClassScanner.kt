@@ -6,6 +6,7 @@ import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
+import graphql.schema.idl.TypeDefinitionRegistry
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 
@@ -13,8 +14,8 @@ import java.lang.reflect.Method
  * @author Andrew Potter
  */
 internal class SchemaClassScanner(
+    typeDefinitionRegistry: TypeDefinitionRegistry,
     initialDictionary: BiMap<String, Class<*>>,
-    allDefinitions: List<Definition<*>>,
     resolvers: List<GraphQLResolver<*>>,
     private val scalars: CustomScalarMap,
     private val options: SchemaParserOptions
@@ -23,27 +24,27 @@ internal class SchemaClassScanner(
         val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
     }
 
-    private val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
+    private val rootInfo = RootTypeInfo.fromSchemaDefinitions(typeDefinitionRegistry)
 
     private val queryResolvers = resolvers.filterIsInstance<GraphQLQueryResolver>()
     private val mutationResolvers = resolvers.filterIsInstance<GraphQLMutationResolver>()
     private val subscriptionResolvers = resolvers.filterIsInstance<GraphQLSubscriptionResolver>()
 
-    private val resolverInfos = resolvers.asSequence().minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }.toList()
-    private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
+    private val resolverInfos = (resolvers - queryResolvers - mutationResolvers - subscriptionResolvers).map { NormalResolverInfo(it, options) }
+    private val resolverInfosByDataClass = resolverInfos.associateBy { it.dataClassType }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
-    private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
-    private val inputExtensionDefinitions = allDefinitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
 
-    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions - inputExtensionDefinitions).associateBy { it.name }
-    private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
-    private val directiveDefinitions = allDefinitions.filterIsInstance<DirectiveDefinition>().toSet()
-    private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
-    private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
+    private val typeDefinitions = typeDefinitionRegistry.types().values
+    private val objectTypeExtensionDefinitions = typeDefinitionRegistry.objectTypeExtensions().values.flatten()
+    private val inputObjectTypeExtensionDefinitions = typeDefinitionRegistry.inputObjectTypeExtensions().values.flatten()
+    private val baseTypeDefinitionsByName = (typeDefinitions - objectTypeExtensionDefinitions - inputObjectTypeExtensionDefinitions).associateBy { it.name }
+    private val objectTypeDefinitions = typeDefinitions.filterIsInstance<ObjectTypeDefinition>() - objectTypeExtensionDefinitions
+    private val objectTypeDefinitionsByName = objectTypeDefinitions.associateBy { it.name }
+    private val interfaceDefinitionsByName = typeDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
     private val fieldResolverScanner = FieldResolverScanner(options)
-    private val typeClassMatcher = TypeClassMatcher(definitionsByName)
+    private val typeClassMatcher = TypeClassMatcher(baseTypeDefinitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
     private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
     private val queue = linkedSetOf<QueueItem>()
@@ -52,7 +53,7 @@ internal class SchemaClassScanner(
 
     init {
         initialDictionary.forEach { (name, clazz) ->
-            if (!definitionsByName.containsKey(name)) {
+            if (!baseTypeDefinitionsByName.containsKey(name)) {
                 throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
             }
         }
@@ -68,7 +69,7 @@ internal class SchemaClassScanner(
     fun scanForClasses(): ScannedSchemaObjects {
 
         // Figure out what query, mutation and subscription types are called
-        val rootTypeHolder = RootTypesHolder(options, rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
+        val rootTypeHolder = RootTypesHolder(options, rootInfo, baseTypeDefinitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
 
         handleRootType(rootTypeHolder.query)
         handleRootType(rootTypeHolder.mutation)
@@ -162,7 +163,7 @@ internal class SchemaClassScanner(
                     .build()
             }.associateBy { it.name!! }
 
-        val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
+        val unusedDefinitions = (baseTypeDefinitionsByName.values - observedDefinitions).toSet()
         unusedDefinitions
             .filter { definition -> definition.name != "PageInfo" }
             .forEach { definition ->
@@ -181,7 +182,7 @@ internal class SchemaClassScanner(
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions + inputExtensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        return ScannedSchemaObjects(dictionary, observedDefinitions + objectTypeExtensionDefinitions + inputObjectTypeExtensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -199,7 +200,7 @@ internal class SchemaClassScanner(
 
     private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
-            objectDefinitions.filter { obj -> obj.implements.filterIsInstance<TypeName>().any { it.name == iface.name } }
+            objectTypeDefinitions.filter { obj -> obj.implements.filterIsInstance<TypeName>().any { it.name == iface.name } }
         }.flatten().distinctBy { it.name }
     }
 
@@ -207,7 +208,7 @@ internal class SchemaClassScanner(
         val unionTypeNames = dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union -> union.name }.toSet()
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
             union.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
-                objectDefinitionsByName[it.name]
+                objectTypeDefinitionsByName[it.name]
                     ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union")
             }
         }.flatten().distinct()
@@ -253,7 +254,7 @@ internal class SchemaClassScanner(
     }
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
-        type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
+        type.getExtendedFieldDefinitions(objectTypeExtensionDefinitions).forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
