@@ -40,23 +40,23 @@ class DirectiveTest {
             .build()
     }
 
-    class QueryResolver : GraphQLQueryResolver {
+    private class QueryResolver : GraphQLQueryResolver {
         fun books(): List<Book> {
             return listOf(Book(42L, "Test Book"))
         }
     }
 
-    data class Book(
+    private data class Book(
         val id: Long,
         val name: String
     )
 
-    enum class AllowedState {
+    private enum class AllowedState {
         ALLOWED,
         DISALLOWED
     }
 
-    class AllowedDirective : SchemaDirectiveWiring {
+    private class AllowedDirective : SchemaDirectiveWiring {
         override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
             val field = environment.element
 
