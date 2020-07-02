@@ -5,7 +5,7 @@ import graphql.language.*
 
 class RelayConnectionFactory : TypeDefinitionFactory {
 
-    override fun create(existing: List<Definition<*>>): List<Definition<*>> {
+    override fun create(existing: MutableList<Definition<*>>): List<Definition<*>> {
         val definitions = mutableListOf<Definition<*>>()
         val definitionsByName = existing.filterIsInstance<TypeDefinition<*>>()
             .associateBy { it.name }
