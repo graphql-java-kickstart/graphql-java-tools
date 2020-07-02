@@ -38,7 +38,6 @@ internal class SchemaClassScanner(
 
     private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions - inputExtensionDefinitions).associateBy { it.name }
     private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
-    private val directiveDefinitions = allDefinitions.filterIsInstance<DirectiveDefinition>().toSet()
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
