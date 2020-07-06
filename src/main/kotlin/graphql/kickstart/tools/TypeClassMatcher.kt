@@ -80,7 +80,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
             }
 
             is TypeName -> {
-                val typeDefinition = ScalarInfo.STANDARD_SCALAR_DEFINITIONS[graphQLType.name]
+                val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[graphQLType.name]
                     ?: definitionsByName[graphQLType.name]
                     ?: throw error(potentialMatch, "No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
                 if (typeDefinition is ScalarTypeDefinition) {

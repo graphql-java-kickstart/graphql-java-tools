@@ -147,7 +147,7 @@ internal class SchemaClassScanner(
         val scalars = scalarDefinitions
             .filter {
                 // Filter for any defined scalars OR scalars that aren't defined but also aren't standard
-                scalars.containsKey(it.name) || !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name)
+                scalars.containsKey(it.name) || !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(it.name)
             }.map { definition ->
                 val provided = scalars[definition.name]
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
@@ -322,7 +322,7 @@ internal class SchemaClassScanner(
             is InputObjectTypeDefinition -> {
                 graphQLType.inputValueDefinitions.forEach { inputValueDefinition ->
                     val inputGraphQLType = inputValueDefinition.type.unwrap()
-                    if (inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                    if (inputGraphQLType is TypeName && !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
                         val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
                         if (inputValueJavaType != null) {
                             handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
