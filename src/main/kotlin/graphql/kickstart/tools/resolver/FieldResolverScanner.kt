@@ -40,6 +40,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
                 // discard any methods that are coming off the root of the class hierarchy
                 // to avoid issues with duplicate method declarations
                 .filter { it.declaringClass != Object::class.java }
+                .sortedBy { it.returnType.isInterface }
                 .toList()
     }
 
