@@ -1,5 +1,5 @@
 package graphql.kickstart.tools
 
 interface BaseDevice {
-    val meta: BaseMeta?
+    BaseMeta getMeta();
 }
