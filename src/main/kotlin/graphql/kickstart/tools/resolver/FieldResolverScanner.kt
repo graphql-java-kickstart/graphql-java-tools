@@ -25,23 +25,21 @@ import kotlin.reflect.jvm.kotlinFunction
  */
 internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
+    private val log = LoggerFactory.getLogger(javaClass)
+
     private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, options.contextClass)
 
-    companion object {
-        private val log = LoggerFactory.getLogger(FieldResolverScanner::class.java)
-
-        fun getAllMethods(type: JavaType) =
-            (type.unwrap().declaredNonProxyMethods.toList()
-                + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
-                + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
-                .asSequence()
-                .filter { !it.isSynthetic }
-                .filter { !Modifier.isPrivate(it.modifiers) }
-                // discard any methods that are coming off the root of the class hierarchy
-                // to avoid issues with duplicate method declarations
-                .filter { it.declaringClass != Object::class.java }
-                .toList()
-    }
+    fun getAllMethods(type: JavaType) =
+        (type.unwrap().declaredNonProxyMethods.toList()
+            + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
+            + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
+            .asSequence()
+            .filter { !it.isSynthetic }
+            .filter { !Modifier.isPrivate(it.modifiers) }
+            // discard any methods that are coming off the root of the class hierarchy
+            // to avoid issues with duplicate method declarations
+            .filter { it.declaringClass != Object::class.java }
+            .toList()
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
         val searches = resolverInfo.getFieldSearches()

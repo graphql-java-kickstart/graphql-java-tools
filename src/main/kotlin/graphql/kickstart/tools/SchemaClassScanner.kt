@@ -19,9 +19,7 @@ internal class SchemaClassScanner(
     private val scalars: CustomScalarMap,
     private val options: SchemaParserOptions
 ) {
-    companion object {
-        val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
-    }
+    private val log = LoggerFactory.getLogger(javaClass)
 
     private val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
 
@@ -153,9 +151,7 @@ internal class SchemaClassScanner(
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
                 GraphQLScalarType.newScalar()
                     .name(provided.name)
-                    .description(
-                        if (definition.description != null) definition.description.content
-                        else SchemaParser.getDocumentation(definition) ?: provided.description)
+                    .description(definition.description?.content ?: getDocumentation(definition) ?: provided.description)
                     .coercing(provided.coercing)
                     .definition(definition)
                     .build()

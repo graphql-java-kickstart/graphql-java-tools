@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.Scalars
 import graphql.introspection.Introspection
 import graphql.kickstart.tools.directive.SchemaGeneratorDirectiveHelper
+import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
@@ -24,17 +25,11 @@ class SchemaParser internal constructor(
     private val options: SchemaParserOptions,
     private val runtimeWiring: RuntimeWiring
 ) {
-    companion object {
-        val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
-        const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
+    private val log = LoggerFactory.getLogger(javaClass)
 
+    companion object {
         @JvmStatic
         fun newParser() = SchemaParserBuilder()
-
-        internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.asSequence()
-            ?.filter { !it.content.startsWith("#") }
-            ?.joinToString("\n") { it.content.trimEnd() }
-            ?.trimIndent()
     }
 
     private val dictionary = scanResult.dictionary
@@ -389,7 +384,7 @@ class SchemaParser internal constructor(
             }
             is TypeName -> {
                 val scalarType = customScalars[typeDefinition.name]
-                    ?: graphQLScalars[typeDefinition.name]
+                    ?: GRAPHQL_SCALARS[typeDefinition.name]
                 if (scalarType != null) {
                     scalarType
                 } else {
@@ -416,7 +411,7 @@ class SchemaParser internal constructor(
             }
             is TypeName -> {
                 val scalarType = customScalars[typeDefinition.name]
-                    ?: graphQLScalars[typeDefinition.name]
+                    ?: GRAPHQL_SCALARS[typeDefinition.name]
                 if (scalarType != null) {
                     scalarType
                 } else {
@@ -463,4 +458,6 @@ class SchemaParser internal constructor(
 
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
-val graphQLScalars = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS.associateBy { it.name }
+val GRAPHQL_SCALARS = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS.associateBy { it.name }
+
+const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
