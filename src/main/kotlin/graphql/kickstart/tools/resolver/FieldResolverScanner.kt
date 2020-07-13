@@ -29,18 +29,6 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, options.contextClass)
 
-    fun getAllMethods(type: JavaType) =
-        (type.unwrap().declaredNonProxyMethods.toList()
-            + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
-            + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
-            .asSequence()
-            .filter { !it.isSynthetic }
-            .filter { !Modifier.isPrivate(it.modifiers) }
-            // discard any methods that are coming off the root of the class hierarchy
-            // to avoid issues with duplicate method declarations
-            .filter { it.declaringClass != Object::class.java }
-            .toList()
-
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
         val searches = resolverInfo.getFieldSearches()
 
@@ -52,16 +40,6 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
 
         return found.firstOrNull() ?: missingFieldResolver(field, searches, scanProperties)
-    }
-
-    private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
-        return if (options.allowUnimplementedResolvers) {
-            log.warn("Missing resolver for field: $field")
-
-            MissingFieldResolver(field, options)
-        } else {
-            throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
-        }
     }
 
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
@@ -84,14 +62,20 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return null
     }
 
-    private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
+    private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+        return if (options.allowUnimplementedResolvers) {
+            log.warn("Missing resolver for field: $field")
+
+            MissingFieldResolver(field, options)
+        } else {
+            throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
+        }
+    }
 
     private fun findResolverMethod(field: FieldDefinition, search: Search): java.lang.reflect.Method? {
         val methods = getAllMethods(search.type)
         val argumentCount = field.inputValueDefinitions.size + if (search.requiredFirstParameterType != null) 1 else 0
         val name = field.name
-
-        val isBoolean = isBoolean(field.type)
 
         // Check for the following one by one:
         //   1. Method with exact field name
@@ -101,13 +85,27 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return methods.find {
             it.name == name && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            (isBoolean && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, search)
+            (isBoolean(field.type) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
         }
     }
+
+    private fun getAllMethods(type: JavaType) =
+        (type.unwrap().declaredNonProxyMethods.toList()
+            + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
+            + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
+            .asSequence()
+            .filter { !it.isSynthetic }
+            .filter { !Modifier.isPrivate(it.modifiers) }
+            // discard any methods that are coming off the root of the class hierarchy
+            // to avoid issues with duplicate method declarations
+            .filter { it.declaringClass != Object::class.java }
+            .toList()
+
+    private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
 
     private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
