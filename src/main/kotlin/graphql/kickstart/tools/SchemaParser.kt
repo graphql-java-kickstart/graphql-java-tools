@@ -306,7 +306,6 @@ class SchemaParser internal constructor(
                 val graphQLDirective = GraphQLDirective.newDirective()
                     .name(directive.name)
                     .apply {
-                        // TODO or enforce directive to be declared instead of inferring the type
                         directive.arguments.forEach { arg ->
                             argument(GraphQLArgument.newArgument()
                                 .name(arg.name)
@@ -331,11 +330,36 @@ class SchemaParser internal constructor(
             is StringValue -> return Scalars.GraphQLString
             is IntValue -> return Scalars.GraphQLInt
             is BooleanValue -> return Scalars.GraphQLBoolean
-            is ArrayValue -> {
-                TODO()
-            }
+            is ArrayValue -> return GraphQLList.list(buildDirectiveInputType(getArrayValueWrappedType(value)))
             else -> throw SchemaError("Directive values of type '${value::class.simpleName}' are not supported yet.")
         }
+    }
+
+    private fun getArrayValueWrappedType(value: ArrayValue): Value<*> {
+        // empty array [] is equivalent to [null]
+        if (value.values.isEmpty()) {
+            return NullValue.newNullValue().build()
+        }
+
+        // get rid of null values
+        val nonNullValueList = value.values.filter { v -> v !is NullValue }
+
+        // [null, null, ...] unwrapped is null
+        if (nonNullValueList.isEmpty()) {
+            return NullValue.newNullValue().build()
+        }
+
+        // make sure the array isn't polymorphic
+        val distinctTypes = nonNullValueList
+            .map { it::class.java }
+            .distinct()
+
+        if (distinctTypes.size > 1) {
+            throw SchemaError("Arrays containing multiple types of values are not supported yet.")
+        }
+
+        // peek at first value, value exists and is assured to be non-null
+        return nonNullValueList[0]
     }
 
     private fun buildDefaultValue(value: Value<*>?): Any? {

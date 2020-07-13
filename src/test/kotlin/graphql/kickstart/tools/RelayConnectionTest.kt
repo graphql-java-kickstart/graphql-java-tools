@@ -141,7 +141,7 @@ class RelayConnectionTest {
         })
     }
 
-    class QueryResolver : GraphQLQueryResolver {
+    private class QueryResolver : GraphQLQueryResolver {
         fun users(first: Int?, after: String?, env: DataFetchingEnvironment): Connection<User> {
             return SimpleListConnection(listOf(User(1L, "Luke"))).get(env)
         }
@@ -151,16 +151,16 @@ class RelayConnectionTest {
         }
     }
 
-    data class User(
+    private data class User(
         val id: Long,
         val name: String
     )
 
-    data class AnotherType(
+    private data class AnotherType(
         val echo: String
     )
 
-    class UppercaseDirective : SchemaDirectiveWiring {
+    private class UppercaseDirective : SchemaDirectiveWiring {
 
         override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
             val field = environment.element
