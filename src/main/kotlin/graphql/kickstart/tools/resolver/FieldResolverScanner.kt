@@ -14,6 +14,7 @@ import graphql.schema.DataFetchingEnvironment
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Type
 import kotlin.reflect.full.valueParameters
@@ -93,10 +94,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
     }
 
-    private fun getAllMethods(type: JavaType) =
-        (type.unwrap().declaredNonProxyMethods.toList()
-            + ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
-            + ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() })
+    private fun getAllMethods(type: JavaType): List<Method> {
+        val declaredMethods = type.unwrap().declaredNonProxyMethods
+        val superClassesMethods = ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() }
+        val interfacesMethods = ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
+
+        return (declaredMethods + superClassesMethods + interfacesMethods)
             .asSequence()
             .filter { !it.isSynthetic }
             .filter { !Modifier.isPrivate(it.modifiers) }
@@ -104,6 +107,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             // to avoid issues with duplicate method declarations
             .filter { it.declaringClass != Object::class.java }
             .toList()
+    }
 
     private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
 

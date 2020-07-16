@@ -75,6 +75,18 @@ class FieldResolverScannerSpec extends Specification {
         users instanceof MethodFieldResolver
     }
 
+    def "scanner prefers concrete resolver"() {
+        setup:
+        def resolver = new DataClassResolverInfo(Kayak.class)
+
+        when:
+        def meta = scanner.findFieldResolver(new FieldDefinition("information", new TypeName("VehicleInformation")), resolver)
+
+        then:
+        meta instanceof MethodFieldResolver
+        ((MethodFieldResolver) meta).getMethod().getReturnType() == BoatInformation.class
+    }
+
     class RootQuery1 implements GraphQLQueryResolver {
         def field1() {}
     }
@@ -95,11 +107,17 @@ class FieldResolverScannerSpec extends Specification {
         private String name = "name"
     }
 
-    class User {
-
-    }
+    class User {}
 
     class GenericQuery implements GraphQLQueryResolver {
         Connection<User> getUsers() {}
     }
+
+    abstract class Boat implements Vehicle {
+        BoatInformation getInformation() { return this.information; }
+    }
+
+    class BoatInformation implements VehicleInformation {}
+
+    class Kayak extends Boat {}
 }
