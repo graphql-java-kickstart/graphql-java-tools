@@ -2,7 +2,7 @@
 
 [![TravisCI Build](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools)
-[![Chat on Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://graphqljavakickstart.slack.com)
+[![Chat on Slack](https://img.shields.io/badge/slack-join%20chat-informational)](https://graphqljavakickstart.slack.com)
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
 Inspired by [graphql-tools](https://github.com/apollographql/graphql-tools), it parses the given GraphQL schema and allows you to BYOO (bring your own object) to fill in the implementations.
