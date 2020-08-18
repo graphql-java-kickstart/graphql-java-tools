@@ -55,7 +55,7 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 <dependency>
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>6.0.2</version>
+    <version>6.2.0</version>
 </dependency>
 ```
 ```groovy
