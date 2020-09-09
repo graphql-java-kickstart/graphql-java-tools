@@ -266,10 +266,10 @@ class SchemaParserSpec extends Specification {
         when:
         GraphQLSchema schema = SchemaParser.newParser()
                 .schemaString('''\
-                type Query {
-                    id: ID!
-                }
-                '''.stripIndent())
+                    |type Query {
+                    |    id: ID!
+                    |}
+                '''.stripMargin())
                 .resolvers(new QueryWithIdResolver())
                 .build()
                 .makeExecutableSchema()
