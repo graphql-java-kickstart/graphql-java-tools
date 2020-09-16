@@ -392,7 +392,12 @@ class SchemaParser internal constructor(
                         throw SchemaError("Expected type '${typeDefinition.name}' to be a ${expectedType.simpleName}, but it wasn't!  " +
                             "Was a type only permitted for object types incorrectly used as an input type, or vice-versa?")
                     }
-                    GraphQLTypeReference(typeDefinition.name)
+                    val found = inputObjects.filter { it.name == typeDefinition.name }
+                    if (found.size == 1) {
+                        found[0]
+                    } else {
+                        GraphQLTypeReference(typeDefinition.name)
+                    }
                 }
             }
             else -> throw SchemaError("Unknown type: $typeDefinition")

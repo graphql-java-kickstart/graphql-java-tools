@@ -2,7 +2,13 @@ package graphql.kickstart.tools
 
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.language.SourceLocation
+import graphql.schema.GraphQLArgument
+import graphql.schema.GraphQLInputObjectType
+import graphql.schema.GraphQLInputType
+import graphql.schema.GraphQLNonNull
 import graphql.schema.GraphQLSchema
+import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.springframework.aop.framework.ProxyFactory
 import spock.lang.Specification
 
@@ -366,6 +372,45 @@ class SchemaParserSpec extends Specification {
 
         then:
         noExceptionThrown()
+    }
+
+    def "NonNull and nullable arguments returning it's GraphQLInputObjectType "() {
+        when:
+        GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+                    type Query { 
+                        testNonNullable(filter: Filter!): Boolean
+                        testNullable(filter: Filter): Boolean
+                    }
+                    
+                    input Filter {
+                        filter: String
+                    }
+                '''.stripIndent())
+                .resolvers(new GraphQLQueryResolver() {
+                    boolean testNonNullable(Filter filter) { false }
+                    boolean testNullable(Filter filter) { false }
+                })
+                .directiveWiring(new SchemaDirectiveWiring(){
+                        GraphQLArgument onArgument(SchemaDirectiveWiringEnvironment<GraphQLArgument> environment) {
+                            switch (environment.getElement().type.class) {
+                                case GraphQLNonNull:
+                                    assert (environment.getElement().type as graphql.schema.GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
+                            }
+                            return environment.getElement()
+                        }})
+                .build()
+                .makeExecutableSchema()
+
+        then:
+        GraphQLArgument testNonNullableArgument = schema.getObjectType("Query")
+                .getFieldDefinition("testNonNullable")
+                .arguments.first()
+        GraphQLArgument testNullableArgument = schema.getObjectType("Query")
+                .getFieldDefinition("testNullable")
+                .arguments.first()
+        testNonNullableArgument.type.class == graphql.schema.GraphQLNonNull
+        (testNonNullableArgument.type as graphql.schema.GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
+        testNullableArgument.type.class == GraphQLInputObjectType
     }
 
     enum EnumType {
