@@ -70,6 +70,10 @@ internal class SchemaClassScanner(
         handleRootType(rootTypeHolder.query)
         handleRootType(rootTypeHolder.mutation)
         handleRootType(rootTypeHolder.subscription)
+        val federatedExtensionDefinitions = objectDefinitions
+                .filter { definition -> definition.directivesByName.containsKey("extends") }
+
+        handleInterfaceOrUnionSubTypes(federatedExtensionDefinitions) { "Object type '${it.name}' is an extensionType. Please pass a class for type '${it.name}' in the parser's dictionary." }
 
         scanQueue()
 
