@@ -5,7 +5,6 @@ import graphql.kickstart.tools.proxy.*
 import graphql.kickstart.tools.relay.RelayConnectionFactory
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
-import graphql.kickstart.tools.util.coroutineScope
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.visibility.GraphqlFieldVisibility
 import kotlinx.coroutines.Dispatchers
@@ -136,8 +135,8 @@ data class SchemaParserOptions internal constructor(
                     GenericWrapper(CompletableFuture::class, 0),
                     GenericWrapper(CompletionStage::class, 0),
                     GenericWrapper(Publisher::class, 0),
-                    GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel, environment ->
-                        environment.coroutineScope().publish(coroutineContextProvider.provide()) {
+                    GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel, _ ->
+                        publish(coroutineContextProvider.provide()) {
                             try {
                                 for (item in receiveChannel) {
                                     send(item)
