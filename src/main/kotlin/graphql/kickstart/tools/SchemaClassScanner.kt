@@ -84,6 +84,20 @@ internal class SchemaClassScanner(
             handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
         } while (scanQueue())
 
+        if (options.includeUnusedTypes) {
+            do {
+                val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
+                    .filter { definition -> definition.name != "PageInfo" }
+                    .filterIsInstance<ObjectTypeDefinition>().distinct()
+
+                if (unusedDefinitions.isEmpty()) break
+
+                val unusedDefinition = unusedDefinitions.first()
+
+                handleInterfaceOrUnionSubTypes(listOf(unusedDefinition)) { "Object type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
+            } while (scanQueue())
+        }
+
         return validateAndCreateResult(rootTypeHolder)
     }
 
