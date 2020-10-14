@@ -49,6 +49,11 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
         }
     }
 
+internal fun getDocumentation(node: AbstractNode<*>): String? = node.comments?.asSequence()
+    ?.filter { !it.content.startsWith("#") }
+    ?.joinToString("\n") { it.content.trimEnd() }
+    ?.trimIndent()
+
 /**
  * Simple heuristic to check is a method is a trivial data fetcher.
  *

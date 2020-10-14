@@ -169,7 +169,7 @@ class SchemaParserBuilder {
             files.forEach { documents.add(parser.parseDocument(readFile(it), it)) }
 
             if (schemaString.isNotEmpty()) {
-                documents.add(parser.parseDocument(this.schemaString.toString()))
+                documents.add(parser.parseDocument(schemaString.toString()))
             }
         } catch (pce: ParseCancellationException) {
             val cause = pce.cause

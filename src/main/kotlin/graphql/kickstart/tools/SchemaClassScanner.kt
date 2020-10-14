@@ -19,9 +19,7 @@ internal class SchemaClassScanner(
     private val scalars: CustomScalarMap,
     private val options: SchemaParserOptions
 ) {
-    companion object {
-        val log = LoggerFactory.getLogger(SchemaClassScanner::class.java)!!
-    }
+    private val log = LoggerFactory.getLogger(javaClass)
 
     private val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
 
@@ -147,15 +145,13 @@ internal class SchemaClassScanner(
         val scalars = scalarDefinitions
             .filter {
                 // Filter for any defined scalars OR scalars that aren't defined but also aren't standard
-                scalars.containsKey(it.name) || !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(it.name)
+                scalars.containsKey(it.name) || !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(it.name)
             }.map { definition ->
                 val provided = scalars[definition.name]
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
                 GraphQLScalarType.newScalar()
                     .name(provided.name)
-                    .description(
-                        if (definition.description != null) definition.description.content
-                        else SchemaParser.getDocumentation(definition) ?: provided.description)
+                    .description(definition.description?.content ?: getDocumentation(definition) ?: provided.description)
                     .coercing(provided.coercing)
                     .definition(definition)
                     .build()
@@ -322,7 +318,7 @@ internal class SchemaClassScanner(
             is InputObjectTypeDefinition -> {
                 graphQLType.inputValueDefinitions.forEach { inputValueDefinition ->
                     val inputGraphQLType = inputValueDefinition.type.unwrap()
-                    if (inputGraphQLType is TypeName && !ScalarInfo.STANDARD_SCALAR_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                    if (inputGraphQLType is TypeName && !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
                         val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
                         if (inputValueJavaType != null) {
                             handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
