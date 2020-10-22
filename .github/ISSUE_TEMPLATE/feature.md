@@ -1,8 +1,8 @@
 ---
 name: Feature
-about: Suggest an idea
+about: Suggest an idea for a new feature.
 title: ''
-labels: feature
+labels: enhancement
 assignees: ''
 ---
 

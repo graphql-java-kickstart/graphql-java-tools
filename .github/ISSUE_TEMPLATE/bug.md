@@ -1,6 +1,6 @@
 ---
 name: Bug
-about: Report a bug
+about: Have you found and confirmed a bug? Report it here.
 title: ''
 labels: bug
 assignees: ''
