@@ -11,8 +11,7 @@ GraphQL Java Tools works well if you already have domain POJOs that hold your da
 GraphQL Java Tools aims for seamless integration with Java, but works for any JVM language.  Try it with Kotlin!
 
 ## We are looking for contributors!
-
-Are you interested in improving our documentation, improving the codebase, reviewing PRs?
+Are you interested in improving our documentation, working on the codebase, reviewing PRs?
 
 [Reach out to us on Spectrum](https://spectrum.chat/graphql-java-kick/tools) and join the team!
 
