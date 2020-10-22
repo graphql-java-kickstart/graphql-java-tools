@@ -6,6 +6,8 @@ labels: enhancement
 assignees: ''
 ---
 
+<!-- ⚠️ Please ensure you are requesting the feature in the correct repository! -->
+
 __I want to suggest an idea and checked that ...__
 
 - [ ] ... to my best knowledge, my idea wouldn't break something for other users

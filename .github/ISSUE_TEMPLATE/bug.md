@@ -6,6 +6,8 @@ labels: bug
 assignees: ''
 ---
 
+<!-- ⚠️ Please ensure you are reporting the bug in the correct repository! -->
+
 ## Description
 
 <!-- Please provide a brief description of the bug -->
