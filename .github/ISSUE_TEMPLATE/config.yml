@@ -1,5 +1,5 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Question
     url: https://spectrum.chat/graphql-java-kick/tools
-    about: If you have a question ask it on Spectrum. All questions on GitHub will be deleted.
+    about: Anything you are not sure about? Ask the community on Spectrum!
