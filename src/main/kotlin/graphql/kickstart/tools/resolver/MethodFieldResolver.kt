@@ -14,8 +14,6 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLTypeUtil.isScalar
 import kotlinx.coroutines.future.future
 import java.lang.reflect.Method
-import java.lang.reflect.ParameterizedType
-import java.lang.reflect.WildcardType
 import java.util.*
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.reflect.full.valueParameters
@@ -82,15 +80,13 @@ internal class MethodFieldResolver(
                     return@add Optional.empty<Any>()
                 }
 
-                if (value != null
-                    && parameterType.unwrap().isAssignableFrom(value.javaClass)
-                    && isScalarType(environment, definition.type, parameterType)) {
-                    return@add value
+                if (isValueMustBeConvert(value, definition, parameterType, environment)) {
+                    return@add mapper.convertValue(value, object : TypeReference<Any>() {
+                        override fun getType() = parameterType
+                    })
                 }
 
-                return@add mapper.convertValue(value, object : TypeReference<Any>() {
-                    override fun getType() = parameterType
-                })
+                return@add value
             }
         }
 
@@ -110,21 +106,25 @@ internal class MethodFieldResolver(
         }
     }
 
-    private fun isScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
+    private fun isValueMustBeConvert(value: Any?, definition: InputValueDefinition, parameterType: JavaType, environment: DataFetchingEnvironment): Boolean {
+        return value != null
+                && (!parameterType.unwrap().isAssignableFrom(value.javaClass)
+                || !isConcreteScalarType(environment, definition.type, parameterType))
+    }
+
+    /**
+     * A concrete scalar type is a scalar type where values are always coerce to the same Java type.
+     * The ID scalar type is not concrete because values can be coerce to many Java types (eg. String, Long, UUID).
+     * All values of a non concrete scalar type must be convert to the method field type.
+     */
+    private fun isConcreteScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
         when (type) {
             is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
-                && isScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
-            is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && !isJavaLanguageType(genericParameterType) }
-                ?: false
-            is NonNullType -> isScalarType(environment, type.type, genericParameterType)
+                    && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
+            is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && type.name != "ID" }
+                    ?: false
+            is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)
             else -> false
-        }
-
-    private fun isJavaLanguageType(type: JavaType): Boolean =
-        when (type) {
-            is ParameterizedType -> isJavaLanguageType(type.actualTypeArguments[0])
-            is WildcardType -> isJavaLanguageType(type.upperBounds[0])
-            else -> genericType.getRawClass(type).`package`.name == "java.lang"
         }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
