@@ -2,6 +2,6 @@ package graphql.kickstart.tools
 
 import graphql.schema.DataFetchingEnvironment
 
-interface MissingFieldHandler {
+interface MissingFieldResolverHandler {
     fun resolve(env: DataFetchingEnvironment?): Any?
 }

@@ -41,7 +41,7 @@ class MissingFieldResolverTest {
                     fun implementedField(input: Optional<String>) = input.toString()
                 })
                 .options(SchemaParserOptions.newOptions()
-                        .missingFieldHandler(TestMissingFieldHandler())
+                        .missingFieldResolverHandler(TestMissingFieldResolverHandler())
                         .build())
                 .build()
                 .makeExecutableSchema()
@@ -67,7 +67,7 @@ class MissingFieldResolverTest {
         Assert.assertEquals(expected, result.getData())
     }
 
-    class TestMissingFieldHandler: MissingFieldHandler {
+    class TestMissingFieldResolverHandler: MissingFieldResolverHandler {
         override fun resolve(env: DataFetchingEnvironment?): Any? {
             return env?.getArgument("input");
         }

@@ -21,7 +21,7 @@ import kotlin.reflect.KClass
 data class SchemaParserOptions internal constructor(
         val contextClass: Class<*>?,
         val genericWrappers: List<GenericWrapper>,
-        val missingFieldHandler: MissingFieldHandler?,
+        val missingFieldResolverHandler: MissingFieldResolverHandler?,
         val allowUnimplementedResolvers: Boolean,
         val objectMapperProvider: PerFieldObjectMapperProvider,
         val proxyHandlers: List<ProxyHandler>,
@@ -48,7 +48,7 @@ data class SchemaParserOptions internal constructor(
         private var contextClass: Class<*>? = null
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
-        private var missingFieldHandler: MissingFieldHandler? = null
+        private var missingFieldResolverHandler: MissingFieldResolverHandler? = null
         private var allowUnimplementedResolvers = false
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
@@ -79,8 +79,8 @@ data class SchemaParserOptions internal constructor(
             this.useDefaultGenericWrappers = useDefaultGenericWrappers
         }
 
-        fun missingFieldHandler(missingFieldHandler: MissingFieldHandler?) = this.apply {
-            this.missingFieldHandler = missingFieldHandler
+        fun missingFieldResolverHandler(missingFieldResolverHandler: MissingFieldResolverHandler?) = this.apply {
+            this.missingFieldResolverHandler = missingFieldResolverHandler
         }
 
         fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
@@ -160,7 +160,7 @@ data class SchemaParserOptions internal constructor(
             return SchemaParserOptions(
                 contextClass,
                 wrappers,
-                missingFieldHandler,
+                missingFieldResolverHandler,
                 allowUnimplementedResolvers,
                 objectMapperProvider,
                 proxyHandlers,

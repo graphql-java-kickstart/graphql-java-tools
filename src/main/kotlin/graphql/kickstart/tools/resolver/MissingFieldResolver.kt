@@ -14,11 +14,11 @@ internal class MissingFieldResolver(
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
     override fun createDataFetcher(): DataFetcher<*> {
-        val handler = options.missingFieldHandler ?: return NotImplementedMissingFieldDataFetcher()
+        val handler = options.missingFieldResolverHandler ?: return NotImplementedMissingFieldDataFetcher()
         return MissingFieldDataFetcher(handler)
     }
 
-    class MissingFieldDataFetcher(private val handler: MissingFieldHandler): DataFetcher<Any?> {
+    class MissingFieldDataFetcher(private val handler: MissingFieldResolverHandler): DataFetcher<Any?> {
         override fun get(p0: DataFetchingEnvironment?): Any? {
             return handler.resolve(p0)
         }
