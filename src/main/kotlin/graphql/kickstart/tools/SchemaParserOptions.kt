@@ -19,17 +19,18 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
 data class SchemaParserOptions internal constructor(
-    val contextClass: Class<*>?,
-    val genericWrappers: List<GenericWrapper>,
-    val allowUnimplementedResolvers: Boolean,
-    val objectMapperProvider: PerFieldObjectMapperProvider,
-    val proxyHandlers: List<ProxyHandler>,
-    val inputArgumentOptionalDetectOmission: Boolean,
-    val preferGraphQLResolver: Boolean,
-    val introspectionEnabled: Boolean,
-    val coroutineContextProvider: CoroutineContextProvider,
-    val typeDefinitionFactories: List<TypeDefinitionFactory>,
-    val fieldVisibility: GraphqlFieldVisibility?
+        val contextClass: Class<*>?,
+        val genericWrappers: List<GenericWrapper>,
+        val missingFieldHandler: MissingFieldHandler?,
+        val allowUnimplementedResolvers: Boolean,
+        val objectMapperProvider: PerFieldObjectMapperProvider,
+        val proxyHandlers: List<ProxyHandler>,
+        val inputArgumentOptionalDetectOmission: Boolean,
+        val preferGraphQLResolver: Boolean,
+        val introspectionEnabled: Boolean,
+        val coroutineContextProvider: CoroutineContextProvider,
+        val typeDefinitionFactories: List<TypeDefinitionFactory>,
+        val fieldVisibility: GraphqlFieldVisibility?
 ) {
     companion object {
         @JvmStatic
@@ -47,6 +48,7 @@ data class SchemaParserOptions internal constructor(
         private var contextClass: Class<*>? = null
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
+        private var missingFieldHandler: MissingFieldHandler? = null
         private var allowUnimplementedResolvers = false
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
@@ -75,6 +77,10 @@ data class SchemaParserOptions internal constructor(
 
         fun useDefaultGenericWrappers(useDefaultGenericWrappers: Boolean) = this.apply {
             this.useDefaultGenericWrappers = useDefaultGenericWrappers
+        }
+
+        fun missingFieldHandler(missingFieldHandler: MissingFieldHandler?) = this.apply {
+            this.missingFieldHandler = missingFieldHandler
         }
 
         fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
@@ -154,6 +160,7 @@ data class SchemaParserOptions internal constructor(
             return SchemaParserOptions(
                 contextClass,
                 wrappers,
+                missingFieldHandler,
                 allowUnimplementedResolvers,
                 objectMapperProvider,
                 proxyHandlers,
