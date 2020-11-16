@@ -1,7 +1,8 @@
 package graphql.kickstart.tools.resolver
 
-import graphql.kickstart.tools.*
+import graphql.kickstart.tools.MissingFieldResolverHandler
 import graphql.kickstart.tools.MissingResolverInfo
+import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
