@@ -20,13 +20,13 @@ internal class MissingFieldResolver(
     }
 
     class MissingFieldDataFetcher(private val handler: MissingFieldResolverHandler) : DataFetcher<Any?> {
-        override fun get(p0: DataFetchingEnvironment?): Any? {
-            return handler.resolve(p0)
+        override fun get(env: DataFetchingEnvironment?): Any? {
+            return handler.resolve(env)
         }
     }
 
     class NotImplementedMissingFieldDataFetcher : DataFetcher<Any?> {
-        override fun get(p0: DataFetchingEnvironment?): Any? {
+        override fun get(env: DataFetchingEnvironment?): Any? {
             TODO("Schema resolver not implemented")
         }
     }
