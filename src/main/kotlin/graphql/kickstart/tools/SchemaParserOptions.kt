@@ -19,18 +19,18 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
 data class SchemaParserOptions internal constructor(
-        val contextClass: Class<*>?,
-        val genericWrappers: List<GenericWrapper>,
-        val missingFieldResolverHandler: MissingFieldResolverHandler?,
-        val allowUnimplementedResolvers: Boolean,
-        val objectMapperProvider: PerFieldObjectMapperProvider,
-        val proxyHandlers: List<ProxyHandler>,
-        val inputArgumentOptionalDetectOmission: Boolean,
-        val preferGraphQLResolver: Boolean,
-        val introspectionEnabled: Boolean,
-        val coroutineContextProvider: CoroutineContextProvider,
-        val typeDefinitionFactories: List<TypeDefinitionFactory>,
-        val fieldVisibility: GraphqlFieldVisibility?
+    val contextClass: Class<*>?,
+    val genericWrappers: List<GenericWrapper>,
+    val missingFieldResolverHandler: MissingFieldResolverHandler?,
+    val allowUnimplementedResolvers: Boolean,
+    val objectMapperProvider: PerFieldObjectMapperProvider,
+    val proxyHandlers: List<ProxyHandler>,
+    val inputArgumentOptionalDetectOmission: Boolean,
+    val preferGraphQLResolver: Boolean,
+    val introspectionEnabled: Boolean,
+    val coroutineContextProvider: CoroutineContextProvider,
+    val typeDefinitionFactories: List<TypeDefinitionFactory>,
+    val fieldVisibility: GraphqlFieldVisibility?
 ) {
     companion object {
         @JvmStatic

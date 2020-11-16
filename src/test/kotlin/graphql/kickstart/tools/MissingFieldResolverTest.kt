@@ -13,61 +13,61 @@ class MissingFieldResolverTest {
     @Test(expected = FieldResolverError::class)
     fun `should throw error`() {
         SchemaParser.newParser()
-                .schemaString("""
+            .schemaString("""
                     type Query {
                         implementedField(input: String): String
                         missingField(input: Int): Int
                     }
                     """
-                )
-                .resolvers(object : GraphQLQueryResolver {
-                    fun implementedField(input: Optional<String>) = input.toString()
-                })
-                .build()
-                .makeExecutableSchema()
+            )
+            .resolvers(object : GraphQLQueryResolver {
+                fun implementedField(input: Optional<String>) = input.toString()
+            })
+            .build()
+            .makeExecutableSchema()
     }
 
     @Test
     fun `should call missing field resolver handler if provided`() {
         val schema = SchemaParser.newParser()
-                .schemaString("""
+            .schemaString("""
                     type Query {
                         implementedField(input: String): String
                         missingField(input: Int): Int
                     }
                     """
-                )
-                .resolvers(object : GraphQLQueryResolver {
-                    fun implementedField(input: Optional<String>) = input.toString()
-                })
-                .options(SchemaParserOptions.newOptions()
-                        .missingFieldResolverHandler(TestMissingFieldResolverHandler())
-                        .build())
-                .build()
-                .makeExecutableSchema()
+            )
+            .resolvers(object : GraphQLQueryResolver {
+                fun implementedField(input: Optional<String>) = input.toString()
+            })
+            .options(SchemaParserOptions.newOptions()
+                .missingFieldResolverHandler(TestMissingFieldResolverHandler())
+                .build())
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
         val result = gql
-                .execute(ExecutionInput.newExecutionInput()
-                        .query("""
+            .execute(ExecutionInput.newExecutionInput()
+                .query("""
                             query {
                                 implementedField(input: "test-value")
                                 missingField(input: 1)
                             }
                             """)
-                        .context(Object())
-                        .root(Object()))
+                .context(Object())
+                .root(Object()))
 
         val expected = mapOf(
-                "implementedField" to "Optional[test-value]",
-                "missingField" to 1
+            "implementedField" to "Optional[test-value]",
+            "missingField" to 1
         )
 
         Assert.assertEquals(expected, result.getData())
     }
 
-    class TestMissingFieldResolverHandler: MissingFieldResolverHandler {
+    class TestMissingFieldResolverHandler : MissingFieldResolverHandler {
         override fun resolve(env: DataFetchingEnvironment?): Any? {
             return env?.getArgument("input");
         }

@@ -8,8 +8,8 @@ import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 
 internal class MissingFieldResolver(
-        field: FieldDefinition,
-        options: SchemaParserOptions
+    field: FieldDefinition,
+    options: SchemaParserOptions
 ) : FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options, Any::class.java) {
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
@@ -18,13 +18,13 @@ internal class MissingFieldResolver(
         return MissingFieldDataFetcher(handler)
     }
 
-    class MissingFieldDataFetcher(private val handler: MissingFieldResolverHandler): DataFetcher<Any?> {
+    class MissingFieldDataFetcher(private val handler: MissingFieldResolverHandler) : DataFetcher<Any?> {
         override fun get(p0: DataFetchingEnvironment?): Any? {
             return handler.resolve(p0)
         }
     }
 
-    class NotImplementedMissingFieldDataFetcher: DataFetcher<Any?> {
+    class NotImplementedMissingFieldDataFetcher : DataFetcher<Any?> {
         override fun get(p0: DataFetchingEnvironment?): Any? {
             TODO("Schema resolver not implemented")
         }
