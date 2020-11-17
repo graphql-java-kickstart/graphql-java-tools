@@ -84,13 +84,16 @@ internal class SchemaClassScanner(
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
         } while (scanQueue())
 
+        // Find unused types and include them if required
         if (options.includeUnusedTypes) {
             do {
                 val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
                     .filter { definition -> definition.name != "PageInfo" }
                     .filterIsInstance<ObjectTypeDefinition>().distinct()
 
-                if (unusedDefinitions.isEmpty()) break
+                if (unusedDefinitions.isEmpty()) {
+                    break
+                }
 
                 val unusedDefinition = unusedDefinitions.first()
 

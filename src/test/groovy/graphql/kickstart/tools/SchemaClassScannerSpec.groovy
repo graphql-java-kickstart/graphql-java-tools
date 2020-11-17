@@ -1,10 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.language.InputObjectTypeDefinition
-import graphql.language.InputObjectTypeExtensionDefinition
-import graphql.language.InterfaceTypeDefinition
-import graphql.language.ObjectTypeDefinition
-import graphql.language.ScalarTypeDefinition
+import graphql.language.*
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
 import spock.lang.Specification
@@ -424,7 +420,8 @@ class SchemaClassScannerSpec extends Specification {
                         name: String
                     }
                     
-                    #these directives are defined in the Apollo Federation Specification: https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
+                    # these directives are defined in the Apollo Federation Specification: 
+                    # https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
                     type User @key(fields: "id") @extends {
                         id: ID! @external
                         recentPurchasedProducts: [Product]
