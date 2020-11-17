@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>6.2.1-SNAPSHOT</version>
+    <version>6.2.1-SNAPSHOT-unused-type</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>

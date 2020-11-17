@@ -80,7 +80,7 @@ internal class MethodFieldResolver(
                     return@add Optional.empty<Any>()
                 }
 
-                if (isValueMustBeConvert(value, definition, parameterType, environment)) {
+                if (value != null && shouldValueBeConverted(value, definition, parameterType, environment)) {
                     return@add mapper.convertValue(value, object : TypeReference<Any>() {
                         override fun getType() = parameterType
                     })
@@ -106,26 +106,25 @@ internal class MethodFieldResolver(
         }
     }
 
-    private fun isValueMustBeConvert(value: Any?, definition: InputValueDefinition, parameterType: JavaType, environment: DataFetchingEnvironment): Boolean {
-        return value != null
-                && (!parameterType.unwrap().isAssignableFrom(value.javaClass)
-                || !isConcreteScalarType(environment, definition.type, parameterType))
+    private fun shouldValueBeConverted(value: Any, definition: InputValueDefinition, parameterType: JavaType, environment: DataFetchingEnvironment): Boolean {
+        return !parameterType.unwrap().isAssignableFrom(value.javaClass) || !isConcreteScalarType(environment, definition.type, parameterType)
     }
 
     /**
-     * A concrete scalar type is a scalar type where values are always coerce to the same Java type.
-     * The ID scalar type is not concrete because values can be coerce to many Java types (eg. String, Long, UUID).
-     * All values of a non concrete scalar type must be convert to the method field type.
+     * A concrete scalar type is a scalar type where values always coerce to the same Java type. The ID scalar type is not concrete
+     * because values can be coerced to multiple different Java types (eg. String, Long, UUID). All values of a non-concrete scalar
+     * type must be converted to the target method parameter type.
      */
-    private fun isConcreteScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean =
-        when (type) {
+    private fun isConcreteScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean {
+        return when (type) {
             is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
-                    && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
+                && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
             is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && type.name != "ID" }
-                    ?: false
+                ?: false
             is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)
             else -> false
         }
+    }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
         val unwrappedGenericType = genericType.unwrapGenericType(try {
