@@ -173,8 +173,7 @@ class SchemaParser internal constructor(
         return output.toTypedArray()
     }
 
-    private fun createInputObject(definition: InputObjectTypeDefinition, inputObjects: List<GraphQLInputObjectType>,
-                                  referencingInputObjects: MutableSet<String>): GraphQLInputObjectType {
+    private fun createInputObject(definition: InputObjectTypeDefinition, inputObjects: List<GraphQLInputObjectType>, referencingInputObjects: MutableSet<String>): GraphQLInputObjectType {
         val extensionDefinitions = inputExtensionDefinitions.filter { it.name == definition.name }
 
         val builder = GraphQLInputObjectType.newInputObject()
@@ -352,10 +351,7 @@ class SchemaParser internal constructor(
     private fun determineInputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>, referencingInputObjects: Set<String>) =
         determineInputType(GraphQLInputType::class, typeDefinition, permittedTypesForInputObject, inputObjects, referencingInputObjects) as GraphQLInputType
 
-    private fun <T : Any> determineInputType(expectedType: KClass<T>,
-                                             typeDefinition: Type<*>, allowedTypeReferences: Set<String>,
-                                             inputObjects: List<GraphQLInputObjectType>,
-                                             referencingInputObjects: Set<String>): GraphQLType =
+    private fun <T : Any> determineInputType(expectedType: KClass<T>, typeDefinition: Type<*>, allowedTypeReferences: Set<String>, inputObjects: List<GraphQLInputObjectType>, referencingInputObjects: Set<String>): GraphQLType =
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
             is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
@@ -381,6 +377,7 @@ class SchemaParser internal constructor(
                         if (filteredDefinitions.isNotEmpty()) {
                             val referencingInputObject = referencingInputObjects.find { it == typeDefinition.name }
                             if (referencingInputObject != null) {
+                                // avoid creating another input object if it already exists to prevent infinite recursion
                                 GraphQLTypeReference(referencingInputObject)
                             } else {
                                 val inputObject = createInputObject(filteredDefinitions[0], inputObjects, referencingInputObjects as MutableSet<String>)
