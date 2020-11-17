@@ -9,3 +9,5 @@ interface Vehicle {
 }
 
 interface VehicleInformation {}
+
+interface SomeInterface { String getValue() }
