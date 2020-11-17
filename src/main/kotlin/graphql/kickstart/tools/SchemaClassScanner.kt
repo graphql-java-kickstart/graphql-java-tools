@@ -77,12 +77,29 @@ internal class SchemaClassScanner(
         do {
             do {
                 // Require all implementors of discovered interfaces to be discovered or provided.
-                handleInterfaceOrUnionSubTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
+                handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
             } while (scanQueue())
 
             // Require all members of discovered unions to be discovered.
-            handleInterfaceOrUnionSubTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
+            handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
         } while (scanQueue())
+
+        // Find unused types and include them if required
+        if (options.includeUnusedTypes) {
+            do {
+                val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
+                    .filter { definition -> definition.name != "PageInfo" }
+                    .filterIsInstance<ObjectTypeDefinition>().distinct()
+
+                if (unusedDefinitions.isEmpty()) {
+                    break
+                }
+
+                val unusedDefinition = unusedDefinitions.first()
+
+                handleDictionaryTypes(listOf(unusedDefinition)) { "Object type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
+            } while (scanQueue())
+        }
 
         return validateAndCreateResult(rootTypeHolder)
     }
@@ -208,7 +225,7 @@ internal class SchemaClassScanner(
         }.flatten().distinct()
     }
 
-    private fun handleInterfaceOrUnionSubTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
+    private fun handleDictionaryTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
