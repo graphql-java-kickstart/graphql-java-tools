@@ -1,6 +1,5 @@
 package graphql.kickstart.tools.resolver
 
-import graphql.kickstart.tools.MissingFieldResolverHandler
 import graphql.kickstart.tools.MissingResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.TypeClassMatcher
@@ -15,14 +14,7 @@ internal class MissingFieldResolver(
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
     override fun createDataFetcher(): DataFetcher<*> {
-        val handler = options.missingFieldResolverHandler ?: return NotImplementedMissingFieldDataFetcher()
-        return MissingFieldDataFetcher(handler)
-    }
-
-    class MissingFieldDataFetcher(private val handler: MissingFieldResolverHandler) : DataFetcher<Any?> {
-        override fun get(env: DataFetchingEnvironment?): Any? {
-            return handler.resolve(env)
-        }
+        return options.missingResolverDataFetcher ?: return NotImplementedMissingFieldDataFetcher()
     }
 
     class NotImplementedMissingFieldDataFetcher : DataFetcher<Any?> {

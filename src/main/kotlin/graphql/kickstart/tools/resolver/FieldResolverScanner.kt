@@ -64,7 +64,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
-        return if (options.allowUnimplementedResolvers || options.missingFieldResolverHandler != null) {
+        return if (options.allowUnimplementedResolvers || options.missingResolverDataFetcher != null) {
             if (options.allowUnimplementedResolvers) {
                 log.warn("Missing resolver for field: $field")
             }

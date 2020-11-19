@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.ExecutionInput
 import graphql.GraphQL
 import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import org.junit.Assert
 import org.junit.Test
@@ -28,7 +29,7 @@ class MissingFieldResolverTest {
     }
 
     @Test
-    fun `should call missing field resolver handler if provided`() {
+    fun `should call missing resolver data fetcher if provided`() {
         val schema = SchemaParser.newParser()
             .schemaString("""
                     type Query {
@@ -41,7 +42,7 @@ class MissingFieldResolverTest {
                 fun implementedField(input: Optional<String>) = input.toString()
             })
             .options(SchemaParserOptions.newOptions()
-                .missingFieldResolverHandler(TestMissingFieldResolverHandler())
+                .missingResolverDataFetcher(TestMissingResolverDataFetcher())
                 .build())
             .build()
             .makeExecutableSchema()
@@ -67,9 +68,9 @@ class MissingFieldResolverTest {
         Assert.assertEquals(expected, result.getData())
     }
 
-    class TestMissingFieldResolverHandler : MissingFieldResolverHandler {
-        override fun resolve(env: DataFetchingEnvironment?): Any? {
-            return env?.getArgument("input");
+    class TestMissingResolverDataFetcher : DataFetcher<Any?> {
+        override fun get(env: DataFetchingEnvironment?): Any? {
+            return env?.getArgument("input")
         }
     }
 }
