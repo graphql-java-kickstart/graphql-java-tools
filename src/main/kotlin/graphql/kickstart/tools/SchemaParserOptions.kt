@@ -32,7 +32,8 @@ data class SchemaParserOptions internal constructor(
     val coroutineContextProvider: CoroutineContextProvider,
     val typeDefinitionFactories: List<TypeDefinitionFactory>,
     val fieldVisibility: GraphqlFieldVisibility?,
-    val includeUnusedTypes: Boolean
+    val includeUnusedTypes: Boolean,
+    val commentsAsFallbackDescription: Boolean
 ) {
     companion object {
         @JvmStatic
@@ -61,6 +62,7 @@ data class SchemaParserOptions internal constructor(
         private var typeDefinitionFactories: MutableList<TypeDefinitionFactory> = mutableListOf(RelayConnectionFactory())
         private var fieldVisibility: GraphqlFieldVisibility? = null
         private var includeUnusedTypes = false
+        private var commentsAsFallbackDescription = true
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -138,6 +140,10 @@ data class SchemaParserOptions internal constructor(
             this.includeUnusedTypes = includeUnusedTypes
         }
 
+        fun commentsAsFallbackDescription(commentsAsFallbackDescription: Boolean) = this.apply {
+            this.commentsAsFallbackDescription = commentsAsFallbackDescription
+        }
+
         @ExperimentalCoroutinesApi
         fun build(): SchemaParserOptions {
             val coroutineContextProvider = coroutineContextProvider
@@ -177,7 +183,8 @@ data class SchemaParserOptions internal constructor(
                 coroutineContextProvider,
                 typeDefinitionFactories,
                 fieldVisibility,
-                includeUnusedTypes
+                includeUnusedTypes,
+                commentsAsFallbackDescription
             )
         }
     }
