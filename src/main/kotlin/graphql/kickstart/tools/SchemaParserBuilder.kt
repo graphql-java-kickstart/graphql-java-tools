@@ -2,12 +2,11 @@ package graphql.kickstart.tools
 
 import graphql.language.Definition
 import graphql.language.Document
+import graphql.parser.InvalidSyntaxException
 import graphql.parser.Parser
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
-import org.antlr.v4.runtime.RecognitionException
-import org.antlr.v4.runtime.misc.ParseCancellationException
 import kotlin.reflect.KClass
 
 /**
@@ -171,13 +170,8 @@ class SchemaParserBuilder {
             if (schemaString.isNotEmpty()) {
                 documents.add(parser.parseDocument(schemaString.toString()))
             }
-        } catch (pce: ParseCancellationException) {
-            val cause = pce.cause
-            if (cause != null && cause is RecognitionException) {
-                throw InvalidSchemaError(pce, cause)
-            } else {
-                throw pce
-            }
+        } catch (ise: InvalidSyntaxException) {
+            throw InvalidSchemaError(ise)
         }
         return documents
     }
@@ -195,7 +189,7 @@ class SchemaParserBuilder {
     fun build() = SchemaParser(scan(), options, runtimeWiringBuilder.build())
 }
 
-class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException) : RuntimeException(pce) {
+class InvalidSchemaError(val ise: InvalidSyntaxException) : RuntimeException(ise) {
     override val message: String?
-        get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
+        get() = "Invalid schema provided (${ise.javaClass.name}) at: ${ise.offendingToken}"
 }
