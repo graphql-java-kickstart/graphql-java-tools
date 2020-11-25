@@ -310,8 +310,8 @@ class SchemaParser internal constructor(
                     }
                     .build()
 
-
-                output.add(schemaGeneratorHelper.buildDirective(directive, setOf(graphQLDirective), directiveLocation, runtimeWiring.comparatorRegistry))
+                // schemaGeneratorHelper.buildDirective is no longer public and is marked as package-private.
+                output.add(schemaGeneratorHelper.buildDirective(null, directive, setOf(graphQLDirective), directiveLocation, runtimeWiring.comparatorRegistry))
             }
         }
 
