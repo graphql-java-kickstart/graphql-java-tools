@@ -18,6 +18,8 @@ class RelayConnectionTest {
 
     @Test
     fun `should compile relay schema when not using @connection directive`() {
+        // Note: in addition to testing that a relay schema compiles without the @connection directive,
+        //       this test also verifies that a custom @uppercase directive works as expected
         val schema = SchemaParser.newParser().schemaString("""
               directive @uppercase on FIELD_DEFINITION
   
@@ -40,7 +42,9 @@ class RelayConnectionTest {
                 name: String @uppercase
               }
       
-              type PageInfo
+              type PageInfo {
+                hasNextPage: Boolean
+              }
       
               type AnotherTypeConnection {
                 edges: [AnotherTypeEdge!]!
