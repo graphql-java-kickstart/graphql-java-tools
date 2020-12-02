@@ -10,7 +10,7 @@ import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.idl.SchemaGeneratorHelper
+import graphql.schema.idl.SchemaGeneratorHelperExt
 import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
@@ -58,7 +58,7 @@ class SchemaParser internal constructor(
 
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
 
-    private val schemaGeneratorHelper = SchemaGeneratorHelper()
+    private val schemaGeneratorHelper = SchemaGeneratorHelperExt()
     private val schemaGeneratorDirectiveHelper = SchemaGeneratorDirectiveHelper()
     private val schemaDirectiveParameters = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
 
@@ -311,7 +311,7 @@ class SchemaParser internal constructor(
                     .build()
 
 
-                output.add(schemaGeneratorHelper.buildDirective(directive, setOf(graphQLDirective), directiveLocation, runtimeWiring.comparatorRegistry))
+                output.add(schemaGeneratorHelper.buildDirective(directive, graphQLDirective, directiveLocation, runtimeWiring.comparatorRegistry))
             }
         }
 
