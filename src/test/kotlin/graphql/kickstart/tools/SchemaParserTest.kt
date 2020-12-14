@@ -575,7 +575,7 @@ class SchemaParserTest {
                 }
                 """)
             .resolvers(object : GraphQLQueryResolver {})
-            .options(SchemaParserOptions.newOptions().commentsAsFallbackDescription(false).allowUnimplementedResolvers(true).build())
+            .options(SchemaParserOptions.newOptions().useCommentsForDescriptions(false).allowUnimplementedResolvers(true).build())
             .build()
             .makeExecutableSchema()
 
