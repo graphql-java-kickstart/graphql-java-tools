@@ -177,7 +177,7 @@ class SchemaParser internal constructor(
                     .description(if (inputDefinition.description != null) inputDefinition.description.content else getDocumentation(inputDefinition))
                     .defaultValue(buildDefaultValue(inputDefinition.defaultValue))
                     .type(determineInputType(inputDefinition.type, inputObjects, referencingInputObjects))
-                    .withDirectives(*buildDirectives(inputDefinition.directives, setOf(), Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
+                    .withDirectives(*buildDirectives(inputDefinition.directives, Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
                 builder.field(fieldBuilder.build())
             }
         }
