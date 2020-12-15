@@ -4,7 +4,6 @@ import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.language.SourceLocation
 import graphql.schema.GraphQLArgument
 import graphql.schema.GraphQLInputObjectType
-import graphql.schema.GraphQLInputType
 import graphql.schema.GraphQLNonNull
 import graphql.schema.GraphQLSchema
 import graphql.schema.idl.SchemaDirectiveWiring
@@ -394,7 +393,7 @@ class SchemaParserSpec extends Specification {
                         GraphQLArgument onArgument(SchemaDirectiveWiringEnvironment<GraphQLArgument> environment) {
                             switch (environment.getElement().type.class) {
                                 case GraphQLNonNull:
-                                    assert (environment.getElement().type as graphql.schema.GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
+                                    assert (environment.getElement().type as GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
                             }
                             return environment.getElement()
                         }})
@@ -408,8 +407,8 @@ class SchemaParserSpec extends Specification {
         GraphQLArgument testNullableArgument = schema.getObjectType("Query")
                 .getFieldDefinition("testNullable")
                 .arguments.first()
-        testNonNullableArgument.type.class == graphql.schema.GraphQLNonNull
-        (testNonNullableArgument.type as graphql.schema.GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
+        testNonNullableArgument.type.class == GraphQLNonNull
+        (testNonNullableArgument.type as GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
         testNullableArgument.type.class == GraphQLInputObjectType
     }
 
