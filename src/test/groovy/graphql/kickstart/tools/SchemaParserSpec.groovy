@@ -373,7 +373,7 @@ class SchemaParserSpec extends Specification {
         noExceptionThrown()
     }
 
-    def "NonNull and nullable arguments returning it's GraphQLInputObjectType "() {
+    def "NonNull and nullable input arguments should resolve to GraphQLInputObjectType"() {
         when:
         GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
                     type Query { 
