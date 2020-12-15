@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question
+    url: https://spectrum.chat/graphql-java-kick
+    about: Anything you are not sure about? Ask the community on Spectrum!

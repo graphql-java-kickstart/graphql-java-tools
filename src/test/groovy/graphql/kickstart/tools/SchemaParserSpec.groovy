@@ -271,10 +271,10 @@ class SchemaParserSpec extends Specification {
         when:
         GraphQLSchema schema = SchemaParser.newParser()
                 .schemaString('''\
-                                type Query {
-                                    id: ID!
-                                }
-                            '''.stripIndent())
+                    |type Query {
+                    |    id: ID!
+                    |}
+                '''.stripMargin())
                 .resolvers(new QueryWithIdResolver())
                 .build()
                 .makeExecutableSchema()
@@ -410,6 +410,50 @@ class SchemaParserSpec extends Specification {
         testNonNullableArgument.type.class == GraphQLNonNull
         (testNonNullableArgument.type as GraphQLNonNull).wrappedType.class == GraphQLInputObjectType
         testNullableArgument.type.class == GraphQLInputObjectType
+    }
+  
+    def "allow circular relations in input objects"() {
+        when:
+        SchemaParser.newParser().schemaString('''\
+            input A {
+                id: ID!
+                b: B
+            }
+            input B {
+                id: ID!
+                a: A
+            }
+            input C {
+                id: ID!
+                c: C
+            }
+            type Query {}
+            type Mutation {
+                test(input: A!): Boolean
+                testC(input: C!): Boolean
+            }
+            '''.stripIndent())
+        .resolvers(new GraphQLMutationResolver() {
+            static class A {
+                String id;
+                B b;
+            }
+            static class B {
+                String id;
+                A a;
+            }
+            static class C {
+                String id;
+                C c;
+            }
+            boolean test(A a) { return true }
+            boolean testC(C c) { return true }
+        }, new GraphQLQueryResolver() {})
+        .build()
+        .makeExecutableSchema()
+
+        then:
+        noExceptionThrown()
     }
 
     enum EnumType {

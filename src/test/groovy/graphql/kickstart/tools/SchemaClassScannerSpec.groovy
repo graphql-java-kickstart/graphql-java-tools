@@ -1,10 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.language.InputObjectTypeDefinition
-import graphql.language.InputObjectTypeExtensionDefinition
-import graphql.language.InterfaceTypeDefinition
-import graphql.language.ObjectTypeDefinition
-import graphql.language.ScalarTypeDefinition
+import graphql.language.*
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
 import spock.lang.Specification
@@ -407,6 +403,110 @@ class SchemaClassScannerSpec extends Specification {
 
         class ComplexType {
             String id
+        }
+    }
+
+    def "scanner should handle unused types when option is true"() {
+        when:
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString(''' 
+                    # Let's say this is the Products service from Apollo Federation Introduction
+
+                    type Query {
+                        allProducts: [Product]
+                    }
+                    
+                    type Product {
+                        name: String
+                    }
+                    
+                    # these directives are defined in the Apollo Federation Specification: 
+                    # https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
+                    type User @key(fields: "id") @extends {
+                        id: ID! @external
+                        recentPurchasedProducts: [Product]
+                        address: Address
+                    }
+                    
+                    type Address {
+                        street: String
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    List<Product> allProducts() { null }
+                })
+                .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+                .dictionary(User)
+                .scan()
+
+        then:
+        objects.definitions.find { it.name == "User" } != null
+        objects.definitions.find { it.name == "Address" } != null
+    }
+
+    class Product {
+        String name
+    }
+
+    class User {
+        String id
+        List<Product> recentPurchasedProducts
+        Address address
+    }
+
+    class Address {
+        String street
+    }
+
+    def "scanner should handle unused types with interfaces when option is true"() {
+        when:
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString('''
+                    type Query {
+                        whatever: Whatever
+                    }
+
+                    type Whatever {
+                        value: String
+                    }
+
+                    type Unused {
+                        someInterface: SomeInterface
+                    }
+
+                    interface SomeInterface {
+                        value: String
+                    }
+
+                    type Implementation implements SomeInterface {
+                        value: String
+                    }
+                ''')
+                .resolvers(new GraphQLQueryResolver() {
+                    Whatever whatever() { null }
+                })
+                .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+                .dictionary(Unused, Implementation)
+                .scan()
+
+        then:
+        objects.definitions.find { it.name == "Unused" } != null
+        objects.definitions.find { it.name == "SomeInterface" } != null
+        objects.definitions.find { it.name == "Implementation" } != null
+    }
+
+    class Whatever {
+        String value
+    }
+
+    class Unused {
+        SomeInterface someInterface
+    }
+
+    class Implementation implements SomeInterface {
+        @Override
+        String getValue() {
+            return null
         }
     }
 }
