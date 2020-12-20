@@ -12,7 +12,9 @@ import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import org.apache.commons.lang3.ClassUtils
+import org.apache.commons.lang3.StringUtils
 import org.apache.commons.lang3.reflect.FieldUtils
+import org.apache.commons.lang3.text.WordUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -83,6 +85,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         //   2. Method that returns a boolean with "is" style getter
         //   3. Method with "get" style getter
         //   4. Method with "getField" style getter
+        //   5. Method with "get" style getter with the field name converted from snake_case to camelCased. ex: key_ops -> getKeyOps()
         return methods.find {
             it.name == name && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
@@ -91,6 +94,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+        } ?: methods.find {
+            it.name == "get${StringUtils.remove(WordUtils.capitalizeFully(name, '_'), "_")}" && verifyMethodArguments(it, argumentCount, search)
         }
     }
 
