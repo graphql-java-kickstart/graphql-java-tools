@@ -110,6 +110,7 @@ input ComplexInputTypeTwo {
 type Mutation {
     addItem(newItem: NewItemInput!): Item!
     echoFiles(fileParts: [Upload!]!): [String!]!
+    echoFile(input: FileInput): String
     saveUser(input: UserInput!): String
 }
 
@@ -125,6 +126,11 @@ input UserInput {
 
 extend input UserInput {
     password: String
+}
+
+input FileInput {
+    name: String                        
+    part: Upload                        
 }
 
 input ItemSearchInput {
@@ -370,6 +376,7 @@ class ItemResolver : GraphQLResolver<Item> {
 
 class EchoFilesResolver : GraphQLMutationResolver {
     fun echoFiles(fileParts: List<Part>): List<String> = fileParts.map { String(it.inputStream.readBytes()) }
+    fun echoFile(input: FileInput): String? = input.part?.inputStream?.readBytes()?.let { String(it) }
 }
 
 interface ItemInterface {
@@ -388,6 +395,7 @@ data class NestedComplexMapItem(val item: UndiscoveredItem)
 data class Tag(val id: Int, val name: String)
 data class ItemSearchInput(val name: String)
 data class NewItemInput(val name: String, val type: Type)
+data class FileInput(var name: String = "", var part: Part? = null)
 data class ComplexNullable(val first: String, val second: String, val third: String)
 data class ComplexInputType(val first: String, val second: List<List<ComplexInputTypeTwo>?>?)
 data class ComplexInputTypeTwo(val first: String)

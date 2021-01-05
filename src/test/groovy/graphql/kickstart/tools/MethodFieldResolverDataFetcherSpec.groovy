@@ -228,12 +228,25 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
             }
         }
         ExecutionId executionId = ExecutionId.from("executionId123")
+
+        def schema = SchemaParser.newParser()
+                .schemaString("""
+                    type Query { test(input: InputClass): Boolean }
+                    input InputClass {
+                        name: String
+                    }
+                """)
+                .resolvers(new Query())
+                .build()
+                .makeExecutableSchema()
+
         ExecutionContextBuilder.newExecutionContextBuilder()
                 .instrumentation(SimpleInstrumentation.INSTANCE)
                 .executionId(executionId)
                 .queryStrategy(executionStrategy)
                 .mutationStrategy(executionStrategy)
                 .subscriptionStrategy(executionStrategy)
+                .graphQLSchema(schema)
                 .build()
     }
 
@@ -250,5 +263,11 @@ class MethodFieldResolverDataFetcherSpec extends Specification {
     }
 
     class ContextClass {
+    }
+
+    static class Query implements GraphQLQueryResolver {
+        static boolean test(InputClass input) {
+            return input != null
+        }
     }
 }

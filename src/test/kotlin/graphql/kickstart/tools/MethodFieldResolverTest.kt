@@ -22,6 +22,7 @@ class MethodFieldResolverTest {
                         testValue(input: String): String
                         testOmitted(input: String): String
                         testNull(input: String): String
+                        testList(input: [String]): String
                     }
                     """
             )
@@ -30,6 +31,7 @@ class MethodFieldResolverTest {
                 fun testValue(input: Optional<String>) = input.toString()
                 fun testOmitted(input: Optional<String>) = input.toString()
                 fun testNull(input: Optional<String>) = input.toString()
+                fun testList(input: Optional<List<String>>) = input.toString()
             })
             .build()
             .makeExecutableSchema()
@@ -38,11 +40,13 @@ class MethodFieldResolverTest {
 
         val result = gql
             .execute(ExecutionInput.newExecutionInput()
-                .query("""
+                .query(
+                    """
                             query {
                                 testValue(input: "test-value")
                                 testOmitted
                                 testNull(input: null)
+                                testList(input: ["list", "value"])
                             }
                             """)
                 .context(Object())
@@ -51,7 +55,8 @@ class MethodFieldResolverTest {
         val expected = mapOf(
             "testValue" to "Optional[test-value]",
             "testOmitted" to "Optional.empty",
-            "testNull" to "Optional.empty"
+            "testNull" to "Optional.empty",
+            "testList" to "Optional[[list, value]]"
         )
 
         Assert.assertEquals(expected, result.getData())

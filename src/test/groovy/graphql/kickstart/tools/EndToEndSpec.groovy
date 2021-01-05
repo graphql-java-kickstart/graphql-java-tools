@@ -203,6 +203,20 @@ class EndToEndSpec extends Specification {
         (data["echoFiles"] as ArrayList<String>).join(",") == "Hello,World"
     }
 
+    def "generated schema should handle input types with scalar fields"() {
+        when:
+        def part = new MockPart("test.doc", "Hello")
+        def input = [name: "filename", part: part]
+        def args = ["input": input]
+        def data = Utils.assertNoGraphQlErrors(gql, args) {
+            '''
+              mutation ($input: FileInput) { echoFile(input: $input)}
+            '''
+        }
+        then:
+        (data["echoFile"] as String) == "Hello"
+    }
+
     def "generated schema should handle any java.util.Map (using HashMap) types as property maps"() {
         when:
         def data = Utils.assertNoGraphQlErrors(gql) {
