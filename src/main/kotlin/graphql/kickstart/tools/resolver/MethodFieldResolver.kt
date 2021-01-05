@@ -216,11 +216,11 @@ internal class MethodFieldResolver(
 
     private fun parseIdInput(value: Any?, javaType: JavaType) = when {
         value !is String // if value was already coerced
-                || String::class.isAssignableFrom(javaType) -> value
+            || String::class.isAssignableFrom(javaType) -> value
         Int::class.isAssignableFrom(javaType)
-                || Integer::class.isAssignableFrom(javaType) -> Integer.parseInt(value)
+            || Integer::class.isAssignableFrom(javaType) -> Integer.parseInt(value)
         Long::class.isAssignableFrom(javaType)
-                || java.lang.Long::class.isAssignableFrom(javaType) -> java.lang.Long.parseLong(value)
+            || java.lang.Long::class.isAssignableFrom(javaType) -> java.lang.Long.parseLong(value)
         UUID::class.isAssignableFrom(javaType) -> UUID.fromString(value)
         else -> value
     }
