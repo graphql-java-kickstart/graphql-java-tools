@@ -244,19 +244,12 @@ internal class MethodFieldResolver(
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val unwrappedGenericType = genericType.unwrapGenericType(
-            try {
-                method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
-            } catch (e: InternalError) {
-                method.genericReturnType
-            }
-        )
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(
-            field.type,
-            unwrappedGenericType,
-            genericType,
-            SchemaClassScanner.ReturnValueReference(method)
-        )
+        val unwrappedGenericType = genericType.unwrapGenericType(try {
+            method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
+        } catch (e: InternalError) {
+            method.genericReturnType
+        })
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
             TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
