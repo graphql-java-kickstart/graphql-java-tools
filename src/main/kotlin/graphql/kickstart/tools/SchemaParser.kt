@@ -363,8 +363,8 @@ class SchemaParser internal constructor(
     private fun buildDefaultValue(value: Value<*>?): Any? {
         return when (value) {
             null -> null
-            is IntValue -> value.value
-            is FloatValue -> value.value
+            is IntValue -> value.value.toInt()
+            is FloatValue -> value.value.toDouble()
             is StringValue -> value.value
             is EnumValue -> value.name
             is BooleanValue -> value.isValue
