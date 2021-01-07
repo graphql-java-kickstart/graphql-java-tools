@@ -383,7 +383,7 @@ class SchemaParserSpec extends Specification {
                 id: ID!
                 c: C
             }
-            type Query {}
+            type Query { test: Boolean }
             type Mutation {
                 test(input: A!): Boolean
                 testC(input: C!): Boolean
@@ -394,17 +394,23 @@ class SchemaParserSpec extends Specification {
                 String id;
                 B b;
             }
+
             static class B {
                 String id;
                 A a;
             }
+
             static class C {
                 String id;
                 C c;
             }
+
             boolean test(A a) { return true }
+
             boolean testC(C c) { return true }
-        }, new GraphQLQueryResolver() {})
+        }, new GraphQLQueryResolver() {
+            boolean test() { false }
+        })
         .build()
         .makeExecutableSchema()
 
