@@ -4,10 +4,7 @@ import graphql.Scalars
 import graphql.kickstart.tools.ResolverInfo
 import graphql.kickstart.tools.RootResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
-import graphql.kickstart.tools.util.GraphQLLangType
-import graphql.kickstart.tools.util.JavaType
-import graphql.kickstart.tools.util.declaredNonProxyMethods
-import graphql.kickstart.tools.util.unwrap
+import graphql.kickstart.tools.util.*
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
@@ -83,6 +80,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         //   2. Method that returns a boolean with "is" style getter
         //   3. Method with "get" style getter
         //   4. Method with "getField" style getter
+        //   5. Method with "get" style getter with the field name converted from snake_case to camelCased. ex: key_ops -> getKeyOps()
         return methods.find {
             it.name == name && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
@@ -91,6 +89,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+        } ?: methods.find {
+            it.name == "get${name.snakeToCamelCase()}" && verifyMethodArguments(it, argumentCount, search)
         }
     }
 
