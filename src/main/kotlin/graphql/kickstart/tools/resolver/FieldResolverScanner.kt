@@ -4,17 +4,12 @@ import graphql.Scalars
 import graphql.kickstart.tools.ResolverInfo
 import graphql.kickstart.tools.RootResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
-import graphql.kickstart.tools.util.GraphQLLangType
-import graphql.kickstart.tools.util.JavaType
-import graphql.kickstart.tools.util.declaredNonProxyMethods
-import graphql.kickstart.tools.util.unwrap
+import graphql.kickstart.tools.util.*
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import org.apache.commons.lang3.ClassUtils
-import org.apache.commons.lang3.StringUtils
 import org.apache.commons.lang3.reflect.FieldUtils
-import org.apache.commons.lang3.text.WordUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -95,7 +90,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         } ?: methods.find {
             it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            it.name == "get${StringUtils.remove(WordUtils.capitalizeFully(name, '_'), "_")}" && verifyMethodArguments(it, argumentCount, search)
+            it.name == "get${name.snakeToCamelCase()}" && verifyMethodArguments(it, argumentCount, search)
         }
     }
 
