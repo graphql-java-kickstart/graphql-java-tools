@@ -122,7 +122,12 @@ class MethodFieldResolverDataFetcherTest {
         arguments: List<InputValueDefinition> = emptyList(),
         options: SchemaParserOptions = SchemaParserOptions.defaultOptions()
     ): DataFetcher<*> {
-        val field = FieldDefinition(methodName, TypeName("Boolean")).apply { inputValueDefinitions.addAll(arguments) }
+        val field = FieldDefinition.newFieldDefinition()
+                .name(methodName)
+                .type(TypeName("Boolean"))
+                .inputValueDefinitions(arguments)
+                .build()
+
         val resolverInfo = if (resolver is GraphQLQueryResolver) {
             RootResolverInfo(listOf(resolver), options)
         } else {

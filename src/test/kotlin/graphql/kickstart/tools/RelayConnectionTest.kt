@@ -4,23 +4,16 @@ import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
-import graphql.schema.DataFetcherFactories
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLFieldDefinition
-import graphql.schema.idl.SchemaDirectiveWiring
-import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import groovy.lang.Closure
 import org.junit.Assert
 import org.junit.Test
-import java.util.function.BiFunction
 
 class RelayConnectionTest {
 
     @Test
     fun `should compile relay schema when not using @connection directive`() {
         val schema = SchemaParser.newParser().schemaString("""
-              directive @uppercase on FIELD_DEFINITION
-  
               type Query {
                 users(first: Int, after: String): UserConnection
                 otherTypes: AnotherTypeConnection
@@ -37,10 +30,12 @@ class RelayConnectionTest {
               
               type User {
                 id: ID!
-                name: String @uppercase
+                name: String
               }
       
-              type PageInfo
+              type PageInfo {
+                hasNextPage: Boolean
+              }
       
               type AnotherTypeConnection {
                 edges: [AnotherTypeEdge!]!
@@ -55,7 +50,6 @@ class RelayConnectionTest {
               }
             """)
             .resolvers(QueryResolver())
-            .directive("uppercase", UppercaseDirective())
             .build()
             .makeExecutableSchema()
 
@@ -87,7 +81,7 @@ class RelayConnectionTest {
             "users" to mapOf(
                 "edges" to listOf(
                     mapOf("node" to
-                        mapOf("id" to "1", "name" to "LUKE")
+                        mapOf("id" to "1", "name" to "Luke")
                     )
                 )
             ),
@@ -159,21 +153,4 @@ class RelayConnectionTest {
     private data class AnotherType(
         val echo: String
     )
-
-    private class UppercaseDirective : SchemaDirectiveWiring {
-
-        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
-            val field = environment.element
-            val parentType = environment.fieldsContainer
-
-            val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
-            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher, BiFunction { env, value ->
-                (value as? String)?.toUpperCase()
-            })
-
-            environment.codeRegistry.dataFetcher(parentType, field, wrappedDataFetcher)
-
-            return field
-        }
-    }
 }
