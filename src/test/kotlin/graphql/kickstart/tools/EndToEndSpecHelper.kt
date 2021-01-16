@@ -232,7 +232,7 @@ val thirdItems = listOf(
 )
 
 val propetyHashMapItems = listOf(
-    hashMapOf("name" to "bob", "age" to 55)
+    hashMapOf<String, Any>("name" to "bob", "age" to 55)
 )
 
 val propertyMapMissingNamePropItems = listOf(
