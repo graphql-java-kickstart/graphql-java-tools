@@ -6,12 +6,17 @@ import graphql.language.*
 class RelayConnectionFactory : TypeDefinitionFactory {
 
     override fun create(existing: MutableList<Definition<*>>): List<Definition<*>> {
+        val connectionDirectives = findConnectionDirectives(existing)
+        if (connectionDirectives.isEmpty()) {
+            return emptyList()
+        }
+
         val definitions = mutableListOf<Definition<*>>()
         val definitionsByName = existing.filterIsInstance<TypeDefinition<*>>()
             .associateBy { it.name }
             .toMutableMap()
 
-        findConnectionDirectives(existing)
+        connectionDirectives
             .flatMap { createDefinitions(it) }
             .forEach {
                 if (!definitionsByName.containsKey(it.name)) {
