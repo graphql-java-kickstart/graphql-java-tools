@@ -80,7 +80,7 @@ internal class MethodFieldResolver(
                     return@add Optional.empty<Any>()
                 }
 
-                if (value != null && shouldValueBeConverted(value, definition, parameterType, environment)) {
+                if (value == null || shouldValueBeConverted(value, definition, parameterType, environment)) {
                     return@add mapper.convertValue(value, object : TypeReference<Any>() {
                         override fun getType() = parameterType
                     })

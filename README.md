@@ -2,7 +2,7 @@
 
 [![TravisCI Build](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools)
-[![Chat on Spectrum](https://img.shields.io/badge/spectrum-join%20the%20community-%23800080)](https://spectrum.chat/graphql-java-kick)
+[![Discuss on GitHub](https://img.shields.io/badge/GitHub-discuss-orange)](https://github.com/graphql-java-kickstart/graphql-java-tools/discussions)
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
 Inspired by [graphql-tools](https://github.com/apollographql/graphql-tools), it parses the given GraphQL schema and allows you to BYOO (bring your own object) to fill in the implementations.
@@ -11,9 +11,10 @@ GraphQL Java Tools works well if you already have domain POJOs that hold your da
 GraphQL Java Tools aims for seamless integration with Java, but works for any JVM language.  Try it with Kotlin!
 
 ## We are looking for contributors!
+
 Are you interested in improving our documentation, working on the codebase, reviewing PRs?
 
-[Reach out to us on Spectrum](https://spectrum.chat/graphql-java-kick) and join the team!
+[Reach out to us on GitHub](https://github.com/graphql-java-kickstart/graphql-java-tools/discussions) and join the team!
 
 ## Quick start
 
@@ -25,7 +26,7 @@ kotlin.version=1.3.70
 
 Add the dependency:
 ```groovy
-compile 'com.graphql-java-kickstart:graphql-java-tools:6.2.0'
+compile 'com.graphql-java-kickstart:graphql-java-tools:11.0.0'
 ```
 
 ### Using Maven
@@ -41,7 +42,7 @@ Add the dependency:
 <dependency>
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>6.2.0</version>
+    <version>11.0.0</version>
 </dependency>
 ```
 

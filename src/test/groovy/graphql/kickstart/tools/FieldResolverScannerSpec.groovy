@@ -87,6 +87,18 @@ class FieldResolverScannerSpec extends Specification {
         ((MethodFieldResolver) meta).getMethod().getReturnType() == BoatInformation.class
     }
 
+    def "scanner finds field resolver method using camelCase for snake_cased field_name"() {
+        setup:
+        def resolver = new RootResolverInfo([new CamelCaseQuery1()], options)
+
+        when:
+        def meta = scanner.findFieldResolver(new FieldDefinition("hull_type", new TypeName("HullType")), resolver)
+
+        then:
+        meta instanceof MethodFieldResolver
+        ((MethodFieldResolver) meta).getMethod().getReturnType() == HullType.class
+    }
+
     class RootQuery1 implements GraphQLQueryResolver {
         def field1() {}
     }
@@ -98,6 +110,12 @@ class FieldResolverScannerSpec extends Specification {
     class DuplicateQuery implements GraphQLQueryResolver {
         def field1() {}
     }
+
+    class CamelCaseQuery1 implements GraphQLQueryResolver {
+        HullType getHullType(){}
+    }
+
+    class HullType {}
 
     class ParentPropertyQuery {
         private Integer version = 1
