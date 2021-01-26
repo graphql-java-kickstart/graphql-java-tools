@@ -458,6 +458,41 @@ class SchemaClassScannerSpec extends Specification {
         String street
     }
 
+    def "Interfaces and unions not allowed as types in a union #456" (){
+        when:
+        ScannedSchemaObjects objects = SchemaParser.newParser()
+                .schemaString("""
+                    type Query {
+                        entity: StarWarsEntity
+                    }
+                    
+                    interface Character {
+                        name: String
+                    }
+                    
+                    type Human implements Character {
+                        name: String
+                    }
+                    
+                    type Droid implements Character {
+                        name: String
+                    }
+                    
+                    type Planet {
+                        location: String
+                    }
+                    
+                    union StarWarsEntity = Character | Planet""")
+                .resolvers(new GraphQLQueryResolver() {
+                    StarWarsEntity getEntity() { return null }
+                }).dictionary(Human, Droid, Planet, Character)
+                .scan()
+        then:
+        objects.definitions.find { it.name == "Human" } != null
+        objects.definitions.find { it.name == "Droid" } != null
+        objects.definitions.find { it.name == "StarWarsEntity" } != null
+    }
+
     def "scanner should handle unused types with interfaces when option is true"() {
         when:
         ScannedSchemaObjects objects = SchemaParser.newParser()

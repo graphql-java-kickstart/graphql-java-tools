@@ -38,6 +38,7 @@ internal class SchemaClassScanner(
     private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
+    private val unionDefinitionsByName = allDefinitions.filterIsInstance<UnionTypeDefinition>().associateBy { it.name }
 
     private val fieldResolverScanner = FieldResolverScanner(options)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
@@ -215,17 +216,30 @@ internal class SchemaClassScanner(
         }.flatten().distinctBy { it.name }
     }
 
-    private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
+    private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<TypeDefinition<*>> {
         val unionTypeNames = dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union -> union.name }.toSet()
-        return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
+        val allMembers =  dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
             union.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
-                objectDefinitionsByName[it.name]
-                    ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union")
+                when {
+                    objectDefinitionsByName.containsKey(it.name) -> {
+                        objectDefinitionsByName[it.name]
+                    }
+                    interfaceDefinitionsByName.containsKey(it.name) -> {
+                        interfaceDefinitionsByName[it.name]
+                    }
+                    unionDefinitionsByName.filter { sit -> sit.key != it.name }.containsKey(it.name) -> {
+                        unionDefinitionsByName[it.name]
+                    }
+                    else -> {
+                        throw SchemaClassScannerError("No Any types found with name '${it.name}' for union: $union")
+                    }
+                }
             }
         }.flatten().distinct()
+        return allMembers.filterIsInstance<TypeDefinition<*>>()
     }
 
-    private fun handleDictionaryTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
+    private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
