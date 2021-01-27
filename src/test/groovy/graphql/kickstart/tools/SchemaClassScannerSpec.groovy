@@ -484,7 +484,7 @@ class SchemaClassScannerSpec extends Specification {
                     
                     union StarWarsEntity = Character | Planet""")
                 .resolvers(new GraphQLQueryResolver() {
-                    StarWarsEntity getEntity() { return null }
+                    StarWarsEntity entity() {  null }
                 }).dictionary(Human, Droid, Planet, Character)
                 .scan()
         then:
