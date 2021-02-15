@@ -53,6 +53,55 @@ class NestedInputTypesSpec extends Specification {
         data.materials == []
     }
 
+    def "nested input in extensions are parsed"() {
+        when:
+        GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+                        type Query {
+                            materials(filter: MaterialFilter): [Material!]!
+                        }
+                        
+                        input MaterialFilter {
+                            title: String
+                        }
+                        
+                        extend input MaterialFilter {
+                            requestFilter: RequestFilter
+                        }
+                        
+                        input RequestFilter {
+                            and: [RequestFilter!]
+                            or: [RequestFilter!]
+                            discountTypeFilter: DiscountTypeFilter
+                        }
+                        
+                        input DiscountTypeFilter {
+                            name: String
+                        }
+                        
+                        type Material {
+                            id: ID!
+                        }
+                    ''').resolvers(new QueryResolver())
+                .build()
+                .makeExecutableSchema()
+        GraphQL gql = GraphQL.newGraphQL(schema)
+                .queryExecutionStrategy(new AsyncExecutionStrategy())
+                .build()
+        def data = Utils.assertNoGraphQlErrors(gql, [filter: [title: "title", requestFilter: [discountTypeFilter: [name: "discount"]]]]) {
+            '''
+                query materials($filter: MaterialFilter!) {
+                    materials(filter: $filter) {
+                        id
+                    }
+                }
+                '''
+        }
+
+        then:
+        noExceptionThrown()
+        data.materials == []
+    }
+
     class QueryResolver implements GraphQLQueryResolver {
         List<Material> materials(MaterialFilter filter) { Collections.emptyList() }
     }

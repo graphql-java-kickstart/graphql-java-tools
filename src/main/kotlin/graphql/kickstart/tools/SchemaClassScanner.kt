@@ -333,7 +333,7 @@ internal class SchemaClassScanner(
             }
 
             is InputObjectTypeDefinition -> {
-                graphQLType.inputValueDefinitions.forEach { inputValueDefinition ->
+                (listOf(graphQLType) + inputExtensionDefinitions.filter { it.name == graphQLType.name }).flatMap { it.inputValueDefinitions }.forEach { inputValueDefinition ->
                     val inputGraphQLType = inputValueDefinition.type.unwrap()
                     if (inputGraphQLType is TypeName && !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
                         val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
