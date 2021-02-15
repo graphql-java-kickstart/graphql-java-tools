@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.language.SourceLocation
+import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLSchema
 import org.springframework.aop.framework.ProxyFactory
 import spock.lang.Specification
@@ -416,6 +417,71 @@ class SchemaParserSpec extends Specification {
 
         then:
         noExceptionThrown()
+    }
+
+    def "interface implementing an interface should have non-empty interface list"() {
+        when:
+        GraphQLSchema schema = SchemaParser.newParser().schemaString('''\
+            interface Trait {
+                id: ID!
+            }
+            interface MammalTrait implements Trait {
+                id: ID!
+            }
+            type PoodleTrait implements Trait & MammalTrait {
+                id: ID!
+            }
+            
+            interface Animal {
+                id: ID!
+                traits: [Trait]
+            }
+            interface Dog implements Animal {
+                id: ID!
+                traits: [MammalTrait]
+            }
+            type Poodle implements Animal & Dog {
+                id: ID!
+                traits: [PoodleTrait]
+            }
+            
+            type Query { test: [Poodle] }'''.stripIndent())
+                .resolvers(new GraphQLQueryResolver() {
+                    static abstract class Trait {
+                        String id;
+                    }
+
+                    static abstract class MammalTrait extends Trait {
+                        String id;
+                    }
+
+                    static class PoodleTrait extends MammalTrait {
+                        String id;
+                    }
+
+                    static abstract class Animal {
+                        String id;
+                        abstract List<Trait> traits;
+                    }
+
+                    static abstract class Dog extends Animal {
+                        abstract List<MammalTrait> traits;
+                    }
+
+                    static class Poodle extends Dog {
+                        List<PoodleTrait> traits;
+                    }
+
+                    List<Poodle> test() { return new ArrayList<Poodle>(); }
+                })
+                .build()
+                .makeExecutableSchema()
+        GraphQLInterfaceType traitInterface = schema.getType("MammalTrait") as GraphQLInterfaceType
+        GraphQLInterfaceType dogInterface = schema.getType("Dog") as GraphQLInterfaceType
+
+        then:
+        !traitInterface.interfaces.empty
+        !dogInterface.interfaces.empty
     }
 
     enum EnumType {
