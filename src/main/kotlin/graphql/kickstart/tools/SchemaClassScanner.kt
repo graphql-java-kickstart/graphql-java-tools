@@ -333,26 +333,29 @@ internal class SchemaClassScanner(
             }
 
             is InputObjectTypeDefinition -> {
-                (listOf(graphQLType) + inputExtensionDefinitions.filter { it.name == graphQLType.name }).flatMap { it.inputValueDefinitions }.forEach { inputValueDefinition ->
-                    val inputGraphQLType = inputValueDefinition.type.unwrap()
-                    if (inputGraphQLType is TypeName && !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                        val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
-                        if (inputValueJavaType != null) {
-                            handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
-                                inputValueDefinition.type,
-                                inputValueJavaType,
-                                GenericType(javaType, options).relativeToType(inputValueJavaType),
-                                InputObjectReference(inputValueDefinition)
-                            )))
-                        } else {
-                            var mappingAdvice = "Try adding it manually to the dictionary"
-                            if (javaType.unwrap().name.contains("Map")) {
-                                mappingAdvice = " or add a class to represent your input type instead of a Map."
+                val inputObjectTypes = listOf(graphQLType) + inputExtensionDefinitions.filter { it.name == graphQLType.name }
+                inputObjectTypes
+                    .flatMap { it.inputValueDefinitions }
+                    .forEach { inputValueDefinition ->
+                        val inputGraphQLType = inputValueDefinition.type.unwrap()
+                        if (inputGraphQLType is TypeName && !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                            val inputValueJavaType = findInputValueType(inputValueDefinition.name, inputGraphQLType, javaType.unwrap())
+                            if (inputValueJavaType != null) {
+                                handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
+                                    inputValueDefinition.type,
+                                    inputValueJavaType,
+                                    GenericType(javaType, options).relativeToType(inputValueJavaType),
+                                    InputObjectReference(inputValueDefinition)
+                                )))
+                            } else {
+                                var mappingAdvice = "Try adding it manually to the dictionary"
+                                if (javaType.unwrap().name.contains("Map")) {
+                                    mappingAdvice = " or add a class to represent your input type instead of a Map."
+                                }
+                                log.warn("Cannot find definition for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' on input type '${graphQLType.name}' -> ${javaType.unwrap().name}. $mappingAdvice")
                             }
-                            log.warn("Cannot find definition for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' on input type '${graphQLType.name}' -> ${javaType.unwrap().name}. $mappingAdvice")
                         }
                     }
-                }
             }
         }
     }
