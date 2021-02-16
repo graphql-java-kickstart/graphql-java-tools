@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.language.SourceLocation
 import graphql.schema.GraphQLInterfaceType
+import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLSchema
 import org.springframework.aop.framework.ProxyFactory
 import spock.lang.Specification
@@ -445,7 +446,8 @@ class SchemaParserSpec extends Specification {
                 traits: [PoodleTrait]
             }
             
-            type Query { test: [Poodle] }'''.stripIndent())
+            type Query { test: [Poodle] }
+            '''.stripIndent())
                 .resolvers(new GraphQLQueryResolver() {
                     static abstract class Trait {
                         String id;
@@ -476,12 +478,20 @@ class SchemaParserSpec extends Specification {
                 })
                 .build()
                 .makeExecutableSchema()
-        GraphQLInterfaceType traitInterface = schema.getType("MammalTrait") as GraphQLInterfaceType
+        GraphQLInterfaceType traitInterface = schema.getType("Trait") as GraphQLInterfaceType
+        GraphQLInterfaceType animalInterface = schema.getType("Animal") as GraphQLInterfaceType
+        GraphQLInterfaceType mammalTraitInterface = schema.getType("MammalTrait") as GraphQLInterfaceType
         GraphQLInterfaceType dogInterface = schema.getType("Dog") as GraphQLInterfaceType
+        GraphQLObjectType poodleObject = schema.getType("Poodle") as GraphQLObjectType
+        GraphQLObjectType poodleTraitObject = schema.getType("PoodleTrait") as GraphQLObjectType
 
         then:
-        !traitInterface.interfaces.empty
-        !dogInterface.interfaces.empty
+        poodleObject.interfaces.containsAll([dogInterface, animalInterface])
+        poodleTraitObject.interfaces.containsAll([mammalTraitInterface, traitInterface])
+        dogInterface.interfaces.contains(animalInterface)
+        mammalTraitInterface.interfaces.contains(traitInterface)
+        traitInterface.interfaces.empty
+        animalInterface.interfaces.empty
     }
 
     enum EnumType {
