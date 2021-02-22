@@ -12,7 +12,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ResolverMethodsTest {
-    // Note: don't convert this code to Kotlin or Groovy, since it's quite important that the
+    // Note: don't convert this code to Kotlin, since it's quite important that the
     //       resolver method is defined with an argument of primitive type, like 'boolean', not 'Boolean':
     //         String testOmittedBoolean(boolean value1, Boolean value2)
     @Test

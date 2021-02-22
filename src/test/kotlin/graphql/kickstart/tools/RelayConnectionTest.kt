@@ -5,7 +5,6 @@ import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
-import groovy.lang.Closure
 import org.junit.Assert
 import org.junit.Test
 
@@ -100,19 +99,18 @@ class RelayConnectionTest {
     @Test
     fun `should compile relay schema when using @connection directive`() {
         val schema = SchemaParser.newParser()
-            .file("RelayConnection.graphqls")
-            .resolvers(QueryResolver())
-            .dictionary(User::class.java)
-            .build()
-            .makeExecutableSchema()
+                .file("RelayConnection.graphqls")
+                .resolvers(QueryResolver())
+                .dictionary(User::class.java)
+                .build()
+                .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
+                .queryExecutionStrategy(AsyncExecutionStrategy())
+                .build()
 
-        Utils.assertNoGraphQlErrors(gql, emptyMap(), object : Closure<String>(null) {
-            override fun call(): String {
-                return """
+        assertNoGraphQlErrors(gql) {
+            """
                   query {
                     users {
                       edges {
@@ -130,9 +128,8 @@ class RelayConnectionTest {
                       }
                     }
                   }
-                """
-            }
-        })
+            """
+        }
     }
 
     private class QueryResolver : GraphQLQueryResolver {
