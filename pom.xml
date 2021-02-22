@@ -155,9 +155,9 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.spockframework</groupId>
-            <artifactId>spock-core</artifactId>
-            <version>1.0-groovy-2.4</version>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -209,7 +209,6 @@
                         <configuration>
                             <sources>
                                 <source>src/test/kotlin</source>
-                                <source>src/test/groovy</source>
                             </sources>
                         </configuration>
                     </execution>
@@ -240,23 +239,6 @@
             </plugin>
 
 
-            <!-- Compile Groovy tests -->
-            <plugin>
-                <groupId>org.codehaus.gmavenplus</groupId>
-                <artifactId>gmavenplus-plugin</artifactId>
-                <version>1.5</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>generateStubs</goal>
-                            <goal>testGenerateStubs</goal>
-                            <goal>addTestSources</goal>
-                            <goal>testCompile</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -279,7 +261,6 @@
                 </dependencies>
                 <configuration>
                     <includes>
-                        <include>**/*Spec.*</include>
                         <include>**/*Test.*</include>
                     </includes>
                 </configuration>
