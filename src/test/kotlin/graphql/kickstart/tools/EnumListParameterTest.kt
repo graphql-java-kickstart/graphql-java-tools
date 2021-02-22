@@ -2,15 +2,11 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
-import org.junit.Before
+import graphql.schema.GraphQLSchema
 import org.junit.Test
 
 class EnumListParameterTest {
-    private lateinit var gql: GraphQL
-
-    @Before
-    fun setup() {
-        val schema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
             type Query {
                 countries(regions: [Region!]!): [Country!]!
             }
@@ -26,14 +22,12 @@ class EnumListParameterTest {
                 regions: [Region!]
             }
         """.trimIndent())
-                .resolvers(QueryResolver())
-                .build()
-                .makeExecutableSchema()
-        gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
-
-    }
+            .resolvers(QueryResolver())
+            .build()
+            .makeExecutableSchema()
+    private val gql: GraphQL = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
     @Test
     fun `query with parameter type list of enums should resolve correctly`() {

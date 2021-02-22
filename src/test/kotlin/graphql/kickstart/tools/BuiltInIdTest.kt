@@ -2,17 +2,13 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
-import org.junit.Before
+import graphql.schema.GraphQLSchema
 import org.junit.Test
 import java.util.*
 
 class BuiltInIdTest {
 
-    private lateinit var gql: GraphQL
-
-    @Before
-    fun setup() {
-        val schema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
             type Query {
                 itemByLongId(id: ID!): Item1!
                 itemsByLongIds(ids: [ID!]!): [Item1!]!
@@ -28,14 +24,12 @@ class BuiltInIdTest {
               id: ID!
             }
         """.trimIndent())
-                .resolvers(QueryWithLongItemResolver())
-                .build()
-                .makeExecutableSchema()
-        gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
-
-    }
+            .resolvers(QueryWithLongItemResolver())
+            .build()
+            .makeExecutableSchema()
+    private val gql: GraphQL = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
     @Test
     fun `supports Long as ID as input`() {

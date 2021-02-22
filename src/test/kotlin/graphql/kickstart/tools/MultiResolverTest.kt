@@ -2,16 +2,12 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
-import org.junit.Before
+import graphql.schema.GraphQLSchema
 import org.junit.Test
 
 class MultiResolverTest {
 
-    private lateinit var gql: GraphQL
-
-    @Before
-    fun setup() {
-        val schema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
             type Query {
                 person: Person
             }
@@ -25,14 +21,12 @@ class MultiResolverTest {
                 name: String!
             }
         """.trimIndent())
-                .resolvers(QueryWithPersonResolver(), PersonFriendResolver(), PersonNameResolver())
-                .build()
-                .makeExecutableSchema()
-        gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
-
-    }
+            .resolvers(QueryWithPersonResolver(), PersonFriendResolver(), PersonNameResolver())
+            .build()
+            .makeExecutableSchema()
+    private val gql: GraphQL = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
     @Test
     fun `multiple resolvers for one data class should resolve methods with arguments`() {

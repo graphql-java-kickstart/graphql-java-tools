@@ -4,7 +4,6 @@ import graphql.*
 import graphql.execution.AsyncExecutionStrategy
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLSchema
-import org.junit.Before
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
@@ -16,15 +15,10 @@ import java.util.concurrent.TimeUnit
 
 class EndToEndTest {
 
-    private lateinit var gql: GraphQL
     private val schema: GraphQLSchema = createSchema()
-
-    @Before
-    fun setup() {
-        gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
-    }
+    private val gql: GraphQL = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
     @Test
     fun `schema comments are used as descriptions`() {
