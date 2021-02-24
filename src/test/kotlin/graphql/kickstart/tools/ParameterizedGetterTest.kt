@@ -44,7 +44,7 @@ class ParameterizedGetterTest {
             """
         }
 
-        assert(data["human"] != null)
+        assertNotNull(data["human"])
     }
 
     class QueryResolver : GraphQLQueryResolver {

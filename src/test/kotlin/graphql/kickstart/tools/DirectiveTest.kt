@@ -9,10 +9,8 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
-import org.junit.Assert
 import org.junit.Ignore
 import org.junit.Test
-import java.util.function.BiFunction
 
 class DirectiveTest {
     @Test
@@ -72,7 +70,7 @@ class DirectiveTest {
             )
         )
 
-        Assert.assertEquals(expected, result.getData<Map<String, List<*>>>())
+        assertEquals(result.getData(), expected)
     }
 
     @Test
@@ -140,7 +138,7 @@ class DirectiveTest {
             val parentType = environment.fieldsContainer
 
             val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
-            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher, BiFunction { env, value ->
+            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher, { _, value ->
                 (value as? String)?.toUpperCase()
             })
 

@@ -41,7 +41,7 @@ class EnumDefaultValueTest {
             """
         }
 
-        assert(data["test"] == "createdOn")
+        assertEquals(data["test"], "createdOn")
     }
 
     class MySortSpecifier {

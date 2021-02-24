@@ -67,8 +67,8 @@ class TypeClassMatcherTest {
         fun `matcher verifies that nested return type matches graphql definition for method`() {
             val match = matcher.match(createPotentialMatch(methodName, type))
             match as TypeClassMatcher.ValidMatch
-            assert(match.type == customDefinition)
-            assert(match.javaType == CustomType::class.java)
+            assertEquals(match.type, customDefinition)
+            assertEquals(match.javaType, CustomType::class.java)
         }
 
         companion object {
@@ -141,10 +141,10 @@ class TypeClassMatcherTest {
         fun `matcher allows unwrapped parameterized types as root types`() {
             val match = matcher.match(createPotentialMatch("genericCustomUnwrappedType", unwrappedCustomType))
             match as TypeClassMatcher.ValidMatch
-            assert(match.type == unwrappedCustomDefinition)
+            assertEquals(match.type, unwrappedCustomDefinition)
             val javatype = match.javaType as ParameterizedTypeImpl
-            assert(javatype.rawType == UnwrappedGenericCustomType::class.java)
-            assert(javatype.actualTypeArguments.first() == CustomType::class.java)
+            assertEquals(javatype.rawType, UnwrappedGenericCustomType::class.java)
+            assertEquals(javatype.actualTypeArguments.first(), CustomType::class.java)
         }
     }
 

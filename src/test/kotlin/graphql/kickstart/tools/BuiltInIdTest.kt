@@ -45,8 +45,7 @@ class BuiltInIdTest {
             """
         }
 
-        assert(data["itemByLongId"] != null)
-        assert((data["itemByLongId"] as Map<*, *>)["id"] == "1")
+        assertEquals(data["itemByLongId"], mapOf("id" to "1"))
     }
 
     @Test
@@ -61,9 +60,11 @@ class BuiltInIdTest {
             """
         }
 
-        assert(data["itemsByLongIds"] != null)
-        assert(((data["itemsByLongIds"] as List<*>).size == 3))
-        assert(((data["itemsByLongIds"] as List<*>)[0] as Map<*, *>)["id"] == "1")
+        assertEquals(data["itemsByLongIds"], listOf(
+            mapOf("id" to "1"),
+            mapOf("id" to "2"),
+            mapOf("id" to "3")
+        ))
     }
 
     @Test
@@ -78,8 +79,7 @@ class BuiltInIdTest {
             """
         }
 
-        assert(data["itemByUuidId"] != null)
-        assert((data["itemByUuidId"] as Map<*, *>)["id"] == "00000000-0000-0000-0000-000000000000")
+        assertEquals(data["itemByUuidId"], mapOf("id" to "00000000-0000-0000-0000-000000000000"))
     }
 
     @Test
@@ -94,9 +94,11 @@ class BuiltInIdTest {
             """
         }
 
-        assert(data["itemsByUuidIds"] != null)
-        assert(((data["itemsByUuidIds"] as List<*>).size == 3))
-        assert(((data["itemsByUuidIds"] as List<*>)[0] as Map<*, *>)["id"] == "00000000-0000-0000-0000-000000000000")
+        assertEquals(data["itemsByUuidIds"], listOf(
+            mapOf("id" to "00000000-0000-0000-0000-000000000000"),
+            mapOf("id" to "11111111-1111-1111-1111-111111111111"),
+            mapOf("id" to "22222222-2222-2222-2222-222222222222")
+        ))
     }
 
     class QueryWithLongItemResolver : GraphQLQueryResolver {

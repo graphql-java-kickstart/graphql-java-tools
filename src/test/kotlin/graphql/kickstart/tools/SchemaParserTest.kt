@@ -14,7 +14,7 @@ class SchemaParserTest {
 
     @Rule
     @JvmField
-    var expectedEx = ExpectedException.none()
+    var expectedEx: ExpectedException = ExpectedException.none()
 
     @Before
     fun setup() {
@@ -157,7 +157,7 @@ class SchemaParserTest {
                 }
                 """)
             .resolvers(object : GraphQLQueryResolver {
-                fun one(): CustomGenericWrapper<Integer, Obj>? = null
+                fun one(): CustomGenericWrapper<Int, Obj>? = null
                 fun two(): Obj? = null
             })
             .options(SchemaParserOptions.newOptions().genericWrappers(SchemaParserOptions.GenericWrapper(CustomGenericWrapper::class, 1)).build())
@@ -264,10 +264,10 @@ class SchemaParserTest {
         val sourceLocation = schema.getObjectType("Query")
             .getFieldDefinition("id")
             .definition.sourceLocation
-        assert(sourceLocation != null)
-        assert(sourceLocation.line == 2)
-        assert(sourceLocation.column == 5)
-        assert(sourceLocation.sourceName == null)
+        assertNotNull(sourceLocation)
+        assertEquals(sourceLocation.line, 2)
+        assertEquals(sourceLocation.column, 5)
+        assertNull(sourceLocation.sourceName)
     }
 
     @Test
@@ -281,10 +281,10 @@ class SchemaParserTest {
         val sourceLocation = schema.getObjectType("Query")
             .getFieldDefinition("id")
             .definition.sourceLocation
-        assert(sourceLocation != null)
-        assert(sourceLocation.line == 2)
-        assert(sourceLocation.column == 3)
-        assert(sourceLocation.sourceName == "Test.graphqls")
+        assertNotNull(sourceLocation)
+        assertEquals(sourceLocation.line, 2)
+        assertEquals(sourceLocation.column, 3)
+        assertEquals(sourceLocation.sourceName, "Test.graphqls")
     }
 
     @Test
@@ -309,7 +309,7 @@ class SchemaParserTest {
             .resolvers(object : GraphQLMutationResolver {
                 fun save(input: SaveInput): Boolean = false
                 inner class SaveInput {
-                    var type: EnumType? = null;
+                    var type: EnumType? = null
                 }
             }, object : GraphQLQueryResolver {
                 fun test(): Boolean = false

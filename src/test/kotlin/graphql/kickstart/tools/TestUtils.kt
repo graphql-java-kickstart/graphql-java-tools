@@ -20,3 +20,18 @@ fun assertNoGraphQlErrors(gql: GraphQL, args: Map<String, Any> = mapOf(), contex
     return result.getData() as Map<String, Any>
 }
 
+fun <T> assertEquals(actual: T, expected: T) {
+    assert(actual == expected) { "expected:<$expected> but was:<$actual>" }
+}
+
+fun <T> assertNotEquals(actual: T, unexpected: T) {
+    assert(actual != unexpected) { "Values should be different. Actual: $actual" }
+}
+
+fun <T> assertNull(actual: T) {
+    assertEquals(actual, null)
+}
+
+fun <T> assertNotNull(actual: T) {
+    assert(actual != null)
+}

@@ -45,7 +45,7 @@ class EnumListParameterTest {
             """
         }
 
-        assert((data["countries"] as Collection<*>).isEmpty())
+        assertEquals((data["countries"]), emptyList<Any>())
     }
 
     class QueryResolver : GraphQLQueryResolver {

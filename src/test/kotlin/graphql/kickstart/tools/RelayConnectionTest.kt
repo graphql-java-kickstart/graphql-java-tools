@@ -5,7 +5,6 @@ import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
-import org.junit.Assert
 import org.junit.Test
 
 class RelayConnectionTest {
@@ -96,7 +95,7 @@ class RelayConnectionTest {
             )
         )
 
-        Assert.assertEquals(expected, result.getData<Map<String, List<*>>>())
+        assertEquals(result.getData(), expected)
     }
 
     @Test

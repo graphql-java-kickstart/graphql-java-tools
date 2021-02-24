@@ -24,7 +24,7 @@ class FieldResolverScannerTest {
         val result1 = scanner.findFieldResolver(FieldDefinition("field1", TypeName("String")), resolver)
         val result2 = scanner.findFieldResolver(FieldDefinition("field2", TypeName("String")), resolver)
 
-        assert(result1.search.source != result2.search.source)
+        assertNotEquals(result1.search.source, result2.search.source)
     }
 
     @Test(expected = FieldResolverError::class)
@@ -63,12 +63,12 @@ class FieldResolverScannerTest {
 
     @Test
     fun `scanner prefers concrete resolver`() {
-        val resolver = DataClassResolverInfo(Kayak::class.java);
+        val resolver = DataClassResolverInfo(Kayak::class.java)
 
         val meta = scanner.findFieldResolver(FieldDefinition("information", TypeName("VehicleInformation")), resolver)
 
         assert(meta is MethodFieldResolver)
-        assert((meta as MethodFieldResolver).method.returnType == BoatInformation::class.java)
+        assertEquals((meta as MethodFieldResolver).method.returnType, BoatInformation::class.java)
     }
 
     @Test
@@ -78,7 +78,7 @@ class FieldResolverScannerTest {
         val meta = scanner.findFieldResolver(FieldDefinition("hull_type", TypeName("HullType")), resolver)
 
         assert(meta is MethodFieldResolver)
-        assert((meta as MethodFieldResolver).method.returnType == HullType::class.java)
+        assertEquals((meta as MethodFieldResolver).method.returnType, HullType::class.java)
     }
 
     class RootQuery1 : GraphQLQueryResolver {
@@ -107,7 +107,7 @@ class FieldResolverScannerTest {
         private var name: String = "name"
     }
 
-    class User {}
+    class User
 
     class GenericQuery : GraphQLQueryResolver {
         fun getUsers(): Connection<User> {

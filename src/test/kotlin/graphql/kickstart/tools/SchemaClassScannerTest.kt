@@ -44,7 +44,7 @@ class SchemaClassScannerTest {
     private class PrimitiveBoxedQuery : GraphQLQueryResolver {
         fun primitive(): Int = 1
 
-        fun boxed(): Int? = 1
+        fun boxed(): Int? = null
     }
 
     @Test
@@ -83,7 +83,8 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.find { it is GraphQLInterfaceType } != null)
+        val interfaceType = schema.additionalTypes.find { it is GraphQLInterfaceType }
+        assertNotNull(interfaceType)
     }
 
     private class InterfaceMissingQuery : GraphQLQueryResolver {
@@ -115,7 +116,8 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.count { it is GraphQLInputType } == 3)
+        val inputTypeCount = schema.additionalTypes.count { it is GraphQLInputType }
+        assertEquals(inputTypeCount, 3)
     }
 
     private class MultipleInputTypeQuery : GraphQLQueryResolver {
@@ -167,11 +169,12 @@ class SchemaClassScannerTest {
             )
             .build()
             .makeExecutableSchema()
-        assert(schema.additionalTypes
+
+        val inputTypeExtensionCount = schema.additionalTypes
             .filterIsInstance<GraphQLInputObjectType>()
             .flatMap { it.extensionDefinitions }
-            .count() == 1
-        )
+            .count()
+        assertEquals(inputTypeExtensionCount, 1)
     }
 
     @Test
@@ -236,7 +239,8 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.count { it is GraphQLInterfaceType } == 2)
+        val interfaceTypeCount = schema.additionalTypes.count { it is GraphQLInterfaceType }
+        assertEquals(interfaceTypeCount, 2)
     }
 
     class MultipleInterfaces : GraphQLQueryResolver {
@@ -283,7 +287,8 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.count { it is GraphQLInterfaceType } == 1)
+        val interfaceTypeCount = schema.additionalTypes.count { it is GraphQLInterfaceType }
+        assertEquals(interfaceTypeCount, 1)
     }
 
     class InterfaceImplementation : GraphQLQueryResolver {
@@ -358,7 +363,8 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.count() == 2)
+        val typeCount = schema.additionalTypes.count()
+        assertEquals(typeCount, 2)
     }
 
     class Pojo {
@@ -395,7 +401,8 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.count() == 3)
+        val typeCount = schema.additionalTypes.count()
+        assertEquals(typeCount, 3)
     }
 
     class NestedInterfaceTypeQuery : GraphQLQueryResolver {
@@ -445,8 +452,9 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.filterIsInstance<GraphQLObjectType>().find { it.name == "User" } != null)
-        assert(schema.additionalTypes.filterIsInstance<GraphQLObjectType>().find { it.name == "Address" } != null)
+        val objectTypes = schema.additionalTypes.filterIsInstance<GraphQLObjectType>()
+        assert(objectTypes.any { it.name == "User" })
+        assert(objectTypes.any { it.name == "Address" })
     }
 
     class Product {
@@ -496,9 +504,11 @@ class SchemaClassScannerTest {
             .build()
             .makeExecutableSchema()
 
-        assert(schema.additionalTypes.filterIsInstance<GraphQLObjectType>().find { it.name == "Unused" } != null)
-        assert(schema.additionalTypes.filterIsInstance<GraphQLInterfaceType>().find { it.name == "SomeInterface" } != null)
-        assert(schema.additionalTypes.filterIsInstance<GraphQLObjectType>().find { it.name == "Implementation" } != null)
+        val objectTypes = schema.additionalTypes.filterIsInstance<GraphQLObjectType>()
+        val interfaceTypes = schema.additionalTypes.filterIsInstance<GraphQLInterfaceType>()
+        assert(objectTypes.any { it.name == "Unused" })
+        assert(objectTypes.any { it.name == "Implementation" })
+        assert(interfaceTypes.any { it.name == "SomeInterface" })
     }
 
     class Whatever {

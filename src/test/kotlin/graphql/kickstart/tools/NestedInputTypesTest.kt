@@ -50,7 +50,7 @@ class NestedInputTypesTest {
             """
         }
 
-        assert((data["materials"] as Collection<*>).isEmpty())
+        assertEquals((data["materials"]), emptyList<Any>())
     }
 
     @Test
@@ -100,7 +100,7 @@ class NestedInputTypesTest {
             """
         }
 
-        assert((data["materials"] as Collection<*>).isEmpty())
+        assertEquals((data["materials"]), emptyList<Any>())
     }
 
     class QueryResolver : GraphQLQueryResolver {

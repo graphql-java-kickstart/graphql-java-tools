@@ -55,7 +55,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["addItem"] != null)
+        assertNotNull(data["addItem"])
     }
 
     @Test
@@ -93,7 +93,7 @@ class EndToEndTest {
         latch.await(3, TimeUnit.SECONDS)
 
         assert(result.errors.isEmpty())
-        assert(returnedItem?.get("onItemCreated")?.get("id") == 1)
+        assertEquals(returnedItem?.get("onItemCreated"), mapOf("id" to 1))
     }
 
     @Test
@@ -109,7 +109,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["itemsByInterface"] != null)
+        assertNotNull(data["itemsByInterface"])
     }
 
     @Test
@@ -131,7 +131,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["allItems"] != null)
+        assertNotNull(data["allItems"])
     }
 
     @Test
@@ -154,12 +154,13 @@ class EndToEndTest {
             """
         }
 
-        val items = data["nestedUnionItems"] as List<Map<String, Int>>
-        assert(items[0]["itemId"] == 0)
-        assert(items[1]["itemId"] == 1)
-        assert(items[2]["otherItemId"] == 0)
-        assert(items[3]["otherItemId"] == 1)
-        assert(items[4]["thirdItemId"] == 100)
+        assertEquals(data["nestedUnionItems"], listOf(
+            mapOf("itemId" to 0),
+            mapOf("itemId" to 1),
+            mapOf("otherItemId" to 0),
+            mapOf("otherItemId" to 1),
+            mapOf("thirdItemId" to 100)
+        ))
     }
 
     @Test
@@ -174,7 +175,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["itemByUUID"] != null)
+        assertNotNull(data["itemByUUID"])
     }
 
     @Test
@@ -187,7 +188,7 @@ class EndToEndTest {
             """
         }
 
-        assert((data["echoFiles"] as ArrayList<String>).joinToString(",") == "Hello,World")
+        assertEquals(data["echoFiles"], listOf("Hello", "World"))
     }
 
     @Test
@@ -203,7 +204,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["propertyHashMapItems"] == listOf(mapOf("name" to "bob", "age" to 55)))
+        assertEquals(data["propertyHashMapItems"], listOf(mapOf("name" to "bob", "age" to 55)))
     }
 
     @Test
@@ -219,7 +220,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["propertySortedMapItems"] == listOf(
+        assertEquals(data["propertySortedMapItems"], listOf(
             mapOf("name" to "Arthur", "age" to 76),
             mapOf("name" to "Jane", "age" to 28)
         ))
@@ -245,7 +246,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["propertyMapWithComplexItems"] == listOf(mapOf("nameId" to mapOf("id" to 150), "age" to 72)))
+        assertEquals(data["propertyMapWithComplexItems"], listOf(mapOf("nameId" to mapOf("id" to 150), "age" to 72)))
     }
 
     // This behavior is consistent with PropertyDataFetcher
@@ -262,7 +263,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["propertyMapMissingNamePropItems"] == listOf(mapOf("name" to null, "age" to 55)))
+        assertEquals(data["propertyMapMissingNamePropItems"], listOf(mapOf("name" to null, "age" to 55)))
     }
 
     // In this test a dictonary entry for the schema type NestedComplexMapItem is defined
@@ -286,7 +287,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["propertyMapWithNestedComplexItems"] == listOf(mapOf("nested" to mapOf("item" to mapOf("id" to 63)), "age" to 72)))
+        assertEquals(data["propertyMapWithNestedComplexItems"], listOf(mapOf("nested" to mapOf("item" to mapOf("id" to 63)), "age" to 72)))
     }
 
     @Test
@@ -305,8 +306,8 @@ class EndToEndTest {
             """
         }
 
-        assert((data["missing"] as List<*>).size > 1)
-        assert((data["present"] as List<*>).size == 1)
+        assertEquals(data["missing"], listOf(mapOf("id" to 0), mapOf("id" to 1)))
+        assertEquals(data["present"], listOf(mapOf("id" to 0)))
     }
 
     @Test
@@ -325,8 +326,8 @@ class EndToEndTest {
             """
         }
 
-        assert((data["missing"] as List<*>).size > 1)
-        assert((data["present"] as List<*>).size == 1)
+        assertEquals(data["missing"], listOf(mapOf("id" to 0), mapOf("id" to 1)))
+        assertEquals(data["present"], listOf(mapOf("id" to 0)))
     }
 
     @Test
@@ -345,8 +346,8 @@ class EndToEndTest {
             """
         }
 
-        assert(data["missing"] == null)
-        assert(data["present"] != null)
+        assertNull(data["missing"])
+        assertNotNull(data["present"])
     }
 
     @Test
@@ -381,7 +382,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["__type"] != null)
+        assertNotNull(data["__type"])
     }
 
     @Test
@@ -398,8 +399,8 @@ class EndToEndTest {
             """
         }
 
-        assert((data as Map<*, *>).containsKey("complexNullableType"))
-        assert(data["complexNullableType"] == null)
+        assert(data.containsKey("complexNullableType"))
+        assertNull(data["complexNullableType"])
     }
 
     @Test
@@ -412,7 +413,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["complexInputType"] != null)
+        assertNotNull(data["complexInputType"])
     }
 
     @Test
@@ -428,9 +429,10 @@ class EndToEndTest {
             """
         }
 
-        assert(data["extendedType"] != null)
-        assert((data["extendedType"] as Map<*, *>)["first"] != null)
-        assert((data["extendedType"] as Map<*, *>)["second"] != null)
+        assertEquals(data["extendedType"], mapOf(
+            "first" to "test",
+            "second" to "test"
+        ))
     }
 
     @Test
@@ -443,7 +445,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["propertyField"] != null)
+        assertNotNull(data["propertyField"])
     }
 
     @Test
@@ -456,7 +458,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["enumInputType"] == "TYPE_2")
+        assertEquals(data["enumInputType"], "TYPE_2")
     }
 
     @Test
@@ -469,7 +471,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["customScalarMapInputType"] == mapOf("test" to "me"))
+        assertEquals(data["customScalarMapInputType"], mapOf("test" to "me"))
     }
 
     @Test
@@ -482,7 +484,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["saveUser"] == "John/secret")
+        assertEquals(data["saveUser"], "John/secret")
     }
 
     @Test
@@ -497,7 +499,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["itemWithGenericProperties"] == mapOf("keys" to listOf("A", "B")))
+        assertEquals(data["itemWithGenericProperties"], mapOf("keys" to listOf("A", "B")))
     }
 
     @Test
@@ -512,7 +514,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["itemByBuiltInId"] != null)
+        assertNotNull(data["itemByBuiltInId"])
     }
 
     @Test
@@ -527,7 +529,7 @@ class EndToEndTest {
             """
         }
 
-        assert((data["dataFetcherResult"] as Map<*, *>)["name"] == "item1")
+        assertEquals(data["dataFetcherResult"], mapOf("name" to "item1"))
     }
 
     @Test
@@ -543,7 +545,7 @@ class EndToEndTest {
             """
         }
 
-        assert(data["coroutineItems"] == listOf(
+        assertEquals(data["coroutineItems"], listOf(
             mapOf("id" to 0, "name" to "item1"),
             mapOf("id" to 1, "name" to "item2")
         ))
@@ -573,7 +575,7 @@ class EndToEndTest {
         val subscriberResult = subscriber.requestNextElement() as ExecutionResultImpl
         val subscriberData = subscriberResult.getData() as Map<String, Map<String, Any>>?
         assert(result.errors.isEmpty())
-        assert(subscriberData?.get("onItemCreatedCoroutineChannel")?.get("id") == 1)
+        assertEquals(subscriberData?.get("onItemCreatedCoroutineChannel"), mapOf("id" to 1))
         subscriber.expectCompletion()
     }
 
@@ -601,7 +603,7 @@ class EndToEndTest {
         val subscriberResult = subscriber.requestNextElement() as ExecutionResultImpl
         val subscriberData = subscriberResult.getData() as Map<String, Map<String, Any>>?
         assert(result.errors.isEmpty())
-        assert(subscriberData?.get("onItemCreatedCoroutineChannelAndSuspendFunction")?.get("id") == 1)
+        assertEquals(subscriberData?.get("onItemCreatedCoroutineChannelAndSuspendFunction"), mapOf("id" to 1))
         subscriber.expectCompletion()
     }
 
@@ -617,7 +619,10 @@ class EndToEndTest {
             """
         }
 
-        assert((data["arrayItems"] as List<*>).filterIsInstance<Map<*, *>>().map { it["name"] } == listOf("item1", "item2"))
+        assertEquals(data["arrayItems"], listOf(
+            mapOf("name" to "item1"),
+            mapOf("name" to "item2")
+        ))
     }
 
     @Test
@@ -630,7 +635,8 @@ class EndToEndTest {
             """
         ))
 
-        assert(result.errors.size == 1)
-        assert((result.errors[0] as ExceptionWhileDataFetching).exception is IllegalArgumentException)
+        assertEquals(result.errors.size, 1)
+        val exceptionWhileDataFetching = result.errors[0] as ExceptionWhileDataFetching
+        assert(exceptionWhileDataFetching.exception is IllegalArgumentException)
     }
 }

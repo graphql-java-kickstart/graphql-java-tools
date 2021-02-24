@@ -44,7 +44,7 @@ class MultiResolverTest {
             """
         }
 
-        assert(data["person"] != null)
+        assertNotNull(data["person"])
     }
 
     class QueryWithPersonResolver : GraphQLQueryResolver {

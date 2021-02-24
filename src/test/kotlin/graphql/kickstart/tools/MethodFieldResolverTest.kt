@@ -5,7 +5,6 @@ import graphql.GraphQL
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
-import org.junit.Assert
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
@@ -47,13 +46,11 @@ class MethodFieldResolverTest {
             .context(Object())
             .root(Object()))
 
-        val expected = mapOf(
+        assertEquals(result.getData(), mapOf(
             "testValue" to "Optional[test-value]",
             "testOmitted" to "Optional.empty",
             "testNull" to "Optional.empty"
-        )
-
-        Assert.assertEquals(expected, result.getData())
+        ))
     }
 
     @Test
@@ -92,13 +89,11 @@ class MethodFieldResolverTest {
             .context(Object())
             .root(Object()))
 
-        val expected = mapOf(
+        assertEquals(result.getData(), mapOf(
             "testValue" to "Optional[test-value]",
             "testOmitted" to "null",
             "testNull" to "Optional.empty"
-        )
-
-        Assert.assertEquals(expected, result.getData())
+        ))
     }
 
     @Test
@@ -130,7 +125,7 @@ class MethodFieldResolverTest {
             .context(Object())
             .root(Object()))
 
-        Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
+        assertEquals(result.getData(), mapOf("test" to 6))
     }
 
     @Test
@@ -162,7 +157,7 @@ class MethodFieldResolverTest {
             .context(Object())
             .root(Object()))
 
-        Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
+        assertEquals(result.getData(), mapOf("test" to 6))
     }
 
     @Test
@@ -210,7 +205,7 @@ class MethodFieldResolverTest {
             .context(Object())
             .root(Object()))
 
-        Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
+        assertEquals(result.getData(), mapOf("test" to 6))
     }
 
     /**

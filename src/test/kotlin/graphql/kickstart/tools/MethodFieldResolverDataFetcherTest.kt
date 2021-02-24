@@ -17,7 +17,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
-import org.junit.Assert
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.tck.TestEnvironment
@@ -37,12 +36,12 @@ class MethodFieldResolverDataFetcherTest {
         // expect
         @Suppress("UNCHECKED_CAST")
         val future = resolver.get(createEnvironment(DataClass())) as CompletableFuture<Boolean>
-        Assert.assertTrue(future.get())
+        assert(future.get())
     }
 
     class SuspendClass : GraphQLResolver<DataClass> {
-        val dispatcher = Dispatchers.IO
-        val job = Job()
+        private val dispatcher = Dispatchers.IO
+        private val job = Job()
 
         @ExperimentalCoroutinesApi
         val options = SchemaParserOptions.Builder()
@@ -69,11 +68,11 @@ class MethodFieldResolverDataFetcherTest {
         val publisher = resolver.get(createEnvironment(DataClass())) as Publisher<String>
         val subscriber = TestEnvironment().newManualSubscriber(publisher)
 
-        Assert.assertEquals("A", subscriber.requestNextElement())
+        assertEquals(subscriber.requestNextElement(), "A")
 
         subscriber.cancel()
         Thread.sleep(100)
-        Assert.assertTrue(doubleChannel.channel.isClosedForReceive)
+        assert(doubleChannel.channel.isClosedForReceive)
     }
 
     class DoubleChannel : GraphQLResolver<DataClass> {
@@ -100,7 +99,7 @@ class MethodFieldResolverDataFetcherTest {
         val publisher = resolver.get(createEnvironment(DataClass())) as Publisher<String>
         val subscriber = TestEnvironment().newManualSubscriber(publisher)
 
-        Assert.assertEquals("A", subscriber.requestNextElement())
+        assertEquals(subscriber.requestNextElement(), "A")
         subscriber.expectErrorWithMessage(IllegalStateException::class.java, "Channel error")
     }
 
@@ -125,14 +124,14 @@ class MethodFieldResolverDataFetcherTest {
             fun getName(dataClass: DataClass): String = name
         })
 
-        assert(resolver.get(createEnvironment(DataClass())) == name)
+        assertEquals(resolver.get(createEnvironment(DataClass())), name)
     }
 
     @Test
     fun `data fetcher uses data class methods if no resolver method is given`() {
         val resolver = createFetcher("name", object : GraphQLResolver<DataClass> {})
 
-        assert(resolver.get(createEnvironment(DataClass())) == DataClass().name)
+        assertEquals(resolver.get(createEnvironment(DataClass())), DataClass().name)
     }
 
     @Test
@@ -143,7 +142,7 @@ class MethodFieldResolverDataFetcherTest {
             fun name(dataClass: DataClass): String = name
         })
 
-        assert(resolver.get(createEnvironment(DataClass())) == name)
+        assertEquals(resolver.get(createEnvironment(DataClass())), name)
     }
 
     @Test
@@ -153,7 +152,7 @@ class MethodFieldResolverDataFetcherTest {
             fun getActive(dataClass: DataClass): Boolean = true
         })
 
-        assert(resolver.get(createEnvironment(DataClass())) == true)
+        assertEquals(resolver.get(createEnvironment(DataClass())), true)
     }
 
     @Test
@@ -163,7 +162,7 @@ class MethodFieldResolverDataFetcherTest {
             fun getActive(dataClass: DataClass): Boolean? = null
         })
 
-        assert(resolver.get(createEnvironment(DataClass())) == null)
+        assertEquals(resolver.get(createEnvironment(DataClass())), null)
     }
 
     @Test
@@ -172,7 +171,7 @@ class MethodFieldResolverDataFetcherTest {
             fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
         })
 
-        assert(resolver.get(createEnvironment(DataClass())) == true)
+        assertEquals(resolver.get(createEnvironment(DataClass())), true)
     }
 
     @Test
@@ -182,7 +181,7 @@ class MethodFieldResolverDataFetcherTest {
             fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
         })
 
-        assert(resolver.get(createEnvironment(DataClass(), context = ContextClass())) == true)
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = ContextClass())), true)
     }
 
     @Test
@@ -195,7 +194,7 @@ class MethodFieldResolverDataFetcherTest {
             }
         })
 
-        assert(resolver.get(createEnvironment(DataClass(), context = context)) == true)
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
     }
 
     @Test
@@ -203,10 +202,10 @@ class MethodFieldResolverDataFetcherTest {
         val name = "correct name"
         val resolver = createFetcher("active", listOf(InputValueDefinition("input", TypeName("InputClass"))), object : GraphQLQueryResolver {
             fun active(input: InputClass): Boolean =
-                input is InputClass && input.name == name
+                input.name == name
         })
 
-        assert(resolver.get(createEnvironment(arguments = mapOf("input" to mapOf("name" to name)))) == true)
+        assertEquals(resolver.get(createEnvironment(arguments = mapOf("input" to mapOf("name" to name)))), true)
     }
 
     @Test
@@ -214,10 +213,10 @@ class MethodFieldResolverDataFetcherTest {
         val name = "correct name"
         val resolver = createFetcher("active", listOf(InputValueDefinition("input", TypeName("Map"))), object : GraphQLQueryResolver {
             fun active(input: Map<*, *>): Boolean =
-                input is Map<*, *> && input["name"] == name
+                input["name"] == name
         })
 
-        assert(resolver.get(createEnvironment(arguments = mapOf("input" to mapOf("name" to name)))) == true)
+        assertEquals(resolver.get(createEnvironment(arguments = mapOf("input" to mapOf("name" to name)))), true)
     }
 
     @Test
@@ -227,7 +226,7 @@ class MethodFieldResolverDataFetcherTest {
                 message
         })
 
-        assert(resolver.get(createEnvironment()) == null)
+        assertEquals(resolver.get(createEnvironment()), null)
     }
 
     @Test(expected = ResolverError::class)
@@ -241,7 +240,7 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     class OnDataNameChanged : GraphQLResolver<DataClass> {
-        val channel = Channel<String>(10)
+        private val channel = Channel<String>(10)
 
         init {
             channel.offer("A")
