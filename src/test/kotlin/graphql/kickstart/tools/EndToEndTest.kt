@@ -17,8 +17,8 @@ class EndToEndTest {
 
     private val schema: GraphQLSchema = createSchema()
     private val gql: GraphQL = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
+        .queryExecutionStrategy(AsyncExecutionStrategy())
+        .build()
 
     @Test
     fun `schema comments are used as descriptions`() {
@@ -33,9 +33,9 @@ class EndToEndTest {
             """
             {
                 items(itemsInput: {name: "item1"}) {
-                id
-                type
-            }
+                    id
+                    type
+                }
             }
             """
         }
@@ -46,12 +46,12 @@ class EndToEndTest {
         val data = assertNoGraphQlErrors(gql, mapOf("name" to "new1", "type" to Type.TYPE_2.toString())) {
             """
             mutation addNewItem(${'$'}name: String!, ${'$'}type: Type!) {
-            addItem(newItem: {name: ${'$'}name, type: ${'$'}type}) {
-            id
-            name
-            type
-        }
-        }
+                addItem(newItem: {name: ${'$'}name, type: ${'$'}type}) {
+                    id
+                    name
+                    type
+                }
+            }
             """
         }
 
@@ -74,9 +74,9 @@ class EndToEndTest {
         }
 
         val result = gql.execute(ExecutionInput.newExecutionInput()
-                .query(closure.invoke())
-                .context(OnItemCreatedContext(newItem))
-                .variables(mapOf()))
+            .query(closure.invoke())
+            .context(OnItemCreatedContext(newItem))
+            .variables(mapOf()))
 
         val data = result.getData() as Publisher<ExecutionResult>
         val latch = CountDownLatch(1)
@@ -119,13 +119,13 @@ class EndToEndTest {
             {
                 allItems {
                     ... on Item {
-                    id
-                    name
-                }
+                        id
+                        name
+                    }
                     ... on OtherItem {
-                    name
-                    type
-                }
+                        name
+                        type
+                    }
                 }
             }
             """
@@ -141,14 +141,14 @@ class EndToEndTest {
             {
                 nestedUnionItems {
                     ... on Item {
-                    itemId: id
-                }
+                        itemId: id
+                    }
                     ... on OtherItem {
-                    otherItemId: id
-                }
+                        otherItemId: id
+                    }
                     ... on ThirdItem {
-                    thirdItemId: id
-                }
+                        thirdItemId: id
+                    }
                 }
             }
             """
@@ -168,8 +168,8 @@ class EndToEndTest {
             """
             {
                 itemByUUID(uuid: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
-                uuid
-            }
+                    uuid
+                }
             }
             """
         }
@@ -183,7 +183,7 @@ class EndToEndTest {
         val args = mapOf("fileParts" to fileParts)
         val data = assertNoGraphQlErrors(gql, args) {
             """
-            mutation (${'$'}fileParts: [Upload!]!) { echoFiles(fileParts: ${'$'}fileParts)}
+            mutation (${'$'}fileParts: [Upload!]!) { echoFiles(fileParts: ${'$'}fileParts) }
             """
         }
 
@@ -220,8 +220,8 @@ class EndToEndTest {
         }
 
         assert(data["propertySortedMapItems"] == listOf(
-                mapOf("name" to "Arthur", "age" to 76),
-                mapOf("name" to "Jane", "age" to 28)
+            mapOf("name" to "Arthur", "age" to 76),
+            mapOf("name" to "Jane", "age" to 28)
         ))
     }
 
@@ -295,12 +295,12 @@ class EndToEndTest {
             """
             {
                 missing: itemsWithOptionalInput {
-                id
-            }
+                    id
+                }
 
                 present: itemsWithOptionalInput(itemsInput: {name: "item1"}) {
-                id
-            }
+                    id
+                }
             }
             """
         }
@@ -315,12 +315,12 @@ class EndToEndTest {
             """
             {
                 missing: itemsWithOptionalInputExplicit {
-                id
-            }
+                    id
+                }
 
                 present: itemsWithOptionalInputExplicit(itemsInput: {name: "item1"}) {
-                id
-            }
+                    id
+                }
             }
             """
         }
@@ -335,12 +335,12 @@ class EndToEndTest {
             """
             {
                 missing: optionalItem(itemsInput: {name: "item?"}) {
-                id
-            }
+                    id
+                }
 
                 present: optionalItem(itemsInput: {name: "item1"}) {
-                id
-            }
+                    id
+                }
             }
             """
         }
@@ -368,15 +368,15 @@ class EndToEndTest {
             """
             {
                 __type(name: "Query") {
-                name
-                fields {
                     name
-                    args {
+                    fields {
                         name
-                        defaultValue
+                        args {
+                            name
+                            defaultValue
+                        }
                     }
                 }
-            }
             }
             """
         }
@@ -506,8 +506,8 @@ class EndToEndTest {
             """
             {
                 itemByBuiltInId(id: "38f685f1-b460-4a54-a17f-7fd69e8cf3f8") {
-                name
-            }
+                    name
+                }
             }
             """
         }
@@ -544,8 +544,8 @@ class EndToEndTest {
         }
 
         assert(data["coroutineItems"] == listOf(
-                mapOf("id" to 0, "name" to "item1"),
-                mapOf("id" to 1, "name" to "item2")
+            mapOf("id" to 0, "name" to "item1"),
+            mapOf("id" to 1, "name" to "item2")
         ))
     }
 
@@ -563,9 +563,9 @@ class EndToEndTest {
         }
 
         val result = gql.execute(ExecutionInput.newExecutionInput()
-                .query(closure.invoke())
-                .context(OnItemCreatedContext(newItem))
-                .variables(mapOf()))
+            .query(closure.invoke())
+            .context(OnItemCreatedContext(newItem))
+            .variables(mapOf()))
 
         val data = result.getData() as Publisher<ExecutionResult>
         val subscriber = TestEnvironment().newManualSubscriber(data)
@@ -591,9 +591,9 @@ class EndToEndTest {
         }
 
         val result = gql.execute(ExecutionInput.newExecutionInput()
-                .query(closure.invoke())
-                .context(OnItemCreatedContext(newItem))
-                .variables(mapOf()))
+            .query(closure.invoke())
+            .context(OnItemCreatedContext(newItem))
+            .variables(mapOf()))
 
         val data = result.getData() as Publisher<ExecutionResult>
         val subscriber = TestEnvironment().newManualSubscriber(data)
@@ -622,11 +622,12 @@ class EndToEndTest {
 
     @Test
     fun `generated schema should re-throw original runtime exception when executing a resolver method`() {
-        val result = gql.execute(ExecutionInput.newExecutionInput().query("""
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
             {
                 throwsIllegalArgumentException
             }
-        """
+            """
         ))
 
         assert(result.errors.size == 1)

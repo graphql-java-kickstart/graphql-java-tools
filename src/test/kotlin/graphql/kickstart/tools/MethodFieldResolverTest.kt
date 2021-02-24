@@ -17,14 +17,14 @@ class MethodFieldResolverTest {
     @Test
     fun `should handle Optional type as method input argument`() {
         val schema = SchemaParser.newParser()
-            .schemaString("""
-                    type Query {
-                        testValue(input: String): String
-                        testOmitted(input: String): String
-                        testNull(input: String): String
-                    }
-                    """
-            )
+            .schemaString(
+                """
+                type Query {
+                    testValue(input: String): String
+                    testOmitted(input: String): String
+                    testNull(input: String): String
+                }
+                """)
             .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
                 fun testValue(input: Optional<String>) = input.toString()
@@ -36,17 +36,16 @@ class MethodFieldResolverTest {
 
         val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = gql
-            .execute(ExecutionInput.newExecutionInput()
-                .query("""
-                            query {
-                                testValue(input: "test-value")
-                                testOmitted
-                                testNull(input: null)
-                            }
-                            """)
-                .context(Object())
-                .root(Object()))
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query {
+                testValue(input: "test-value")
+                testOmitted
+                testNull(input: null)
+            }
+            """)
+            .context(Object())
+            .root(Object()))
 
         val expected = mapOf(
             "testValue" to "Optional[test-value]",
@@ -60,14 +59,14 @@ class MethodFieldResolverTest {
     @Test
     fun `should handle Optional type as method input argument with omission detection`() {
         val schema = SchemaParser.newParser()
-            .schemaString("""
-                    type Query {
-                        testValue(input: String): String
-                        testOmitted(input: String): String
-                        testNull(input: String): String
-                    }
-                    """
-            )
+            .schemaString(
+                """
+                type Query {
+                    testValue(input: String): String
+                    testOmitted(input: String): String
+                    testNull(input: String): String
+                }
+                """)
             .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
                 fun testValue(input: Optional<String>) = input.toString()
@@ -82,17 +81,16 @@ class MethodFieldResolverTest {
 
         val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = gql
-            .execute(ExecutionInput.newExecutionInput()
-                .query("""
-                            query {
-                                testValue(input: "test-value")
-                                testOmitted
-                                testNull(input: null)
-                            }
-                            """)
-                .context(Object())
-                .root(Object()))
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query {
+                testValue(input: "test-value")
+                testOmitted
+                testNull(input: null)
+            }
+            """)
+            .context(Object())
+            .root(Object()))
 
         val expected = mapOf(
             "testValue" to "Optional[test-value]",
@@ -106,13 +104,13 @@ class MethodFieldResolverTest {
     @Test
     fun `should handle scalar types as method input argument`() {
         val schema = SchemaParser.newParser()
-            .schemaString("""
-                    scalar CustomScalar
-                    type Query {
-                        test(input: CustomScalar): Int
-                    }
-                    """.trimIndent()
-            )
+            .schemaString(
+                """
+                scalar CustomScalar
+                type Query {
+                    test(input: CustomScalar): Int
+                }
+                """)
             .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
                 fun test(scalar: CustomScalar) = scalar.value.length
@@ -122,16 +120,15 @@ class MethodFieldResolverTest {
 
         val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = gql
-            .execute(ExecutionInput.newExecutionInput()
-                .query("""
-                            query Test(${"$"}input: CustomScalar) {
-                                test(input: ${"$"}input)
-                            }
-                            """.trimIndent())
-                .variables(mapOf("input" to "FooBar"))
-                .context(Object())
-                .root(Object()))
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query Test(${"$"}input: CustomScalar) {
+                test(input: ${"$"}input)
+            }
+            """)
+            .variables(mapOf("input" to "FooBar"))
+            .context(Object())
+            .root(Object()))
 
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }
@@ -139,13 +136,13 @@ class MethodFieldResolverTest {
     @Test
     fun `should handle lists of scalar types`() {
         val schema = SchemaParser.newParser()
-            .schemaString("""
-                    scalar CustomScalar
-                    type Query {
-                        test(input: [CustomScalar]): Int
-                    }
-                    """.trimIndent()
-            )
+            .schemaString(
+                """
+                scalar CustomScalar
+                type Query {
+                    test(input: [CustomScalar]): Int
+                }
+                """)
             .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
                 fun test(scalars: List<CustomScalar>) = scalars.map { it.value.length }.sum()
@@ -155,16 +152,15 @@ class MethodFieldResolverTest {
 
         val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = gql
-            .execute(ExecutionInput.newExecutionInput()
-                .query("""
-                            query Test(${"$"}input: [CustomScalar]) {
-                                test(input: ${"$"}input)
-                            }
-                            """.trimIndent())
-                .variables(mapOf("input" to listOf("Foo", "Bar")))
-                .context(Object())
-                .root(Object()))
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query Test(${"$"}input: [CustomScalar]) {
+                test(input: ${"$"}input)
+            }
+            """)
+            .variables(mapOf("input" to listOf("Foo", "Bar")))
+            .context(Object())
+            .root(Object()))
 
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }
@@ -190,13 +186,13 @@ class MethodFieldResolverTest {
         ) as GraphQLQueryResolver
 
         val schema = SchemaParser.newParser()
-            .schemaString("""
-                    scalar CustomScalar
-                    type Query {
-                        test(input: [CustomScalar]): Int
-                    }
-                    """.trimIndent()
-            )
+            .schemaString(
+                """
+                scalar CustomScalar
+                type Query {
+                    test(input: [CustomScalar]): Int
+                }
+                """)
             .scalars(customScalarType)
             .resolvers(resolver)
             .build()
@@ -204,16 +200,15 @@ class MethodFieldResolverTest {
 
         val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = gql
-            .execute(ExecutionInput.newExecutionInput()
-                .query("""
-                            query Test(${"$"}input: [CustomScalar]) {
-                                test(input: ${"$"}input)
-                            }
-                            """.trimIndent())
-                .variables(mapOf("input" to listOf("Foo", "Bar")))
-                .context(Object())
-                .root(Object()))
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query Test(${"$"}input: [CustomScalar]) {
+                test(input: ${"$"}input)
+            }
+            """)
+            .variables(mapOf("input" to listOf("Foo", "Bar")))
+            .context(Object())
+            .root(Object()))
 
         Assert.assertEquals(6, result.getData<Map<String, Any>>()["test"])
     }

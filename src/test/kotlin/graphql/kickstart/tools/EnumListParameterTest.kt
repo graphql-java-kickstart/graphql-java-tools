@@ -6,40 +6,42 @@ import graphql.schema.GraphQLSchema
 import org.junit.Test
 
 class EnumListParameterTest {
-    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser()
+        .schemaString(
+            """
             type Query {
                 countries(regions: [Region!]!): [Country!]!
             }
-
+    
             enum Region {
                 EUROPE
                 ASIA
             }
-
+    
             type Country {
                 code: String!
                 name: String!
                 regions: [Region!]
             }
-        """.trimIndent())
-            .resolvers(QueryResolver())
-            .build()
-            .makeExecutableSchema()
+            """)
+        .resolvers(QueryResolver())
+        .build()
+        .makeExecutableSchema()
     private val gql: GraphQL = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
+        .queryExecutionStrategy(AsyncExecutionStrategy())
+        .build()
 
     @Test
     fun `query with parameter type list of enums should resolve correctly`() {
         val data = assertNoGraphQlErrors(gql, mapOf("regions" to setOf("EUROPE", "ASIA"))) {
             """
-                query getCountries(${'$'}regions: [Region!]!) {
-                    countries(regions: ${'$'}regions){
-                        code
-                        name
-                        regions
-                    }
+            query getCountries(${'$'}regions: [Region!]!) {
+                countries(regions: ${'$'}regions){
+                    code
+                    name
+                    regions
                 }
+            }
             """
         }
 

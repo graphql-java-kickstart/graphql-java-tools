@@ -17,10 +17,10 @@ import java.util.concurrent.Future
 
 @RunWith(Suite::class)
 @Suite.SuiteClasses(
-        TypeClassMatcherTest.Suit1::class,
-        TypeClassMatcherTest.Suit2::class,
-        TypeClassMatcherTest.Suit3::class,
-        TypeClassMatcherTest.Suit4::class
+    TypeClassMatcherTest.Suit1::class,
+    TypeClassMatcherTest.Suit2::class,
+    TypeClassMatcherTest.Suit3::class,
+    TypeClassMatcherTest.Suit4::class
 )
 class TypeClassMatcherTest {
 
@@ -31,21 +31,20 @@ class TypeClassMatcherTest {
         private val customDefinition: TypeDefinition<*> = ObjectTypeDefinition("CustomType")
         private val unwrappedCustomDefinition: TypeDefinition<*> = ObjectTypeDefinition("UnwrappedGenericCustomType")
 
-
         private val matcher: TypeClassMatcher = TypeClassMatcher(mapOf(
-                "CustomType" to customDefinition,
-                "UnwrappedGenericCustomType" to unwrappedCustomDefinition
+            "CustomType" to customDefinition,
+            "UnwrappedGenericCustomType" to unwrappedCustomDefinition
         ))
 
         private val options: SchemaParserOptions = SchemaParserOptions.newOptions().genericWrappers(
-                GenericWrapper(
-                        GenericCustomType::class.java,
-                        0
-                ),
-                listCollectionWithTransformer(
-                        GenericCustomListType::class.java,
-                        0
-                ) { x -> x }
+            GenericWrapper(
+                GenericCustomType::class.java,
+                0
+            ),
+            listCollectionWithTransformer(
+                GenericCustomListType::class.java,
+                0
+            ) { x -> x }
         ).build()
 
         private val scanner: FieldResolverScanner = FieldResolverScanner(options)
@@ -53,8 +52,8 @@ class TypeClassMatcherTest {
 
         private fun createPotentialMatch(methodName: String, graphQLType: Type<*>): TypeClassMatcher.PotentialMatch {
             return scanner.findFieldResolver(FieldDefinition(methodName, graphQLType), resolver)
-                    .scanForMatches()
-                    .find { it.location == TypeClassMatcher.Location.RETURN_TYPE }!!
+                .scanForMatches()
+                .find { it.location == TypeClassMatcher.Location.RETURN_TYPE }!!
         }
 
         private fun list(other: Type<*> = customType): Type<*> = ListType(other)
@@ -77,20 +76,20 @@ class TypeClassMatcherTest {
             @JvmStatic
             fun data(): Collection<Array<Any>> {
                 return listOf(
-                        arrayOf("type", customType),
-                        arrayOf("futureType", customType),
-                        arrayOf("listType", list()),
-                        arrayOf("listListType", list(list())),
-                        arrayOf("futureListType", list()),
-                        arrayOf("listFutureType", list()),
-                        arrayOf("listListFutureType", list(list())),
-                        arrayOf("futureListListType", list(list())),
-                        arrayOf("superType", customType),
-                        arrayOf("superListFutureType", list(nonNull())),
-                        arrayOf("nullableType", customType),
-                        arrayOf("nullableListType", list(nonNull(customType))),
-                        arrayOf("genericCustomType", customType),
-                        arrayOf("genericListType", list())
+                    arrayOf("type", customType),
+                    arrayOf("futureType", customType),
+                    arrayOf("listType", list()),
+                    arrayOf("listListType", list(list())),
+                    arrayOf("futureListType", list()),
+                    arrayOf("listFutureType", list()),
+                    arrayOf("listListFutureType", list(list())),
+                    arrayOf("futureListListType", list(list())),
+                    arrayOf("superType", customType),
+                    arrayOf("superListFutureType", list(nonNull())),
+                    arrayOf("nullableType", customType),
+                    arrayOf("nullableListType", list(nonNull(customType))),
+                    arrayOf("genericCustomType", customType),
+                    arrayOf("genericListType", list())
                 )
             }
         }
@@ -109,8 +108,8 @@ class TypeClassMatcherTest {
             @JvmStatic
             fun data(): Collection<Array<Any>> {
                 return listOf(
-                        arrayOf("type", list()),
-                        arrayOf("futureType", list())
+                    arrayOf("type", list()),
+                    arrayOf("futureType", list())
                 )
             }
         }
@@ -129,9 +128,9 @@ class TypeClassMatcherTest {
             @JvmStatic
             fun data(): Collection<Array<Any>> {
                 return listOf(
-                        arrayOf("nullableType", nonNull(customType)),
-                        arrayOf("nullableNullableType", customType),
-                        arrayOf("listNullableType", list(customType))
+                    arrayOf("nullableType", nonNull(customType)),
+                    arrayOf("nullableNullableType", customType),
+                    arrayOf("listNullableType", list(customType))
                 )
             }
         }

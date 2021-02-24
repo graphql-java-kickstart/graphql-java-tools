@@ -8,36 +8,38 @@ class NestedInputTypesTest {
 
     @Test
     fun `nested input types are parsed`() {
-        val schema = SchemaParser.newParser().schemaString("""
-                    type Query {
-                        materials(filter: MaterialFilter): [Material!]!
-                    }
-                    
-                    input MaterialFilter {
-                        title: String
-                        requestFilter: RequestFilter
-                    }
-                    
-                    input RequestFilter {
-                        and: [RequestFilter!]
-                        or: [RequestFilter!]
-                        discountTypeFilter: DiscountTypeFilter
-                    }
-                    
-                    input DiscountTypeFilter {
-                        name: String
-                    }
-                    
-                    type Material {
-                        id: ID!
-                    }
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    materials(filter: MaterialFilter): [Material!]!
+                }
+                
+                input MaterialFilter {
+                    title: String
+                    requestFilter: RequestFilter
+                }
+                
+                input RequestFilter {
+                    and: [RequestFilter!]
+                    or: [RequestFilter!]
+                    discountTypeFilter: DiscountTypeFilter
+                }
+                
+                input DiscountTypeFilter {
+                    name: String
+                }
+                
+                type Material {
+                    id: ID!
+                }
                 """)
-                .resolvers(QueryResolver())
-                .build()
-                .makeExecutableSchema()
+            .resolvers(QueryResolver())
+            .build()
+            .makeExecutableSchema()
         val gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
         val data = assertNoGraphQlErrors(gql, mapOf("filter" to mapOf("title" to "title", "requestFilter" to mapOf("discountTypeFilter" to mapOf("name" to "discount"))))) {
             """
             query materials(${'$'}filter: MaterialFilter!) {
@@ -53,46 +55,48 @@ class NestedInputTypesTest {
 
     @Test
     fun `nested input in extensions are parsed`() {
-        val schema = SchemaParser.newParser().schemaString("""
-                    type Query {
-                        materials(filter: MaterialFilter): [Material!]!
-                    }
-                    
-                    input MaterialFilter {
-                        title: String
-                    }
-                    
-                    extend input MaterialFilter {
-                        requestFilter: RequestFilter
-                    }
-                    
-                    input RequestFilter {
-                        and: [RequestFilter!]
-                        or: [RequestFilter!]
-                        discountTypeFilter: DiscountTypeFilter
-                    }
-                    
-                    input DiscountTypeFilter {
-                        name: String
-                    }
-                    
-                    type Material {
-                        id: ID!
-                    }
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    materials(filter: MaterialFilter): [Material!]!
+                }
+                
+                input MaterialFilter {
+                    title: String
+                }
+                
+                extend input MaterialFilter {
+                    requestFilter: RequestFilter
+                }
+                
+                input RequestFilter {
+                    and: [RequestFilter!]
+                    or: [RequestFilter!]
+                    discountTypeFilter: DiscountTypeFilter
+                }
+                
+                input DiscountTypeFilter {
+                    name: String
+                }
+                
+                type Material {
+                    id: ID!
+                }
                 """)
-                .resolvers(QueryResolver())
-                .build()
-                .makeExecutableSchema()
+            .resolvers(QueryResolver())
+            .build()
+            .makeExecutableSchema()
         val gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
         val data = assertNoGraphQlErrors(gql, mapOf("filter" to mapOf("title" to "title", "requestFilter" to mapOf("discountTypeFilter" to mapOf("name" to "discount"))))) {
             """
-                query materials(${'$'}filter: MaterialFilter!) {
-                    materials(filter: ${'$'}filter) {
-                       id
-                    }
+            query materials(${'$'}filter: MaterialFilter!) {
+                materials(filter: ${'$'}filter) {
+                   id
                 }
+            }
             """
         }
 
@@ -121,5 +125,4 @@ class NestedInputTypesTest {
     class DiscountTypeFilter {
         var name: String? = null
     }
-
 }

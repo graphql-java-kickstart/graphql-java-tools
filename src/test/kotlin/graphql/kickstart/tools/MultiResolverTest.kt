@@ -7,7 +7,9 @@ import org.junit.Test
 
 class MultiResolverTest {
 
-    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser()
+        .schemaString(
+            """
             type Query {
                 person: Person
             }
@@ -20,13 +22,13 @@ class MultiResolverTest {
             type Friend {
                 name: String!
             }
-        """.trimIndent())
-            .resolvers(QueryWithPersonResolver(), PersonFriendResolver(), PersonNameResolver())
-            .build()
-            .makeExecutableSchema()
+            """)
+        .resolvers(QueryWithPersonResolver(), PersonFriendResolver(), PersonNameResolver())
+        .build()
+        .makeExecutableSchema()
     private val gql: GraphQL = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
+        .queryExecutionStrategy(AsyncExecutionStrategy())
+        .build()
 
     @Test
     fun `multiple resolvers for one data class should resolve methods with arguments`() {

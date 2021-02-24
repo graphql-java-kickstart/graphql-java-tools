@@ -6,23 +6,25 @@ class SuperclassResolverTest {
 
     @Test
     fun `methods from generic resolvers are resolved`() {
-        SchemaParser.newParser().schemaString("""
-            type Query {
-                bar: Bar!
-            }
-
-            type Bar implements Foo{
-                value: String
-                getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
-            }
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    bar: Bar!
+                }
     
-            interface Foo {
-                getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
-            }
-        """)
-                .resolvers(QueryResolver(), BarResolver())
-                .build()
-                .makeExecutableSchema()
+                type Bar implements Foo{
+                    value: String
+                    getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
+                }
+        
+                interface Foo {
+                    getValueWithSeveralParameters(arg1: Boolean!, arg2: String): String!
+                }
+                """)
+            .resolvers(QueryResolver(), BarResolver())
+            .build()
+            .makeExecutableSchema()
     }
 
     class QueryResolver : GraphQLQueryResolver {

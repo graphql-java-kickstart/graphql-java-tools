@@ -12,7 +12,6 @@ import graphql.relay.DefaultConnection
 import graphql.relay.DefaultPageInfo
 import org.junit.Test
 
-
 class FieldResolverScannerTest {
 
     private val options = defaultOptions()

@@ -12,42 +12,44 @@ class RelayConnectionTest {
 
     @Test
     fun `should compile relay schema when not using @connection directive`() {
-        val schema = SchemaParser.newParser().schemaString("""
-              type Query {
-                users(first: Int, after: String): UserConnection
-                otherTypes: AnotherTypeConnection
-              }
-      
-              type UserConnection {
-                edges: [UserEdge!]!
-                pageInfo: PageInfo!
-              }
-      
-              type UserEdge {
-                node: User!
-              } 
-              
-              type User {
-                id: ID!
-                name: String
-              }
-      
-              type PageInfo {
-                hasNextPage: Boolean
-              }
-      
-              type AnotherTypeConnection {
-                edges: [AnotherTypeEdge!]!
-              }
-      
-              type AnotherTypeEdge {
-                node: AnotherType!
-              }
-      
-              type AnotherType {
-                echo: String
-              }
-            """)
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    users(first: Int, after: String): UserConnection
+                    otherTypes: AnotherTypeConnection
+                }
+                
+                type UserConnection {
+                    edges: [UserEdge!]!
+                    pageInfo: PageInfo!
+                }
+                
+                type UserEdge {
+                    node: User!
+                } 
+                
+                type User {
+                    id: ID!
+                    name: String
+                }
+                
+                type PageInfo {
+                    hasNextPage: Boolean
+                }
+                
+                type AnotherTypeConnection {
+                    edges: [AnotherTypeEdge!]!
+                }
+                
+                type AnotherTypeEdge {
+                    node: AnotherType!
+                }
+                
+                type AnotherType {
+                    echo: String
+                }
+                """)
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
@@ -56,25 +58,26 @@ class RelayConnectionTest {
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
 
-        val result = gql.execute("""
-          query {
-            users {
-              edges {
-                node {
-                  id
-                  name
+        val result = gql.execute(
+            """
+            query {
+                users {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
                 }
-              }
-            }
-            otherTypes {
-              edges {
-                node {
-                  echo
+                otherTypes {
+                    edges {
+                        node {
+                            echo
+                        }
+                    }
                 }
-              }
             }
-          }
-        """)
+            """)
 
         val expected = mapOf(
             "users" to mapOf(
@@ -99,35 +102,35 @@ class RelayConnectionTest {
     @Test
     fun `should compile relay schema when using @connection directive`() {
         val schema = SchemaParser.newParser()
-                .file("RelayConnection.graphqls")
-                .resolvers(QueryResolver())
-                .dictionary(User::class.java)
-                .build()
-                .makeExecutableSchema()
+            .file("RelayConnection.graphqls")
+            .resolvers(QueryResolver())
+            .dictionary(User::class.java)
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
         assertNoGraphQlErrors(gql) {
             """
-                  query {
-                    users {
-                      edges {
+            query {
+                users {
+                    edges {
                         cursor
                         node {
-                          id
-                          name
+                            id
+                            name
                         }
-                      }
-                      pageInfo {
+                    }
+                    pageInfo {
                         hasPreviousPage
                         hasNextPage
                         startCursor
                         endCursor
-                      }
                     }
-                  }
+                }
+            }
             """
         }
     }

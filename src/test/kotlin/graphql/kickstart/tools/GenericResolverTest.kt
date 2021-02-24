@@ -6,19 +6,20 @@ class GenericResolverTest {
 
     @Test
     fun `methods from generic resolvers are resolved`() {
-        SchemaParser.newParser().schemaString("""
-            type Query {
-                bar: Bar
-            }
-    
-            type Bar {
-                value: String
-            }
-        """)
-                .resolvers(QueryResolver1(), BarResolver())
-                .build()
-                .makeExecutableSchema()
-
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    bar: Bar
+                }
+        
+                type Bar {
+                    value: String
+                }
+                """)
+            .resolvers(QueryResolver1(), BarResolver())
+            .build()
+            .makeExecutableSchema()
     }
 
     class QueryResolver1 : GraphQLQueryResolver {
@@ -37,19 +38,20 @@ class GenericResolverTest {
 
     @Test
     fun `methods from generic inherited resolvers are resolved`() {
-        SchemaParser.newParser().schemaString("""
-            type Query {
-                car: Car
-            }
-            type Car {
-                value: String
-            }
-        """)
-                .resolvers(QueryResolver2(), CarResolver())
-                .build()
-                .makeExecutableSchema()
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    car: Car
+                }
+                type Car {
+                    value: String
+                }
+                """)
+            .resolvers(QueryResolver2(), CarResolver())
+            .build()
+            .makeExecutableSchema()
     }
-
 
     class QueryResolver2 : GraphQLQueryResolver {
         fun getCar(): Car = Car()
@@ -62,5 +64,4 @@ class GenericResolverTest {
     class Car
 
     class CarResolver : FooGraphQLResolver<Car>()
-
 }

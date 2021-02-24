@@ -23,14 +23,14 @@ class ReactiveTest {
             .build()
 
         val schema = newParser().file("Reactive.graphqls")
-                .resolvers(Query())
-                .options(options)
-                .build()
-                .makeExecutableSchema()
+            .resolvers(Query())
+            .options(options)
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
         assertNoGraphQlErrors(gql) {
             "query { organization(organizationId: 1) { user { id } } }"

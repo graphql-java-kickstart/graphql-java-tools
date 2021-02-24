@@ -7,7 +7,9 @@ import org.junit.Test
 
 class ParameterizedGetterTest {
 
-    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser()
+        .schemaString(
+            """
             type Query {
                 human: Human
             }
@@ -20,25 +22,25 @@ class ParameterizedGetterTest {
             type Character {
                 name: String!
             }
-        """.trimIndent())
-            .resolvers(QueryResolver(), HumanResolver())
-            .build()
-            .makeExecutableSchema()
+            """)
+        .resolvers(QueryResolver(), HumanResolver())
+        .build()
+        .makeExecutableSchema()
     private val gql: GraphQL = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
+        .queryExecutionStrategy(AsyncExecutionStrategy())
+        .build()
 
     @Test
     fun `parameterized query is resolved on data type instead of on its resolver`() {
         val data = assertNoGraphQlErrors(gql, mapOf("limit" to 10)) {
             """
-                query allFriends(${'$'}limit: Int!) {
-                    human {
-                        allFriends(limit: ${'$'}limit) {
-                            name
-                        }
+            query allFriends(${'$'}limit: Int!) {
+                human {
+                    allFriends(limit: ${'$'}limit) {
+                        name
                     }
                 }
+            }
             """
         }
 

@@ -14,8 +14,8 @@ class SchemaParserBuilderTest(private val schema: String, private val error: Str
     fun `parser errors should be returned in full`() {
         try {
             newParser()
-                    .schemaString(schema)
-                    .build()
+                .schemaString(schema)
+                .build()
         } catch (e: InvalidSyntaxException) {
             Assert.assertTrue(e.toString().contains(error))
         }
@@ -26,8 +26,8 @@ class SchemaParserBuilderTest(private val schema: String, private val error: Str
         @JvmStatic
         fun data(): Collection<Array<Any>> {
             return listOf(
-                    arrayOf("invalid", "offending token 'invalid' at line 1 column 1"),
-                    arrayOf("type Query {\ninvalid!\n}", "offending token '!' at line 2 column 8")
+                arrayOf("invalid", "offending token 'invalid' at line 1 column 1"),
+                arrayOf("type Query {\ninvalid!\n}", "offending token '!' at line 2 column 8")
             )
         }
     }

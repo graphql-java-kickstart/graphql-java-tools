@@ -46,13 +46,13 @@ class MethodFieldResolverDataFetcherTest {
 
         @ExperimentalCoroutinesApi
         val options = SchemaParserOptions.Builder()
-                .coroutineContext(dispatcher + job)
-                .build()
+            .coroutineContext(dispatcher + job)
+            .build()
 
         @Suppress("UNUSED_PARAMETER")
         suspend fun isActive(data: DataClass): Boolean {
             return coroutineContext[dispatcher.key] == dispatcher &&
-                    coroutineContext[Job] == job.children.first()
+                coroutineContext[Job] == job.children.first()
         }
     }
 
@@ -203,7 +203,7 @@ class MethodFieldResolverDataFetcherTest {
         val name = "correct name"
         val resolver = createFetcher("active", listOf(InputValueDefinition("input", TypeName("InputClass"))), object : GraphQLQueryResolver {
             fun active(input: InputClass): Boolean =
-                    input is InputClass && input.name == name
+                input is InputClass && input.name == name
         })
 
         assert(resolver.get(createEnvironment(arguments = mapOf("input" to mapOf("name" to name)))) == true)
@@ -214,7 +214,7 @@ class MethodFieldResolverDataFetcherTest {
         val name = "correct name"
         val resolver = createFetcher("active", listOf(InputValueDefinition("input", TypeName("Map"))), object : GraphQLQueryResolver {
             fun active(input: Map<*, *>): Boolean =
-                    input is Map<*, *> && input["name"] == name
+                input is Map<*, *> && input["name"] == name
         })
 
         assert(resolver.get(createEnvironment(arguments = mapOf("input" to mapOf("name" to name)))) == true)
@@ -224,7 +224,7 @@ class MethodFieldResolverDataFetcherTest {
     fun `data fetcher returns null if nullable argument is passed null`() {
         val resolver = createFetcher("echo", listOf(InputValueDefinition("message", TypeName("String"))), object : GraphQLQueryResolver {
             fun echo(message: String?): String? =
-                    message
+                message
         })
 
         assert(resolver.get(createEnvironment()) == null)
@@ -234,7 +234,7 @@ class MethodFieldResolverDataFetcherTest {
     fun `data fetcher throws exception if non-null argument is passed null`() {
         val resolver = createFetcher("echo", listOf(InputValueDefinition("message", NonNullType(TypeName("String")))), object : GraphQLQueryResolver {
             fun echo(message: String): String =
-                    message
+                message
         })
 
         resolver.get(createEnvironment())
@@ -255,24 +255,24 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     private fun createFetcher(
-            methodName: String,
-            arguments: List<InputValueDefinition> = emptyList(),
-            resolver: GraphQLResolver<*>
+        methodName: String,
+        arguments: List<InputValueDefinition> = emptyList(),
+        resolver: GraphQLResolver<*>
     ): DataFetcher<*> {
         return createFetcher(methodName, resolver, arguments)
     }
 
     private fun createFetcher(
-            methodName: String,
-            resolver: GraphQLResolver<*>,
-            arguments: List<InputValueDefinition> = emptyList(),
-            options: SchemaParserOptions = SchemaParserOptions.defaultOptions()
+        methodName: String,
+        resolver: GraphQLResolver<*>,
+        arguments: List<InputValueDefinition> = emptyList(),
+        options: SchemaParserOptions = SchemaParserOptions.defaultOptions()
     ): DataFetcher<*> {
         val field = FieldDefinition.newFieldDefinition()
-                .name(methodName)
-                .type(TypeName("Boolean"))
-                .inputValueDefinitions(arguments)
-                .build()
+            .name(methodName)
+            .type(TypeName("Boolean"))
+            .inputValueDefinitions(arguments)
+            .build()
 
         val resolverInfo = if (resolver is GraphQLQueryResolver) {
             RootResolverInfo(listOf(resolver), options)
@@ -284,10 +284,10 @@ class MethodFieldResolverDataFetcherTest {
 
     private fun createEnvironment(source: Any = Object(), arguments: Map<String, Any> = emptyMap(), context: Any? = null): DataFetchingEnvironment {
         return DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
-                .source(source)
-                .arguments(arguments)
-                .context(context)
-                .build()
+            .source(source)
+            .arguments(arguments)
+            .context(context)
+            .build()
     }
 
     private fun buildExecutionContext(): ExecutionContext {
@@ -298,12 +298,12 @@ class MethodFieldResolverDataFetcherTest {
         }
         val executionId = ExecutionId.from("executionId123")
         return ExecutionContextBuilder.newExecutionContextBuilder()
-                .instrumentation(SimpleInstrumentation.INSTANCE)
-                .executionId(executionId)
-                .queryStrategy(executionStrategy)
-                .mutationStrategy(executionStrategy)
-                .subscriptionStrategy(executionStrategy)
-                .build()
+            .instrumentation(SimpleInstrumentation.INSTANCE)
+            .executionId(executionId)
+            .queryStrategy(executionStrategy)
+            .mutationStrategy(executionStrategy)
+            .subscriptionStrategy(executionStrategy)
+            .build()
     }
 
     data class DataClass(val name: String = "TestName")

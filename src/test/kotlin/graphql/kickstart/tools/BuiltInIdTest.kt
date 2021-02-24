@@ -8,7 +8,9 @@ import java.util.*
 
 class BuiltInIdTest {
 
-    private val schema: GraphQLSchema = SchemaParser.newParser().schemaString("""
+    private val schema: GraphQLSchema = SchemaParser.newParser()
+        .schemaString(
+            """
             type Query {
                 itemByLongId(id: ID!): Item1!
                 itemsByLongIds(ids: [ID!]!): [Item1!]!
@@ -17,19 +19,19 @@ class BuiltInIdTest {
             }
             
             type Item1 {
-              id: ID!
+                id: ID!
             }
             
             type Item2 {
-              id: ID!
+                id: ID!
             }
-        """.trimIndent())
-            .resolvers(QueryWithLongItemResolver())
-            .build()
-            .makeExecutableSchema()
+            """)
+        .resolvers(QueryWithLongItemResolver())
+        .build()
+        .makeExecutableSchema()
     private val gql: GraphQL = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
+        .queryExecutionStrategy(AsyncExecutionStrategy())
+        .build()
 
     @Test
     fun `supports Long as ID as input`() {
@@ -95,7 +97,6 @@ class BuiltInIdTest {
         assert(data["itemsByUuidIds"] != null)
         assert(((data["itemsByUuidIds"] as List<*>).size == 3))
         assert(((data["itemsByUuidIds"] as List<*>)[0] as Map<*, *>)["id"] == "00000000-0000-0000-0000-000000000000")
-
     }
 
     class QueryWithLongItemResolver : GraphQLQueryResolver {
