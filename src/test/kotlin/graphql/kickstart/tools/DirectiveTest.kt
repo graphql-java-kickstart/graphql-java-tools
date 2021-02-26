@@ -9,89 +9,92 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
-import org.junit.Assert
 import org.junit.Ignore
 import org.junit.Test
-import java.util.function.BiFunction
 
 class DirectiveTest {
     @Test
     fun `should apply correctly the @uppercase directive`() {
-        val schema = SchemaParser.newParser().schemaString("""
-              directive @uppercase on FIELD_DEFINITION
-  
-              type Query {
-                users: UserConnection
-              }
-      
-              type UserConnection {
-                edges: [UserEdge!]!
-              }
-      
-              type UserEdge {
-                node: User!
-              } 
-              
-              type User {
-                id: ID!
-                name: String @uppercase
-              }
-            """)
-                .resolvers(UsersQueryResolver())
-                .directive("uppercase", UppercaseDirective())
-                .build()
-                .makeExecutableSchema()
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @uppercase on FIELD_DEFINITION
+                
+                type Query {
+                    users: UserConnection
+                }
+                
+                type UserConnection {
+                    edges: [UserEdge!]!
+                }
+                
+                type UserEdge {
+                    node: User!
+                } 
+                
+                type User {
+                    id: ID!
+                    name: String @uppercase
+                }
+                """)
+            .resolvers(UsersQueryResolver())
+            .directive("uppercase", UppercaseDirective())
+            .build()
+            .makeExecutableSchema()
 
         val gql = GraphQL.newGraphQL(schema)
-                .queryExecutionStrategy(AsyncExecutionStrategy())
-                .build()
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
 
-        val result = gql.execute("""
-          query {
-            users {
-              edges {
-                node {
-                  id
-                  name
+        val result = gql.execute(
+            """
+            query {
+                users {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
                 }
-              }
             }
-          }
-        """)
+            """)
 
         val expected = mapOf(
-                "users" to mapOf(
-                        "edges" to listOf(
-                                mapOf("node" to
-                                        mapOf("id" to "1", "name" to "LUKE")
-                                )
-                        )
+            "users" to mapOf(
+                "edges" to listOf(
+                    mapOf("node" to
+                        mapOf("id" to "1", "name" to "LUKE")
+                    )
                 )
+            )
         )
 
-        Assert.assertEquals(expected, result.getData<Map<String, List<*>>>())
+        assertEquals(result.getData(), expected)
     }
 
     @Test
     @Ignore("Ignore until enums work in directives")
     fun `should compile schema with directive that has enum parameter`() {
-        val schema = SchemaParser.newParser().schemaString("""
-              directive @allowed(state: [AllowedState!]) on FIELD_DEFINITION
-              
-              enum AllowedState {
-                  ALLOWED
-                  DISALLOWED
-              }
-              
-              type Book {
-                  id: Int!
-                  name: String! @allowed(state: [ALLOWED])
-              }
-              
-              type Query {
-                  books: [Book!]
-              }
-            """)
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @allowed(state: [AllowedState!]) on FIELD_DEFINITION
+                
+                enum AllowedState {
+                    ALLOWED
+                    DISALLOWED
+                }
+                
+                type Book {
+                    id: Int!
+                    name: String! @allowed(state: [ALLOWED])
+                }
+                
+                type Query {
+                    books: [Book!]
+                }
+                """)
             .resolvers(QueryResolver())
             .directive("allowed", AllowedDirective())
             .build()
@@ -135,7 +138,7 @@ class DirectiveTest {
             val parentType = environment.fieldsContainer
 
             val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
-            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher, BiFunction { env, value ->
+            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher, { _, value ->
                 (value as? String)?.toUpperCase()
             })
 
@@ -151,8 +154,8 @@ class DirectiveTest {
         }
 
         private data class User(
-                val id: Long,
-                val name: String
+            val id: Long,
+            val name: String
         )
     }
 }

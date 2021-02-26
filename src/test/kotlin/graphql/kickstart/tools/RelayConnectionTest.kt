@@ -5,50 +5,50 @@ import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetchingEnvironment
-import groovy.lang.Closure
-import org.junit.Assert
 import org.junit.Test
 
 class RelayConnectionTest {
 
     @Test
     fun `should compile relay schema when not using @connection directive`() {
-        val schema = SchemaParser.newParser().schemaString("""
-              type Query {
-                users(first: Int, after: String): UserConnection
-                otherTypes: AnotherTypeConnection
-              }
-      
-              type UserConnection {
-                edges: [UserEdge!]!
-                pageInfo: PageInfo!
-              }
-      
-              type UserEdge {
-                node: User!
-              } 
-              
-              type User {
-                id: ID!
-                name: String
-              }
-      
-              type PageInfo {
-                hasNextPage: Boolean
-              }
-      
-              type AnotherTypeConnection {
-                edges: [AnotherTypeEdge!]!
-              }
-      
-              type AnotherTypeEdge {
-                node: AnotherType!
-              }
-      
-              type AnotherType {
-                echo: String
-              }
-            """)
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    users(first: Int, after: String): UserConnection
+                    otherTypes: AnotherTypeConnection
+                }
+                
+                type UserConnection {
+                    edges: [UserEdge!]!
+                    pageInfo: PageInfo!
+                }
+                
+                type UserEdge {
+                    node: User!
+                } 
+                
+                type User {
+                    id: ID!
+                    name: String
+                }
+                
+                type PageInfo {
+                    hasNextPage: Boolean
+                }
+                
+                type AnotherTypeConnection {
+                    edges: [AnotherTypeEdge!]!
+                }
+                
+                type AnotherTypeEdge {
+                    node: AnotherType!
+                }
+                
+                type AnotherType {
+                    echo: String
+                }
+                """)
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
@@ -57,25 +57,26 @@ class RelayConnectionTest {
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
 
-        val result = gql.execute("""
-          query {
-            users {
-              edges {
-                node {
-                  id
-                  name
+        val result = gql.execute(
+            """
+            query {
+                users {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
                 }
-              }
-            }
-            otherTypes {
-              edges {
-                node {
-                  echo
+                otherTypes {
+                    edges {
+                        node {
+                            echo
+                        }
+                    }
                 }
-              }
             }
-          }
-        """)
+            """)
 
         val expected = mapOf(
             "users" to mapOf(
@@ -94,7 +95,7 @@ class RelayConnectionTest {
             )
         )
 
-        Assert.assertEquals(expected, result.getData<Map<String, List<*>>>())
+        assertEquals(result.getData(), expected)
     }
 
     @Test
@@ -110,29 +111,27 @@ class RelayConnectionTest {
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
 
-        Utils.assertNoGraphQlErrors(gql, emptyMap(), object : Closure<String>(null) {
-            override fun call(): String {
-                return """
-                  query {
-                    users {
-                      edges {
+        assertNoGraphQlErrors(gql) {
+            """
+            query {
+                users {
+                    edges {
                         cursor
                         node {
-                          id
-                          name
+                            id
+                            name
                         }
-                      }
-                      pageInfo {
+                    }
+                    pageInfo {
                         hasPreviousPage
                         hasNextPage
                         startCursor
                         endCursor
-                      }
                     }
-                  }
-                """
+                }
             }
-        })
+            """
+        }
     }
 
     private class QueryResolver : GraphQLQueryResolver {
