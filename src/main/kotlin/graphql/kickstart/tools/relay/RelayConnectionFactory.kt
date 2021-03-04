@@ -8,6 +8,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
     override fun create(existing: MutableList<Definition<*>>): List<Definition<*>> {
         val connectionDirectives = findConnectionDirectives(existing)
         if (connectionDirectives.isEmpty()) {
+            // do not add Relay definitions unless needed
             return emptyList()
         }
 

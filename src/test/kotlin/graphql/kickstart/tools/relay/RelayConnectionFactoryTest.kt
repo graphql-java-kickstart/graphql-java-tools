@@ -1,7 +1,7 @@
 package graphql.kickstart.tools.relay
 
 import graphql.language.Definition
-import org.junit.Assert
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RelayConnectionFactoryTest {
@@ -15,6 +15,6 @@ class RelayConnectionFactoryTest {
         val newDefinitions = factory.create(existing)
 
         // expect
-        Assert.assertEquals(newDefinitions.size, 0)
+        assertEquals(newDefinitions.size, 0)
     }
 }
