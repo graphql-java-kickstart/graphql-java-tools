@@ -3,6 +3,11 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLObjectType
+import graphql.schema.GraphQLArgument
+import graphql.schema.GraphQLInputObjectType
+import graphql.schema.GraphQLNonNull
+import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -477,6 +482,47 @@ class SchemaParserTest {
         }
 
         class Poodle(override var traits: List<PoodleTrait>) : Dog<PoodleTrait>()
+    }
+
+    @Test
+    fun `NonNull and nullable input arguments should resolve to GraphQLInputObjectType`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    testNonNullable(filter: Filter!): Boolean
+                    testNullable(filter: Filter): Boolean
+                }
+        
+                input Filter {
+                    filter: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun testNonNullable(filter: Filter): Boolean = false
+                fun testNullable(filter: Filter): Boolean = false
+            })
+            .directiveWiring(object : SchemaDirectiveWiring {
+                override fun onArgument(environment: SchemaDirectiveWiringEnvironment<GraphQLArgument>): GraphQLArgument {
+                    when (environment.element.type) {
+                        is GraphQLNonNull ->
+                            assert((environment.element.type as GraphQLNonNull).wrappedType is GraphQLInputObjectType)
+                    }
+                    return environment.element
+                }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val testNonNullableArgument = schema.getObjectType("Query")
+            .getFieldDefinition("testNonNullable")
+            .arguments.first()
+        val testNullableArgument = schema.getObjectType("Query")
+            .getFieldDefinition("testNullable")
+            .arguments.first()
+        assert(testNonNullableArgument.type is GraphQLNonNull)
+        assert((testNonNullableArgument.type as GraphQLNonNull).wrappedType is GraphQLInputObjectType)
+        assert(testNullableArgument.type is GraphQLInputObjectType)
     }
 
     enum class EnumType {
