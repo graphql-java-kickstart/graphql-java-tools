@@ -4,7 +4,6 @@ import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.kickstart.tools.SchemaParser.Companion.newParser
 import graphql.kickstart.tools.SchemaParserOptions.Companion.newOptions
-import groovy.lang.Closure
 import org.junit.Test
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -33,11 +32,9 @@ class ReactiveTest {
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
 
-        Utils.assertNoGraphQlErrors(gql, HashMap(), Any(), object : Closure<String>(null) {
-            override fun call(): String {
-                return "query { organization(organizationId: 1) { user { id } } }"
-            }
-        })
+        assertNoGraphQlErrors(gql) {
+            "query { organization(organizationId: 1) { user { id } } }"
+        }
     }
 
     private class Query : GraphQLQueryResolver {
