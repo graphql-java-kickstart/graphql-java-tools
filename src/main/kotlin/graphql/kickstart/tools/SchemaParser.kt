@@ -234,6 +234,11 @@ class SchemaParser internal constructor(
             builder.field { field -> createField(field, fieldDefinition, inputObjects) }
         }
 
+        interfaceDefinition.implements.forEach { implementsDefinition ->
+            val interfaceName = (implementsDefinition as TypeName).name
+            builder.withInterface(GraphQLTypeReference(interfaceName))
+        }
+
         return schemaGeneratorDirectiveHelper.onInterface(builder.build(), schemaDirectiveParameters)
     }
 

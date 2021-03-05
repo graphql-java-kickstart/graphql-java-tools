@@ -1,6 +1,8 @@
 package graphql.kickstart.tools
 
 import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.schema.GraphQLInterfaceType
+import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLArgument
 import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLNonNull
@@ -405,6 +407,81 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
+    }
+
+    @Test
+    fun `interface implementing an interface should have non-empty interface list`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                interface Trait {
+                    id: ID!
+                }
+                interface MammalTrait implements Trait {
+                    id: ID!
+                }
+                type PoodleTrait implements Trait & MammalTrait {
+                    id: ID!
+                }
+
+                interface Animal {
+                    id: ID!
+                    traits: [Trait]
+                }
+                interface Dog implements Animal {
+                    id: ID!
+                    traits: [MammalTrait]
+                }
+                type Poodle implements Animal & Dog {
+                    id: ID!
+                    traits: [PoodleTrait]
+                }
+
+                type Query { test: [Poodle] }
+                """)
+            .resolvers(MultiLevelInterfaceResolver())
+            .build()
+            .makeExecutableSchema()
+        val traitInterface = schema.getType("Trait") as GraphQLInterfaceType
+        val animalInterface = schema.getType("Animal") as GraphQLInterfaceType
+        val mammalTraitInterface = schema.getType("MammalTrait") as GraphQLInterfaceType
+        val dogInterface = schema.getType("Dog") as GraphQLInterfaceType
+        val poodleObject = schema.getType("Poodle") as GraphQLObjectType
+        val poodleTraitObject = schema.getType("PoodleTrait") as GraphQLObjectType
+
+        assert(poodleObject.interfaces.containsAll(listOf(dogInterface, animalInterface)))
+        assert(poodleTraitObject.interfaces.containsAll(listOf(mammalTraitInterface, traitInterface)))
+        assert(dogInterface.interfaces.contains(animalInterface))
+        assert(mammalTraitInterface.interfaces.contains(traitInterface))
+        assert(traitInterface.definition.implements.isEmpty())
+        assert(animalInterface.definition.implements.isEmpty())
+    }
+
+    class MultiLevelInterfaceResolver : GraphQLQueryResolver {
+        fun test(): List<Poodle> = listOf()
+
+        interface Trait {
+            var id: String
+        }
+
+        interface MammalTrait : Trait {
+            override var id: String
+        }
+
+        interface PoodleTrait : MammalTrait {
+            override var id: String
+        }
+
+        abstract class Animal<T : Trait> {
+            var id: String? = null
+            abstract var traits: List<T>
+        }
+
+        abstract class Dog<T : MammalTrait> : Animal<T>() {
+            abstract override var traits: List<T>
+        }
+
+        class Poodle(override var traits: List<PoodleTrait>) : Dog<PoodleTrait>()
     }
 
     @Test
