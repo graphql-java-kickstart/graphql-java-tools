@@ -76,6 +76,7 @@ type Query {
 
     propertyField: String!
     dataFetcherResult: Item!
+    dataFetcherResultItems: [Item!]!
 
     coroutineItems: [Item!]!
 
@@ -302,6 +303,10 @@ class Query : GraphQLQueryResolver, ListListResolver<String>() {
         return DataFetcherResult.newResult<Item>().data(items.first()).build()
     }
 
+    fun dataFetcherResultItems(): List<DataFetcherResult<Item>> {
+        return listOf(DataFetcherResult.newResult<Item>().data(items.first()).build())
+    }
+
     suspend fun coroutineItems(): List<Item> = CompletableDeferred(items).await()
 
     fun arrayItems() = items.toTypedArray()
@@ -329,7 +334,7 @@ class Mutation : GraphQLMutationResolver {
     }
 
     fun saveUser(userInput: UserInput): String {
-        return userInput.name + "/" + userInput.password;
+        return userInput.name + "/" + userInput.password
     }
 
     class UserInput {
