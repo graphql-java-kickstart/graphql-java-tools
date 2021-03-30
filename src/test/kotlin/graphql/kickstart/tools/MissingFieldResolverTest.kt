@@ -1,25 +1,24 @@
 package graphql.kickstart.tools
 
-import graphql.ExecutionInput
 import graphql.GraphQL
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import org.junit.Assert
 import org.junit.Test
 import java.util.*
 
 class MissingFieldResolverTest {
 
     @Test(expected = FieldResolverError::class)
-    fun `should throw error`() {
+    fun `should throw error when a field is missing`() {
         SchemaParser.newParser()
-            .schemaString("""
-                    type Query {
-                        implementedField(input: String): String
-                        missingField(input: Int): Int
-                    }
-                    """
+            .schemaString(
+                """
+                type Query {
+                    implementedField(input: String): String
+                    missingField(input: Int): Int
+                }
+                """
             )
             .resolvers(object : GraphQLQueryResolver {
                 fun implementedField(input: Optional<String>) = input.toString()
@@ -31,12 +30,13 @@ class MissingFieldResolverTest {
     @Test
     fun `should call missing resolver data fetcher if provided`() {
         val schema = SchemaParser.newParser()
-            .schemaString("""
-                    type Query {
-                        implementedField(input: String): String
-                        missingField(input: Int): Int
-                    }
-                    """
+            .schemaString(
+                """
+                type Query {
+                    implementedField(input: String): String
+                    missingField(input: Int): Int
+                }
+                """
             )
             .resolvers(object : GraphQLQueryResolver {
                 fun implementedField(input: Optional<String>) = input.toString()
@@ -49,23 +49,20 @@ class MissingFieldResolverTest {
 
         val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = gql
-            .execute(ExecutionInput.newExecutionInput()
-                .query("""
-                            query {
-                                implementedField(input: "test-value")
-                                missingField(input: 1)
-                            }
-                            """)
-                .context(Object())
-                .root(Object()))
+        val result = gql.execute(
+            """
+            query {
+                implementedField(input: "test-value")
+                missingField(input: 1)
+            }
+            """)
 
         val expected = mapOf(
             "implementedField" to "Optional[test-value]",
             "missingField" to 1
         )
 
-        Assert.assertEquals(expected, result.getData())
+        assertEquals(result.getData(), expected)
     }
 
     class TestMissingResolverDataFetcher : DataFetcher<Any?> {

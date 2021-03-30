@@ -5,7 +5,6 @@ import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
-import graphql.schema.DataFetchingEnvironment
 
 internal class MissingFieldResolver(
     field: FieldDefinition,
@@ -13,13 +12,6 @@ internal class MissingFieldResolver(
 ) : FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options, Any::class.java) {
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
-    override fun createDataFetcher(): DataFetcher<*> {
-        return options.missingResolverDataFetcher ?: return NotImplementedMissingFieldDataFetcher()
-    }
-
-    class NotImplementedMissingFieldDataFetcher : DataFetcher<Any?> {
-        override fun get(env: DataFetchingEnvironment?): Any? {
-            TODO("Schema resolver not implemented")
-        }
-    }
+    override fun createDataFetcher(): DataFetcher<*> =
+        options.missingResolverDataFetcher ?: DataFetcher<Any> { TODO("Schema resolver not implemented") }
 }
