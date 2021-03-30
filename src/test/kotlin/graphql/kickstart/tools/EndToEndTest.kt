@@ -533,6 +533,21 @@ class EndToEndTest {
     }
 
     @Test
+    fun `generated schema supports list of DataFetcherResult`() {
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            {
+                dataFetcherResultItems {
+                    name
+                }
+            }
+            """
+        }
+
+        assertEquals(data["dataFetcherResultItems"], listOf(mapOf("name" to "item1")))
+    }
+
+    @Test
     fun `generated schema supports Kotlin suspend functions`() {
         val data = assertNoGraphQlErrors(gql) {
             """

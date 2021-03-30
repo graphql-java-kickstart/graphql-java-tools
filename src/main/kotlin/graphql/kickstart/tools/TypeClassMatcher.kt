@@ -32,10 +32,6 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used as a return type")
             }
 
-            if (!root) {
-                throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used at the top level of a return type")
-            }
-
             realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
 
             if (realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, DataFetcherResult::class.java)) {
