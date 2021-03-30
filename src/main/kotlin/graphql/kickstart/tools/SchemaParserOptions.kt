@@ -22,8 +22,8 @@ import kotlin.reflect.KClass
 data class SchemaParserOptions internal constructor(
     val contextClass: Class<*>?,
     val genericWrappers: List<GenericWrapper>,
-    val missingResolverDataFetcher: DataFetcher<Any?>?,
     val allowUnimplementedResolvers: Boolean,
+    val missingResolverDataFetcher: DataFetcher<Any?>?,
     val objectMapperProvider: PerFieldObjectMapperProvider,
     val proxyHandlers: List<ProxyHandler>,
     val inputArgumentOptionalDetectOmission: Boolean,
@@ -50,8 +50,8 @@ data class SchemaParserOptions internal constructor(
         private var contextClass: Class<*>? = null
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
-        private var missingResolverDataFetcher: DataFetcher<Any?>? = null
         private var allowUnimplementedResolvers = false
+        private var missingResolverDataFetcher: DataFetcher<Any?>? = null
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
         private var inputArgumentOptionalDetectOmission = false
@@ -82,12 +82,12 @@ data class SchemaParserOptions internal constructor(
             this.useDefaultGenericWrappers = useDefaultGenericWrappers
         }
 
-        fun missingResolverDataFetcher(missingResolverDataFetcher: DataFetcher<Any?>?) = this.apply {
-            this.missingResolverDataFetcher = missingResolverDataFetcher
-        }
-
         fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
+        }
+
+        fun missingResolverDataFetcher(missingResolverDataFetcher: DataFetcher<Any?>?) = this.apply {
+            this.missingResolverDataFetcher = missingResolverDataFetcher
         }
 
         fun inputArgumentOptionalDetectOmission(inputArgumentOptionalDetectOmission: Boolean) = this.apply {
@@ -167,8 +167,8 @@ data class SchemaParserOptions internal constructor(
             return SchemaParserOptions(
                 contextClass,
                 wrappers,
-                missingResolverDataFetcher,
                 allowUnimplementedResolvers,
+                missingResolverDataFetcher,
                 objectMapperProvider,
                 proxyHandlers,
                 inputArgumentOptionalDetectOmission,
