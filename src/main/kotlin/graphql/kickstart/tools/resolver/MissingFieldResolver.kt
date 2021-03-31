@@ -12,6 +12,6 @@ internal class MissingFieldResolver(
 ) : FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options, Any::class.java) {
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
-
-    override fun createDataFetcher(): DataFetcher<*> = DataFetcher<Any> { TODO("Schema resolver not implemented") }
+    override fun createDataFetcher(): DataFetcher<*> =
+        options.missingResolverDataFetcher ?: DataFetcher<Any> { TODO("Schema resolver not implemented") }
 }
