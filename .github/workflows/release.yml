@@ -27,9 +27,11 @@ jobs:
           distribution: 'adopt'
           server-id: bintray
           server-username: BINTRAY_USER
-          server-password: BINTRAY_PASSWORD
+          server-password: BINTRAY_PASS
       - name: Publish release
         run: bash github-build.sh
         env:
+          BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
+          BINTRAY_PASS: ${{ secrets.BINTRAY_PASSWORD }}
           MAVEN_USERNAME: ${{ secrets.OSS_USER_TOKEN_KEY }}
           MAVEN_PASSWORD: ${{ secrets.OSS_USER_TOKEN_PASS }}
