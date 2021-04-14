@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
+import java.util.*
 
 /**
  * @author Andrew Potter
@@ -72,5 +73,5 @@ private fun isBooleanGetter(method: Method) = (method.name.startsWith("is")
     && (method.returnType == java.lang.Boolean::class.java)
     || method.returnType == Boolean::class.java)
 
-internal fun String.snakeToCamelCase(): String = split("_").joinToString(separator = "") { it.capitalize() }
+internal fun String.snakeToCamelCase(): String = split("_").joinToString(separator = "") { it.capitalize(Locale.ENGLISH) }
 

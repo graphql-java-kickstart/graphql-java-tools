@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Type
+import java.util.*
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
@@ -86,11 +87,11 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return methods.find {
             it.name == name && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            (isBoolean(field.type) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, search)
+            (isBoolean(field.type) && it.name == "is${name.capitalize(Locale.ENGLISH)}") && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+            it.name == "get${name.capitalize(Locale.ENGLISH)}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+            it.name == "getField${name.capitalize(Locale.ENGLISH)}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "get${name.snakeToCamelCase()}" && verifyMethodArguments(it, argumentCount, search)
         }
@@ -179,9 +180,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
         signatures.add("${baseType.name}.${field.name}($argString)")
         if (isBoolean) {
-            signatures.add("${baseType.name}.is${field.name.capitalize()}($argString)")
+            signatures.add("${baseType.name}.is${field.name.capitalize(Locale.ENGLISH)}($argString)")
         }
-        signatures.add("${baseType.name}.get${field.name.capitalize()}($argString)")
+        signatures.add("${baseType.name}.get${field.name.capitalize(Locale.ENGLISH)}($argString)")
         if (scannedProperties) {
             signatures.add("${baseType.name}.${field.name}")
         }
