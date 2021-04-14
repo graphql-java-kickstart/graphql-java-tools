@@ -29,10 +29,12 @@ jobs:
           java-version: '8'
           distribution: 'adopt'
           server-id: bintray
-          server-username: ${{ secrets.BINTRAY_USER }}
-          server-password: ${{ secrets.BINTRAY_PASSWORD }}
+          server-username: BINTRAY_USER
+          server-password: BINTRAY_PASS
       - name: Publish release
         run: mvn --batch-mode -Pbintray deploy
         env:
+          BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
+          BINTRAY_PASS: ${{ secrets.BINTRAY_PASSWORD }}
           MAVEN_USERNAME: ${{ secrets.OSS_USER_TOKEN_KEY }}
           MAVEN_PASSWORD: ${{ secrets.OSS_USER_TOKEN_PASS }}
