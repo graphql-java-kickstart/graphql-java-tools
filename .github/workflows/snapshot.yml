@@ -29,8 +29,8 @@ jobs:
           java-version: '8'
           distribution: 'adopt'
           server-id: bintray
-          server-username: BINTRAY_USER
-          server-password: BINTRAY_PASSWORD
+          server-username: ${{ secrets.BINTRAY_USER }}
+          server-password: ${{ secrets.BINTRAY_PASSWORD }}
       - name: Publish release
         run: mvn --batch-mode -Pbintray deploy
         env:
