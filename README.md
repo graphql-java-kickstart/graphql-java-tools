@@ -1,6 +1,6 @@
 # GraphQL Java Tools
 
-[![TravisCI Build](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools.svg?branch=master)](https://travis-ci.org/graphql-java-kickstart/graphql-java-tools)
+[![Github Build](https://github.com/graphql-java-kickstart/graphql-java-tools/actions/workflows/snapshot.yml/badge.svg)](https://github.com/graphql-java-kickstart/graphql-java-tools/actions/workflows/snapshot.yml)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools)
 [![Discuss on GitHub](https://img.shields.io/badge/GitHub-discuss-orange)](https://github.com/graphql-java-kickstart/graphql-java-tools/discussions)
 
