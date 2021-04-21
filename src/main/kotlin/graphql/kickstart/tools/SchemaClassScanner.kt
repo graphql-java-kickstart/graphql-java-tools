@@ -249,14 +249,18 @@ internal class SchemaClassScanner(
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        val resolverInfoList = this.resolverInfos.filter { it.dataClassType == item.clazz }
-        val resolverInfo: ResolverInfo = (if (resolverInfoList.size > 1) {
-            MultiResolverInfo(resolverInfoList)
+        val resolverInfoList = this.resolverInfos.filter { it.dataClassType.unwrap().isAssignableFrom(item.clazz.unwrap()) }
+        val resolverInfo: ResolverInfo = (if (resolverInfoList.size > 1 && item.clazz != Object::class.java) {
+            MultiResolverInfo(resolverInfoList, item.clazz.unwrap())
         } else {
             if (item.clazz == Object::class.java) {
                 getResolverInfoFromTypeDictionary(item.type.name)
             } else {
-                resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
+                if (resolverInfoList.size == 1) {
+                    MultiResolverInfo(resolverInfoList, item.clazz.unwrap())
+                } else {
+                    DataClassResolverInfo(item.clazz)
+                }
             }
         })
             ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")

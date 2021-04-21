@@ -127,7 +127,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun verifyMethodArguments(method: Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
             method.genericParameterTypes.firstOrNull()?.let {
-                it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
+                it == search.requiredFirstParameterType || (it is Class<*> && it.unwrap().isAssignableFrom(search.requiredFirstParameterType))
+                        || method.declaringClass.typeParameters.contains(it)
             } ?: false
         } else {
             true

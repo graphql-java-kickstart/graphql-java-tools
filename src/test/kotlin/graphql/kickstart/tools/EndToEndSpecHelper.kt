@@ -16,7 +16,7 @@ import javax.servlet.http.Part
 
 fun createSchema() = SchemaParser.newParser()
     .schemaString(schemaDefinition)
-    .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), UnusedRootResolver(), UnusedResolver(), EchoFilesResolver())
+    .resolvers(Query(), Mutation(), Subscription(), ItemResolver(), ItemInterfaceResolver(), UnusedRootResolver(), UnusedResolver(), EchoFilesResolver())
     .scalars(customScalarUUID, customScalarMap, customScalarId, uploadScalar)
     .dictionary("OtherItem", OtherItemWithWrongName::class)
     .dictionary("ThirdItem", ThirdItem::class)
@@ -155,6 +155,7 @@ type Item implements ItemInterface {
     type: Type!
     uuid: UUID!
     tags(names: [String!]): [Tag!]
+    uppercaseName: String!
 }
 
 type OtherItem implements ItemInterface {
@@ -392,6 +393,10 @@ class ItemResolver : GraphQLResolver<Item> {
     fun tags(item: Item, names: List<String>?): List<Tag> = item.tags.filter {
         names?.contains(it.name) ?: true
     }
+}
+
+class ItemInterfaceResolver : GraphQLResolver<ItemInterface> {
+    fun uppercaseName(item: ItemInterface): String = item.name.toUpperCase()
 }
 
 class EchoFilesResolver : GraphQLMutationResolver {
