@@ -44,11 +44,5 @@ git config --global user.email "actions@github.com"
 git config --global user.name "GitHub Actions"
 
 echo "Deploying release to Bintray"
-removeSnapshots
 
 mvn release:clean release:prepare release:perform -B -e -Pbintray
-
-commitRelease
-bumpVersion
-commitNextVersion
-git push --follow-tags
