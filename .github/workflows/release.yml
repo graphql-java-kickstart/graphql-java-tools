@@ -35,3 +35,4 @@ jobs:
           BINTRAY_PASS: ${{ secrets.BINTRAY_PASSWORD }}
           MAVEN_USERNAME: ${{ secrets.OSS_USER_TOKEN_KEY }}
           MAVEN_PASSWORD: ${{ secrets.OSS_USER_TOKEN_PASS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
