@@ -29,7 +29,7 @@ jobs:
           server-username: BINTRAY_USER
           server-password: BINTRAY_PASS
       - name: Publish release
-        run: mvn release:clean release:prepare release:perform -B -e -Pbintray
+        run: bash github-build.sh
         env:
           BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
           BINTRAY_PASS: ${{ secrets.BINTRAY_PASSWORD }}
