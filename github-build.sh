@@ -2,7 +2,7 @@
 set -ev
 
 getVersion() {
-  grep -m1 -o '[^<>]*-SNAPSHOT' pom.xml
+  grep -m1 -o "<version>.*</version>$" pom.xml | awk -F'[><]' '{print $3}'
 }
 
 removeSnapshots() {
