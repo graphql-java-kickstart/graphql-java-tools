@@ -29,7 +29,7 @@ bumpVersion() {
     fi
 
     echo "Next version: ${nextVersion}"
-      sed -i "'0,/<version>.*<\/version>/s//<version>${nextVersion}<\/version>/'" pom.xml
+      sed -i '0,/<version>.*<\/version>/s//<version>${nextVersion}<\/version>/' pom.xml
 
   else
     echo "No semantic version and therefore cannot publish to maven repository: '${APP_VERSION}'"
