@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
-import java.util.*
+import java.util.Locale
 
 /**
  * @author Andrew Potter

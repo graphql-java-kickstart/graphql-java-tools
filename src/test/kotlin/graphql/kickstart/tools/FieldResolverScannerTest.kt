@@ -83,7 +83,7 @@ class FieldResolverScannerTest {
 
     @Test
     fun `scanner finds field resolver method using capitalize field_name`() {
-        val resolver = RootResolverInfo(listOf(capitalizeQuery()), options)
+        val resolver = RootResolverInfo(listOf(CapitalizeQuery()), options)
 
         val meta = scanner.findFieldResolver(FieldDefinition("id", TypeName("HullType")), resolver)
 
@@ -107,7 +107,7 @@ class FieldResolverScannerTest {
         fun getHullType(): HullType = HullType()
     }
 
-    class capitalizeQuery : GraphQLQueryResolver {
+    class CapitalizeQuery : GraphQLQueryResolver {
         fun getId(): HullType = HullType()
     }
 
