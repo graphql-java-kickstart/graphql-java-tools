@@ -2,7 +2,7 @@
 set -ev
 
 getVersion() {
-  grep -m1 -o '[^<>]*-SNAPSHOT' pom.xml
+  grep -m1 -o "<version>.*</version>$" pom.xml | awk -F'[><]' '{print $3}'
 }
 
 removeSnapshots() {
@@ -29,7 +29,7 @@ bumpVersion() {
     fi
 
     echo "Next version: ${nextVersion}"
-      sed -i "'0,/<version>.*<\/version>/s//<version>${nextVersion}<\/version>/'" pom.xml
+      sed -i '0,/<version>.*<\/version>/s//<version>${nextVersion}<\/version>/' pom.xml
 
   else
     echo "No semantic version and therefore cannot publish to maven repository: '${APP_VERSION}'"
@@ -46,7 +46,7 @@ git config --global user.name "GitHub Actions"
 echo "Deploying release to Bintray"
 removeSnapshots
 
-mvn release:clean release:prepare release:perform -B -e -Pbintray
+mvn --batch-mode -Pbintray deploy
 
 commitRelease
 bumpVersion
