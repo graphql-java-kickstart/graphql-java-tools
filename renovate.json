@@ -4,8 +4,8 @@
   ],
   "packageRules": [
     {
+      "__comment": "Ignore graphql-java snapshot builds",
       "matchPackagePatterns": ["^com.graphql-java"],
-      // ignore snapshot builds 
       "allowedVersions": "/^[0-9]+\\.[0-9]+\\.[0-9]+?$/"
     }
   ]
