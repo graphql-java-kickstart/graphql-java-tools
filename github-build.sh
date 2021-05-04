@@ -43,10 +43,10 @@ commitNextVersion() {
 git config --global user.email "actions@github.com"
 git config --global user.name "GitHub Actions"
 
-echo "Deploying release to Bintray"
+echo "Deploying release to Maven Central"
 removeSnapshots
 
-mvn --batch-mode -Pbintray deploy
+mvn --batch-mode -Prelease deploy
 
 commitRelease
 bumpVersion
