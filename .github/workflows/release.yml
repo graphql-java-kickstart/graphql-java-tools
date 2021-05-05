@@ -20,11 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Prepare GPG signing
-        env:
-          GPG_KEY_CONTENTS: ${{ secrets.GPG_KEY_CONTENTS }}
-          SIGNING_SECRET_KEY_RING_FILE: ${{ secrets.GPG_SIGNING_SECRET_KEY_RING_FILE }}
-        run: sudo bash -c "echo '$GPG_KEY_CONTENTS' | base64 -d > '$SIGNING_SECRET_KEY_RING_FILE'"
       - name: Setup Maven Central
         uses: actions/setup-java@v2
         with:
@@ -33,7 +28,7 @@ jobs:
           server-id: ossrh
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.GPG_SIGNING_SECRET_KEY_RING_FILE }}
+          gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
       - name: Publish release
         run: bash github-build.sh
