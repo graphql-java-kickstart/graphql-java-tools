@@ -51,4 +51,3 @@ mvn --batch-mode -Prelease deploy
 commitRelease
 bumpVersion
 commitNextVersion
-git push --follow-tags

@@ -37,3 +37,10 @@ jobs:
           MAVEN_PASSWORD: ${{ secrets.OSS_USER_TOKEN_PASS }}
           GPG_PASSPHRASE: ${{ secrets.GPG_SIGNING_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release PR
+        uses: peter-evans/create-pull-request@v3
+        with:
+          branch: version-release
+          title: Version Release
+          body: |
+            Bumping project version after release.
