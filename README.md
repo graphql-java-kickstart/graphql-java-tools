@@ -21,7 +21,7 @@ Are you interested in improving our documentation, working on the codebase, revi
 ### Using Gradle
 Set the Kotlin version in your `gradle.properties`:
 ```
-kotlin.version=1.3.70
+kotlin.version=1.4.30
 ```
 
 Add the dependency:
@@ -32,8 +32,9 @@ compile 'com.graphql-java-kickstart:graphql-java-tools:11.0.1'
 ### Using Maven
 Set the Kotlin version in your `<properties>` section:
 ```xml
+
 <properties>
-  <kotlin.version>1.3.70</kotlin.version>
+    <kotlin.version>1.4.30</kotlin.version>
 </properties>
 ```
 
