@@ -1,14 +1,5 @@
 {
   "extends": [
-    "config:base"
-  ],
-  "packageRules": [
-    {
-      "description": "Ignore graphql-java snapshot builds",
-      "matchPackagePatterns": [
-        "^com.graphql-java"
-      ],
-      "allowedVersions": "/^[0-9]+\\.[0-9]+\\.[0-9]+?$/"
-    }
+    "github>graphql-java-kickstart/renovate-config"
   ]
 }
