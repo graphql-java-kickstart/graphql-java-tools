@@ -62,12 +62,7 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 * **Class Validation**:  Since there aren't any compile-time checks of the type->class relationship, GraphQL Java Tools will warn you if you provide classes/types that you don't need to, as well as erroring if you use the wrong Java class for a certain GraphQL type when it builds the schema.
 * **Unit Testing**:  Since your GraphQL schema is independent of your data model, this makes your classes simple and extremely testable.
 
-## WARNING: NoClassDefFoundError when using Spring Boot
+## Known Issues
 
-If you're using `graphl-java-tools` with Spring Boot version lower than 2.2 you need to set the `kotlin.version` in 
-your Spring Boot project explicitly to version 1.3.70, because Spring Boot Starter parent currently overrides it with 
-a 1.2.* version of Kotlin. 
-`graphql-java-tools` requires 1.3.* however because of its coroutine support. If you don't override this version
-you will run into a `NoClassDefFoundError`.
+[Known issues are aggregated at the wiki](https://github.com/graphql-java-kickstart/graphql-java-tools/wiki/Known-Issues).
 
-Spring Boot team has indicated the Kotlin version will be upgraded to 1.3 in Spring Boot 2.2.
