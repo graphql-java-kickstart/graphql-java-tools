@@ -23,18 +23,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Setup Bintray
+      - name: Setup Maven Central
         uses: actions/setup-java@v2
         with:
           java-version: '8'
           distribution: 'adopt'
-          server-id: bintray
-          server-username: BINTRAY_USER
-          server-password: BINTRAY_PASS
+          server-id: ossrh
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
       - name: Publish release
-        run: mvn --batch-mode -Pbintray deploy
+        run: mvn --batch-mode deploy
         env:
-          BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
-          BINTRAY_PASS: ${{ secrets.BINTRAY_PASSWORD }}
           MAVEN_USERNAME: ${{ secrets.OSS_USER_TOKEN_KEY }}
           MAVEN_PASSWORD: ${{ secrets.OSS_USER_TOKEN_PASS }}
