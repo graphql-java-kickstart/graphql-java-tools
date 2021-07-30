@@ -179,6 +179,22 @@ class EndToEndTest {
     }
 
     @Test
+    fun `generated schema should handle union types with deep hierarchy`() {
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            {
+                findAvailableBar(persons: 42) {
+                    ... on Bar { name }
+                    ... on OutOfBeerError { msg }
+                }
+            }
+            """
+        }
+
+        assertNotNull(data["findAvailableBar"])
+    }
+
+    @Test
     fun `generated schema should handle non nullable scalar types`() {
         val fileParts = listOf(MockPart("test.doc", "Hello"), MockPart("test.doc", "World"))
         val args = mapOf("fileParts" to fileParts)

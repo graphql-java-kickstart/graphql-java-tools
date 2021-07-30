@@ -22,6 +22,7 @@ fun createSchema() = SchemaParser.newParser()
     .dictionary("ThirdItem", ThirdItem::class)
     .dictionary("ComplexMapItem", ComplexMapItem::class)
     .dictionary("NestedComplexMapItem", NestedComplexMapItem::class)
+    .dictionary("OutOfBeerError", OutOfBeerError::class)
     .build()
     .makeExecutableSchema()
 
@@ -83,6 +84,9 @@ type Query {
     arrayItems: [Item!]!
     
     throwsIllegalArgumentException: String
+    
+    allBars: [Bar!]!
+    findAvailableBar(persons: Int!): BarResult!
 }
 
 type ExtendedType {
@@ -216,6 +220,16 @@ type Tag {
 type ItemWithGenericProperties {
     keys: [String!]!
 }
+
+type Bar {
+    name: String
+}
+
+type OutOfBeerError {
+    msg: String
+}
+
+union BarResult = Bar | OutOfBeerError
 """
 
 val items = listOf(
@@ -314,6 +328,16 @@ class Query : GraphQLQueryResolver, ListListResolver<String>() {
     fun throwsIllegalArgumentException(): String {
         throw IllegalArgumentException("Expected")
     }
+
+    fun allBars(): List<Bar> {
+        return listOf(BarEntityImpl("123", "Bar Name"))
+    }
+    fun findAvailableBar(persons: Int): Any {
+        if (persons < 56)
+            return BarEntityImpl("123", "Bar Name");
+        else
+            return OutOfBeerError("No room for $persons persons")
+    }
 }
 
 class UnusedRootResolver : GraphQLQueryResolver
@@ -409,6 +433,11 @@ class MockPart(private val name: String, private val content: String) : Part {
     override fun getInputStream(): InputStream = content.byteInputStream()
     override fun delete() = throw IllegalArgumentException("Not supported")
 }
+
+interface Bar { val name: String }
+interface BarEntity : Bar { val id: String}
+class BarEntityImpl(override val id: String, override val name: String) : BarEntity
+class OutOfBeerError(val msg: String)
 
 val customScalarId = GraphQLScalarType.newScalar()
     .name("ID")
