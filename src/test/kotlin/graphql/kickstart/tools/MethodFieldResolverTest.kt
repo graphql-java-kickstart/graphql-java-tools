@@ -4,6 +4,8 @@ import graphql.ExecutionInput
 import graphql.GraphQL
 import graphql.language.StringValue
 import graphql.schema.Coercing
+import graphql.schema.CoercingParseLiteralException
+import graphql.schema.CoercingSerializeException
 import graphql.schema.GraphQLScalarType
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
@@ -215,9 +217,9 @@ class MethodFieldResolverTest {
         val value get() = internalValue
 
         companion object {
-            fun of(input: Any?) = when (input) {
+            fun of(input: Any) = when (input) {
                 is String -> CustomScalar(input)
-                else -> null
+                else -> throw IllegalArgumentException()
             }
         }
     }
@@ -231,16 +233,16 @@ class MethodFieldResolverTest {
         .description("customScalar")
         .coercing(object : Coercing<CustomScalar, String> {
 
-            override fun parseValue(input: Any?) = CustomScalar.of(input)
+            override fun parseValue(input: Any) = CustomScalar.of(input)
 
-            override fun parseLiteral(input: Any?) = when (input) {
+            override fun parseLiteral(input: Any): CustomScalar = when (input) {
                 is StringValue -> CustomScalar.of(input.value)
-                else -> null
+                else -> throw CoercingParseLiteralException()
             }
 
-            override fun serialize(dataFetcherResult: Any?) = when (dataFetcherResult) {
+            override fun serialize(dataFetcherResult: Any) = when (dataFetcherResult) {
                 is CustomScalar -> dataFetcherResult.value
-                else -> null
+                else -> throw CoercingSerializeException()
             }
         })
         .build()
