@@ -183,15 +183,15 @@ class EndToEndTest {
         val data = assertNoGraphQlErrors(gql) {
             """
             {
-                findAvailableBar(persons: 42) {
-                    ... on Bar { name }
-                    ... on OutOfBeerError { msg }
+                findSuitableDog(preferredColor: "chocolate", minimumFluffiness: 31) {
+                    ... on Dog { name }
+                    ... on NoDogError { msg }
                 }
             }
             """
         }
 
-        assertNotNull(data["findAvailableBar"])
+        assertNotNull(data["findSuitableDog"])
     }
 
     @Test
