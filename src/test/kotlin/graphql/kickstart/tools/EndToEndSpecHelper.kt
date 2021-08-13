@@ -22,6 +22,7 @@ fun createSchema() = SchemaParser.newParser()
     .dictionary("ThirdItem", ThirdItem::class)
     .dictionary("ComplexMapItem", ComplexMapItem::class)
     .dictionary("NestedComplexMapItem", NestedComplexMapItem::class)
+    .dictionary("NoDogError", NoDogError::class)
     .build()
     .makeExecutableSchema()
 
@@ -83,6 +84,9 @@ type Query {
     arrayItems: [Item!]!
     
     throwsIllegalArgumentException: String
+    
+    allDogs: [Dog!]!
+    findSuitableDog(preferredColor: String!, minimumFluffiness: Int!): FindDogResult!
 }
 
 type ExtendedType {
@@ -216,6 +220,18 @@ type Tag {
 type ItemWithGenericProperties {
     keys: [String!]!
 }
+
+type Dog {
+    name: String!
+    color: String!
+    fluffiness: Int!
+}
+
+type NoDogError {
+    msg: String
+}
+
+union FindDogResult = Dog | NoDogError
 """
 
 val items = listOf(
@@ -314,6 +330,13 @@ class Query : GraphQLQueryResolver, ListListResolver<String>() {
     fun throwsIllegalArgumentException(): String {
         throw IllegalArgumentException("Expected")
     }
+
+    fun allDogs(): List<Dog> = listOf(LabradorRetriever("Hershey", "chocolate", 42, 3.14159f))
+
+    fun findSuitableDog(preferredColor: String, minimumFluffiness: Int): Any =
+        allDogs()
+            .firstOrNull { it.color == preferredColor && it.fluffiness >= minimumFluffiness }
+            ?: NoDogError("No $preferredColor-colored dog found that is sufficiently fluffy")
 }
 
 class UnusedRootResolver : GraphQLQueryResolver
@@ -410,6 +433,15 @@ class MockPart(private val name: String, private val content: String) : Part {
     override fun delete() = throw IllegalArgumentException("Not supported")
 }
 
+interface Dog {
+    val name: String
+    val color: String
+    val fluffiness: Int
+}
+interface Retriever : Dog { val speed: Float }
+class LabradorRetriever(override val name: String, override val color: String, override val fluffiness: Int, override val speed: Float) : Retriever
+class NoDogError(val msg: String)
+
 val customScalarId = GraphQLScalarType.newScalar()
     .name("ID")
     .description("Overrides built-in ID")
@@ -420,11 +452,11 @@ val customScalarId = GraphQLScalarType.newScalar()
             else -> null
         }
 
-        override fun parseValue(input: Any): UUID? = parseLiteral(input)
+        override fun parseValue(input: Any): UUID = parseLiteral(input)
 
-        override fun parseLiteral(input: Any): UUID? = when (input) {
+        override fun parseLiteral(input: Any): UUID = when (input) {
             is StringValue -> UUID.fromString(input.value)
-            else -> null
+            else -> throw CoercingParseLiteralException()
         }
     })
     .build()
@@ -440,11 +472,11 @@ val customScalarUUID = GraphQLScalarType.newScalar()
             else -> null
         }
 
-        override fun parseValue(input: Any): UUID? = parseLiteral(input)
+        override fun parseValue(input: Any): UUID = parseLiteral(input)
 
-        override fun parseLiteral(input: Any): UUID? = when (input) {
+        override fun parseLiteral(input: Any): UUID = when (input) {
             is StringValue -> UUID.fromString(input.value)
-            else -> null
+            else -> throw CoercingParseLiteralException()
         }
     })
     .build()
@@ -455,12 +487,12 @@ val customScalarMap = GraphQLScalarType.newScalar()
     .coercing(object : Coercing<Map<String, Any>, Map<String, Any>> {
 
         @Suppress("UNCHECKED_CAST")
-        override fun parseValue(input: Any?): Map<String, Any> = input as Map<String, Any>
+        override fun parseValue(input: Any): Map<String, Any> = input as Map<String, Any>
 
         @Suppress("UNCHECKED_CAST")
-        override fun serialize(dataFetcherResult: Any?): Map<String, Any> = dataFetcherResult as Map<String, Any>
+        override fun serialize(dataFetcherResult: Any): Map<String, Any> = dataFetcherResult as Map<String, Any>
 
-        override fun parseLiteral(input: Any?): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
+        override fun parseLiteral(input: Any): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
     })
     .build()
 
@@ -473,13 +505,10 @@ val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
             throw CoercingSerializeException("Upload is an input-only type")
         }
 
-        override fun parseValue(input: Any?): Part? {
+        override fun parseValue(input: Any): Part {
             return when (input) {
                 is Part -> {
                     input
-                }
-                null -> {
-                    null
                 }
                 else -> {
                     throw CoercingParseValueException("Expected type ${Part::class.java.name} but was ${input.javaClass.name}")
@@ -487,7 +516,7 @@ val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
             }
         }
 
-        override fun parseLiteral(input: Any): Part? {
+        override fun parseLiteral(input: Any): Part {
             throw CoercingParseLiteralException(
                 "Must use variables to specify Upload values")
         }
