@@ -185,9 +185,9 @@ class SchemaClassScannerTest {
                 .name("UUID")
                 .description("Test scalars with duplicate types")
                 .coercing(object : Coercing<Any, Any> {
-                    override fun serialize(dataFetcherResult: Any?): Any? = null
-                    override fun parseValue(input: Any?): Any? = null
-                    override fun parseLiteral(input: Any?): Any? = null
+                    override fun serialize(dataFetcherResult: Any): Any? = null
+                    override fun parseValue(input: Any): Any = input
+                    override fun parseLiteral(input: Any): Any = input
                 }).build())
             .schemaString(
                 """
@@ -306,9 +306,9 @@ class SchemaClassScannerTest {
         val customMap = GraphQLScalarType.newScalar()
             .name("customMap")
             .coercing(object : Coercing<Map<String, Any>, Map<String, Any>> {
-                override fun serialize(dataFetcherResult: Any?): Map<String, Any> = mapOf()
-                override fun parseValue(input: Any?): Map<String, Any> = mapOf()
-                override fun parseLiteral(input: Any?): Map<String, Any> = mapOf()
+                override fun serialize(dataFetcherResult: Any): Map<String, Any> = mapOf()
+                override fun parseValue(input: Any): Map<String, Any> = mapOf()
+                override fun parseLiteral(input: Any): Map<String, Any> = mapOf()
             }).build()
 
         val schema = SchemaParser.newParser()
