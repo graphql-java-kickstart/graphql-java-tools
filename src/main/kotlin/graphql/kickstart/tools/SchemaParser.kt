@@ -319,7 +319,7 @@ class SchemaParser internal constructor(
                     .build()
 
 
-                output.add(schemaGeneratorHelper.buildDirective(directive, graphQLDirective, directiveLocation, runtimeWiring.comparatorRegistry))
+                output.add(schemaGeneratorHelper.buildAppliedDirective(directive, graphQLDirective, directiveLocation, runtimeWiring.comparatorRegistry))
             }
         }
 
