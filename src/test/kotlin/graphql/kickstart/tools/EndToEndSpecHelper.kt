@@ -22,6 +22,7 @@ fun createSchema() = SchemaParser.newParser()
     .dictionary("ThirdItem", ThirdItem::class)
     .dictionary("ComplexMapItem", ComplexMapItem::class)
     .dictionary("NestedComplexMapItem", NestedComplexMapItem::class)
+    .dictionary("NoDogError", NoDogError::class)
     .build()
     .makeExecutableSchema()
 
@@ -83,6 +84,9 @@ type Query {
     arrayItems: [Item!]!
     
     throwsIllegalArgumentException: String
+    
+    allDogs: [Dog!]!
+    findSuitableDog(preferredColor: String!, minimumFluffiness: Int!): FindDogResult!
 }
 
 type ExtendedType {
@@ -216,6 +220,18 @@ type Tag {
 type ItemWithGenericProperties {
     keys: [String!]!
 }
+
+type Dog {
+    name: String!
+    color: String!
+    fluffiness: Int!
+}
+
+type NoDogError {
+    msg: String
+}
+
+union FindDogResult = Dog | NoDogError
 """
 
 val items = listOf(
@@ -314,6 +330,13 @@ class Query : GraphQLQueryResolver, ListListResolver<String>() {
     fun throwsIllegalArgumentException(): String {
         throw IllegalArgumentException("Expected")
     }
+
+    fun allDogs(): List<Dog> = listOf(LabradorRetriever("Hershey", "chocolate", 42, 3.14159f))
+
+    fun findSuitableDog(preferredColor: String, minimumFluffiness: Int): Any =
+        allDogs()
+            .firstOrNull { it.color == preferredColor && it.fluffiness >= minimumFluffiness }
+            ?: NoDogError("No $preferredColor-colored dog found that is sufficiently fluffy")
 }
 
 class UnusedRootResolver : GraphQLQueryResolver
@@ -409,6 +432,15 @@ class MockPart(private val name: String, private val content: String) : Part {
     override fun getInputStream(): InputStream = content.byteInputStream()
     override fun delete() = throw IllegalArgumentException("Not supported")
 }
+
+interface Dog {
+    val name: String
+    val color: String
+    val fluffiness: Int
+}
+interface Retriever : Dog { val speed: Float }
+class LabradorRetriever(override val name: String, override val color: String, override val fluffiness: Int, override val speed: Float) : Retriever
+class NoDogError(val msg: String)
 
 val customScalarId = GraphQLScalarType.newScalar()
     .name("ID")

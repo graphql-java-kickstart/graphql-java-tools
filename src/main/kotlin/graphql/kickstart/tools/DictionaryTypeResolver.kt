@@ -16,22 +16,15 @@ internal abstract class DictionaryTypeResolver(
     private val dictionary: BiMap<JavaType, TypeDefinition<*>>,
     private val types: Map<String, GraphQLObjectType>
 ) : TypeResolver {
-    private fun <T> getTypeName(clazz: Class<T>): String? {
-        val name = dictionary[clazz]?.name
-
-        if (name == null && clazz.superclass != null) {
-            return getTypeName(clazz.superclass)
-        }
-
-        return name
+    private fun <T> getTypeDefinition(clazz: Class<T>): TypeDefinition<*>? {
+        return dictionary[clazz]
+            ?: (if (clazz.superclass == null) null else getTypeDefinition(clazz.superclass))
+            ?: clazz.interfaces.mapNotNull { getTypeDefinition(it) }.firstOrNull()
     }
 
     override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
         val clazz = env.getObject<Any>().javaClass
-        val name = clazz.interfaces.fold(getTypeName(clazz), { name, interfaceClazz ->
-            name ?: getTypeName(interfaceClazz)
-        }) ?: clazz.simpleName
-
+        val name = getTypeDefinition(clazz)?.name ?: clazz.simpleName
         return types[name] ?: throw TypeResolverError(getError(name))
     }
 
