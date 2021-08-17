@@ -174,7 +174,7 @@ class SchemaParser internal constructor(
                     .name(inputDefinition.name)
                     .definition(inputDefinition)
                     .description(getDocumentation(inputDefinition, options))
-                    .defaultValue(buildDefaultValue(inputDefinition.defaultValue))
+                    .apply { inputDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
                     .type(determineInputType(inputDefinition.type, inputObjects, referencingInputObjects))
                     .withDirectives(*buildDirectives(inputDefinition.directives, Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
                 builder.field(fieldBuilder.build())
@@ -288,7 +288,7 @@ class SchemaParser internal constructor(
                 .definition(argumentDefinition)
                 .description(getDocumentation(argumentDefinition, options))
                 .type(determineInputType(argumentDefinition.type, inputObjects, setOf()))
-                .apply { buildDefaultValue(argumentDefinition.defaultValue)?.let { defaultValue(it) } }
+                .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
                 .withDirectives(*buildDirectives(argumentDefinition.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
 
             field.argument(argumentBuilder.build())
@@ -362,20 +362,6 @@ class SchemaParser internal constructor(
 
         // peek at first value, value exists and is assured to be non-null
         return nonNullValueList[0]
-    }
-
-    private fun buildDefaultValue(value: Value<*>?): Any? {
-        return when (value) {
-            null -> null
-            is IntValue -> value.value.toInt()
-            is FloatValue -> value.value.toDouble()
-            is StringValue -> value.value
-            is EnumValue -> value.name
-            is BooleanValue -> value.isValue
-            is ArrayValue -> value.values.map { buildDefaultValue(it) }
-            is ObjectValue -> value.objectFields.associate { it.name to buildDefaultValue(it.value) }
-            else -> throw SchemaError("Unrecognized default value: $value")
-        }
     }
 
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =

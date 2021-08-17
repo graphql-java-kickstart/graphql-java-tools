@@ -138,9 +138,9 @@ class DirectiveTest {
             val parentType = environment.fieldsContainer
 
             val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
-            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher, { _, value ->
-                (value as? String)?.toUpperCase()
-            })
+            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher) { _, value ->
+                (value as? String)?.uppercase()
+            }
 
             environment.codeRegistry.dataFetcher(parentType, field, wrappedDataFetcher)
 

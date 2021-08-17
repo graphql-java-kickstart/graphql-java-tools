@@ -1,27 +1,18 @@
 package graphql.kickstart.tools
 
 import graphql.kickstart.tools.resolver.FieldResolverError
-import graphql.schema.GraphQLInterfaceType
-import graphql.schema.GraphQLObjectType
-import graphql.schema.GraphQLArgument
-import graphql.schema.GraphQLInputObjectType
-import graphql.schema.GraphQLNonNull
+import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
+import org.junit.Assert.assertThrows
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.ExpectedException
 import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
 import java.util.concurrent.Future
 
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
-
-    @Rule
-    @JvmField
-    var expectedEx: ExpectedException = ExpectedException.none()
 
     @Before
     fun setup() {
@@ -197,27 +188,24 @@ class SchemaParserTest {
 
     @Test
     fun `parser should throw descriptive exception when object is used as input type incorrectly`() {
-        expectedEx.expect(SchemaError::class.java)
-        expectedEx.expectMessage("Was a type only permitted for object types incorrectly used as an input type, or vice-versa")
-
-        SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    name(filter: Filter): [String]
-                }
-                
-                type Filter {
-                    filter: String
-                }
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun name(filter: Filter): List<String>? = null
-            })
-            .build()
-            .makeExecutableSchema()
-
-        throw AssertionError("should not be called")
+        assertThrows("Was a type only permitted for object types incorrectly used as an input type, or vice-versa", SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        name(filter: Filter): [String]
+                    }
+                    
+                    type Filter {
+                        filter: String
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun name(filter: Filter): List<String>? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
     }
 
     @Test

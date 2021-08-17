@@ -1,7 +1,7 @@
 package graphql.kickstart.tools.util
 
-import org.hamcrest.CoreMatchers
-import org.junit.Assert
+import graphql.kickstart.tools.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.*
@@ -36,12 +36,12 @@ class BiMapTest {
         val old = bimap.put("bar", 3)!!
 
         // old value should have been returned
-        Assert.assertEquals(2, old.toLong())
+        assertEquals(2, old.toLong())
 
         // inverse should have correct keys
         val expected: Set<Int> = HashSet(Arrays.asList(1, 3))
-        Assert.assertEquals(expected, bimap.values)
-        Assert.assertEquals(expected, bimap.inverse().keys)
+        assertEquals(expected, bimap.values)
+        assertEquals(expected, bimap.inverse().keys)
     }
 
     @Test
@@ -50,12 +50,12 @@ class BiMapTest {
         bimap["bar"] = 2
         bimap["baz"] = 3
         val inverse = bimap.inverse()
-        Assert.assertTrue(inverse.containsKey(1))
-        Assert.assertTrue(inverse.containsKey(2))
-        Assert.assertTrue(inverse.containsKey(3))
-        Assert.assertThat(inverse[1], CoreMatchers.`is`("foo"))
-        Assert.assertThat(inverse[2], CoreMatchers.`is`("bar"))
-        Assert.assertThat(inverse[3], CoreMatchers.`is`("baz"))
+        assertTrue(inverse.containsKey(1))
+        assertTrue(inverse.containsKey(2))
+        assertTrue(inverse.containsKey(3))
+        assertEquals(inverse[1], "foo")
+        assertEquals(inverse[2], "bar")
+        assertEquals(inverse[3], "baz")
     }
 
     @Test
@@ -65,6 +65,6 @@ class BiMapTest {
         bimap["baz"] = 3
         val values = bimap.values
         val expected = setOf(1, 2, 3)
-        Assert.assertEquals(expected, values)
+        assertEquals(expected, values)
     }
 }

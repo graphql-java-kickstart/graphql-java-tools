@@ -6,10 +6,10 @@ import graphql.GraphQL
 
 private val mapper = ObjectMapper()
 
-fun assertNoGraphQlErrors(gql: GraphQL, args: Map<String, Any> = mapOf(), context: Any = Object(), closure: () -> String): Map<String, Any> {
+fun assertNoGraphQlErrors(gql: GraphQL, args: Map<String, Any> = mapOf(), context: Map<Any, Any> = mapOf(), closure: () -> String): Map<String, Any> {
     val result = gql.execute(ExecutionInput.newExecutionInput()
         .query(closure.invoke())
-        .context(context)
+        .graphQLContext(context)
         .root(context)
         .variables(args))
 

@@ -1,6 +1,7 @@
 package graphql.kickstart.tools.resolver
 
 import com.fasterxml.jackson.core.type.TypeReference
+import graphql.GraphQLContext
 import graphql.TrivialDataFetcher
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
@@ -95,6 +96,7 @@ internal class MethodFieldResolver(
             when (this.method.parameterTypes.last()) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
                 options.contextClass -> args.add { environment -> environment.getContext() }
+                GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
                 else -> args.add { environment -> environment }
             }
         }
