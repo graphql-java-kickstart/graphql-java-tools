@@ -18,18 +18,18 @@ interface OtherPlace {
   reviews: [Review!]
 }
 
-type Place1 implements Entity, Place, OtherPlace {
-  id: ID!
-  name: String
-  other: String
-  reviews: [Review1!]
+type Place1 implements Entity & Place & OtherPlace {
+    id: ID!
+    name: String
+    other: String
+    reviews: [Review1!]
 }
 
-type Place2 implements Entity, Place, OtherPlace {
-  id: ID!
-  name: String
-  other: String
-  reviews: [Review2!]
+type Place2 implements Entity & Place & OtherPlace {
+    id: ID!
+    name: String
+    other: String
+    reviews: [Review2!]
 }
 
 interface Review {
