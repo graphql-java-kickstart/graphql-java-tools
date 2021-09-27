@@ -33,7 +33,8 @@ internal class MethodFieldResolver(
 
     private val additionalLastArgument =
         try {
-            method.kotlinFunction?.valueParameters?.size ?: method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+            (method.kotlinFunction?.valueParameters?.size
+                ?: method.parameterCount) == (field.inputValueDefinitions.size + getIndexOffset() + 1)
         } catch (e: InternalError) {
             method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
         }
@@ -95,7 +96,10 @@ internal class MethodFieldResolver(
         if (this.additionalLastArgument) {
             when (this.method.parameterTypes.last()) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
-                options.contextClass -> args.add { environment -> environment.getContext() }
+                options.contextClass -> args.add { environment ->
+                    environment.graphQlContext[options.contextClass]
+                        ?: environment.getContext() // TODO: remove deprecated use in next major release
+                }
                 GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
                 else -> args.add { environment -> environment }
             }

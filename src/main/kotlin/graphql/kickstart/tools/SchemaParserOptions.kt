@@ -64,12 +64,10 @@ data class SchemaParserOptions internal constructor(
         private var includeUnusedTypes = false
         private var useCommentsForDescriptions = true
 
-        @Deprecated("Replaced with graphql.GraphQLContext")
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
         }
 
-        @Deprecated("Replaced with graphql.GraphQLContext")
         fun contextClass(contextClass: KClass<*>) = this.apply {
             this.contextClass = contextClass.java
         }
