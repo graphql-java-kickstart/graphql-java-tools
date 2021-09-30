@@ -198,6 +198,20 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @Test
+    fun `data fetcher passes custom context if method has extra argument and custom context is specified as part of GraphQLContext`() {
+        val customContext = ContextClass()
+        val context = GraphQLContext.of(mapOf(ContextClass::class.java to customContext))
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: ContextClass): Boolean {
+                return ctx == customContext
+            }
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
+    }
+
+    @Test
     fun `data fetcher marshalls input object if required`() {
         val name = "correct name"
         val resolver = createFetcher("active", listOf(InputValueDefinition("input", TypeName("InputClass"))), object : GraphQLQueryResolver {
