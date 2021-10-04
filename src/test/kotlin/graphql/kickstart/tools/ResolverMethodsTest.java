@@ -31,7 +31,6 @@ public class ResolverMethodsTest {
         ExecutionResult result = gql
             .execute(ExecutionInput.newExecutionInput()
                 .query("query { testOmittedBoolean }")
-                .context(new Object())
                 .root(new Object()));
 
         assertTrue(result.getErrors().isEmpty());

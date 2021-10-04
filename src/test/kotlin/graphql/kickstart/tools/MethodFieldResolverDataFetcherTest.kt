@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.ExecutionResult
+import graphql.GraphQLContext
 import graphql.execution.*
 import graphql.execution.instrumentation.SimpleInstrumentation
 import graphql.kickstart.tools.resolver.FieldResolverError
@@ -79,8 +80,8 @@ class MethodFieldResolverDataFetcherTest {
         val channel = Channel<String>(10)
 
         init {
-            channel.offer("A")
-            channel.offer("B")
+            channel.trySend("A")
+            channel.trySend("B")
         }
 
         @Suppress("UNUSED_PARAMETER")
@@ -176,21 +177,34 @@ class MethodFieldResolverDataFetcherTest {
 
     @Test
     fun `data fetcher passes environment if method has extra argument even if context is specified`() {
-        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
-        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+        val context = GraphQLContext.newContext().build()
+        val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
             fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
         })
 
-        assertEquals(resolver.get(createEnvironment(DataClass(), context = ContextClass())), true)
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
     }
 
     @Test
     fun `data fetcher passes context if method has extra argument and context is specified`() {
-        val context = ContextClass()
+        val context = GraphQLContext.newContext().build()
+        val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: GraphQLContext): Boolean {
+                return ctx == context
+            }
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
+    }
+
+    @Test
+    fun `data fetcher passes custom context if method has extra argument and custom context is specified as part of GraphQLContext`() {
+        val customContext = ContextClass()
+        val context = GraphQLContext.of(mapOf(ContextClass::class.java to customContext))
         val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
         val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
             fun isActive(dataClass: DataClass, ctx: ContextClass): Boolean {
-                return ctx == context
+                return ctx == customContext
             }
         })
 
@@ -243,7 +257,7 @@ class MethodFieldResolverDataFetcherTest {
         private val channel = Channel<String>(10)
 
         init {
-            channel.offer("A")
+            channel.trySend("A")
             channel.close(IllegalStateException("Channel error"))
         }
 
@@ -281,11 +295,11 @@ class MethodFieldResolverDataFetcherTest {
         return FieldResolverScanner(options).findFieldResolver(field, resolverInfo).createDataFetcher()
     }
 
-    private fun createEnvironment(source: Any = Object(), arguments: Map<String, Any> = emptyMap(), context: Any? = null): DataFetchingEnvironment {
+    private fun createEnvironment(source: Any = Object(), arguments: Map<String, Any> = emptyMap(), context: GraphQLContext? = null): DataFetchingEnvironment {
         return DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
             .source(source)
             .arguments(arguments)
-            .context(context)
+            .graphQLContext(context)
             .build()
     }
 

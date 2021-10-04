@@ -386,7 +386,7 @@ internal class SchemaClassScanner(
         val methods = clazz.methods
 
         val filteredMethods = methods.filter {
-            it.name == name || it.name == "get${name.capitalize()}"
+            it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
         }.sortedBy { it.name.length }
         return filteredMethods.find {
             !it.isSynthetic

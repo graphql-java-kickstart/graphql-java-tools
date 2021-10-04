@@ -75,7 +75,7 @@ class EndToEndTest {
 
         val result = gql.execute(ExecutionInput.newExecutionInput()
             .query(closure.invoke())
-            .context(OnItemCreatedContext(newItem))
+            .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
         val data = result.getData() as Publisher<ExecutionResult>
@@ -597,7 +597,7 @@ class EndToEndTest {
 
         val result = gql.execute(ExecutionInput.newExecutionInput()
             .query(closure.invoke())
-            .context(OnItemCreatedContext(newItem))
+            .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
         val data = result.getData() as Publisher<ExecutionResult>
@@ -625,7 +625,7 @@ class EndToEndTest {
 
         val result = gql.execute(ExecutionInput.newExecutionInput()
             .query(closure.invoke())
-            .context(OnItemCreatedContext(newItem))
+            .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
         val data = result.getData() as Publisher<ExecutionResult>

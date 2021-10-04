@@ -366,25 +366,23 @@ class Mutation : GraphQLMutationResolver {
     }
 }
 
-class OnItemCreatedContext(val newItem: Item)
-
 class Subscription : GraphQLSubscriptionResolver {
     fun onItemCreated(env: DataFetchingEnvironment) =
         Publisher<Item> { subscriber ->
-            subscriber.onNext(env.getContext<OnItemCreatedContext>().newItem)
+            subscriber.onNext(env.graphQlContext["newItem"])
 //            subscriber.onComplete()
         }
 
     fun onItemCreatedCoroutineChannel(env: DataFetchingEnvironment): ReceiveChannel<Item> {
         val channel = Channel<Item>(1)
-        channel.offer(env.getContext<OnItemCreatedContext>().newItem)
+        channel.trySend(env.graphQlContext["newItem"])
         return channel
     }
 
     suspend fun onItemCreatedCoroutineChannelAndSuspendFunction(env: DataFetchingEnvironment): ReceiveChannel<Item> {
         return coroutineScope {
             val channel = Channel<Item>(1)
-            channel.offer(env.getContext<OnItemCreatedContext>().newItem)
+            channel.trySend(env.graphQlContext["newItem"])
             channel
         }
     }

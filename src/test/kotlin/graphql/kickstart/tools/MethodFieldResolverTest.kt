@@ -45,7 +45,6 @@ class MethodFieldResolverTest {
                 testNull(input: null)
             }
             """)
-            .context(Object())
             .root(Object()))
 
         assertEquals(result.getData(), mapOf(
@@ -88,7 +87,6 @@ class MethodFieldResolverTest {
                 testNull(input: null)
             }
             """)
-            .context(Object())
             .root(Object()))
 
         assertEquals(result.getData(), mapOf(
@@ -124,7 +122,6 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to "FooBar"))
-            .context(Object())
             .root(Object()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
@@ -156,7 +153,6 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to listOf("Foo", "Bar")))
-            .context(Object())
             .root(Object()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
@@ -204,7 +200,6 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to listOf("Foo", "Bar")))
-            .context(Object())
             .root(Object()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
