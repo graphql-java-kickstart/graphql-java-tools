@@ -104,9 +104,12 @@ internal class MethodFieldResolver(
                     if (context != null) {
                         context
                     } else {
-                        log.warn("Generic context class has been deprecated by graphql-java. " +
-                            "To continue using a custom context class as the last parameter in resolver methods " +
-                            "please insert it into the new GraphQLContext class when building the ExecutionInput.")
+                        log.warn(
+                            "Generic context class has been deprecated by graphql-java. " +
+                                "To continue using a custom context class as the last parameter in resolver methods " +
+                                "please insert it into the GraphQLContext map when building the ExecutionInput. " +
+                                "This warning will become an error in the future."
+                        )
                         environment.getContext() // TODO: remove deprecated use in next major release
                     }
                 }
