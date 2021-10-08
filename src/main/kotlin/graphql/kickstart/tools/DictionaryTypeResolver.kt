@@ -25,7 +25,7 @@ internal abstract class DictionaryTypeResolver(
     override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
         val clazz = env.getObject<Any>().javaClass
         val name = getTypeDefinition(clazz)?.name ?: clazz.simpleName
-        return types[name] ?: throw TypeResolverError(getError(name))
+        return env.schema.getObjectType(name) ?: throw TypeResolverError(getError(name))
     }
 
     abstract fun getError(name: String): String
