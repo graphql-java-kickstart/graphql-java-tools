@@ -13,8 +13,7 @@ import graphql.schema.TypeResolver
  * @author Andrew Potter
  */
 internal abstract class DictionaryTypeResolver(
-    private val dictionary: BiMap<JavaType, TypeDefinition<*>>,
-    private val types: Map<String, GraphQLObjectType>
+        private val dictionary: BiMap<JavaType, TypeDefinition<*>>
 ) : TypeResolver {
     private fun <T> getTypeDefinition(clazz: Class<T>): TypeDefinition<*>? {
         return dictionary[clazz]
@@ -33,22 +32,18 @@ internal abstract class DictionaryTypeResolver(
 
 internal class InterfaceTypeResolver(
     dictionary: BiMap<JavaType, TypeDefinition<*>>,
-    private val thisInterface: GraphQLInterfaceType,
-    types: List<GraphQLObjectType>
+    private val thisInterface: GraphQLInterfaceType
 ) : DictionaryTypeResolver(
-    dictionary,
-    types.filter { type -> type.interfaces.any { it.name == thisInterface.name } }.associateBy { it.name }
+        dictionary
 ) {
     override fun getError(name: String) = "Expected object type with name '$name' to implement interface '${thisInterface.name}', but it doesn't!"
 }
 
 internal class UnionTypeResolver(
     dictionary: BiMap<JavaType, TypeDefinition<*>>,
-    private val thisUnion: GraphQLUnionType,
-    types: List<GraphQLObjectType>
+    private val thisUnion: GraphQLUnionType
 ) : DictionaryTypeResolver(
-    dictionary,
-    types.filter { type -> thisUnion.types.any { it.name == type.name } }.associateBy { it.name }
+        dictionary
 ) {
     override fun getError(name: String) = "Expected object type with name '$name' to exist for union '${thisUnion.name}', but it doesn't!"
 }
