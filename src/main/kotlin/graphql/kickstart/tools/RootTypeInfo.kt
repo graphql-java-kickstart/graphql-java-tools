@@ -17,7 +17,7 @@ internal class RootTypeInfo private constructor(
         const val DEFAULT_QUERY_NAME = "Query"
         const val DEFAULT_MUTATION_NAME = "Mutation"
         const val DEFAULT_SUBSCRIPTION_NAME = "Subscription"
-        const val DEFAULT_DESCRIPTION = "A GraphQL schema provides a root type for each kind of operation."
+        val DEFAULT_DESCRIPTION: String? = null // According to the GraphQL Specification description should be a string or `null`
 
         fun fromSchemaDefinitions(definitions: List<SchemaDefinition>): RootTypeInfo {
             val queryType = definitions.lastOrNull()?.operationTypeDefinitions?.find { it.name == "query" }?.typeName

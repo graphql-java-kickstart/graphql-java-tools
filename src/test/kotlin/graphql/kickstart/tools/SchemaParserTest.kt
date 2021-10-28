@@ -575,7 +575,7 @@ class SchemaParserTest {
     }
 
     @Test
-    fun `parser should include schema descriptions`() {
+    fun `parser should include schema descriptions when declared`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -598,6 +598,31 @@ class SchemaParserTest {
             .makeExecutableSchema()
 
         assertEquals(schema.description, "This is a schema level description")
+    }
+
+    @Test
+    fun `parser should return null schema description when not declared`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                schema {
+                  query: SubstituteQuery
+                }
+
+                type SubstituteQuery {
+                    description: String
+                    comment: String
+                    omitted: String
+                    both: String
+                    empty: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        assertNull(schema.description)
     }
 
     enum class EnumType {
