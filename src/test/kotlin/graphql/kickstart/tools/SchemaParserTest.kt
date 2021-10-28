@@ -574,6 +574,32 @@ class SchemaParserTest {
         assertEquals(schema.queryType.getFieldDefinition("empty").description, "")
     }
 
+    @Test
+    fun `parser should include schema descriptions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                "This is a schema level description"
+                schema {
+                  query: SubstituteQuery
+                }
+
+                type SubstituteQuery {
+                    description: String
+                    comment: String
+                    omitted: String
+                    both: String
+                    empty: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.description, "This is a schema level description")
+    }
+
     enum class EnumType {
         TEST
     }

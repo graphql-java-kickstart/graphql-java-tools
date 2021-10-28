@@ -103,7 +103,7 @@ class SchemaParser internal constructor(
         val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
 
         val types = (additionalObjects.toSet() as Set<GraphQLType>) + inputObjects + enums + interfaces + unions
-        return SchemaObjects(query, mutation, subscription, types, codeRegistryBuilder)
+        return SchemaObjects(query, mutation, subscription, types, codeRegistryBuilder, rootInfo.getDescription())
     }
 
     /**
