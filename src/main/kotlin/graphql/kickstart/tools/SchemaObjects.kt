@@ -34,6 +34,7 @@ data class SchemaObjects(
      * Makes a GraphQLSchema with query but without mutation and subscription.
      */
     fun toReadOnlySchema(): GraphQLSchema = GraphQLSchema.newSchema()
+        .description(description)
         .query(query)
         .additionalTypes(dictionary)
         .build()
