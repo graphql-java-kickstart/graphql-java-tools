@@ -1,9 +1,11 @@
 package graphql.kickstart.tools
 
+import com.fasterxml.jackson.module.kotlin.jacksonMapperBuilder
 import graphql.*
 import graphql.execution.AsyncExecutionStrategy
-import graphql.schema.GraphQLEnumType
-import graphql.schema.GraphQLSchema
+import graphql.schema.*
+import graphql.util.TraversalControl
+import graphql.util.TraverserContext
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
@@ -669,5 +671,41 @@ class EndToEndTest {
         assertEquals(result.errors.size, 1)
         val exceptionWhileDataFetching = result.errors[0] as ExceptionWhileDataFetching
         assert(exceptionWhileDataFetching.exception is IllegalArgumentException)
+    }
+
+    class Transformer : GraphQLTypeVisitorStub() {
+        override fun visitGraphQLObjectType(node: GraphQLObjectType?, context: TraverserContext<GraphQLSchemaElement>?): TraversalControl {
+            val newNode = node?.transform { builder -> builder.description(node.description + " [MODIFIED]") }
+            return changeNode(context, newNode)
+        }
+    }
+
+    @Test
+    fun `transformed schema should execute query`() {
+        val transformedSchema = SchemaTransformer().transform(schema, Transformer())
+        val transformedGql: GraphQL = GraphQL.newGraphQL(transformedSchema)
+                .queryExecutionStrategy(AsyncExecutionStrategy())
+                .build()
+
+        val data = assertNoGraphQlErrors(transformedGql) {
+            """
+            {
+                otherUnionItems {
+                    ... on Item {
+                        itemId: id
+                    }
+                    ... on ThirdItem {
+                       thirdItemId: id
+                    }
+                }
+            }
+            """
+        }
+
+        assertEquals(data["otherUnionItems"], listOf(
+                mapOf("itemId" to 0),
+                mapOf("itemId" to 1),
+                mapOf("thirdItemId" to 100)
+        ))
     }
 }
