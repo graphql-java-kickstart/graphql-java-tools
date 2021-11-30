@@ -168,7 +168,7 @@ internal class SchemaClassScanner(
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
                 GraphQLScalarType.newScalar()
                     .name(provided.name)
-                    .description(definition.description?.content ?: getDocumentation(definition) ?: provided.description)
+                    .description(getDocumentation(definition, options) ?: provided.description)
                     .coercing(provided.coercing)
                     .definition(definition)
                     .build()
@@ -386,7 +386,7 @@ internal class SchemaClassScanner(
         val methods = clazz.methods
 
         val filteredMethods = methods.filter {
-            it.name == name || it.name == "get${name.capitalize()}"
+            it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
         }.sortedBy { it.name.length }
         return filteredMethods.find {
             !it.isSynthetic

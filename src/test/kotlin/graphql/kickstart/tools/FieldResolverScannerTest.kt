@@ -11,6 +11,7 @@ import graphql.relay.Connection
 import graphql.relay.DefaultConnection
 import graphql.relay.DefaultPageInfo
 import org.junit.Test
+import java.util.*
 
 class FieldResolverScannerTest {
 
@@ -81,6 +82,20 @@ class FieldResolverScannerTest {
         assertEquals((meta as MethodFieldResolver).method.returnType, HullType::class.java)
     }
 
+    @Test
+    fun `scanner finds field resolver method using capitalize field_name in different locale`() {
+        val default = Locale.getDefault()
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+
+        val resolverInfo = RootResolverInfo(listOf(CapitalizeQuery()), options)
+        val fieldResolver = scanner.findFieldResolver(FieldDefinition("id", TypeName("HullType")), resolverInfo)
+
+        assert(fieldResolver is MethodFieldResolver)
+        assertEquals((fieldResolver as MethodFieldResolver).method.returnType, HullType::class.java)
+
+        Locale.setDefault(default)
+    }
+
     class RootQuery1 : GraphQLQueryResolver {
         fun field1() {}
     }
@@ -95,6 +110,10 @@ class FieldResolverScannerTest {
 
     class CamelCaseQuery1 : GraphQLQueryResolver {
         fun getHullType(): HullType = HullType()
+    }
+
+    class CapitalizeQuery : GraphQLQueryResolver {
+        fun getId(): HullType = HullType()
     }
 
     class HullType

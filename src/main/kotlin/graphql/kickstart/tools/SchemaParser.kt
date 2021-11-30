@@ -85,8 +85,8 @@ class SchemaParser internal constructor(
         val enums = enumDefinitions.map { createEnumObject(it) }
 
         // Assign type resolver to interfaces now that we know all of the object types
-        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it, objects)) }
-        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it, objects)) }
+        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it)) }
+        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it)) }
 
         // Find query type and mutation/subscription type (if mutation/subscription type exists)
         val queryName = rootInfo.getQueryName()
@@ -103,7 +103,7 @@ class SchemaParser internal constructor(
         val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
 
         val types = (additionalObjects.toSet() as Set<GraphQLType>) + inputObjects + enums + interfaces + unions
-        return SchemaObjects(query, mutation, subscription, types, codeRegistryBuilder)
+        return SchemaObjects(query, mutation, subscription, types, codeRegistryBuilder, rootInfo.getDescription())
     }
 
     /**
@@ -122,7 +122,7 @@ class SchemaParser internal constructor(
         val builder = GraphQLObjectType.newObject()
             .name(name)
             .definition(objectDefinition)
-            .description(if (objectDefinition.description != null) objectDefinition.description.content else getDocumentation(objectDefinition))
+            .description(getDocumentation(objectDefinition, options))
 
         builder.withDirectives(*buildDirectives(objectDefinition.directives, Introspection.DirectiveLocation.OBJECT))
 
@@ -133,7 +133,6 @@ class SchemaParser internal constructor(
         }
 
         objectDefinition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
-            fieldDefinition.description
             builder.field { field ->
                 createField(field, fieldDefinition, inputObjects)
                 codeRegistryBuilder.dataFetcher(
@@ -163,7 +162,7 @@ class SchemaParser internal constructor(
             .name(definition.name)
             .definition(definition)
             .extensionDefinitions(extensionDefinitions)
-            .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
+            .description(getDocumentation(definition, options))
 
         builder.withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.INPUT_OBJECT))
 
@@ -174,8 +173,8 @@ class SchemaParser internal constructor(
                 val fieldBuilder = GraphQLInputObjectField.newInputObjectField()
                     .name(inputDefinition.name)
                     .definition(inputDefinition)
-                    .description(if (inputDefinition.description != null) inputDefinition.description.content else getDocumentation(inputDefinition))
-                    .defaultValue(buildDefaultValue(inputDefinition.defaultValue))
+                    .description(getDocumentation(inputDefinition, options))
+                    .apply { inputDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
                     .type(determineInputType(inputDefinition.type, inputObjects, referencingInputObjects))
                     .withDirectives(*buildDirectives(inputDefinition.directives, Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
                 builder.field(fieldBuilder.build())
@@ -194,7 +193,7 @@ class SchemaParser internal constructor(
         val builder = GraphQLEnumType.newEnum()
             .name(name)
             .definition(definition)
-            .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
+            .description(getDocumentation(definition, options))
 
         builder.withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ENUM))
 
@@ -207,7 +206,7 @@ class SchemaParser internal constructor(
             getDeprecated(enumDefinition.directives).let {
                 val enumValueDefinition = GraphQLEnumValueDefinition.newEnumValueDefinition()
                     .name(enumName)
-                    .description(if (enumDefinition.description != null) enumDefinition.description.content else getDocumentation(enumDefinition))
+                    .description(getDocumentation(enumDefinition, options))
                     .value(enumValue)
                     .deprecationReason(it)
                     .withDirectives(*enumValueDirectives)
@@ -226,7 +225,7 @@ class SchemaParser internal constructor(
         val builder = GraphQLInterfaceType.newInterface()
             .name(name)
             .definition(interfaceDefinition)
-            .description(if (interfaceDefinition.description != null) interfaceDefinition.description.content else getDocumentation(interfaceDefinition))
+            .description(getDocumentation(interfaceDefinition, options))
 
         builder.withDirectives(*buildDirectives(interfaceDefinition.directives, Introspection.DirectiveLocation.INTERFACE))
 
@@ -247,7 +246,7 @@ class SchemaParser internal constructor(
         val builder = GraphQLUnionType.newUnionType()
             .name(name)
             .definition(definition)
-            .description(if (definition.description != null) definition.description.content else getDocumentation(definition))
+            .description(getDocumentation(definition, options))
 
         builder.withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.UNION))
 
@@ -278,7 +277,7 @@ class SchemaParser internal constructor(
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
         field
             .name(fieldDefinition.name)
-            .description(fieldDefinition.description?.content ?: getDocumentation(fieldDefinition))
+            .description(getDocumentation(fieldDefinition, options))
             .definition(fieldDefinition)
             .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
             .type(determineOutputType(fieldDefinition.type, inputObjects))
@@ -287,9 +286,9 @@ class SchemaParser internal constructor(
             val argumentBuilder = GraphQLArgument.newArgument()
                 .name(argumentDefinition.name)
                 .definition(argumentDefinition)
-                .description(if (argumentDefinition.description != null) argumentDefinition.description.content else getDocumentation(argumentDefinition))
+                .description(getDocumentation(argumentDefinition, options))
                 .type(determineInputType(argumentDefinition.type, inputObjects, setOf()))
-                .apply { buildDefaultValue(argumentDefinition.defaultValue)?.let { defaultValue(it) } }
+                .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
                 .withDirectives(*buildDirectives(argumentDefinition.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
 
             field.argument(argumentBuilder.build())
@@ -363,20 +362,6 @@ class SchemaParser internal constructor(
 
         // peek at first value, value exists and is assured to be non-null
         return nonNullValueList[0]
-    }
-
-    private fun buildDefaultValue(value: Value<*>?): Any? {
-        return when (value) {
-            null -> null
-            is IntValue -> value.value.toInt()
-            is FloatValue -> value.value.toDouble()
-            is StringValue -> value.value
-            is EnumValue -> value.name
-            is BooleanValue -> value.isValue
-            is ArrayValue -> value.values.map { buildDefaultValue(it) }
-            is ObjectValue -> value.objectFields.associate { it.name to buildDefaultValue(it.value) }
-            else -> throw SchemaError("Unrecognized default value: $value")
-        }
     }
 
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =

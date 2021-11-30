@@ -1,6 +1,7 @@
 package graphql.kickstart.tools.resolver
 
 import com.fasterxml.jackson.core.type.TypeReference
+import graphql.GraphQLContext
 import graphql.TrivialDataFetcher
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
@@ -13,6 +14,7 @@ import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLTypeUtil.isScalar
 import kotlinx.coroutines.future.future
+import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 import java.util.*
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
@@ -30,9 +32,12 @@ internal class MethodFieldResolver(
     val method: Method
 ) : FieldResolver(field, search, options, search.type) {
 
+    private val log = LoggerFactory.getLogger(javaClass)
+
     private val additionalLastArgument =
         try {
-            method.kotlinFunction?.valueParameters?.size ?: method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
+            (method.kotlinFunction?.valueParameters?.size
+                ?: method.parameterCount) == (field.inputValueDefinitions.size + getIndexOffset() + 1)
         } catch (e: InternalError) {
             method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
         }
@@ -94,7 +99,21 @@ internal class MethodFieldResolver(
         if (this.additionalLastArgument) {
             when (this.method.parameterTypes.last()) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
-                options.contextClass -> args.add { environment -> environment.getContext() }
+                options.contextClass -> args.add { environment ->
+                    val context: Any? = environment.graphQlContext[options.contextClass]
+                    if (context != null) {
+                        context
+                    } else {
+                        log.warn(
+                            "Generic context class has been deprecated by graphql-java. " +
+                                "To continue using a custom context class as the last parameter in resolver methods " +
+                                "please insert it into the GraphQLContext map when building the ExecutionInput. " +
+                                "This warning will become an error in the future."
+                        )
+                        environment.getContext() // TODO: remove deprecated use in next major release
+                    }
+                }
+                GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
                 else -> args.add { environment -> environment }
             }
         }

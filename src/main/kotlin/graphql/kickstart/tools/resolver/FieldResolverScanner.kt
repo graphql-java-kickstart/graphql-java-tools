@@ -1,5 +1,6 @@
 package graphql.kickstart.tools.resolver
 
+import graphql.GraphQLContext
 import graphql.Scalars
 import graphql.kickstart.tools.ResolverInfo
 import graphql.kickstart.tools.RootResolverInfo
@@ -25,7 +26,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, options.contextClass)
+    private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
 
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
         val searches = resolverInfo.getFieldSearches()
@@ -72,7 +73,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
     }
 
-    private fun findResolverMethod(field: FieldDefinition, search: Search): java.lang.reflect.Method? {
+    private fun findResolverMethod(field: FieldDefinition, search: Search): Method? {
         val methods = getAllMethods(search.type)
         val argumentCount = field.inputValueDefinitions.size + if (search.requiredFirstParameterType != null) 1 else 0
         val name = field.name
@@ -86,11 +87,11 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return methods.find {
             it.name == name && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            (isBoolean(field.type) && it.name == "is${name.capitalize()}") && verifyMethodArguments(it, argumentCount, search)
+            (isBoolean(field.type) && it.name == "is${name.replaceFirstChar(Char::titlecase)}") && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            it.name == "get${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+            it.name == "get${name.replaceFirstChar(Char::titlecase)}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
-            it.name == "getField${name.capitalize()}" && verifyMethodArguments(it, argumentCount, search)
+            it.name == "getField${name.replaceFirstChar(Char::titlecase)}" && verifyMethodArguments(it, argumentCount, search)
         } ?: methods.find {
             it.name == "get${name.snakeToCamelCase()}" && verifyMethodArguments(it, argumentCount, search)
         }
@@ -113,7 +114,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
 
-    private fun verifyMethodArguments(method: java.lang.reflect.Method, requiredCount: Int, search: Search): Boolean {
+    private fun verifyMethodArguments(method: Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
             method.genericParameterTypes.firstOrNull()?.let {
                 it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
@@ -130,7 +131,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return correctParameterCount && appropriateFirstParameter
     }
 
-    private fun getMethodParameterCount(method: java.lang.reflect.Method): Int {
+    private fun getMethodParameterCount(method: Method): Int {
         return try {
             method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
         } catch (e: InternalError) {
@@ -138,7 +139,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
     }
 
-    private fun getMethodLastParameter(method: java.lang.reflect.Method): Type? {
+    private fun getMethodLastParameter(method: Method): Type? {
         return try {
             method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
                 ?: method.parameterTypes.lastOrNull()
@@ -179,9 +180,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
         signatures.add("${baseType.name}.${field.name}($argString)")
         if (isBoolean) {
-            signatures.add("${baseType.name}.is${field.name.capitalize()}($argString)")
+            signatures.add("${baseType.name}.is${field.name.replaceFirstChar(Char::titlecase)}($argString)")
         }
-        signatures.add("${baseType.name}.get${field.name.capitalize()}($argString)")
+        signatures.add("${baseType.name}.get${field.name.replaceFirstChar(Char::titlecase)}($argString)")
         if (scannedProperties) {
             signatures.add("${baseType.name}.${field.name}")
         }

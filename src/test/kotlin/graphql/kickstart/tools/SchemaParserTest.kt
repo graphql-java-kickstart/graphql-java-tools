@@ -1,27 +1,18 @@
 package graphql.kickstart.tools
 
 import graphql.kickstart.tools.resolver.FieldResolverError
-import graphql.schema.GraphQLInterfaceType
-import graphql.schema.GraphQLObjectType
-import graphql.schema.GraphQLArgument
-import graphql.schema.GraphQLInputObjectType
-import graphql.schema.GraphQLNonNull
+import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
+import org.junit.Assert.assertThrows
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.ExpectedException
 import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
 import java.util.concurrent.Future
 
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
-
-    @Rule
-    @JvmField
-    var expectedEx: ExpectedException = ExpectedException.none()
 
     @Before
     fun setup() {
@@ -197,27 +188,24 @@ class SchemaParserTest {
 
     @Test
     fun `parser should throw descriptive exception when object is used as input type incorrectly`() {
-        expectedEx.expect(SchemaError::class.java)
-        expectedEx.expectMessage("Was a type only permitted for object types incorrectly used as an input type, or vice-versa")
-
-        SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    name(filter: Filter): [String]
-                }
-                
-                type Filter {
-                    filter: String
-                }
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun name(filter: Filter): List<String>? = null
-            })
-            .build()
-            .makeExecutableSchema()
-
-        throw AssertionError("should not be called")
+        assertThrows("Was a type only permitted for object types incorrectly used as an input type, or vice-versa", SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        name(filter: Filter): [String]
+                    }
+                    
+                    type Filter {
+                        filter: String
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun name(filter: Filter): List<String>? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
     }
 
     @Test
@@ -523,6 +511,118 @@ class SchemaParserTest {
         assert(testNonNullableArgument.type is GraphQLNonNull)
         assert((testNonNullableArgument.type as GraphQLNonNull).wrappedType is GraphQLInputObjectType)
         assert(testNullableArgument.type is GraphQLInputObjectType)
+    }
+
+    @Test
+    fun `parser should use comments for descriptions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    "description"
+                    description: String
+                    #comment
+                    comment: String
+                    omitted: String
+                    "description"
+                    #comment
+                    both: String
+                    ""
+                    empty: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        val queryType = schema.getObjectType("Query")
+        assertEquals(queryType.getFieldDefinition("description").description, "description")
+        assertEquals(queryType.getFieldDefinition("comment").description, "comment")
+        assertNull(queryType.getFieldDefinition("omitted").description)
+        assertEquals(queryType.getFieldDefinition("both").description, "description")
+        assertEquals(queryType.getFieldDefinition("empty").description, "")
+    }
+
+    @Test
+    fun `parser should not use comments for descriptions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    "description"
+                    description: String
+                    #comment
+                    comment: String
+                    omitted: String
+                    "description"
+                    #comment
+                    both: String
+                    ""
+                    empty: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().useCommentsForDescriptions(false).allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.queryType.getFieldDefinition("description").description, "description")
+        assertNull(schema.queryType.getFieldDefinition("comment").description)
+        assertNull(schema.queryType.getFieldDefinition("omitted").description)
+        assertEquals(schema.queryType.getFieldDefinition("both").description, "description")
+        assertEquals(schema.queryType.getFieldDefinition("empty").description, "")
+    }
+
+    @Test
+    fun `parser should include schema descriptions when declared`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                "This is a schema level description"
+                schema {
+                  query: SubstituteQuery
+                }
+
+                type SubstituteQuery {
+                    description: String
+                    comment: String
+                    omitted: String
+                    both: String
+                    empty: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.description, "This is a schema level description")
+    }
+
+    @Test
+    fun `parser should return null schema description when not declared`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                schema {
+                  query: SubstituteQuery
+                }
+
+                type SubstituteQuery {
+                    description: String
+                    comment: String
+                    omitted: String
+                    both: String
+                    empty: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        assertNull(schema.description)
     }
 
     enum class EnumType {
