@@ -1,5 +1,14 @@
 {
   "extends": [
     "github>graphql-java-kickstart/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "Group Kotlin updates together",
+      "groupName": "kotlin",
+      "matchPackagePrefixes": [
+        "org.jetbrains.kotlin"
+      ]
+    }
   ]
 }
