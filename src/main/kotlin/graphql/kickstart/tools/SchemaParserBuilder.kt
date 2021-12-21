@@ -3,11 +3,13 @@ package graphql.kickstart.tools
 import graphql.language.Definition
 import graphql.language.Document
 import graphql.parser.Parser
+import graphql.parser.ParserOptions
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
+import kotlin.Int.Companion.MAX_VALUE
 import kotlin.reflect.KClass
 
 /**
@@ -169,7 +171,10 @@ class SchemaParserBuilder {
             files.forEach { documents.add(parser.parseDocument(readFile(it), it)) }
 
             if (schemaString.isNotEmpty()) {
-                documents.add(parser.parseDocument(schemaString.toString()))
+                val options = ParserOptions
+                    .getDefaultParserOptions()
+                    .transform { o -> o.maxTokens(MAX_VALUE) }
+                documents.add(parser.parseDocument(schemaString.toString(), options))
             }
         } catch (pce: ParseCancellationException) {
             val cause = pce.cause
