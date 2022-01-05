@@ -12,7 +12,10 @@ import graphql.schema.DataFetchingEnvironment
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
-import java.lang.reflect.*
+import java.lang.reflect.AccessibleObject
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.lang.reflect.Type
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
@@ -62,9 +65,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun trySetAccessible(field: FieldDefinition, type: JavaType): AccessibleObject.() -> Unit = {
         try {
             isAccessible = true
-        } catch (e: InaccessibleObjectException) {
-            log.warn("Unable to make field ${type.unwrap().name}#${field.name} accessible: " +
-                "Module ${type.unwrap().module.name} is closed. Be sure to provide a resolver or open the module if possible.")
+        } catch (e: RuntimeException) {
+            log.warn("Unable to make field ${type.unwrap().name}#${field.name} accessible. " +
+                "Be sure to provide a resolver or open the enclosing module if possible.")
         }
     }
 
