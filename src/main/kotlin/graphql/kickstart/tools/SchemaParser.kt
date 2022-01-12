@@ -10,7 +10,6 @@ import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.idl.SchemaGeneratorHelperExt
 import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
@@ -58,7 +57,6 @@ class SchemaParser internal constructor(
 
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
 
-    private val schemaGeneratorHelper = SchemaGeneratorHelperExt()
     private val schemaGeneratorDirectiveHelper = SchemaGeneratorDirectiveHelper()
     private val schemaDirectiveParameters = SchemaGeneratorDirectiveHelper.Parameters(null, runtimeWiring, null, codeRegistryBuilder)
 
@@ -307,18 +305,21 @@ class SchemaParser internal constructor(
                 names.add(directive.name)
                 val graphQLDirective = GraphQLDirective.newDirective()
                     .name(directive.name)
+                    .description(getDocumentation(directive, options))
+                    .comparatorRegistry(runtimeWiring.comparatorRegistry)
+                    .validLocation(directiveLocation)
                     .apply {
                         directive.arguments.forEach { arg ->
                             argument(GraphQLArgument.newArgument()
                                 .name(arg.name)
                                 .type(buildDirectiveInputType(arg.value))
+                                .valueLiteral(arg.value)
                                 .build())
                         }
                     }
                     .build()
 
-
-                output.add(schemaGeneratorHelper.buildAppliedDirective(directive, graphQLDirective, directiveLocation, runtimeWiring.comparatorRegistry))
+                output.add(graphQLDirective)
             }
         }
 
@@ -392,12 +393,12 @@ class SchemaParser internal constructor(
         }
 
     private fun determineInputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>, referencingInputObjects: Set<String>) =
-        determineInputType(GraphQLInputType::class, typeDefinition, permittedTypesForInputObject, inputObjects, referencingInputObjects) as GraphQLInputType
+        determineInputType(GraphQLInputType::class, typeDefinition, permittedTypesForInputObject, inputObjects, referencingInputObjects)
 
     private fun <T : Any> determineInputType(expectedType: KClass<T>,
                                              typeDefinition: Type<*>, allowedTypeReferences: Set<String>,
                                              inputObjects: List<GraphQLInputObjectType>,
-                                             referencingInputObjects: Set<String>): GraphQLType =
+                                             referencingInputObjects: Set<String>): GraphQLInputType =
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
             is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
