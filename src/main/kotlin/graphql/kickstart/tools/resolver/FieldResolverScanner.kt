@@ -12,6 +12,7 @@ import graphql.schema.DataFetchingEnvironment
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
 import org.slf4j.LoggerFactory
+import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Type
@@ -44,13 +45,13 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if (method != null) {
-            return MethodFieldResolver(field, search, options, method.apply { isAccessible = true })
+            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)))
         }
 
         if (scanProperties) {
             val property = findResolverProperty(field, search)
             if (property != null) {
-                return PropertyFieldResolver(field, search, options, property.apply { isAccessible = true })
+                return PropertyFieldResolver(field, search, options, property.apply(trySetAccessible(field, search.type)))
             }
         }
 
@@ -59,6 +60,15 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
 
         return null
+    }
+
+    private fun trySetAccessible(field: FieldDefinition, type: JavaType): AccessibleObject.() -> Unit = {
+        try {
+            isAccessible = true
+        } catch (e: RuntimeException) {
+            log.warn("Unable to make field ${type.unwrap().name}#${field.name} accessible. " +
+                "Be sure to provide a resolver or open the enclosing module if possible.")
+        }
     }
 
     private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
