@@ -17,7 +17,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         fun isListType(realType: ParameterizedType, generic: GenericType) = generic.isTypeAssignableFromRawClass(realType, Iterable::class.java)
     }
 
-    private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) with java type (${potentialMatch.javaType}): $msg")
+    private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) for reference ${potentialMatch.reference} with java type (${potentialMatch.javaType}): $msg")
 
     fun match(potentialMatch: PotentialMatch): Match {
         return match(potentialMatch, potentialMatch.graphQLType, potentialMatch.javaType, true)
