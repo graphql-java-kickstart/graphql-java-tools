@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
+import graphql.language.FieldDefinition
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetcherFactories
@@ -74,7 +75,7 @@ class DirectiveTest {
     }
 
     @Test
-    @Ignore("Ignore until enums work in directives")
+    // @Ignore("Ignore until enums work in directives")
     fun `should compile schema with directive that has enum parameter`() {
         val schema = SchemaParser.newParser()
             .schemaString(

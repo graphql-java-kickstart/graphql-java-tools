@@ -334,6 +334,7 @@ class SchemaParser internal constructor(
             is IntValue -> return Scalars.GraphQLInt
             is BooleanValue -> return Scalars.GraphQLBoolean
             is ArrayValue -> return GraphQLList.list(buildDirectiveInputType(getArrayValueWrappedType(value)))
+            is EnumValue -> return GraphQLEnumType.newEnum().name("BUILT_IN").value("BUILT_IN").build()
             else -> throw SchemaError("Directive values of type '${value::class.simpleName}' are not supported yet.")
         }
     }
