@@ -1,9 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.schema.GraphQLCodeRegistry
-import graphql.schema.GraphQLObjectType
-import graphql.schema.GraphQLSchema
-import graphql.schema.GraphQLType
+import graphql.schema.*
 
 /**
  * @author Andrew Potter
@@ -13,6 +10,7 @@ data class SchemaObjects(
     val mutation: GraphQLObjectType?,
     val subscription: GraphQLObjectType?,
     val dictionary: Set<GraphQLType>,
+    val directives: Set<GraphQLDirective>,
     val codeRegistryBuilder: GraphQLCodeRegistry.Builder,
     val description: String?
 ) {
@@ -26,6 +24,7 @@ data class SchemaObjects(
             .mutation(mutation)
             .subscription(subscription)
             .additionalTypes(dictionary)
+            .additionalDirectives(directives)
             .codeRegistry(codeRegistryBuilder.build())
             .build()
     }

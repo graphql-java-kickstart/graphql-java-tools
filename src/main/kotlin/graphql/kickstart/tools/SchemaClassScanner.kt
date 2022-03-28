@@ -33,6 +33,8 @@ internal class SchemaClassScanner(
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
     private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
     private val inputExtensionDefinitions = allDefinitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
+    private val directiveDefinitions = allDefinitions.filterIsInstance<DirectiveDefinition>()
+    private val scalarDefinitions = allDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
     private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions - inputExtensionDefinitions).associateBy { it.name }
     private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
@@ -42,7 +44,7 @@ internal class SchemaClassScanner(
     private val fieldResolverScanner = FieldResolverScanner(options)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
-    private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
+    private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>(*scalarDefinitions.toTypedArray())
     private val queue = linkedSetOf<QueueItem>()
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
@@ -193,7 +195,9 @@ internal class SchemaClassScanner(
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        return ScannedSchemaObjects(dictionary, observedDefinitions + extensionDefinitions + inputExtensionDefinitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
+
+        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {

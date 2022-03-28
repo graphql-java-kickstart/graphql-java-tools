@@ -45,6 +45,7 @@ class SchemaParser internal constructor(
     private val inputObjectDefinitions = (definitions.filterIsInstance<InputObjectTypeDefinition>() - inputExtensionDefinitions)
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
+    private val directiveDefinitions = definitions.filterIsInstance<DirectiveDefinition>()
 
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
 
@@ -82,6 +83,8 @@ class SchemaParser internal constructor(
         val unions = unionDefinitions.map { createUnionObject(it, objects) }
         val enums = enumDefinitions.map { createEnumObject(it) }
 
+        val directives = directiveDefinitions.map { createDirective(it, inputObjects) }.toSet()
+
         // Assign type resolver to interfaces now that we know all of the object types
         interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it)) }
         unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it)) }
@@ -101,7 +104,7 @@ class SchemaParser internal constructor(
         val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
 
         val types = (additionalObjects.toSet() as Set<GraphQLType>) + inputObjects + enums + interfaces + unions
-        return SchemaObjects(query, mutation, subscription, types, codeRegistryBuilder, rootInfo.getDescription())
+        return SchemaObjects(query, mutation, subscription, types, directives, codeRegistryBuilder, rootInfo.getDescription())
     }
 
     /**
@@ -123,6 +126,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(objectDefinition, options))
 
         builder.withDirectives(*buildDirectives(objectDefinition.directives, Introspection.DirectiveLocation.OBJECT))
+        builder.withAppliedDirectives(*buildAppliedDirectives(objectDefinition.directives))
 
         objectDefinition.implements.forEach { implementsDefinition ->
             val interfaceName = (implementsDefinition as TypeName).name
@@ -163,6 +167,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
 
         builder.withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.INPUT_OBJECT))
+        builder.withAppliedDirectives(*buildAppliedDirectives(definition.directives))
 
         referencingInputObjects.add(definition.name)
 
@@ -175,6 +180,7 @@ class SchemaParser internal constructor(
                     .apply { inputDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
                     .type(determineInputType(inputDefinition.type, inputObjects, referencingInputObjects))
                     .withDirectives(*buildDirectives(inputDefinition.directives, Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION))
+                    .withAppliedDirectives(*buildAppliedDirectives(inputDefinition.directives))
                 builder.field(fieldBuilder.build())
             }
         }
@@ -194,6 +200,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
 
         builder.withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ENUM))
+        builder.withAppliedDirectives(*buildAppliedDirectives(definition.directives))
 
         definition.enumValueDefinitions.forEach { enumDefinition ->
             val enumName = enumDefinition.name
@@ -201,6 +208,7 @@ class SchemaParser internal constructor(
                 ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
 
             val enumValueDirectives = buildDirectives(enumDefinition.directives, Introspection.DirectiveLocation.ENUM_VALUE)
+            val enumValueAppliedDirectives = buildAppliedDirectives(enumDefinition.directives)
             getDeprecated(enumDefinition.directives).let {
                 val enumValueDefinition = GraphQLEnumValueDefinition.newEnumValueDefinition()
                     .name(enumName)
@@ -208,6 +216,7 @@ class SchemaParser internal constructor(
                     .value(enumValue)
                     .deprecationReason(it)
                     .withDirectives(*enumValueDirectives)
+                    .withAppliedDirectives(*enumValueAppliedDirectives)
                     .definition(enumDefinition)
                     .build()
 
@@ -226,6 +235,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(interfaceDefinition, options))
 
         builder.withDirectives(*buildDirectives(interfaceDefinition.directives, Introspection.DirectiveLocation.INTERFACE))
+        builder.withAppliedDirectives(*buildAppliedDirectives(interfaceDefinition.directives))
 
         interfaceDefinition.fieldDefinitions.forEach { fieldDefinition ->
             builder.field { field -> createField(field, fieldDefinition, inputObjects) }
@@ -247,6 +257,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
 
         builder.withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.UNION))
+        builder.withAppliedDirectives(*buildAppliedDirectives(definition.directives))
 
         getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
         return schemaGeneratorDirectiveHelper.onUnion(builder.build(), schemaDirectiveParameters)
@@ -288,12 +299,41 @@ class SchemaParser internal constructor(
                 .type(determineInputType(argumentDefinition.type, inputObjects, setOf()))
                 .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
                 .withDirectives(*buildDirectives(argumentDefinition.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
+                .withAppliedDirectives(*buildAppliedDirectives(argumentDefinition.directives))
 
             field.argument(argumentBuilder.build())
         }
         field.withDirectives(*buildDirectives(fieldDefinition.directives, Introspection.DirectiveLocation.FIELD_DEFINITION))
+        field.withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
 
         return field
+    }
+
+    private fun createDirective(definition: DirectiveDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLDirective {
+        val locations = definition.directiveLocations.map { Introspection.DirectiveLocation.valueOf(it.name) }.toTypedArray()
+
+        val graphQLDirective = GraphQLDirective.newDirective()
+            .name(definition.name)
+            .description(getDocumentation(definition, options))
+            .definition(definition)
+            .comparatorRegistry(runtimeWiring.comparatorRegistry)
+            .validLocations(*locations)
+            .repeatable(definition.isRepeatable)
+            .apply {
+                definition.inputValueDefinitions.forEach { arg ->
+                    argument(GraphQLArgument.newArgument()
+                        .name(arg.name)
+                        .definition(arg)
+                        .description(getDocumentation(arg, options))
+                        .type(determineInputType(arg.type, inputObjects, setOf()))
+                        .apply { arg.defaultValue?.let { defaultValueLiteral(it) } }
+                        .withAppliedDirectives(*buildAppliedDirectives(arg.directives))
+                        .build())
+                }
+            }
+            .build()
+
+        return graphQLDirective
     }
 
     private fun buildDirectives(directives: List<Directive>, directiveLocation: Introspection.DirectiveLocation): Array<GraphQLDirective> {
@@ -326,14 +366,43 @@ class SchemaParser internal constructor(
         return output.toTypedArray()
     }
 
+    private fun buildAppliedDirectives(directives: List<Directive>): Array<GraphQLAppliedDirective> {
+        val names = mutableSetOf<String>()
+
+        val output = mutableListOf<GraphQLAppliedDirective>()
+        for (directive in directives) {
+            if (!names.contains(directive.name)) {
+                names.add(directive.name)
+                val graphQLDirective = GraphQLAppliedDirective.newDirective()
+                    .name(directive.name)
+                    .description(getDocumentation(directive, options))
+                    .comparatorRegistry(runtimeWiring.comparatorRegistry)
+                    .apply {
+                        directive.arguments.forEach { arg ->
+                            argument(GraphQLAppliedDirectiveArgument.newArgument()
+                                .name(arg.name)
+                                .type(buildDirectiveInputType(arg.value))
+                                .valueLiteral(arg.value)
+                                .build())
+                        }
+                    }
+                    .build()
+
+                output.add(graphQLDirective)
+            }
+        }
+
+        return output.toTypedArray()
+    }
+
     private fun buildDirectiveInputType(value: Value<*>): GraphQLInputType? {
-        when (value) {
-            is NullValue -> return Scalars.GraphQLString
-            is FloatValue -> return Scalars.GraphQLFloat
-            is StringValue -> return Scalars.GraphQLString
-            is IntValue -> return Scalars.GraphQLInt
-            is BooleanValue -> return Scalars.GraphQLBoolean
-            is ArrayValue -> return GraphQLList.list(buildDirectiveInputType(getArrayValueWrappedType(value)))
+        return when (value) {
+            is NullValue -> Scalars.GraphQLString
+            is FloatValue -> Scalars.GraphQLFloat
+            is StringValue -> Scalars.GraphQLString
+            is IntValue -> Scalars.GraphQLInt
+            is BooleanValue -> Scalars.GraphQLBoolean
+            is ArrayValue -> GraphQLList.list(buildDirectiveInputType(getArrayValueWrappedType(value)))
             else -> throw SchemaError("Directive values of type '${value::class.simpleName}' are not supported yet.")
         }
     }
@@ -448,14 +517,10 @@ class SchemaParser internal constructor(
      * indicating no deprecation directive was found within the directives list.
      */
     private fun getDeprecated(directives: List<Directive>): String? =
-        getDirective(directives, "deprecated")?.let { directive ->
+        directives.find { it.name == "deprecated" }?.let { directive ->
             (directive.arguments.find { it.name == "reason" }?.value as? StringValue)?.value
                 ?: DEFAULT_DEPRECATION_MESSAGE
         }
-
-    private fun getDirective(directives: List<Directive>, name: String): Directive? = directives.find {
-        it.name == name
-    }
 }
 
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
