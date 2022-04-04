@@ -297,14 +297,11 @@ class SchemaParser internal constructor(
     }
 
     private fun buildDirectives(directives: List<Directive>, directiveLocation: Introspection.DirectiveLocation): Array<GraphQLDirective> {
-        val names = mutableSetOf<String>()
-
         val output = mutableListOf<GraphQLDirective>()
         for (directive in directives) {
-            if (!names.contains(directive.name)) {
-                names.add(directive.name)
                 val graphQLDirective = GraphQLDirective.newDirective()
                     .name(directive.name)
+                    .repeatable(true)
                     .description(getDocumentation(directive, options))
                     .comparatorRegistry(runtimeWiring.comparatorRegistry)
                     .validLocation(directiveLocation)
@@ -320,7 +317,6 @@ class SchemaParser internal constructor(
                     .build()
 
                 output.add(graphQLDirective)
-            }
         }
 
         return output.toTypedArray()

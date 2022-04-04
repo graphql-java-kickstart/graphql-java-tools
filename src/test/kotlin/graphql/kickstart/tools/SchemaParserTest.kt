@@ -1,6 +1,9 @@
 package graphql.kickstart.tools
 
+import graphql.Scalars
+import graphql.introspection.Introspection
 import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.language.StringValue
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
@@ -623,6 +626,33 @@ class SchemaParserTest {
             .makeExecutableSchema()
 
         assertNull(schema.description)
+    }
+
+    @Test
+    fun `parser should support repeatable directives`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                schema {
+                  query: SomeType
+                }
+
+                type SomeType @directive(k: "1") @directive(k: "2") {
+                    empty: String
+                }
+                """
+            )
+            .resolvers(object : GraphQLQueryResolver {})
+            .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        val someType = schema.getType("SomeType") as GraphQLObjectType
+        assertEquals(someType.directives.size, 2)
+        someType.directives.forEach { directive ->
+            assertEquals(directive.name, "directive")
+            assertEquals(directive.isRepeatable, true)
+        }
     }
 
     enum class EnumType {
