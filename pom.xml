@@ -14,9 +14,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <kotlin.version>1.6.10</kotlin.version>
-        <kotlin-coroutines.version>1.6.0-native-mt</kotlin-coroutines.version>
-        <jackson.version>2.13.2.20220324</jackson.version>
+        <kotlin.version>1.6.21</kotlin.version>
+        <kotlin-coroutines.version>1.6.1-native-mt</kotlin-coroutines.version>
+        <jackson.version>2.13.2.20220328</jackson.version>
         <graphql-java.version>18.0</graphql-java.version>
         <reactive-streams.version>1.0.3</reactive-streams.version>
 
@@ -87,7 +87,7 @@
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-aop</artifactId>
-                <version>5.3.17</version>
+                <version>5.3.19</version>
                 <scope>provided</scope>
             </dependency>
 
@@ -333,7 +333,7 @@
             <plugin>
                 <groupId>org.sonatype.plugins</groupId>
                 <artifactId>nexus-staging-maven-plugin</artifactId>
-                <version>1.6.12</version>
+                <version>1.6.13</version>
                 <extensions>true</extensions>
                 <configuration>
                     <serverId>ossrh</serverId>
@@ -366,7 +366,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.3.2</version>
+                        <version>3.4.0</version>
                         <executions>
                             <execution>
                                 <id>attach-javadocs</id>
