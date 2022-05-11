@@ -87,7 +87,7 @@
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-aop</artifactId>
-                <version>5.3.19</version>
+                <version>5.3.20</version>
                 <scope>provided</scope>
             </dependency>
 
