@@ -327,6 +327,7 @@ class SchemaParser internal constructor(
                         .description(getDocumentation(arg, options))
                         .type(determineInputType(arg.type, inputObjects, setOf()))
                         .apply { arg.defaultValue?.let { defaultValueLiteral(it) } }
+                        .withDirectives(*buildDirectives(arg.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
                         .withAppliedDirectives(*buildAppliedDirectives(arg.directives))
                         .build())
                 }
