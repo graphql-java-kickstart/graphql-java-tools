@@ -258,7 +258,7 @@ class SchemaParserTest {
 
         val sourceLocation = schema.getObjectType("Query")
             .getFieldDefinition("id")
-            .definition.sourceLocation
+            .definition!!.sourceLocation
         assertNotNull(sourceLocation)
         assertEquals(sourceLocation.line, 2)
         assertEquals(sourceLocation.column, 5)
@@ -275,7 +275,7 @@ class SchemaParserTest {
 
         val sourceLocation = schema.getObjectType("Query")
             .getFieldDefinition("id")
-            .definition.sourceLocation
+            .definition!!.sourceLocation
         assertNotNull(sourceLocation)
         assertEquals(sourceLocation.line, 2)
         assertEquals(sourceLocation.column, 3)
@@ -441,8 +441,8 @@ class SchemaParserTest {
         assert(poodleTraitObject.interfaces.containsAll(listOf(mammalTraitInterface, traitInterface)))
         assert(dogInterface.interfaces.contains(animalInterface))
         assert(mammalTraitInterface.interfaces.contains(traitInterface))
-        assert(traitInterface.definition.implements.isEmpty())
-        assert(animalInterface.definition.implements.isEmpty())
+        assert(traitInterface.definition!!.implements.isEmpty())
+        assert(animalInterface.definition!!.implements.isEmpty())
     }
 
     class MultiLevelInterfaceResolver : GraphQLQueryResolver {
