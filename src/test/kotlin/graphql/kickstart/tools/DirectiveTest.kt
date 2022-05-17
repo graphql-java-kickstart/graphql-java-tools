@@ -7,6 +7,7 @@ import graphql.relay.SimpleListConnection
 import graphql.schema.DataFetcherFactories
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLFieldDefinition
+import graphql.schema.GraphQLObjectType
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.junit.Ignore
@@ -14,7 +15,7 @@ import org.junit.Test
 
 class DirectiveTest {
     @Test
-    fun `should apply correctly the @uppercase directive`() {
+    fun `should apply @uppercase directive on field`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -68,6 +69,48 @@ class DirectiveTest {
                     )
                 )
             )
+        )
+
+        assertEquals(result.getData(), expected)
+    }
+
+    @Test
+    fun `should apply @uppercase directive on object`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @uppercase on OBJECT
+                
+                type Query {
+                    user: User
+                }
+                
+                type User @uppercase {
+                    id: ID!
+                    name: String
+                }
+                """)
+            .resolvers(UsersQueryResolver())
+            .directive("uppercase", UppercaseDirective())
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
+
+        val result = gql.execute(
+            """
+            query {
+                user {
+                    id
+                    name
+                }
+            }
+            """)
+
+        val expected = mapOf(
+            "user" to mapOf("id" to "1", "name" to "LUKE")
         )
 
         assertEquals(result.getData(), expected)
@@ -132,6 +175,23 @@ class DirectiveTest {
     }
 
     private class UppercaseDirective : SchemaDirectiveWiring {
+        override fun onObject(environment: SchemaDirectiveWiringEnvironment<GraphQLObjectType>): GraphQLObjectType {
+            val objectType = environment.element
+
+            objectType.fields.forEach { field ->
+                val originalDataFetcher = environment.codeRegistry.getDataFetcher(objectType, field)
+                val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher) { _, value ->
+                    when (value) {
+                        is String -> value.uppercase()
+                        else -> value
+                    }
+                }
+
+                environment.codeRegistry.dataFetcher(objectType, field, wrappedDataFetcher)
+            }
+
+            return objectType
+        }
 
         override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
             val field = environment.element
@@ -142,7 +202,7 @@ class DirectiveTest {
                 (value as? String)?.uppercase()
             }
 
-            environment.codeRegistry.dataFetcher(parentType, field, wrappedDataFetcher)
+            environment.fieldDataFetcher = wrappedDataFetcher
 
             return field
         }
@@ -152,6 +212,8 @@ class DirectiveTest {
         fun users(env: DataFetchingEnvironment): Connection<User> {
             return SimpleListConnection(listOf(User(1L, "Luke"))).get(env)
         }
+
+        fun user(): User = User(1L, "Luke")
 
         private data class User(
             val id: Long,
