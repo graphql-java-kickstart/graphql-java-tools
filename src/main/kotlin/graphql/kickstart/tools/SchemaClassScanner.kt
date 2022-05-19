@@ -44,7 +44,7 @@ internal class SchemaClassScanner(
     private val fieldResolverScanner = FieldResolverScanner(options)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
-    private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>(*scalarDefinitions.toTypedArray())
+    private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
     private val queue = linkedSetOf<QueueItem>()
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()

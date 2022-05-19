@@ -434,11 +434,6 @@ class SchemaClassScannerTest {
                 
                 # these directives are defined in the Apollo Federation Specification: 
                 # https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
-                scalar _FieldSet
-                directive @key(fields: _FieldSet!) repeatable on OBJECT | INTERFACE
-                directive @extends on OBJECT | INTERFACE
-                directive @external on FIELD_DEFINITION
-                
                 type User @key(fields: "id") @extends {
                     id: ID! @external
                     recentPurchasedProducts: [Product]
@@ -454,7 +449,6 @@ class SchemaClassScannerTest {
             })
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .dictionary(User::class)
-            .scalars(fieldSet)
             .build()
             .makeExecutableSchema()
 
@@ -476,16 +470,6 @@ class SchemaClassScannerTest {
     class Address {
         var street: String? = null
     }
-
-    private val fieldSet: GraphQLScalarType = GraphQLScalarType.newScalar()
-        .name("_FieldSet")
-        .description("_FieldSet")
-        .coercing(object : Coercing<String, String> {
-            override fun parseValue(input: Any) = input.toString()
-            override fun serialize(dataFetcherResult: Any) = dataFetcherResult as String
-            override fun parseLiteral(input: Any) = input.toString()
-        })
-        .build()
 
     @Test
     fun `scanner should handle unused types with interfaces when option is true`() {
