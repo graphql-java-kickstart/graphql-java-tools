@@ -56,7 +56,7 @@ class SchemaParser internal constructor(
         (inputObjectDefinitions.map { it.name } + enumDefinitions.map { it.name }).toSet()
 
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
-    private val directiveWiringHelper = DirectiveWiringHelper(options, runtimeWiring, codeRegistryBuilder)
+    private val directiveWiringHelper = DirectiveWiringHelper(options, runtimeWiring, codeRegistryBuilder, directiveDefinitions)
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -316,32 +316,22 @@ class SchemaParser internal constructor(
     }
 
     private fun buildAppliedDirectives(directives: List<Directive>): Array<GraphQLAppliedDirective> {
-        val names = mutableSetOf<String>()
-
-        val output = mutableListOf<GraphQLAppliedDirective>()
-        for (directive in directives) {
-            if (!names.contains(directive.name)) {
-                names.add(directive.name)
-                val graphQLDirective = GraphQLAppliedDirective.newDirective()
-                    .name(directive.name)
-                    .description(getDocumentation(directive, options))
-                    .comparatorRegistry(runtimeWiring.comparatorRegistry)
-                    .apply {
-                        directive.arguments.forEach { arg ->
-                            argument(GraphQLAppliedDirectiveArgument.newArgument()
-                                .name(arg.name)
-                                .type(directiveWiringHelper.buildDirectiveInputType(arg.value))
-                                .valueLiteral(arg.value)
-                                .build())
-                        }
+        return directives.map {
+            GraphQLAppliedDirective.newDirective()
+                .name(it.name)
+                .description(getDocumentation(it, options))
+                .comparatorRegistry(runtimeWiring.comparatorRegistry)
+                .apply {
+                    it.arguments.forEach { arg ->
+                        argument(GraphQLAppliedDirectiveArgument.newArgument()
+                            .name(arg.name)
+                            .type(directiveWiringHelper.buildDirectiveInputType(arg.value))
+                            .valueLiteral(arg.value)
+                            .build())
                     }
-                    .build()
-
-                output.add(graphQLDirective)
-            }
-        }
-
-        return output.toTypedArray()
+                }
+                .build()
+        }.toTypedArray()
     }
 
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =

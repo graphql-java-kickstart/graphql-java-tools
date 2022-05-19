@@ -117,6 +117,91 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should apply multiple directives`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @double repeatable on FIELD_DEFINITION
+                
+                type Query {
+                    user: User
+                }
+                
+                type User {
+                    id: ID!
+                    name: String @uppercase @double
+                }
+                """)
+            .resolvers(UsersQueryResolver())
+            .directive("double", DoubleDirective())
+            .directive("uppercase", UppercaseDirective())
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
+
+        val result = gql.execute(
+            """
+            query {
+                user {
+                    id
+                    name
+                }
+            }
+            """)
+
+        val expected = mapOf(
+            "user" to mapOf("id" to "1", "name" to "LUKELUKE")
+        )
+
+        assertEquals(result.getData(), expected)
+    }
+
+    @Test
+    fun `should apply repeated directive`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @double repeatable on FIELD_DEFINITION
+                
+                type Query {
+                    user: User
+                }
+                
+                type User {
+                    id: ID!
+                    name: String @double @double
+                }
+                """)
+            .resolvers(UsersQueryResolver())
+            .directive("double", DoubleDirective())
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
+
+        val result = gql.execute(
+            """
+            query {
+                user {
+                    id
+                    name
+                }
+            }
+            """)
+
+        val expected = mapOf(
+            "user" to mapOf("id" to "1", "name" to "LukeLukeLukeLuke")
+        )
+
+        assertEquals(result.getData(), expected)
+    }
+
+    @Test
     @Ignore("Ignore until enums work in directives")
     fun `should compile schema with directive that has enum parameter`() {
         val schema = SchemaParser.newParser()
@@ -203,6 +288,24 @@ class DirectiveTest {
             }
 
             environment.fieldDataFetcher = wrappedDataFetcher
+
+            return field
+        }
+    }
+
+    private class DoubleDirective : SchemaDirectiveWiring {
+
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+            val field = environment.element
+            val parentType = environment.fieldsContainer
+
+            val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
+            val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher) { _, value ->
+                val string = value as? String
+                string + string
+            }
+
+            environment.codeRegistry.dataFetcher(parentType, field, wrappedDataFetcher)
 
             return field
         }

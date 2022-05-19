@@ -16,7 +16,8 @@ import java.util.*
 class DirectiveWiringHelper(
     private val options: SchemaParserOptions,
     private val runtimeWiring: RuntimeWiring,
-    codeRegistryBuilder: GraphQLCodeRegistry.Builder
+    codeRegistryBuilder: GraphQLCodeRegistry.Builder,
+    private val directiveDefinitions: List<DirectiveDefinition>
 ) {
     private val schemaDirectiveParameters = Parameters(runtimeWiring, codeRegistryBuilder)
 
@@ -76,25 +77,26 @@ class DirectiveWiringHelper(
     private fun <T : GraphQLDirectiveContainer> wireDirectives(wrapper: WiringWrapper<T>): T {
         val directivesContainer = wrapper.graphQlType.definition as DirectivesContainer<*>
         val directives = buildDirectives(directivesContainer.directives, wrapper.directiveLocation)
+        var output = wrapper.graphQlType
         // first the specific named directives
         directives.forEach { directive ->
             val env = buildEnvironment(wrapper, directives, directive)
             val wiring = runtimeWiring.registeredDirectiveWiring[directive.name]
-            wiring?.let { return wrapper.invoker(it, env) }
+            wiring?.let { output = wrapper.invoker(it, env) }
         }
         // now call any statically added to the runtime
         runtimeWiring.directiveWiring.forEach { staticWiring ->
             val env = buildEnvironment(wrapper, directives, null)
-            return wrapper.invoker(staticWiring, env)
+            output = wrapper.invoker(staticWiring, env)
         }
         // wiring factory is last (if present)
         val env = buildEnvironment(wrapper, directives, null)
         if (runtimeWiring.wiringFactory.providesSchemaDirectiveWiring(env)) {
             val factoryWiring = runtimeWiring.wiringFactory.getSchemaDirectiveWiring(env)
-            return wrapper.invoker(factoryWiring, env)
+            output = wrapper.invoker(factoryWiring, env)
         }
 
-        return wrapper.graphQlType
+        return output
     }
 
     private fun buildDirectives(directives: List<Directive>, directiveLocation: Introspection.DirectiveLocation): List<GraphQLDirective> {
@@ -102,13 +104,15 @@ class DirectiveWiringHelper(
         val output = mutableListOf<GraphQLDirective>()
 
         for (directive in directives) {
-            if (!names.contains(directive.name)) {
+            val repeatable = directiveDefinitions.find { it.name.equals(directive.name) }?.isRepeatable ?: false
+            if (repeatable || !names.contains(directive.name)) {
                 names.add(directive.name)
                 output.add(GraphQLDirective.newDirective()
                     .name(directive.name)
                     .description(getDocumentation(directive, options))
                     .comparatorRegistry(runtimeWiring.comparatorRegistry)
                     .validLocation(directiveLocation)
+                    .repeatable(repeatable)
                     .apply {
                         directive.arguments.forEach { arg ->
                             argument(GraphQLArgument.newArgument()
