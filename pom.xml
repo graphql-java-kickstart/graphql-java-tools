@@ -15,7 +15,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
         <kotlin.version>1.6.21</kotlin.version>
-        <kotlin-coroutines.version>1.6.1-native-mt</kotlin-coroutines.version>
+        <kotlin-coroutines.version>1.6.2</kotlin-coroutines.version>
         <jackson.version>2.13.3</jackson.version>
         <graphql-java.version>18.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
