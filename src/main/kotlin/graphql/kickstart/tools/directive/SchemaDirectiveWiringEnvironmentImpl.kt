@@ -6,13 +6,13 @@ import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import graphql.schema.idl.TypeDefinitionRegistry
-import graphql.util.FpKit
 
 class SchemaDirectiveWiringEnvironmentImpl<T : GraphQLDirectiveContainer?>(
     private val element: T,
     directives: List<GraphQLDirective>,
     appliedDirectives: List<GraphQLAppliedDirective>,
     private val registeredDirective: GraphQLDirective?,
+    private val registeredAppliedDirective: GraphQLAppliedDirective?,
     parameters: Parameters
 ) : SchemaDirectiveWiringEnvironment<T> {
     private val directives: Map<String, GraphQLDirective>
@@ -27,8 +27,8 @@ class SchemaDirectiveWiringEnvironmentImpl<T : GraphQLDirectiveContainer?>(
 
     init {
         typeDefinitionRegistry = parameters.typeRegistry
-        this.directives = FpKit.getByName(directives) { obj: GraphQLDirective -> obj.name }
-        this.appliedDirectives = FpKit.getByName(appliedDirectives) { obj: GraphQLAppliedDirective -> obj.name }
+        this.directives = directives.associateBy { it.name }
+        this.appliedDirectives = appliedDirectives.associateBy { it.name }
         context = parameters.context
         codeRegistry = parameters.codeRegistry
         nodeParentTree = parameters.nodeParentTree
@@ -39,7 +39,7 @@ class SchemaDirectiveWiringEnvironmentImpl<T : GraphQLDirectiveContainer?>(
 
     override fun getElement(): T = element
     override fun getDirective(): GraphQLDirective? = registeredDirective
-    override fun getAppliedDirective(): GraphQLAppliedDirective? = appliedDirectives[registeredDirective?.name]
+    override fun getAppliedDirective(): GraphQLAppliedDirective? = registeredAppliedDirective
     override fun getDirectives(): Map<String, GraphQLDirective> = LinkedHashMap(directives)
     override fun getDirective(directiveName: String): GraphQLDirective = directives[directiveName]!!
     override fun getAppliedDirectives(): Map<String, GraphQLAppliedDirective> = appliedDirectives

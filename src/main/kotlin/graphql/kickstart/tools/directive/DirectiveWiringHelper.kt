@@ -77,20 +77,21 @@ class DirectiveWiringHelper(
     private fun <T : GraphQLDirectiveContainer> wireDirectives(wrapper: WiringWrapper<T>): T {
         val directivesContainer = wrapper.graphQlType.definition as DirectivesContainer<*>
         val directives = buildDirectives(directivesContainer.directives, wrapper.directiveLocation)
+        val directivesByName = directives.associateBy { it.name }
         var output = wrapper.graphQlType
         // first the specific named directives
-        directives.forEach { directive ->
-            val env = buildEnvironment(wrapper, directives, directive)
-            val wiring = runtimeWiring.registeredDirectiveWiring[directive.name]
+        wrapper.graphQlType.appliedDirectives.forEach { appliedDirective ->
+            val env = buildEnvironment(wrapper, directives, directivesByName[appliedDirective.name], appliedDirective)
+            val wiring = runtimeWiring.registeredDirectiveWiring[appliedDirective.name]
             wiring?.let { output = wrapper.invoker(it, env) }
         }
         // now call any statically added to the runtime
         runtimeWiring.directiveWiring.forEach { staticWiring ->
-            val env = buildEnvironment(wrapper, directives, null)
+            val env = buildEnvironment(wrapper, directives, null, null)
             output = wrapper.invoker(staticWiring, env)
         }
         // wiring factory is last (if present)
-        val env = buildEnvironment(wrapper, directives, null)
+        val env = buildEnvironment(wrapper, directives, null, null)
         if (runtimeWiring.wiringFactory.providesSchemaDirectiveWiring(env)) {
             val factoryWiring = runtimeWiring.wiringFactory.getSchemaDirectiveWiring(env)
             output = wrapper.invoker(factoryWiring, env)
@@ -131,7 +132,7 @@ class DirectiveWiringHelper(
         return output
     }
 
-    private fun <T : GraphQLDirectiveContainer> buildEnvironment(wrapper: WiringWrapper<T>, directives: List<GraphQLDirective>, directive: GraphQLDirective?): SchemaDirectiveWiringEnvironmentImpl<T> {
+    private fun <T : GraphQLDirectiveContainer> buildEnvironment(wrapper: WiringWrapper<T>, directives: List<GraphQLDirective>, directive: GraphQLDirective?, appliedDirective: GraphQLAppliedDirective?): SchemaDirectiveWiringEnvironmentImpl<T> {
         val nodeParentTree = buildAstTree(*listOfNotNull(
             wrapper.fieldsContainer?.definition,
             wrapper.inputFieldsContainer?.definition,
@@ -154,7 +155,7 @@ class DirectiveWiringHelper(
             is GraphQLFieldsContainer -> schemaDirectiveParameters.newParams(wrapper.graphQlType, nodeParentTree, elementParentTree)
             else -> schemaDirectiveParameters.newParams(nodeParentTree, elementParentTree)
         }
-        return SchemaDirectiveWiringEnvironmentImpl(wrapper.graphQlType, directives, wrapper.graphQlType.appliedDirectives, directive, params)
+        return SchemaDirectiveWiringEnvironmentImpl(wrapper.graphQlType, directives, wrapper.graphQlType.appliedDirectives, directive, appliedDirective, params)
     }
 
     fun buildDirectiveInputType(value: Value<*>): GraphQLInputType? {
