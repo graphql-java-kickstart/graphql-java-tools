@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>12.1.1-SNAPSHOT</version>
+    <version>14.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -17,7 +17,7 @@
         <kotlin.version>1.6.21</kotlin.version>
         <kotlin-coroutines.version>1.6.2</kotlin-coroutines.version>
         <jackson.version>2.13.3</jackson.version>
-        <graphql-java.version>18.2</graphql-java.version>
+        <graphql-java.version>19.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
         <maven.compiler.source>${java.version}</maven.compiler.source>
@@ -154,6 +154,11 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4-runtime</artifactId>
+            <version>4.10.1</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml</groupId>

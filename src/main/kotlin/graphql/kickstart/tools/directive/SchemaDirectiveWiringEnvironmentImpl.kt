@@ -39,6 +39,7 @@ class SchemaDirectiveWiringEnvironmentImpl<T : GraphQLDirectiveContainer?>(
 
     override fun getElement(): T = element
     override fun getDirective(): GraphQLDirective? = registeredDirective
+    override fun getAppliedDirective(): GraphQLAppliedDirective? = appliedDirectives[registeredDirective?.name]
     override fun getDirectives(): Map<String, GraphQLDirective> = LinkedHashMap(directives)
     override fun getDirective(directiveName: String): GraphQLDirective = directives[directiveName]!!
     override fun getAppliedDirectives(): Map<String, GraphQLAppliedDirective> = appliedDirectives
