@@ -47,10 +47,10 @@
                 <artifactId>graphql-java</artifactId>
                 <version>${graphql-java.version}</version>
             </dependency>
-            <!-- graphql-java defines this dependency as 'runtime', but we need it at compile time -->
             <dependency>
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-runtime</artifactId>
+                <version>4.10.1</version>
                 <scope>compile</scope>
             </dependency>
             <dependency>
@@ -158,7 +158,6 @@
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>
-            <version>4.10.1</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml</groupId>
