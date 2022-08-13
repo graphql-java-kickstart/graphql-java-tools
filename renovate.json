@@ -9,6 +9,12 @@
       "matchPackagePrefixes": [
         "org.jetbrains.kotlin"
       ]
+    },{
+      "description": "Align antlr version with graphql-java",
+      "matchPackagePrefixes": [
+        "org.antlr"
+      ],
+      "allowedVersions": "<=4.9.3"
     }
   ]
 }
