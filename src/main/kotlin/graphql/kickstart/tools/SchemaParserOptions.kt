@@ -250,12 +250,9 @@ data class SchemaParserOptions internal constructor(
                 index: Int,
                 transformer: (T) -> Any?
             ): GenericWrapper where T : Any {
-                return withTransformer(
-                    type,
-                    index,
-                    transformer,
-                    { innerType -> ParameterizedTypeImpl.make(List::class.java, arrayOf(innerType), null) }
-                )
+                return withTransformer(type, index, transformer) { innerType ->
+                    ParameterizedTypeImpl(List::class.java, arrayOf(innerType), null)
+                }
             }
 
             fun <T> listCollectionWithTransformer(
