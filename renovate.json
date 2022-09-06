@@ -9,12 +9,20 @@
       "matchPackagePrefixes": [
         "org.jetbrains.kotlin"
       ]
-    },{
+    },
+    {
       "description": "Align antlr version with graphql-java",
       "matchPackagePrefixes": [
         "org.antlr"
       ],
       "allowedVersions": "<=4.9.3"
+    },
+    {
+      "description": "Logback 1.4 requires Java 11",
+      "matchPackagePrefixes": [
+        "ch.qos.logback"
+      ],
+      "allowedVersions": "!/1\\.4\\..*$/"
     }
   ]
 }
