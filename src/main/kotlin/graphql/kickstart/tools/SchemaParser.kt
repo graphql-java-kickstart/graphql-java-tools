@@ -168,6 +168,7 @@ class SchemaParser internal constructor(
                     .definition(inputDefinition)
                     .description(getDocumentation(inputDefinition, options))
                     .apply { inputDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
+                    .apply { getDeprecated(inputDefinition.directives)?.let { deprecate(it) } }
                     .type(determineInputType(inputDefinition.type, inputObjects, referencingInputObjects))
                     .withAppliedDirectives(*buildAppliedDirectives(inputDefinition.directives))
                 builder.field(fieldBuilder.build())
@@ -279,6 +280,7 @@ class SchemaParser internal constructor(
                 .definition(argumentDefinition)
                 .description(getDocumentation(argumentDefinition, options))
                 .type(determineInputType(argumentDefinition.type, inputObjects, setOf()))
+                .apply { getDeprecated(argumentDefinition.directives)?.let { deprecate(it) } }
                 .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
                 .withAppliedDirectives(*buildAppliedDirectives(argumentDefinition.directives))
 
@@ -305,6 +307,7 @@ class SchemaParser internal constructor(
                         .definition(arg)
                         .description(getDocumentation(arg, options))
                         .type(determineInputType(arg.type, inputObjects, setOf()))
+                        .apply { getDeprecated(arg.directives)?.let { deprecate(it) } }
                         .apply { arg.defaultValue?.let { defaultValueLiteral(it) } }
                         .withAppliedDirectives(*buildAppliedDirectives(arg.directives))
                         .build())
