@@ -196,18 +196,16 @@ class SchemaParser internal constructor(
                 ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
 
             val enumValueAppliedDirectives = buildAppliedDirectives(enumDefinition.directives)
-            getDeprecated(enumDefinition.directives).let {
-                val enumValueDefinition = GraphQLEnumValueDefinition.newEnumValueDefinition()
-                    .name(enumName)
-                    .description(getDocumentation(enumDefinition, options))
-                    .value(enumValue)
-                    .deprecationReason(it)
-                    .withAppliedDirectives(*enumValueAppliedDirectives)
-                    .definition(enumDefinition)
-                    .build()
+            val enumValueDefinition = GraphQLEnumValueDefinition.newEnumValueDefinition()
+                .name(enumName)
+                .description(getDocumentation(enumDefinition, options))
+                .value(enumValue)
+                .apply { getDeprecated(enumDefinition.directives)?.let { deprecationReason(it) } }
+                .withAppliedDirectives(*enumValueAppliedDirectives)
+                .definition(enumDefinition)
+                .build()
 
-                builder.value(enumValueDefinition)
-            }
+            builder.value(enumValueDefinition)
         }
 
         return directiveWiringHelper.wireEnum(builder.build())
