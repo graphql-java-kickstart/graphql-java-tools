@@ -80,7 +80,7 @@
             <dependency>
                 <groupId>org.javassist</groupId>
                 <artifactId>javassist</artifactId>
-                <version>3.29.1-GA</version>
+                <version>3.29.2-GA</version>
                 <scope>provided</scope>
             </dependency>
             <!-- Optional for supporting spring proxies -->
