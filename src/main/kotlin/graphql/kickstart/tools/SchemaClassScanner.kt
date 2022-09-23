@@ -263,7 +263,7 @@ internal class SchemaClassScanner(
                 resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
             }
         })
-            ?: throw throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
+            ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
     }
