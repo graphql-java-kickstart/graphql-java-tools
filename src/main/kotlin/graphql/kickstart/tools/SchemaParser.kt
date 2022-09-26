@@ -122,6 +122,7 @@ class SchemaParser internal constructor(
             .definition(objectDefinition)
             .description(getDocumentation(objectDefinition, options))
             .withAppliedDirectives(*buildAppliedDirectives(objectDefinition.directives))
+            .withDirectives(*buildDirectives(objectDefinition.directives, Introspection.DirectiveLocation.OBJECT))
             .apply {
                 objectDefinition.implements.forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
@@ -162,6 +163,7 @@ class SchemaParser internal constructor(
             .extensionDefinitions(extensionDefinitions)
             .description(getDocumentation(definition, options))
             .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.INPUT_OBJECT))
             .apply {
                 (extensionDefinitions + definition).forEach { typeDefinition ->
                     typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
@@ -174,6 +176,12 @@ class SchemaParser internal constructor(
                                 .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
                                 .type(determineInputType(fieldDefinition.type, inputObjects, referencingInputObjects))
                                 .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
+                                .withDirectives(
+                                    *buildDirectives(
+                                        definition.directives,
+                                        Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
+                                    )
+                                )
                                 .build()
                         )
                     }
@@ -194,6 +202,7 @@ class SchemaParser internal constructor(
             .definition(definition)
             .description(getDocumentation(definition, options))
             .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ENUM))
             .apply {
                 definition.enumValueDefinitions.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
@@ -207,6 +216,7 @@ class SchemaParser internal constructor(
                             .value(enumValue)
                             .apply { getDeprecated(valueDefinition.directives)?.let { deprecationReason(it) } }
                             .withAppliedDirectives(*buildAppliedDirectives(valueDefinition.directives))
+                            .withDirectives(*buildDirectives(valueDefinition.directives, Introspection.DirectiveLocation.ENUM_VALUE))
                             .definition(valueDefinition)
                             .build()
                     )
@@ -222,6 +232,7 @@ class SchemaParser internal constructor(
             .definition(interfaceDefinition)
             .description(getDocumentation(interfaceDefinition, options))
             .withAppliedDirectives(*buildAppliedDirectives(interfaceDefinition.directives))
+            .withDirectives(*buildDirectives(interfaceDefinition.directives, Introspection.DirectiveLocation.INTERFACE))
             .apply {
                 interfaceDefinition.fieldDefinitions.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
@@ -243,6 +254,7 @@ class SchemaParser internal constructor(
             .definition(definition)
             .description(getDocumentation(definition, options))
             .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.UNION))
             .apply {
                 getLeafUnionObjects(definition, types).forEach { possibleType(it) }
             }
@@ -278,6 +290,7 @@ class SchemaParser internal constructor(
             .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
             .type(determineOutputType(fieldDefinition.type, inputObjects))
             .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
+            .withDirectives(*buildDirectives(fieldDefinition.directives, Introspection.DirectiveLocation.FIELD_DEFINITION))
             .apply {
                 fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
                     argument(
@@ -289,6 +302,12 @@ class SchemaParser internal constructor(
                             .apply { getDeprecated(argumentDefinition.directives)?.let { deprecate(it) } }
                             .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
                             .withAppliedDirectives(*buildAppliedDirectives(argumentDefinition.directives))
+                            .withDirectives(
+                                *buildDirectives(
+                                    fieldDefinition.directives,
+                                    Introspection.DirectiveLocation.ARGUMENT_DEFINITION
+                                )
+                            )
                             .build()
                     )
                 }
@@ -315,6 +334,7 @@ class SchemaParser internal constructor(
                         .apply { getDeprecated(arg.directives)?.let { deprecate(it) } }
                         .apply { arg.defaultValue?.let { defaultValueLiteral(it) } }
                         .withAppliedDirectives(*buildAppliedDirectives(arg.directives))
+                        .withDirectives(*buildDirectives(arg.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
                         .build())
                 }
             }
@@ -333,17 +353,31 @@ class SchemaParser internal constructor(
                             .name(arg.name)
                             .type(directiveWiringHelper.buildDirectiveInputType(arg.value))
                             .valueLiteral(arg.value)
-                            .build())
+                            .build()
+                        )
                     }
                 }
                 .build()
         }.toTypedArray()
     }
 
+    // TODO remove this once directives are fully replaced with applied directives
+    private fun buildDirectives(
+        directives: List<Directive>,
+        directiveLocation: Introspection.DirectiveLocation
+    ): Array<GraphQLDirective> {
+        return directiveWiringHelper.buildDirectives(directives, directiveLocation).toTypedArray()
+    }
+
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =
         determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject, inputObjects) as GraphQLOutputType
 
-    private fun <T : Any> determineType(expectedType: KClass<T>, typeDefinition: Type<*>, allowedTypeReferences: Set<String>, inputObjects: List<GraphQLInputObjectType>): GraphQLType =
+    private fun <T : Any> determineType(
+        expectedType: KClass<T>,
+        typeDefinition: Type<*>,
+        allowedTypeReferences: Set<String>,
+        inputObjects: List<GraphQLInputObjectType>
+    ): GraphQLType =
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
             is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))

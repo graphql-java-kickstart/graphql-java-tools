@@ -100,7 +100,7 @@ class DirectiveWiringHelper(
         return output
     }
 
-    private fun buildDirectives(directives: List<Directive>, directiveLocation: Introspection.DirectiveLocation): List<GraphQLDirective> {
+    fun buildDirectives(directives: List<Directive>, directiveLocation: Introspection.DirectiveLocation): List<GraphQLDirective> {
         val names = mutableSetOf<String>()
         val output = mutableListOf<GraphQLDirective>()
 
@@ -108,9 +108,10 @@ class DirectiveWiringHelper(
             val repeatable = directiveDefinitions.find { it.name.equals(directive.name) }?.isRepeatable ?: false
             if (repeatable || !names.contains(directive.name)) {
                 names.add(directive.name)
-                output.add(GraphQLDirective.newDirective()
-                    .name(directive.name)
-                    .description(getDocumentation(directive, options))
+                output.add(
+                    GraphQLDirective.newDirective()
+                        .name(directive.name)
+                        .description(getDocumentation(directive, options))
                     .comparatorRegistry(runtimeWiring.comparatorRegistry)
                     .validLocation(directiveLocation)
                     .repeatable(repeatable)
