@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.introspection.Introspection
+import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
@@ -176,12 +177,7 @@ class SchemaParser internal constructor(
                                 .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
                                 .type(determineInputType(fieldDefinition.type, inputObjects, referencingInputObjects))
                                 .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
-                                .withDirectives(
-                                    *buildDirectives(
-                                        definition.directives,
-                                        Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
-                                    )
-                                )
+                                .withDirectives(*buildDirectives(definition.directives, INPUT_FIELD_DEFINITION))
                                 .build()
                         )
                     }
@@ -293,25 +289,22 @@ class SchemaParser internal constructor(
             .withDirectives(*buildDirectives(fieldDefinition.directives, Introspection.DirectiveLocation.FIELD_DEFINITION))
             .apply {
                 fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
-                    argument(
-                        GraphQLArgument.newArgument()
-                            .name(argumentDefinition.name)
-                            .definition(argumentDefinition)
-                            .description(getDocumentation(argumentDefinition, options))
-                            .type(determineInputType(argumentDefinition.type, inputObjects, setOf()))
-                            .apply { getDeprecated(argumentDefinition.directives)?.let { deprecate(it) } }
-                            .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
-                            .withAppliedDirectives(*buildAppliedDirectives(argumentDefinition.directives))
-                            .withDirectives(
-                                *buildDirectives(
-                                    fieldDefinition.directives,
-                                    Introspection.DirectiveLocation.ARGUMENT_DEFINITION
-                                )
-                            )
-                            .build()
-                    )
+                    argument(createArgument(argumentDefinition, inputObjects))
                 }
             }
+    }
+
+    private fun createArgument(definition: InputValueDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLArgument {
+        return GraphQLArgument.newArgument()
+            .name(definition.name)
+            .definition(definition)
+            .description(getDocumentation(definition, options))
+            .type(determineInputType(definition.type, inputObjects, setOf()))
+            .apply { getDeprecated(definition.directives)?.let { deprecate(it) } }
+            .apply { definition.defaultValue?.let { defaultValueLiteral(it) } }
+            .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
+            .build()
     }
 
     private fun createDirective(definition: DirectiveDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLDirective {
@@ -325,17 +318,8 @@ class SchemaParser internal constructor(
             .validLocations(*locations)
             .repeatable(definition.isRepeatable)
             .apply {
-                definition.inputValueDefinitions.forEach { arg ->
-                    argument(GraphQLArgument.newArgument()
-                        .name(arg.name)
-                        .definition(arg)
-                        .description(getDocumentation(arg, options))
-                        .type(determineInputType(arg.type, inputObjects, setOf()))
-                        .apply { getDeprecated(arg.directives)?.let { deprecate(it) } }
-                        .apply { arg.defaultValue?.let { defaultValueLiteral(it) } }
-                        .withAppliedDirectives(*buildAppliedDirectives(arg.directives))
-                        .withDirectives(*buildDirectives(arg.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
-                        .build())
+                definition.inputValueDefinitions.forEach { argumentDefinition ->
+                    argument(createArgument(argumentDefinition, inputObjects))
                 }
             }
             .build()
