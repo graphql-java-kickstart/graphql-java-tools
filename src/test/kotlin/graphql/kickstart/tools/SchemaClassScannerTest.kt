@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.schema.*
+import org.junit.Ignore
 import org.junit.Test
 import java.util.concurrent.CompletableFuture
 
@@ -418,6 +419,7 @@ class SchemaClassScannerTest {
     }
 
     @Test
+    @Ignore("TODO remove this once directives are fully replaced with applied directives OR issue #664 is resolved")
     fun `scanner should handle unused types when option is true`() {
         val schema = SchemaParser.newParser()
             .schemaString(

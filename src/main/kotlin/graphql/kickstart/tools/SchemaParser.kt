@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.introspection.Introspection
+import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
@@ -122,28 +123,31 @@ class SchemaParser internal constructor(
             .definition(objectDefinition)
             .description(getDocumentation(objectDefinition, options))
             .withAppliedDirectives(*buildAppliedDirectives(objectDefinition.directives))
-
-        objectDefinition.implements.forEach { implementsDefinition ->
-            val interfaceName = (implementsDefinition as TypeName).name
-            builder.withInterface(interfaces.find { it.name == interfaceName }
-                ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
-        }
-
-        objectDefinition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
-            builder.field { field ->
-                createField(field, fieldDefinition, inputObjects)
-                codeRegistryBuilder.dataFetcher(
-                    FieldCoordinates.coordinates(objectDefinition.name, fieldDefinition.name),
-                    fieldResolversByType[objectDefinition]?.get(fieldDefinition)?.createDataFetcher()
-                        ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
-                )
-
-                val wiredField = field.build()
-                GraphQLFieldDefinition.Builder(wiredField)
-                    .clearArguments()
-                    .arguments(wiredField.arguments)
+            .withDirectives(*buildDirectives(objectDefinition.directives, Introspection.DirectiveLocation.OBJECT))
+            .apply {
+                objectDefinition.implements.forEach { implementsDefinition ->
+                    val interfaceName = (implementsDefinition as TypeName).name
+                    withInterface(interfaces.find { it.name == interfaceName }
+                        ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
+                }
             }
-        }
+            .apply {
+                objectDefinition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
+                    field { field ->
+                        createField(field, fieldDefinition, inputObjects)
+                        codeRegistryBuilder.dataFetcher(
+                            FieldCoordinates.coordinates(objectDefinition.name, fieldDefinition.name),
+                            fieldResolversByType[objectDefinition]?.get(fieldDefinition)?.createDataFetcher()
+                                ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
+                        )
+
+                        val wiredField = field.build()
+                        GraphQLFieldDefinition.Builder(wiredField)
+                            .clearArguments()
+                            .arguments(wiredField.arguments)
+                    }
+                }
+            }
 
         return directiveWiringHelper.wireObject(builder.build())
     }
@@ -152,28 +156,33 @@ class SchemaParser internal constructor(
                                   referencingInputObjects: MutableSet<String>): GraphQLInputObjectType {
         val extensionDefinitions = inputExtensionDefinitions.filter { it.name == definition.name }
 
+        referencingInputObjects.add(definition.name)
+
         val builder = GraphQLInputObjectType.newInputObject()
             .name(definition.name)
             .definition(definition)
             .extensionDefinitions(extensionDefinitions)
             .description(getDocumentation(definition, options))
             .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
-
-        referencingInputObjects.add(definition.name)
-
-        (extensionDefinitions + definition).forEach {
-            it.inputValueDefinitions.forEach { inputDefinition ->
-                val fieldBuilder = GraphQLInputObjectField.newInputObjectField()
-                    .name(inputDefinition.name)
-                    .definition(inputDefinition)
-                    .description(getDocumentation(inputDefinition, options))
-                    .apply { inputDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
-                    .apply { getDeprecated(inputDefinition.directives)?.let { deprecate(it) } }
-                    .type(determineInputType(inputDefinition.type, inputObjects, referencingInputObjects))
-                    .withAppliedDirectives(*buildAppliedDirectives(inputDefinition.directives))
-                builder.field(fieldBuilder.build())
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.INPUT_OBJECT))
+            .apply {
+                (extensionDefinitions + definition).forEach { typeDefinition ->
+                    typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
+                        field(
+                            GraphQLInputObjectField.newInputObjectField()
+                                .name(fieldDefinition.name)
+                                .definition(fieldDefinition)
+                                .description(getDocumentation(fieldDefinition, options))
+                                .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
+                                .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
+                                .type(determineInputType(fieldDefinition.type, inputObjects, referencingInputObjects))
+                                .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
+                                .withDirectives(*buildDirectives(definition.directives, INPUT_FIELD_DEFINITION))
+                                .build()
+                        )
+                    }
+                }
             }
-        }
 
         return directiveWiringHelper.wireInputObject(builder.build())
     }
@@ -189,57 +198,63 @@ class SchemaParser internal constructor(
             .definition(definition)
             .description(getDocumentation(definition, options))
             .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ENUM))
+            .apply {
+                definition.enumValueDefinitions.forEach { valueDefinition ->
+                    val enumName = valueDefinition.name
+                    val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
+                        ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
 
-        definition.enumValueDefinitions.forEach { enumDefinition ->
-            val enumName = enumDefinition.name
-            val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
-                ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
-
-            val enumValueAppliedDirectives = buildAppliedDirectives(enumDefinition.directives)
-            val enumValueDefinition = GraphQLEnumValueDefinition.newEnumValueDefinition()
-                .name(enumName)
-                .description(getDocumentation(enumDefinition, options))
-                .value(enumValue)
-                .apply { getDeprecated(enumDefinition.directives)?.let { deprecationReason(it) } }
-                .withAppliedDirectives(*enumValueAppliedDirectives)
-                .definition(enumDefinition)
-                .build()
-
-            builder.value(enumValueDefinition)
-        }
+                    value(
+                        GraphQLEnumValueDefinition.newEnumValueDefinition()
+                            .name(enumName)
+                            .description(getDocumentation(valueDefinition, options))
+                            .value(enumValue)
+                            .apply { getDeprecated(valueDefinition.directives)?.let { deprecationReason(it) } }
+                            .withAppliedDirectives(*buildAppliedDirectives(valueDefinition.directives))
+                            .withDirectives(*buildDirectives(valueDefinition.directives, Introspection.DirectiveLocation.ENUM_VALUE))
+                            .definition(valueDefinition)
+                            .build()
+                    )
+                }
+            }
 
         return directiveWiringHelper.wireEnum(builder.build())
     }
 
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
-        val name = interfaceDefinition.name
         val builder = GraphQLInterfaceType.newInterface()
-            .name(name)
+            .name(interfaceDefinition.name)
             .definition(interfaceDefinition)
             .description(getDocumentation(interfaceDefinition, options))
             .withAppliedDirectives(*buildAppliedDirectives(interfaceDefinition.directives))
-
-        interfaceDefinition.fieldDefinitions.forEach { fieldDefinition ->
-            builder.field { field -> createField(field, fieldDefinition, inputObjects) }
-        }
-
-        interfaceDefinition.implements.forEach { implementsDefinition ->
-            val interfaceName = (implementsDefinition as TypeName).name
-            builder.withInterface(GraphQLTypeReference(interfaceName))
-        }
+            .withDirectives(*buildDirectives(interfaceDefinition.directives, Introspection.DirectiveLocation.INTERFACE))
+            .apply {
+                interfaceDefinition.fieldDefinitions.forEach { fieldDefinition ->
+                    field { field -> createField(field, fieldDefinition, inputObjects) }
+                }
+            }
+            .apply {
+                interfaceDefinition.implements.forEach { implementsDefinition ->
+                    val interfaceName = (implementsDefinition as TypeName).name
+                    withInterface(GraphQLTypeReference(interfaceName))
+                }
+            }
 
         return directiveWiringHelper.wireInterFace(builder.build())
     }
 
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
-        val name = definition.name
         val builder = GraphQLUnionType.newUnionType()
-            .name(name)
+            .name(definition.name)
             .definition(definition)
             .description(getDocumentation(definition, options))
             .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.UNION))
+            .apply {
+                getLeafUnionObjects(definition, types).forEach { possibleType(it) }
+            }
 
-        getLeafUnionObjects(definition, types).forEach { builder.possibleType(it) }
         return directiveWiringHelper.wireUnion(builder.build())
     }
 
@@ -264,34 +279,38 @@ class SchemaParser internal constructor(
     }
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
-        field
+        return field
             .name(fieldDefinition.name)
             .description(getDocumentation(fieldDefinition, options))
             .definition(fieldDefinition)
             .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
             .type(determineOutputType(fieldDefinition.type, inputObjects))
             .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
+            .withDirectives(*buildDirectives(fieldDefinition.directives, Introspection.DirectiveLocation.FIELD_DEFINITION))
+            .apply {
+                fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
+                    argument(createArgument(argumentDefinition, inputObjects))
+                }
+            }
+    }
 
-        fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
-            val argumentBuilder = GraphQLArgument.newArgument()
-                .name(argumentDefinition.name)
-                .definition(argumentDefinition)
-                .description(getDocumentation(argumentDefinition, options))
-                .type(determineInputType(argumentDefinition.type, inputObjects, setOf()))
-                .apply { getDeprecated(argumentDefinition.directives)?.let { deprecate(it) } }
-                .apply { argumentDefinition.defaultValue?.let { defaultValueLiteral(it) } }
-                .withAppliedDirectives(*buildAppliedDirectives(argumentDefinition.directives))
-
-            field.argument(argumentBuilder.build())
-        }
-
-        return field
+    private fun createArgument(definition: InputValueDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLArgument {
+        return GraphQLArgument.newArgument()
+            .name(definition.name)
+            .definition(definition)
+            .description(getDocumentation(definition, options))
+            .type(determineInputType(definition.type, inputObjects, setOf()))
+            .apply { getDeprecated(definition.directives)?.let { deprecate(it) } }
+            .apply { definition.defaultValue?.let { defaultValueLiteral(it) } }
+            .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
+            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ARGUMENT_DEFINITION))
+            .build()
     }
 
     private fun createDirective(definition: DirectiveDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLDirective {
         val locations = definition.directiveLocations.map { Introspection.DirectiveLocation.valueOf(it.name) }.toTypedArray()
 
-        val graphQLDirective = GraphQLDirective.newDirective()
+        return GraphQLDirective.newDirective()
             .name(definition.name)
             .description(getDocumentation(definition, options))
             .definition(definition)
@@ -299,21 +318,11 @@ class SchemaParser internal constructor(
             .validLocations(*locations)
             .repeatable(definition.isRepeatable)
             .apply {
-                definition.inputValueDefinitions.forEach { arg ->
-                    argument(GraphQLArgument.newArgument()
-                        .name(arg.name)
-                        .definition(arg)
-                        .description(getDocumentation(arg, options))
-                        .type(determineInputType(arg.type, inputObjects, setOf()))
-                        .apply { getDeprecated(arg.directives)?.let { deprecate(it) } }
-                        .apply { arg.defaultValue?.let { defaultValueLiteral(it) } }
-                        .withAppliedDirectives(*buildAppliedDirectives(arg.directives))
-                        .build())
+                definition.inputValueDefinitions.forEach { argumentDefinition ->
+                    argument(createArgument(argumentDefinition, inputObjects))
                 }
             }
             .build()
-
-        return graphQLDirective
     }
 
     private fun buildAppliedDirectives(directives: List<Directive>): Array<GraphQLAppliedDirective> {
@@ -328,17 +337,31 @@ class SchemaParser internal constructor(
                             .name(arg.name)
                             .type(directiveWiringHelper.buildDirectiveInputType(arg.value))
                             .valueLiteral(arg.value)
-                            .build())
+                            .build()
+                        )
                     }
                 }
                 .build()
         }.toTypedArray()
     }
 
+    // TODO remove this once directives are fully replaced with applied directives
+    private fun buildDirectives(
+        directives: List<Directive>,
+        directiveLocation: Introspection.DirectiveLocation
+    ): Array<GraphQLDirective> {
+        return directiveWiringHelper.buildDirectives(directives, directiveLocation).toTypedArray()
+    }
+
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =
         determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject, inputObjects) as GraphQLOutputType
 
-    private fun <T : Any> determineType(expectedType: KClass<T>, typeDefinition: Type<*>, allowedTypeReferences: Set<String>, inputObjects: List<GraphQLInputObjectType>): GraphQLType =
+    private fun <T : Any> determineType(
+        expectedType: KClass<T>,
+        typeDefinition: Type<*>,
+        allowedTypeReferences: Set<String>,
+        inputObjects: List<GraphQLInputObjectType>
+    ): GraphQLType =
         when (typeDefinition) {
             is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
             is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))

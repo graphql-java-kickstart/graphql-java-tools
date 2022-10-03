@@ -122,6 +122,7 @@ class DirectiveTest {
             .schemaString(
                 """
                 directive @double repeatable on FIELD_DEFINITION
+                directive @uppercase on FIELD_DEFINITION
                 
                 type Query {
                     user: User
@@ -192,13 +193,57 @@ class DirectiveTest {
                     name
                 }
             }
-            """)
+            """
+        )
 
         val expected = mapOf(
             "user" to mapOf("id" to "1", "name" to "LukeLukeLukeLuke")
         )
 
         assertEquals(result.getData(), expected)
+    }
+
+    @Test
+    fun `should have access to applied directives through the data fetching environment`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @uppercase on OBJECT
+                
+                type Query {
+                    name: String @uppercase
+                }
+                
+                """
+            )
+            .resolvers(NameResolver())
+            .directive("uppercase", UppercaseDirective())
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema)
+            .queryExecutionStrategy(AsyncExecutionStrategy())
+            .build()
+
+        val result = gql.execute(
+            """
+            query {
+                name
+            }
+            """
+        )
+
+        val expected = mapOf("name" to "LUKE")
+
+        assertEquals(result.getData(), expected)
+    }
+
+    internal class NameResolver : GraphQLQueryResolver {
+        fun name(environment: DataFetchingEnvironment): String {
+            assertNotNull(environment.fieldDefinition.getAppliedDirective("uppercase"))
+            assertNotNull(environment.fieldDefinition.getDirective("uppercase"))
+            return "luke"
+        }
     }
 
     @Test
