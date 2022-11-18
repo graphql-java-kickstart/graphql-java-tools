@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.language.Definition
 import graphql.language.Document
+import graphql.parser.MultiSourceReader
 import graphql.parser.Parser
 import graphql.parser.ParserOptions
 import graphql.schema.GraphQLScalarType
@@ -168,12 +169,16 @@ class SchemaParserBuilder {
         val parser = Parser()
         val documents = mutableListOf<Document>()
         try {
-            files.forEach { documents.add(parser.parseDocument(readFile(it), it)) }
+            val options = ParserOptions
+                .getDefaultParserOptions()
+                .transform { o -> o.maxTokens(MAX_VALUE) }
+
+            files.forEach {
+                val sourceReader = MultiSourceReader.newMultiSourceReader().string(readFile(it), it).trackData(true).build()
+                documents.add(parser.parseDocument(sourceReader, options))
+            }
 
             if (schemaString.isNotEmpty()) {
-                val options = ParserOptions
-                    .getDefaultParserOptions()
-                    .transform { o -> o.maxTokens(MAX_VALUE) }
                 documents.add(parser.parseDocument(schemaString.toString(), options))
             }
         } catch (pce: ParseCancellationException) {
