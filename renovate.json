@@ -23,6 +23,13 @@
         "ch.qos.logback"
       ],
       "allowedVersions": "!/1\\.4\\..*$/"
+    },
+    {
+      "description": "Spring 6 requires Java 17",
+      "matchPackagePatterns": [
+        "org.springframework"
+      ],
+      "allowedVersions": "<6.0.0"
     }
   ]
 }
