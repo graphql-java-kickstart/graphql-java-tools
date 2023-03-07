@@ -91,15 +91,13 @@ internal class SchemaClassScanner(
             do {
                 val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
                     .filter { definition -> definition.name != "PageInfo" }
-                    .filterIsInstance<ObjectTypeDefinition>().distinct()
+                    .distinct()
 
                 if (unusedDefinitions.isEmpty()) {
                     break
                 }
 
-                val unusedDefinition = unusedDefinitions.first()
-
-                handleDictionaryTypes(listOf(unusedDefinition)) { "Object type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
+                handleDictionaryTypes(unusedDefinitions) { "Type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
             } while (scanQueue())
         }
 
@@ -229,7 +227,7 @@ internal class SchemaClassScanner(
         }.flatten().distinct()
     }
 
-    private fun handleDictionaryTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
+    private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {

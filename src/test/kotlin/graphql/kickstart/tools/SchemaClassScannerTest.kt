@@ -497,12 +497,19 @@ class SchemaClassScannerTest {
                 type Implementation implements SomeInterface {
                     value: String
                 }
+                
+                union SomeUnion = Unused | Implementation
+                
+                enum SomeEnum {
+                   A
+                   B
+                }
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun whatever(): Whatever? = null
             })
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
-            .dictionary(Unused::class, Implementation::class)
+            .dictionary(Unused::class, Implementation::class, SomeInterface::class, SomeUnion::class, SomeEnum::class)
             .build()
             .makeExecutableSchema()
 
