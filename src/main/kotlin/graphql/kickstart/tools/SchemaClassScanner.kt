@@ -91,6 +91,7 @@ internal class SchemaClassScanner(
             do {
                 val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
                     .filter { definition -> definition.name != "PageInfo" }
+                    .filter { isCompositeOrEnumType(it) }
                     .distinct()
 
                 if (unusedDefinitions.isEmpty()) {
@@ -102,6 +103,10 @@ internal class SchemaClassScanner(
         }
 
         return validateAndCreateResult(rootTypeHolder)
+    }
+
+    private fun isCompositeOrEnumType(definition: TypeDefinition<*>): Boolean {
+        return definition is ObjectTypeDefinition || definition is InterfaceTypeDefinition || definition is UnionTypeDefinition || definition is EnumTypeDefinition
     }
 
     private fun scanQueue(): Boolean {
