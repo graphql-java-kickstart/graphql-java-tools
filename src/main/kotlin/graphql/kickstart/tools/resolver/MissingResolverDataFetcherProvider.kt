@@ -8,7 +8,5 @@ import graphql.schema.DataFetcher
  * Provider for missing resolver data fetchers.
  */
 fun interface MissingResolverDataFetcherProvider {
-   fun createDataFetcher(field: FieldDefinition,
-                         options: SchemaParserOptions
-    ): DataFetcher<*>
+   fun createDataFetcher(field: FieldDefinition, options: SchemaParserOptions): DataFetcher<*>
 }

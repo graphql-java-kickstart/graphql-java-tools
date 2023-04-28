@@ -70,9 +70,6 @@ class MissingFieldResolverTest {
     @Test
     fun `should call missing resolver data fetcher provider if provided`() {
         val missingResolverDataFetcherProvider = TestMissingResolverDataFetcherProvider();
-        val options = SchemaParserOptions.newOptions()
-            .missingResolverDataFetcherProvider(missingResolverDataFetcherProvider)
-            .build();
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -85,7 +82,9 @@ class MissingFieldResolverTest {
             .resolvers(object : GraphQLQueryResolver {
                 fun implementedField(input: Optional<String>) = input.toString()
             })
-            .options(options)
+            .options(SchemaParserOptions.newOptions()
+                    .missingResolverDataFetcherProvider(missingResolverDataFetcherProvider)
+                    .build())
             .build()
             .makeExecutableSchema()
 
