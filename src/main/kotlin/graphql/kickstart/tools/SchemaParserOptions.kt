@@ -92,7 +92,7 @@ data class SchemaParserOptions internal constructor(
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
         }
 
-        @Deprecated("Use missingResolverDataFetcherProvider instead.", level = DeprecationLevel.WARNING)
+        @Deprecated("Use missingResolverDataFetcherProvider instead.")
         fun missingResolverDataFetcher(missingResolverDataFetcher: DataFetcher<Any?>?) = this.apply {
             this.missingResolverDataFetcher = missingResolverDataFetcher
         }
