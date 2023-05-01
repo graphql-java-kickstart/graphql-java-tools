@@ -11,7 +11,10 @@ internal class MissingFieldResolver(
     options: SchemaParserOptions
 ) : FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options, Any::class.java) {
 
+    private val missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider = options.missingResolverDataFetcherProvider
+            ?: MissingResolverDataFetcherProvider {
+                _, options -> options.missingResolverDataFetcher ?: DataFetcher<Any> { TODO("Schema resolver not implemented") }
+            }
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
-    override fun createDataFetcher(): DataFetcher<*> =
-        options.missingResolverDataFetcher ?: DataFetcher<Any> { TODO("Schema resolver not implemented") }
+    override fun createDataFetcher(): DataFetcher<*> = missingResolverDataFetcherProvider.createDataFetcher(field, options)
 }
