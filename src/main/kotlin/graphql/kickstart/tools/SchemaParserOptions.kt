@@ -24,7 +24,7 @@ data class SchemaParserOptions internal constructor(
     val contextClass: Class<*>?,
     val genericWrappers: List<GenericWrapper>,
     val allowUnimplementedResolvers: Boolean,
-    @Deprecated("Use missingResolverDataFetcherProvider instead.", level = DeprecationLevel.WARNING)
+    @Deprecated("Use missingResolverDataFetcherProvider instead.")
     val missingResolverDataFetcher: DataFetcher<Any?>?,
     val missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider?,
     val objectMapperProvider: PerFieldObjectMapperProvider,
