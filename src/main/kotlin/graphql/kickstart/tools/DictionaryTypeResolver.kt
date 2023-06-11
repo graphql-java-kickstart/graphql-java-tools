@@ -17,8 +17,8 @@ internal abstract class DictionaryTypeResolver(
 ) : TypeResolver {
     private fun <T> getTypeDefinition(clazz: Class<T>): TypeDefinition<*>? {
         return dictionary[clazz]
-            ?: (if (clazz.superclass == null) null else getTypeDefinition(clazz.superclass))
             ?: clazz.interfaces.mapNotNull { getTypeDefinition(it) }.firstOrNull()
+            ?: (if (clazz.superclass == null) null else getTypeDefinition(clazz.superclass))
     }
 
     override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
