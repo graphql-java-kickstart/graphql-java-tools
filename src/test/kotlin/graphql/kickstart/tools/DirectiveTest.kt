@@ -4,10 +4,7 @@ import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
-import graphql.schema.DataFetcherFactories
-import graphql.schema.DataFetchingEnvironment
-import graphql.schema.GraphQLFieldDefinition
-import graphql.schema.GraphQLObjectType
+import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.junit.Ignore
@@ -325,7 +322,7 @@ class DirectiveTest {
 
         override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
             val field = environment.element
-            val parentType = environment.fieldsContainer
+            val parentType = FieldCoordinates.coordinates(environment.fieldsContainer, environment.fieldDefinition)
 
             val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
             val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher) { _, value ->
@@ -342,7 +339,7 @@ class DirectiveTest {
 
         override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
             val field = environment.element
-            val parentType = environment.fieldsContainer
+            val parentType = FieldCoordinates.coordinates(environment.fieldsContainer, environment.fieldDefinition)
 
             val originalDataFetcher = environment.codeRegistry.getDataFetcher(parentType, field)
             val wrappedDataFetcher = DataFetcherFactories.wrapDataFetcher(originalDataFetcher) { _, value ->
@@ -350,7 +347,7 @@ class DirectiveTest {
                 string + string
             }
 
-            environment.codeRegistry.dataFetcher(parentType, field, wrappedDataFetcher)
+            environment.codeRegistry.dataFetcher(parentType, wrappedDataFetcher)
 
             return field
         }

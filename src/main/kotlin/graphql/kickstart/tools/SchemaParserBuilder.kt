@@ -4,6 +4,7 @@ import graphql.language.Definition
 import graphql.language.Document
 import graphql.parser.MultiSourceReader
 import graphql.parser.Parser
+import graphql.parser.ParserEnvironment
 import graphql.parser.ParserOptions
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.RuntimeWiring
@@ -175,11 +176,14 @@ class SchemaParserBuilder {
 
             files.forEach {
                 val sourceReader = MultiSourceReader.newMultiSourceReader().string(readFile(it), it).trackData(true).build()
-                documents.add(parser.parseDocument(sourceReader, options))
+                val environment = ParserEnvironment.newParserEnvironment().document(sourceReader).parserOptions(options).build()
+                documents.add(parser.parseDocument(environment))
             }
 
             if (schemaString.isNotEmpty()) {
-                documents.add(parser.parseDocument(schemaString.toString(), options))
+                val sourceReader = MultiSourceReader.newMultiSourceReader().string(schemaString.toString(), null).trackData(true).build()
+                val environment = ParserEnvironment.newParserEnvironment().document(sourceReader).parserOptions(options).build()
+                documents.add(parser.parseDocument(environment))
             }
         } catch (pce: ParseCancellationException) {
             val cause = pce.cause
@@ -206,6 +210,6 @@ class SchemaParserBuilder {
 }
 
 class InvalidSchemaError(pce: ParseCancellationException, private val recognitionException: RecognitionException) : RuntimeException(pce) {
-    override val message: String?
+    override val message: String
         get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }

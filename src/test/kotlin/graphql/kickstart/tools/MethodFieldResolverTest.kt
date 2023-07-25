@@ -2,17 +2,22 @@ package graphql.kickstart.tools
 
 import graphql.ExecutionInput
 import graphql.GraphQL
+import graphql.GraphQLContext
+import graphql.execution.CoercedVariables
 import graphql.language.StringValue
+import graphql.language.Value
 import graphql.schema.Coercing
 import graphql.schema.CoercingParseLiteralException
 import graphql.schema.CoercingSerializeException
 import graphql.schema.GraphQLScalarType
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.util.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MethodFieldResolverTest {
 
     @Test
@@ -228,14 +233,14 @@ class MethodFieldResolverTest {
         .description("customScalar")
         .coercing(object : Coercing<CustomScalar, String> {
 
-            override fun parseValue(input: Any) = CustomScalar.of(input)
+            override fun parseValue(input: Any, context: GraphQLContext, locale: Locale) = CustomScalar.of(input)
 
-            override fun parseLiteral(input: Any): CustomScalar = when (input) {
+            override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale): CustomScalar = when (input) {
                 is StringValue -> CustomScalar.of(input.value)
                 else -> throw CoercingParseLiteralException()
             }
 
-            override fun serialize(dataFetcherResult: Any) = when (dataFetcherResult) {
+            override fun serialize(dataFetcherResult: Any, context: GraphQLContext, locale: Locale) = when (dataFetcherResult) {
                 is CustomScalar -> dataFetcherResult.value
                 else -> throw CoercingSerializeException()
             }

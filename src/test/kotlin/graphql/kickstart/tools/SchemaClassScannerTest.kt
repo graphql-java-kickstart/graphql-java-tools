@@ -1,10 +1,16 @@
 package graphql.kickstart.tools
 
+import graphql.GraphQLContext
+import graphql.execution.CoercedVariables
+import graphql.language.Value
 import graphql.schema.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Ignore
 import org.junit.Test
+import java.util.*
 import java.util.concurrent.CompletableFuture
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaClassScannerTest {
 
     @Test
@@ -186,9 +192,9 @@ class SchemaClassScannerTest {
                 .name("UUID")
                 .description("Test scalars with duplicate types")
                 .coercing(object : Coercing<Any, Any> {
-                    override fun serialize(dataFetcherResult: Any): Any? = null
-                    override fun parseValue(input: Any): Any = input
-                    override fun parseLiteral(input: Any): Any = input
+                    override fun serialize(dataFetcherResult: Any, context: GraphQLContext, locale: Locale): Any? = null
+                    override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): Any = input
+                    override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale): Any = input
                 }).build())
             .schemaString(
                 """
@@ -307,9 +313,9 @@ class SchemaClassScannerTest {
         val customMap = GraphQLScalarType.newScalar()
             .name("customMap")
             .coercing(object : Coercing<Map<String, Any>, Map<String, Any>> {
-                override fun serialize(dataFetcherResult: Any): Map<String, Any> = mapOf()
-                override fun parseValue(input: Any): Map<String, Any> = mapOf()
-                override fun parseLiteral(input: Any): Map<String, Any> = mapOf()
+                override fun serialize(dataFetcherResult: Any, context: GraphQLContext, locale: Locale): Map<String, Any> = mapOf()
+                override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): Map<String, Any> = mapOf()
+                override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale): Map<String, Any> = mapOf()
             }).build()
 
         val schema = SchemaParser.newParser()
