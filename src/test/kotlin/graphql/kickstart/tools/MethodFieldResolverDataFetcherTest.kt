@@ -3,7 +3,7 @@ package graphql.kickstart.tools
 import graphql.ExecutionResult
 import graphql.GraphQLContext
 import graphql.execution.*
-import graphql.execution.instrumentation.SimpleInstrumentation
+import graphql.execution.instrumentation.SimplePerformantInstrumentation
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.language.FieldDefinition
@@ -24,6 +24,7 @@ import org.reactivestreams.tck.TestEnvironment
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MethodFieldResolverDataFetcherTest {
 
     @Test
@@ -311,7 +312,7 @@ class MethodFieldResolverDataFetcherTest {
         }
         val executionId = ExecutionId.from("executionId123")
         return ExecutionContextBuilder.newExecutionContextBuilder()
-            .instrumentation(SimpleInstrumentation.INSTANCE)
+            .instrumentation(SimplePerformantInstrumentation.INSTANCE)
             .executionId(executionId)
             .queryStrategy(executionStrategy)
             .mutationStrategy(executionStrategy)

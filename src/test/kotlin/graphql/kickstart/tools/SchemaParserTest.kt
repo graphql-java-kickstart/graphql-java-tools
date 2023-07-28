@@ -4,6 +4,7 @@ import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
@@ -11,6 +12,7 @@ import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
 import java.util.concurrent.Future
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
 
