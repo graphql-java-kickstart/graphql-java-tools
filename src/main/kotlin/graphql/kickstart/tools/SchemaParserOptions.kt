@@ -163,7 +163,7 @@ data class SchemaParserOptions internal constructor(
                     GenericWrapper(CompletableFuture::class, 0),
                     GenericWrapper(CompletionStage::class, 0),
                     GenericWrapper(Publisher::class, 0),
-                    GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel, _ ->
+                    GenericWrapper.withTransformer(ReceiveChannel::class, 0, { receiveChannel ->
                         publish(coroutineContextProvider.provide()) {
                             try {
                                 for (item in receiveChannel) {
