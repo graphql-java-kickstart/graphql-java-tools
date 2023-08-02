@@ -255,8 +255,8 @@ private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, ar
 private fun invoke(method: Method, instance: Any, args: Array<Any?>): Any? {
     try {
         return method.invoke(instance, *args)
-    } catch (invocationException: InvocationTargetException) {
-        throw  invocationException.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
+    } catch (e: InvocationTargetException) {
+        throw  e.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
     }
 }
 
