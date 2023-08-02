@@ -30,7 +30,7 @@ internal class MethodFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    val method: Method,
+    val method: Method
 ) : FieldResolver(field, search, options, search.type) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -187,7 +187,7 @@ internal open class MethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     method: Method,
     private val args: List<ArgumentPlaceholder>,
-    private val options: SchemaParserOptions,
+    private val options: SchemaParserOptions
 ) : DataFetcher<Any> {
 
     private val resolverMethod = method
@@ -242,7 +242,7 @@ internal class TrivialMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,
-    options: SchemaParserOptions,
+    options: SchemaParserOptions
 ) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options),
     TrivialDataFetcher<Any> // just to mark it for tracing and optimizations
 
