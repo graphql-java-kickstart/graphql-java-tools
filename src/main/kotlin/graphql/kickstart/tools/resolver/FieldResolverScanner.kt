@@ -2,6 +2,7 @@ package graphql.kickstart.tools.resolver
 
 import graphql.GraphQLContext
 import graphql.Scalars
+import graphql.kickstart.tools.GraphQLSubscriptionResolver
 import graphql.kickstart.tools.ResolverInfo
 import graphql.kickstart.tools.RootResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
@@ -9,8 +10,10 @@ import graphql.kickstart.tools.util.*
 import graphql.language.FieldDefinition
 import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
+import kotlinx.coroutines.channels.ReceiveChannel
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
+import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Method
@@ -86,7 +89,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun findResolverMethod(field: FieldDefinition, search: Search): Method? {
-        val methods = getAllMethods(search.type)
+        val methods = getAllMethods(search)
         val argumentCount = field.inputValueDefinitions.size + if (search.requiredFirstParameterType != null) 1 else 0
         val name = field.name
 
@@ -109,10 +112,11 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
     }
 
-    private fun getAllMethods(type: JavaType): List<Method> {
-        val declaredMethods = type.unwrap().declaredNonProxyMethods
-        val superClassesMethods = ClassUtils.getAllSuperclasses(type.unwrap()).flatMap { it.methods.toList() }
-        val interfacesMethods = ClassUtils.getAllInterfaces(type.unwrap()).flatMap { it.methods.toList() }
+    private fun getAllMethods(search: Search): List<Method> {
+        val type = search.type.unwrap()
+        val declaredMethods = type.declaredNonProxyMethods
+        val superClassesMethods = ClassUtils.getAllSuperclasses(type).flatMap { it.methods.toList() }
+        val interfacesMethods = ClassUtils.getAllInterfaces(type).flatMap { it.methods.toList() }
 
         return (declaredMethods + superClassesMethods + interfacesMethods)
             .asSequence()
@@ -121,8 +125,25 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             // discard any methods that are coming off the root of the class hierarchy
             // to avoid issues with duplicate method declarations
             .filter { it.declaringClass != Object::class.java }
+            // subscription resolvers must return a publisher
+            .filter { search.source !is GraphQLSubscriptionResolver || resolverMethodReturnsPublisher(it) }
             .toList()
     }
+
+    private fun resolverMethodReturnsPublisher(method: Method) =
+        method.returnType.isAssignableFrom(Publisher::class.java) || receiveChannelToPublisherWrapper(method)
+
+    private fun receiveChannelToPublisherWrapper(method: Method) =
+        method.returnType.isAssignableFrom(ReceiveChannel::class.java)
+            && options.genericWrappers.any { wrapper ->
+            val isReceiveChannelWrapper = wrapper.type == method.returnType
+            val hasPublisherTransformer = wrapper
+                .transformer.javaClass
+                .declaredMethods
+                .filter { it.name == "invoke" }
+                .any { it.returnType.isAssignableFrom(Publisher::class.java) }
+            isReceiveChannelWrapper && hasPublisherTransformer
+        }
 
     private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
 
@@ -166,14 +187,18 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun getMissingFieldMessage(field: FieldDefinition, searches: List<Search>, scannedProperties: Boolean): String {
         val signatures = mutableListOf("")
         val isBoolean = isBoolean(field.type)
+        var isSubscription = false
 
         searches.forEach { search ->
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
+            isSubscription = isSubscription || search.source is GraphQLSubscriptionResolver
         }
 
         val sourceName = if (field.sourceLocation != null && field.sourceLocation.sourceName != null) field.sourceLocation.sourceName else "<unknown>"
         val sourceLocation = if (field.sourceLocation != null) "$sourceName:${field.sourceLocation.line}" else "<unknown>"
-        return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures (with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}"
+        return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures " +
+            "(with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}" +
+            if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""
     }
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
