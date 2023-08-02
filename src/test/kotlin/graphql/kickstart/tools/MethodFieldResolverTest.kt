@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.ExceptionWhileDataFetching
 import graphql.ExecutionInput
 import graphql.GraphQL
 import graphql.GraphQLContext
@@ -208,6 +209,34 @@ class MethodFieldResolverTest {
             .root(Object()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
+    }
+
+    @Test
+    fun `should unwrap and rethrow resolver exceptions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(): String = throw Exception("Whoops")
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema).build()
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query {
+                test
+            }
+            """))
+
+        assertEquals(result.errors.size, 1)
+        val exceptionWhileDataFetching = result.errors[0] as ExceptionWhileDataFetching
+        assertEquals(exceptionWhileDataFetching.exception.message, "Whoops")
     }
 
     /**
