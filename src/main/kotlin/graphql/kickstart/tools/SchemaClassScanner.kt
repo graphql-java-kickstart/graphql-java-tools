@@ -177,7 +177,7 @@ internal class SchemaClassScanner(
                     .coercing(provided.coercing)
                     .definition(definition)
                     .build()
-            }.associateBy { it.name!! }
+            }.associateBy { it.name }
 
         val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
         unusedDefinitions

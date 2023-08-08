@@ -83,8 +83,7 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
          * Unwrap certain Java types to find the "real" class.
          */
         fun unwrapGenericType(javaType: JavaType): JavaType {
-            val type = replaceTypeVariable(javaType)
-            return when (type) {
+            return when (val type = replaceTypeVariable(javaType)) {
                 is ParameterizedType -> {
                     val rawType = type.rawType
                     val genericType = options.genericWrappers.find { it.type == rawType }
@@ -107,7 +106,7 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     }
                 }
                 is WildcardType -> type.upperBounds.firstOrNull()
-                    ?: throw error("Unable to unwrap type, wildcard has no upper bound: $type")
+                    ?: error("Unable to unwrap type, wildcard has no upper bound: $type")
                 is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
                 else -> error("Unable to unwrap type: $type")
             }

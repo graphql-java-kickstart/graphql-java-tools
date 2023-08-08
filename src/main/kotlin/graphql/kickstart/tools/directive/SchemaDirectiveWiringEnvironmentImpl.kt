@@ -56,7 +56,8 @@ class SchemaDirectiveWiringEnvironmentImpl<T : GraphQLDirectiveContainer?>(
     override fun getFieldDataFetcher(): DataFetcher<*> {
         checkNotNull(fieldDefinition) { "An output field must be in context to call this method" }
         checkNotNull(fieldsContainer) { "An output field container must be in context to call this method" }
-        return codeRegistry.getDataFetcher(fieldsContainer, fieldDefinition)
+        val coordinates = FieldCoordinates.coordinates(fieldsContainer, fieldDefinition)
+        return codeRegistry.getDataFetcher(coordinates, fieldDefinition)
     }
 
     override fun setFieldDataFetcher(newDataFetcher: DataFetcher<*>?): GraphQLFieldDefinition {

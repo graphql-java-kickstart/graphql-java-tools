@@ -10,9 +10,11 @@ import graphql.language.TypeName
 import graphql.relay.Connection
 import graphql.relay.DefaultConnection
 import graphql.relay.DefaultPageInfo
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.util.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FieldResolverScannerTest {
 
     private val options = defaultOptions()

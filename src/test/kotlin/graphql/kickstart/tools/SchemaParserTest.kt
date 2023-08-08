@@ -4,6 +4,7 @@ import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
@@ -11,6 +12,7 @@ import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
 import java.util.concurrent.Future
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
 
@@ -659,5 +661,45 @@ class SchemaParserTest {
                 return "Bar"
             }
         }
+    }
+
+    @Test
+    fun `parser should verify subscription resolver return type`() {
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Subscription {
+                        onItemCreated: Int!
+                    }
+
+                    type Query {
+                        test: String
+                    }
+                    """
+                )
+                .resolvers(
+                    Subscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        }
+
+        val expected = """
+            No method or field found as defined in schema <unknown>:3 with any of the following signatures (with or without one of [interface graphql.schema.DataFetchingEnvironment, class graphql.GraphQLContext] as the last argument), in priority order:
+
+              graphql.kickstart.tools.SchemaParserTest${"$"}Subscription.onItemCreated()
+              graphql.kickstart.tools.SchemaParserTest${"$"}Subscription.getOnItemCreated()
+              graphql.kickstart.tools.SchemaParserTest${"$"}Subscription.onItemCreated
+
+            Note that a Subscription data fetcher must return a Publisher of events
+        """.trimIndent()
+
+        assertEquals(error.message, expected)
+    }
+
+    class Subscription : GraphQLSubscriptionResolver {
+        fun onItemCreated(env: DataFetchingEnvironment) = env.hashCode()
     }
 }

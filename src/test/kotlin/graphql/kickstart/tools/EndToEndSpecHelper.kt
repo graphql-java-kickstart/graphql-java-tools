@@ -1,8 +1,11 @@
 package graphql.kickstart.tools
 
+import graphql.GraphQLContext
+import graphql.execution.CoercedVariables
 import graphql.execution.DataFetcherResult
 import graphql.language.ObjectValue
 import graphql.language.StringValue
+import graphql.language.Value
 import graphql.schema.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -444,18 +447,22 @@ val customScalarId = GraphQLScalarType.newScalar()
     .name("ID")
     .description("Overrides built-in ID")
     .coercing(object : Coercing<UUID, String> {
-        override fun serialize(input: Any): String? = when (input) {
+        override fun serialize(input: Any, context: GraphQLContext, locale: Locale) = when (input) {
             is String -> input
             is UUID -> input.toString()
             else -> null
         }
 
-        override fun parseValue(input: Any): UUID = parseLiteral(input)
-
-        override fun parseLiteral(input: Any): UUID = when (input) {
+        override fun parseValue(input: Any, context: GraphQLContext, locale: Locale) = when (input) {
             is StringValue -> UUID.fromString(input.value)
             else -> throw CoercingParseLiteralException()
         }
+
+        override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale) =
+            when (input) {
+                is StringValue -> UUID.fromString(input.value)
+                else -> throw CoercingParseLiteralException()
+            }
     })
     .build()
 
@@ -464,18 +471,22 @@ val customScalarUUID = GraphQLScalarType.newScalar()
     .description("UUID")
     .coercing(object : Coercing<UUID, String> {
 
-        override fun serialize(input: Any): String? = when (input) {
+        override fun serialize(input: Any, context: GraphQLContext, locale: Locale): String? = when (input) {
             is String -> input
             is UUID -> input.toString()
             else -> null
         }
 
-        override fun parseValue(input: Any): UUID = parseLiteral(input)
-
-        override fun parseLiteral(input: Any): UUID = when (input) {
+        override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): UUID = when (input) {
             is StringValue -> UUID.fromString(input.value)
             else -> throw CoercingParseLiteralException()
         }
+
+        override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale): UUID =
+            when (input) {
+                is StringValue -> UUID.fromString(input.value)
+                else -> throw CoercingParseLiteralException()
+            }
     })
     .build()
 
@@ -485,12 +496,19 @@ val customScalarMap = GraphQLScalarType.newScalar()
     .coercing(object : Coercing<Map<String, Any>, Map<String, Any>> {
 
         @Suppress("UNCHECKED_CAST")
-        override fun parseValue(input: Any): Map<String, Any> = input as Map<String, Any>
+        override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): Map<String, Any> = input as Map<String, Any>
 
         @Suppress("UNCHECKED_CAST")
-        override fun serialize(dataFetcherResult: Any): Map<String, Any> = dataFetcherResult as Map<String, Any>
+        override fun serialize(dataFetcherResult: Any, context: GraphQLContext, locale: Locale): Map<String, Any> =
+            dataFetcherResult as Map<String, Any>
 
-        override fun parseLiteral(input: Any): Map<String, Any> = (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
+        override fun parseLiteral(
+            input: Value<*>,
+            variables: CoercedVariables,
+            context: GraphQLContext,
+            locale: Locale
+        ): Map<String, Any> =
+            (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
     })
     .build()
 
@@ -499,11 +517,11 @@ val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
     .name("Upload")
     .description("A file part in a multipart request")
     .coercing(object : Coercing<Part?, Void?> {
-        override fun serialize(dataFetcherResult: Any): Void? {
+        override fun serialize(dataFetcherResult: Any, context: GraphQLContext, locale: Locale): Void? {
             throw CoercingSerializeException("Upload is an input-only type")
         }
 
-        override fun parseValue(input: Any): Part {
+        override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): Part {
             return when (input) {
                 is Part -> {
                     input
@@ -514,9 +532,8 @@ val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
             }
         }
 
-        override fun parseLiteral(input: Any): Part {
-            throw CoercingParseLiteralException(
-                "Must use variables to specify Upload values")
+        override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale): Part {
+            throw CoercingParseLiteralException("Must use variables to specify Upload values")
         }
     }).build()
 

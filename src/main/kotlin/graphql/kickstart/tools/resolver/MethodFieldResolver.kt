@@ -15,6 +15,7 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLTypeUtil.isScalar
 import kotlinx.coroutines.future.future
 import org.slf4j.LoggerFactory
+import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.*
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
@@ -251,20 +252,11 @@ private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, ar
     }
 }
 
-@Suppress("NOTHING_TO_INLINE")
-private inline fun invoke(method: Method, instance: Any, args: Array<Any?>): Any? {
+private fun invoke(method: Method, instance: Any, args: Array<Any?>): Any? {
     try {
         return method.invoke(instance, *args)
-    } catch (invocationException: java.lang.reflect.InvocationTargetException) {
-        val e = invocationException.cause
-        if (e is RuntimeException) {
-            throw e
-        }
-        if (e is Error) {
-            throw e
-        }
-
-        throw java.lang.reflect.UndeclaredThrowableException(e)
+    } catch (e: InvocationTargetException) {
+        throw  e.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
     }
 }
 

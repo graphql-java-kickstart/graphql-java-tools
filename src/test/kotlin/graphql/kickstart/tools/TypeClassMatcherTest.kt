@@ -6,6 +6,7 @@ import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
 import graphql.language.*
 import graphql.language.Type
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -22,6 +23,7 @@ import java.util.concurrent.Future
     TypeClassMatcherTest.Suit3::class,
     TypeClassMatcherTest.Suit4::class
 )
+@OptIn(ExperimentalCoroutinesApi::class)
 class TypeClassMatcherTest {
 
     companion object {
