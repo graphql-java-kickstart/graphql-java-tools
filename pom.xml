@@ -147,12 +147,12 @@
             <artifactId>kotlin-reflect</artifactId>
         </dependency>
         <dependency>
+            <!--
+            Depending on kotlinx-coroutines-core causes an ambiguous module reference warning.
+            See https://github.com/Kotlin/kotlinx.coroutines/issues/3842
+            -->
             <groupId>org.jetbrains.kotlinx</groupId>
-            <artifactId>kotlinx-coroutines-jdk9</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains.kotlinx</groupId>
-            <artifactId>kotlinx-coroutines-core</artifactId>
+            <artifactId>kotlinx-coroutines-core-jvm</artifactId>
         </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlinx</groupId>
