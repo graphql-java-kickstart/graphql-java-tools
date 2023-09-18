@@ -150,7 +150,6 @@ internal class SchemaClassScanner(
         when (typeDefinition) {
             is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
             is InputObjectTypeDefinition -> {
-                unvalidatedTypes.add(typeDefinition) // TODO <- ???
                 for (input in typeDefinition.inputValueDefinitions) {
                     handleDirectiveInput(input.type)
                 }
