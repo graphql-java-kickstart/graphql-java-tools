@@ -5,7 +5,6 @@ import graphql.execution.CoercedVariables
 import graphql.language.Value
 import graphql.schema.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import org.junit.Ignore
 import org.junit.Test
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -425,13 +424,18 @@ class SchemaClassScannerTest {
     }
 
     @Test
-    @Ignore("TODO remove this once directives are fully replaced with applied directives OR issue #664 is resolved")
     fun `scanner should handle unused types when option is true`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
-                # Let's say this is the Products service from Apollo Federation Introduction
+                # these directives are defined in the Apollo Federation Specification: 
+                # https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
+                scalar FieldSet
+                directive @key(fields: FieldSet!, resolvable: Boolean = true) repeatable on OBJECT | INTERFACE
+                directive @extends on OBJECT | INTERFACE
+                directive @external on FIELD_DEFINITION | OBJECT
 
+                # Let's say this is the Products service from Apollo Federation Introduction
                 type Query {
                     allProducts: [Product]
                 }
@@ -440,8 +444,6 @@ class SchemaClassScannerTest {
                     name: String
                 }
                 
-                # these directives are defined in the Apollo Federation Specification: 
-                # https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
                 type User @key(fields: "id") @extends {
                     id: ID! @external
                     recentPurchasedProducts: [Product]
@@ -457,6 +459,7 @@ class SchemaClassScannerTest {
             })
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .dictionary(User::class)
+            .scalars(fieldSetScalar)
             .build()
             .makeExecutableSchema()
 
@@ -464,6 +467,19 @@ class SchemaClassScannerTest {
         assert(objectTypes.any { it.name == "User" })
         assert(objectTypes.any { it.name == "Address" })
     }
+
+    data class FieldSet(val value: String)
+
+    private val fieldSetScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
+        .name("FieldSet")
+        .coercing(object : Coercing<FieldSet, String> {
+            override fun serialize(input: Any, context: GraphQLContext, locale: Locale) = input.toString()
+            override fun parseValue(input: Any, context: GraphQLContext, locale: Locale) =
+                FieldSet(input.toString())
+            override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale) =
+                FieldSet(input.toString())
+        })
+        .build()
 
     class Product {
         var name: String? = null

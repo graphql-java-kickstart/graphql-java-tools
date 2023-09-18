@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.Scalars
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
@@ -335,7 +336,7 @@ class SchemaParser internal constructor(
                     it.arguments.forEach { arg ->
                         argument(GraphQLAppliedDirectiveArgument.newArgument()
                             .name(arg.name)
-                            .type(directiveWiringHelper.buildDirectiveInputType(arg.value))
+                            .type(buildDirectiveInputType(arg.value))
                             .valueLiteral(arg.value)
                             .build()
                         )
@@ -350,7 +351,76 @@ class SchemaParser internal constructor(
         directives: List<Directive>,
         directiveLocation: Introspection.DirectiveLocation
     ): Array<GraphQLDirective> {
-        return directiveWiringHelper.buildDirectives(directives, directiveLocation).toTypedArray()
+        val names = mutableSetOf<String>()
+        val output = mutableListOf<GraphQLDirective>()
+
+        for (directive in directives) {
+            val repeatable = directiveDefinitions.find { it.name.equals(directive.name) }?.isRepeatable ?: false
+            if (repeatable || !names.contains(directive.name)) {
+                names.add(directive.name)
+                output.add(
+                    GraphQLDirective.newDirective()
+                        .name(directive.name)
+                        .description(getDocumentation(directive, options))
+                        .comparatorRegistry(runtimeWiring.comparatorRegistry)
+                        .validLocation(directiveLocation)
+                        .repeatable(repeatable)
+                        .apply {
+                            directive.arguments.forEach { arg ->
+                                argument(GraphQLArgument.newArgument()
+                                    .name(arg.name)
+                                    .type(buildDirectiveInputType(arg.value))
+                                    // TODO remove this once directives are fully replaced with applied directives
+                                    .valueLiteral(arg.value)
+                                    .build())
+                            }
+                        }
+                        .build()
+                )
+            }
+        }
+
+        return output.toTypedArray()
+    }
+
+    private fun buildDirectiveInputType(value: Value<*>): GraphQLInputType? {
+        return when (value) {
+            is NullValue -> Scalars.GraphQLString
+            is FloatValue -> Scalars.GraphQLFloat
+            is StringValue -> Scalars.GraphQLString
+            is IntValue -> Scalars.GraphQLInt
+            is BooleanValue -> Scalars.GraphQLBoolean
+            is ArrayValue -> GraphQLList.list(buildDirectiveInputType(getArrayValueWrappedType(value)))
+            // TODO to implement this we'll need to "observe" directive's input types + match them here based on their fields(?)
+            else -> throw SchemaError("Directive values of type '${value::class.simpleName}' are not supported yet.")
+        }
+    }
+
+    private fun getArrayValueWrappedType(value: ArrayValue): Value<*> {
+        // empty array [] is equivalent to [null]
+        if (value.values.isEmpty()) {
+            return NullValue.newNullValue().build()
+        }
+
+        // get rid of null values
+        val nonNullValueList = value.values.filter { v -> v !is NullValue }
+
+        // [null, null, ...] unwrapped is null
+        if (nonNullValueList.isEmpty()) {
+            return NullValue.newNullValue().build()
+        }
+
+        // make sure the array isn't polymorphic
+        val distinctTypes = nonNullValueList
+            .map { it::class.java }
+            .distinct()
+
+        if (distinctTypes.size > 1) {
+            throw SchemaError("Arrays containing multiple types of values are not supported yet.")
+        }
+
+        // peek at first value, value exists and is assured to be non-null
+        return nonNullValueList[0]
     }
 
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =
