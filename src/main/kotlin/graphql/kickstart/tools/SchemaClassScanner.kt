@@ -103,6 +103,8 @@ internal class SchemaClassScanner(
             } while (scanQueue())
         }
 
+        handleDirectives()
+
         return validateAndCreateResult(rootTypeHolder)
     }
 
@@ -129,6 +131,31 @@ internal class SchemaClassScanner(
         unvalidatedTypes.add(rootType.type)
         scanInterfacesOfType(rootType.type)
         scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
+    }
+
+
+    private fun handleDirectives() {
+        for (directive in directiveDefinitions) {
+            for (input in directive.inputValueDefinitions) {
+                handleDirectiveInput(input.type)
+            }
+        }
+    }
+
+    private fun handleDirectiveInput(inputType: Type<*>) {
+        val inputTypeName = (inputType.unwrap() as TypeName).name
+        val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[inputTypeName]
+            ?: definitionsByName[inputTypeName]
+            ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
+        when (typeDefinition) {
+            is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
+            is InputObjectTypeDefinition -> {
+                unvalidatedTypes.add(typeDefinition) // TODO <- ???
+                for (input in typeDefinition.inputValueDefinitions) {
+                    handleDirectiveInput(input.type)
+                }
+            }
+        }
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
@@ -280,16 +307,9 @@ internal class SchemaClassScanner(
         }
     }
 
-    private fun handleFoundType(match: TypeClassMatcher.Match) {
-        when (match) {
-            is TypeClassMatcher.ScalarMatch -> {
-                handleFoundScalarType(match.type)
-            }
-
-            is TypeClassMatcher.ValidMatch -> {
-                handleFoundType(match.type, match.javaType, match.reference)
-            }
-        }
+    private fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {
+        is TypeClassMatcher.ScalarMatch -> handleFoundScalarType(match.type)
+        is TypeClassMatcher.ValidMatch -> handleFoundType(match.type, match.javaType, match.reference)
     }
 
     private fun handleFoundScalarType(type: ScalarTypeDefinition) {
@@ -392,12 +412,10 @@ internal class SchemaClassScanner(
         val filteredMethods = methods.filter {
             it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
         }.sortedBy { it.name.length }
-        return filteredMethods.find {
-            !it.isSynthetic
-        }?.genericReturnType ?: filteredMethods.firstOrNull(
-        )?.genericReturnType ?: clazz.fields.find {
-            it.name == name
-        }?.genericType
+
+        return filteredMethods.find { !it.isSynthetic }?.genericReturnType
+            ?: filteredMethods.firstOrNull()?.genericReturnType
+            ?: clazz.fields.find { it.name == name }?.genericType
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)

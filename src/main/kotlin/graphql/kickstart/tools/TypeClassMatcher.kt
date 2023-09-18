@@ -93,7 +93,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = isListType(realType, potentialMatch.generic)
 
-    internal interface Match
+    internal sealed interface Match
 
     internal data class ScalarMatch(val type: ScalarTypeDefinition) : Match
 
