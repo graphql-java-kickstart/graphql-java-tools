@@ -149,10 +149,11 @@ internal class SchemaClassScanner(
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
         when (typeDefinition) {
             is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
-            is InputObjectTypeDefinition -> {
-                for (input in typeDefinition.inputValueDefinitions) {
-                    handleDirectiveInput(input.type)
-                }
+            is EnumTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
+                "Enum type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
+            }
+            is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
+                "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
             }
         }
     }
@@ -209,9 +210,9 @@ internal class SchemaClassScanner(
                 log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
             }
 
-        val fieldResolvers = fieldResolversByType.flatMap { it.value.map { it.value } }
-        val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<NormalResolverInfo>()
-        val observedMultiResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }
+        val fieldResolvers = fieldResolversByType.flatMap { entry -> entry.value.map { it.value } }
+        val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.filterIsInstance<NormalResolverInfo>().toSet()
+        val observedMultiResolverInfos = fieldResolvers.map { it.resolverInfo }.filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }.toSet()
 
         (resolverInfos - observedNormalResolverInfos - observedMultiResolverInfos).forEach { resolverInfo ->
             log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolverInfo.resolver}")
@@ -255,7 +256,7 @@ internal class SchemaClassScanner(
         }.flatten().distinct()
     }
 
-    private fun handleDictionaryTypes(types: List<ObjectTypeDefinition>, failureMessage: (ObjectTypeDefinition) -> String) {
+    private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
