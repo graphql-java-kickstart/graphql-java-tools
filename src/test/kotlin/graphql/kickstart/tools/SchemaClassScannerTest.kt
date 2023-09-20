@@ -431,9 +431,14 @@ class SchemaClassScannerTest {
                 # these directives are defined in the Apollo Federation Specification: 
                 # https://www.apollographql.com/docs/apollo-server/federation/federation-spec/
                 scalar FieldSet
+                scalar link__Import
+                enum link__Purpose { SECURITY EXECUTION }
                 directive @key(fields: FieldSet!, resolvable: Boolean = true) repeatable on OBJECT | INTERFACE
                 directive @extends on OBJECT | INTERFACE
                 directive @external on FIELD_DEFINITION | OBJECT
+                directive @link(url: String!, as: String, for: link__Purpose) repeatable on SCHEMA
+
+                extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@shareable"])
 
                 # Let's say this is the Products service from Apollo Federation Introduction
                 type Query {
@@ -459,6 +464,7 @@ class SchemaClassScannerTest {
             })
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .dictionary(User::class)
+            .dictionary("link__Purpose", LinkPurpose::class)
             .scalars(fieldSetScalar)
             .build()
             .makeExecutableSchema()
@@ -469,6 +475,7 @@ class SchemaClassScannerTest {
     }
 
     data class FieldSet(val value: String)
+    enum class LinkPurpose { SECURITY, EXECUTION }
 
     private val fieldSetScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
         .name("FieldSet")
