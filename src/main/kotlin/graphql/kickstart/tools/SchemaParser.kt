@@ -74,7 +74,7 @@ class SchemaParser internal constructor(
 
         // Create GraphQL objects
         val inputObjects: MutableList<GraphQLInputObjectType> = mutableListOf()
-        schemaDirectives = createDirectives(inputObjects)
+        createDirectives(inputObjects)
         inputObjectDefinitions.forEach {
             if (inputObjects.none { io -> io.name == it.name }) {
                 inputObjects.add(createInputObject(it, inputObjects, mutableSetOf()))
@@ -309,7 +309,7 @@ class SchemaParser internal constructor(
             .build()
     }
 
-    private fun createDirectives(inputObjects: MutableList<GraphQLInputObjectType>): Set<GraphQLDirective> {
+    private fun createDirectives(inputObjects: MutableList<GraphQLInputObjectType>) {
         schemaDirectives = directiveDefinitions.map { definition ->
             val locations = definition.directiveLocations.map { Introspection.DirectiveLocation.valueOf(it.name) }.toTypedArray()
 
@@ -335,8 +335,6 @@ class SchemaParser internal constructor(
             } }
             d.transform { it.replaceArguments(arguments) }
         }.toSet()
-
-        return schemaDirectives
     }
 
     private fun createDirectiveArgument(definition: InputValueDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLArgument {
