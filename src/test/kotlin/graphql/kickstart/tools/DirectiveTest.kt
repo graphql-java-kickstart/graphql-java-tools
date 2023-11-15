@@ -7,7 +7,6 @@ import graphql.relay.SimpleListConnection
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
-import org.junit.Ignore
 import org.junit.Test
 
 class DirectiveTest {
@@ -244,7 +243,6 @@ class DirectiveTest {
     }
 
     @Test
-    @Ignore("Ignore until enums work in directives")
     fun `should compile schema with directive that has enum parameter`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -267,6 +265,7 @@ class DirectiveTest {
                 """)
             .resolvers(QueryResolver())
             .directive("allowed", AllowedDirective())
+            .dictionary(AllowedState::class)
             .build()
             .makeExecutableSchema()
 
