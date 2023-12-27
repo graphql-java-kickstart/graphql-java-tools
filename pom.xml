@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>13.1.1-SNAPSHOT</version>
+    <version>13.0.4-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -13,11 +13,11 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>11</java.version>
+        <java.version>8</java.version>
         <kotlin.version>1.8.21</kotlin.version>
         <kotlin-coroutines.version>1.7.3</kotlin-coroutines.version>
         <jackson.version>2.15.3</jackson.version>
-        <graphql-java.version>21.3</graphql-java.version>
+        <graphql-java.version>20.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
         <maven.compiler.source>${java.version}</maven.compiler.source>
