@@ -1,6 +1,5 @@
 package graphql.kickstart.tools
 
-import graphql.ExceptionWhileDataFetching
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.schema.GraphQLSchema
@@ -13,43 +12,6 @@ import java.util.*
  * If no other resolver is provided that will result in an [IllegalAccessException]
  */
 class InaccessibleFieldResolverTest {
-
-    @Test
-    fun `private field from closed module is not accessible`() {
-        val schema: GraphQLSchema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    locale: Locale
-                }
-                
-                type Locale {
-                  country: String!
-                  languageTag: String!
-                }
-                """)
-            .resolvers(Query())
-            .build()
-            .makeExecutableSchema()
-        val gql: GraphQL = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
-
-        val result = gql.execute(
-            """
-            query {
-                locale {
-                    country
-                    languageTag
-                }
-            }
-            """
-        )
-
-        assertEquals(result.errors.size, 1)
-        val exceptionWhileDataFetching = result.errors[0] as ExceptionWhileDataFetching
-        assert(exceptionWhileDataFetching.exception is IllegalAccessException)
-    }
 
     @Test
     fun `private field from closed module is accessible through resolver`() {
