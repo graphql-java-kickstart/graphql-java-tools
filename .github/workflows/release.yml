@@ -41,6 +41,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           branch: version-release
+          base: v13.0.4
           title: Version Release
           body: |
             Bumping project version after release.
