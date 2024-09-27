@@ -45,7 +45,7 @@
             <dependency>
                 <groupId>com.graphql-java</groupId>
                 <artifactId>graphql-java</artifactId>
-                <version>${graphql-java.version}</version>
+                <version>22.1</version>
             </dependency>
             <dependency>
                 <groupId>org.antlr</groupId>
@@ -306,6 +306,8 @@
                     <includes>
                         <include>**/*Test.*</include>
                     </includes>
+<!--                    or solve this differently? tests fail-->
+                    <argLine>--add-reads kotlin.stdlib=kotlinx.coroutines.core</argLine>
                 </configuration>
             </plugin>
             <plugin>

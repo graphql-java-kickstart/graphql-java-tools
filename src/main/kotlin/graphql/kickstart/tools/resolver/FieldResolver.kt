@@ -35,6 +35,7 @@ internal abstract class FieldResolver(
         } else {
             { environment ->
                 val source = environment.getSource<Any>()
+                    ?: throw ResolverError("Expected source object to not be null!")
 
                 if (!this.genericType.isAssignableFrom(source.javaClass)) {
                     throw ResolverError("Expected source object to be an instance of '${this.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")

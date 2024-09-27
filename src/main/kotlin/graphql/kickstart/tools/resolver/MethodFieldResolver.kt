@@ -30,7 +30,7 @@ internal class MethodFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    val method: Method
+    val method: Method,
 ) : FieldResolver(field, search, options, search.type) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -53,6 +53,7 @@ internal class MethodFieldResolver(
 
             args.add { environment ->
                 val source = environment.getSource<Any>()
+                    ?: throw ResolverError("Expected source object to not be null!")
                 if (!expectedType.isAssignableFrom(source.javaClass)) {
                     throw ResolverError("Source type (${source.javaClass.name}) is not expected type (${expectedType.name})!")
                 }
@@ -114,6 +115,7 @@ internal class MethodFieldResolver(
                         environment.getContext() // TODO: remove deprecated use in next major release
                     }
                 }
+
                 GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
                 else -> args.add { environment -> environment }
             }
@@ -139,19 +141,23 @@ internal class MethodFieldResolver(
         return when (type) {
             is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
                 && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
+
             is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && type.name != "ID" }
                 ?: false
+
             is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)
             else -> false
         }
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val unwrappedGenericType = genericType.unwrapGenericType(try {
-            method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
-        } catch (e: InternalError) {
-            method.genericReturnType
-        })
+        val unwrappedGenericType = genericType.unwrapGenericType(
+            try {
+                method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
+            } catch (e: InternalError) {
+                method.genericReturnType
+            }
+        )
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
@@ -187,7 +193,7 @@ internal open class MethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     method: Method,
     private val args: List<ArgumentPlaceholder>,
-    private val options: SchemaParserOptions
+    private val options: SchemaParserOptions,
 ) : DataFetcher<Any> {
 
     private val resolverMethod = method
@@ -238,11 +244,12 @@ internal open class MethodFieldResolverDataFetcher(
     }
 }
 
+// TODO use graphql.schema.LightDataFetcher
 internal class TrivialMethodFieldResolverDataFetcher(
     sourceResolver: SourceResolver,
     method: Method,
     args: List<ArgumentPlaceholder>,
-    options: SchemaParserOptions
+    options: SchemaParserOptions,
 ) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options),
     TrivialDataFetcher<Any> // just to mark it for tracing and optimizations
 
@@ -256,7 +263,7 @@ private fun invoke(method: Method, instance: Any, args: Array<Any?>): Any? {
     try {
         return method.invoke(instance, *args)
     } catch (e: InvocationTargetException) {
-        throw  e.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
+        throw e.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
     }
 }
 

@@ -141,8 +141,8 @@ input ItemSearchInput {
 }
 
 input NewItemInput {
-    name: String! @deprecated
-    type: Type! @deprecated(reason: "This is a reason")
+    name: String @deprecated
+    type: Type @deprecated(reason: "This is a reason")
 }
 
 enum Type {
@@ -536,4 +536,3 @@ val uploadScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
             throw CoercingParseLiteralException("Must use variables to specify Upload values")
         }
     }).build()
-
