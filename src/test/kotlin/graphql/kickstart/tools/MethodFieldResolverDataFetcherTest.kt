@@ -13,6 +13,8 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
+import graphql.schema.GraphQLFieldDefinition
+import graphql.schema.GraphQLObjectType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -299,6 +301,12 @@ class MethodFieldResolverDataFetcherTest {
     private fun createEnvironment(source: Any = Object(), arguments: Map<String, Any> = emptyMap(), context: GraphQLContext? = null): DataFetchingEnvironment {
         return DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
             .source(source)
+            .fieldDefinition(
+                GraphQLFieldDefinition.newFieldDefinition()
+                    .name("ignored")
+                    .type(GraphQLObjectType.newObject().name("ignored").build())
+                    .build()
+            )
             .arguments(arguments)
             .graphQLContext(context)
             .build()

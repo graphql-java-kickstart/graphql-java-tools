@@ -29,13 +29,20 @@ internal abstract class FieldResolver(
     /**
      * Add source resolver depending on whether or not this is a resolver method
      */
-    protected fun getSourceResolver(): SourceResolver {
+    protected fun createSourceResolver(): SourceResolver {
         return if (this.search.source != null) {
-            { this.search.source }
+            SourceResolver { _, _ -> this.search.source }
         } else {
-            { environment ->
-                val source = environment.getSource<Any>()
-                    ?: throw ResolverError("Expected source object to not be null!")
+            SourceResolver { environment, sourceObject ->
+                val source = if (sourceObject != null) {
+                    // if source object is known, environment is null as an optimization (LightDataFetcher)
+                    sourceObject
+                } else {
+                    environment
+                        ?: throw ResolverError("Expected DataFetchingEnvironment to not be null!")
+                    environment.getSource<Any>()
+                        ?: throw ResolverError("Expected source object to not be null!")
+                }
 
                 if (!this.genericType.isAssignableFrom(source.javaClass)) {
                     throw ResolverError("Expected source object to be an instance of '${this.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
@@ -47,4 +54,7 @@ internal abstract class FieldResolver(
     }
 }
 
-internal typealias SourceResolver = (DataFetchingEnvironment) -> Any
+fun interface SourceResolver {
+
+    fun resolve(environment: DataFetchingEnvironment?, source: Any?): Any
+}

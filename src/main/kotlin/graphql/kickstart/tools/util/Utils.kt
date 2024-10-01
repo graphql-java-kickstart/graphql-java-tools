@@ -62,11 +62,11 @@ internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOption
     }
 
 /**
- * Simple heuristic to check is a method is a trivial data fetcher.
+ * Simple heuristic to check if a method is a trivial data fetcher.
  *
  * Requirements are:
- * prefixed with get
- * must have zero parameters
+ * - prefixed with get
+ * - must have zero parameters
  */
 internal fun isTrivialDataFetcher(method: Method): Boolean {
     return (method.parameterCount == 0
@@ -80,4 +80,3 @@ private fun isBooleanGetter(method: Method) = (method.name.startsWith("is")
     || method.returnType == Boolean::class.java)
 
 internal fun String.snakeToCamelCase(): String = split("_").joinToString(separator = "") { it.replaceFirstChar(Char::titlecase) }
-

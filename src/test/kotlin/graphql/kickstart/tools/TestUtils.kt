@@ -7,14 +7,16 @@ import graphql.GraphQL
 private val mapper = ObjectMapper()
 
 fun assertNoGraphQlErrors(gql: GraphQL, args: Map<String, Any> = mapOf(), context: Map<Any, Any> = mapOf(), closure: () -> String): Map<String, Any> {
-    val result = gql.execute(ExecutionInput.newExecutionInput()
-        .query(closure.invoke())
-        .graphQLContext(context)
-        .root(context)
-        .variables(args))
+    val result = gql.execute(
+        ExecutionInput.newExecutionInput()
+            .query(closure.invoke())
+            .graphQLContext(context)
+            .root(context)
+            .variables(args)
+    )
 
     if (result.errors.isNotEmpty()) {
-        throw AssertionError("GraphQL result contained errors!\n${result.errors.map { mapper.writeValueAsString(it) }.joinToString { "\n" }}")
+        throw AssertionError("GraphQL result contained errors!\n${result.errors.map { it.message }.joinToString("\n")}")
     }
 
     return result.getData() as Map<String, Any>

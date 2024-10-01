@@ -8,6 +8,9 @@ import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLFieldDefinition
+import graphql.schema.LightDataFetcher
+import java.util.function.Supplier
 
 /**
  * @author Nick Weedon
@@ -37,7 +40,7 @@ internal class MapFieldResolver(
     }
 
     override fun createDataFetcher(): DataFetcher<*> {
-        return MapFieldResolverDataFetcher(getSourceResolver(), field.name)
+        return MapFieldResolverDataFetcher(createSourceResolver(), field.name)
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
@@ -49,15 +52,18 @@ internal class MapFieldResolver(
 
 internal class MapFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    private val key: String
-) : DataFetcher<Any> {
+    private val key: String,
+) : LightDataFetcher<Any> {
 
-    override fun get(environment: DataFetchingEnvironment): Any? {
-        val resolvedSourceObject = sourceResolver(environment)
-        if (resolvedSourceObject is Map<*, *>) {
-            return resolvedSourceObject[key]
+    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+        if (sourceObject is Map<*, *>) {
+            return sourceObject[key]
         } else {
             throw RuntimeException("MapFieldResolver attempt to fetch a field from an object instance that was not a map")
         }
+    }
+
+    override fun get(environment: DataFetchingEnvironment): Any? {
+        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null), { environment })
     }
 }
