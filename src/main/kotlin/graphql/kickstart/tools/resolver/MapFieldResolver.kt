@@ -55,7 +55,7 @@ internal class MapFieldResolverDataFetcher(
     private val key: String,
 ) : LightDataFetcher<Any> {
 
-    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         if (sourceObject is Map<*, *>) {
             return sourceObject[key]
         } else {

@@ -6,7 +6,6 @@ import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
-import graphql.kickstart.tools.util.isTrivialDataFetcher
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.DataFetcher
@@ -37,13 +36,9 @@ internal class MethodFieldResolver(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val additionalLastArgument =
-        try {
-            (method.kotlinFunction?.valueParameters?.size
-                ?: method.parameterCount) == (field.inputValueDefinitions.size + getIndexOffset() + 1)
-        } catch (e: InternalError) {
-            method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
-        }
+    private val isSuspendFunction = method.isSuspendFunction()
+    private val numberOfParameters = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+    private val hasAdditionalParameter = numberOfParameters == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
         val args = mutableListOf<ArgumentPlaceholder>()
@@ -100,7 +95,7 @@ internal class MethodFieldResolver(
         }
 
         // Add DataFetchingEnvironment/Context argument
-        if (this.additionalLastArgument) {
+        if (this.hasAdditionalParameter) {
             when (this.method.parameterTypes.last()) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
                 options.contextClass -> args.add { environment ->
@@ -123,10 +118,12 @@ internal class MethodFieldResolver(
             }
         }
 
-        return if (args.isEmpty() && isTrivialDataFetcher(this.method)) {
-            LightMethodFieldResolverDataFetcher(createSourceResolver(), this.method, options)
+        return if (numberOfParameters > 0 || isSuspendFunction) {
+            // requires arguments and environment or is a suspend function
+            MethodFieldResolverDataFetcher(createSourceResolver(), this.method, args, options, isSuspendFunction)
         } else {
-            MethodFieldResolverDataFetcher(createSourceResolver(), this.method, args, options)
+            // if there are no parameters an optimized version of the data fetcher can be used
+            LightMethodFieldResolverDataFetcher(createSourceResolver(), this.method, options)
         }
     }
 
@@ -196,9 +193,8 @@ internal class MethodFieldResolverDataFetcher(
     private val method: Method,
     private val args: List<ArgumentPlaceholder>,
     private val options: SchemaParserOptions,
+    private val isSuspendFunction: Boolean
 ) : DataFetcher<Any> {
-
-    private val isSuspendFunction = method.isSuspendFunction()
 
     override fun get(environment: DataFetchingEnvironment): Any? {
         val source = sourceResolver.resolve(environment, null)
@@ -223,8 +219,7 @@ internal class MethodFieldResolverDataFetcher(
 }
 
 /**
- * Similar to [MethodFieldResolverDataFetcher] but for light data fetchers which do not require the environment to be supplied unless suspend functions or
- * generic wrappers are used.
+ * Similar to [MethodFieldResolverDataFetcher] but for light data fetchers which do not require the environment to be supplied unless generic wrappers are used.
  */
 internal class LightMethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
@@ -232,18 +227,10 @@ internal class LightMethodFieldResolverDataFetcher(
     private val options: SchemaParserOptions,
 ) : LightDataFetcher<Any?> {
 
-    private val isSuspendFunction = method.isSuspendFunction()
-
-    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         val source = sourceResolver.resolve(null, sourceObject)
 
-        return if (isSuspendFunction) {
-            environmentSupplier.get().coroutineScope().future(options.coroutineContextProvider.provide()) {
-                invokeSuspend(source, method, emptyArray())?.transformWithGenericWrapper(options.genericWrappers, environmentSupplier)
-            }
-        } else {
-            invoke(method, source, emptyArray())?.transformWithGenericWrapper(options.genericWrappers, environmentSupplier)
-        }
+        return invoke(method, source, emptyArray())?.transformWithGenericWrapper(options.genericWrappers, environmentSupplier)
     }
 
     override fun get(environment: DataFetchingEnvironment): Any? {

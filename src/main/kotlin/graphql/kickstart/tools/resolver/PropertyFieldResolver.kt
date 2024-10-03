@@ -44,7 +44,7 @@ internal class PropertyFieldResolverDataFetcher(
     private val field: Field,
 ) : LightDataFetcher<Any> {
 
-    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         return field.get(sourceResolver.resolve(null, sourceObject))
     }
 
