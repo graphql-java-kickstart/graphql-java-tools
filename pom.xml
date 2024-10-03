@@ -4,7 +4,7 @@
 
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>14.1.0-LOCAL</version>
+    <version>14.2.0-LOCAL</version>
     <packaging>jar</packaging>
 
     <name>GraphQL Java Tools</name>
@@ -240,6 +240,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
+                <!-- keep at 3.4.0 for JitPack to work -->
                 <version>3.4.0</version>
                 <executions>
                     <execution>
@@ -306,7 +307,6 @@
                     <includes>
                         <include>**/*Test.*</include>
                     </includes>
-                    <!--                    or solve this differently? tests fail-->
                     <argLine>--add-reads kotlin.stdlib=kotlinx.coroutines.core</argLine>
                 </configuration>
             </plugin>
