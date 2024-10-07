@@ -52,7 +52,7 @@ internal class MapFieldResolver(
 
 internal class MapFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    private val key: String,
+    private val key: String
 ) : LightDataFetcher<Any> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
@@ -64,6 +64,6 @@ internal class MapFieldResolverDataFetcher(
     }
 
     override fun get(environment: DataFetchingEnvironment): Any? {
-        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null), { environment })
+        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null)) { environment }
     }
 }

@@ -31,7 +31,7 @@ internal class MethodFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    val method: Method,
+    val method: Method
 ) : FieldResolver(field, search, options, search.type) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -202,10 +202,10 @@ internal class MethodFieldResolverDataFetcher(
 
         return if (isSuspendFunction) {
             environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
-                invokeSuspend(source, method, args)?.transformWithGenericWrapper(options.genericWrappers, { environment })
+                invokeSuspend(source, method, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
             }
         } else {
-            invoke(method, source, args)?.transformWithGenericWrapper(options.genericWrappers, { environment })
+            invoke(method, source, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
         }
     }
 
@@ -224,7 +224,7 @@ internal class MethodFieldResolverDataFetcher(
 internal class LightMethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val method: Method,
-    private val options: SchemaParserOptions,
+    private val options: SchemaParserOptions
 ) : LightDataFetcher<Any?> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
@@ -234,7 +234,7 @@ internal class LightMethodFieldResolverDataFetcher(
     }
 
     override fun get(environment: DataFetchingEnvironment): Any? {
-        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null), { environment })
+        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null)) { environment }
     }
 
     /**
@@ -249,7 +249,7 @@ internal class LightMethodFieldResolverDataFetcher(
 private fun Any.transformWithGenericWrapper(
     genericWrappers: List<GenericWrapper>,
     environmentSupplier: Supplier<DataFetchingEnvironment>
-): Any? {
+): Any {
     return genericWrappers
         .asSequence()
         .filter { it.type.isInstance(this) }
