@@ -307,6 +307,7 @@
                     <includes>
                         <include>**/*Test.*</include>
                     </includes>
+                    <!-- instruct kotlin std to read the coroutines module -->
                     <argLine>--add-reads kotlin.stdlib=kotlinx.coroutines.core</argLine>
                 </configuration>
             </plugin>
