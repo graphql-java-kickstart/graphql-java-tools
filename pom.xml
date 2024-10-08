@@ -240,7 +240,6 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
-                <!-- keep at 3.4.0 for JitPack to work -->
                 <version>3.6.0</version>
                 <executions>
                     <execution>
