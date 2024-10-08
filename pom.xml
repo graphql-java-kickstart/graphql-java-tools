@@ -14,7 +14,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>11</java.version>
-        <kotlin.version>1.8.21</kotlin.version>
+        <kotlin.version>2.0.20</kotlin.version>
         <kotlin-coroutines.version>1.7.3</kotlin-coroutines.version>
         <jackson.version>2.16.0</jackson.version>
         <graphql-java.version>21.3</graphql-java.version>
