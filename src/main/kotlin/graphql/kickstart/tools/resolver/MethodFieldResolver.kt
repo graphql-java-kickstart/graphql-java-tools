@@ -227,7 +227,7 @@ internal class LightMethodFieldResolverDataFetcher(
     private val options: SchemaParserOptions
 ) : LightDataFetcher<Any?> {
 
-    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+    override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         val source = sourceResolver.resolve(null, sourceObject)
 
         return invoke(method, source, emptyArray())?.transformWithGenericWrapper(options.genericWrappers, environmentSupplier)
