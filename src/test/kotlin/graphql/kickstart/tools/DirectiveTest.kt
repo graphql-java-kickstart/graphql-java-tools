@@ -10,6 +10,7 @@ import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.junit.Test
 
 class DirectiveTest {
+
     @Test
     fun `should apply @uppercase directive on field`() {
         val schema = SchemaParser.newParser()

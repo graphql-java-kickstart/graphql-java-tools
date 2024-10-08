@@ -14,10 +14,10 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>11</java.version>
-        <kotlin.version>1.8.21</kotlin.version>
-        <kotlin-coroutines.version>1.7.3</kotlin-coroutines.version>
-        <jackson.version>2.16.0</jackson.version>
-        <graphql-java.version>21.3</graphql-java.version>
+        <kotlin.version>2.0.20</kotlin.version>
+        <kotlin-coroutines.version>1.9.0</kotlin-coroutines.version>
+        <jackson.version>2.17.0</jackson.version>
+        <graphql-java.version>22.3</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
         <maven.compiler.source>${java.version}</maven.compiler.source>
@@ -83,7 +83,7 @@
                 <version>3.29.2-GA</version>
                 <scope>provided</scope>
             </dependency>
-            <!-- Optional for supporting spring proxies -->
+            <!-- Optional for supporting Spring proxies -->
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-aop</artifactId>
@@ -91,7 +91,7 @@
                 <scope>provided</scope>
             </dependency>
 
-            <!-- Test  -->
+            <!-- Test -->
             <dependency>
                 <groupId>cglib</groupId>
                 <artifactId>cglib-nodep</artifactId>
@@ -134,8 +134,8 @@
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib</artifactId>
-            <!--TODO remove this after upgrading kotlin-->
             <exclusions>
+                <!-- kotlinx-coroutines-core-jvm brings more recent version -->
                 <exclusion>
                     <groupId>org.jetbrains</groupId>
                     <artifactId>annotations</artifactId>
@@ -240,7 +240,8 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.5.0</version>
+                <!-- keep at 3.4.0 for JitPack to work -->
+                <version>3.4.0</version>
                 <executions>
                     <execution>
                         <id>add-test-source</id>
