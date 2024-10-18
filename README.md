@@ -49,7 +49,7 @@ Add the dependency:
 
 ## Documentation
 
-Take a look at our [documentation](https://www.graphql-java-kickstart.com/tools/) for more details.
+Take a look at our [documentation](https://graphql-java-kickstart.github.io/tools/) for more details.
 
 ## Why GraphQL Java Tools?
 
