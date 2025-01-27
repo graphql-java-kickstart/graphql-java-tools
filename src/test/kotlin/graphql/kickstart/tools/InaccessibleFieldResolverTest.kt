@@ -4,7 +4,6 @@ import graphql.ExceptionWhileDataFetching
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import graphql.schema.GraphQLSchema
-import org.junit.Ignore
 import org.junit.Test
 import java.util.*
 
@@ -16,7 +15,6 @@ import java.util.*
 class InaccessibleFieldResolverTest {
 
     @Test
-    @Ignore // TODO enable test after upgrading to 17
     fun `private field from closed module is not accessible`() {
         val schema: GraphQLSchema = SchemaParser.newParser()
             .schemaString(

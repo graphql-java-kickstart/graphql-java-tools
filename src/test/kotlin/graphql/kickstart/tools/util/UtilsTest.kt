@@ -1,8 +1,5 @@
 package graphql.kickstart.tools.util
 
-import org.junit.Assert
-import org.junit.Test
-
 class UtilsTest {
 
     @Suppress("unused")
@@ -25,20 +22,5 @@ class UtilsTest {
 
     private class UtilsTestTrivialDataFetcherBean {
         val isBooleanPrimitive = false
-    }
-
-    @Test
-    fun isTrivialDataFetcher() {
-        val clazz = Bean::class.java
-
-        Assert.assertTrue(isTrivialDataFetcher(clazz.getMethod("getterValid")))
-        Assert.assertFalse(isTrivialDataFetcher(clazz.getMethod("getterWithArgument", String::class.java)))
-        Assert.assertFalse(isTrivialDataFetcher(clazz.getMethod("notAGetter")))
-
-        Assert.assertFalse(isTrivialDataFetcher(clazz.getMethod("isString")))
-        Assert.assertTrue(isTrivialDataFetcher(clazz.getMethod("isJavaBoolean")))
-        Assert.assertTrue(isTrivialDataFetcher(clazz.getMethod("isKotlinBoolean")))
-
-        Assert.assertTrue(isTrivialDataFetcher(UtilsTestTrivialDataFetcherBean::class.java.getMethod("isBooleanPrimitive")))
     }
 }

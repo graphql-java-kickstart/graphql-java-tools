@@ -15,7 +15,7 @@
       "matchPackagePrefixes": [
         "org.antlr"
       ],
-      "allowedVersions": "<=4.9.3"
+      "allowedVersions": "<=4.11.1"
     },
     {
       "description": "Logback 1.4 requires Java 11",

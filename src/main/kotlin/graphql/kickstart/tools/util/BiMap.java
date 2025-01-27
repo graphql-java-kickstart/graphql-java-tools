@@ -7,7 +7,7 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-@SuppressWarnings({"NullableProblems", "SuspiciousMethodCalls"})
+@SuppressWarnings("SuspiciousMethodCalls")
 public class BiMap<K, V> implements Map<K, V> {
 
     private final Map<K, V> delegate;

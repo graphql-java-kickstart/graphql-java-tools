@@ -2,22 +2,23 @@ package graphql.kickstart.tools.resolver
 
 import com.fasterxml.jackson.core.type.TypeReference
 import graphql.GraphQLContext
-import graphql.TrivialDataFetcher
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
-import graphql.kickstart.tools.util.isTrivialDataFetcher
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLTypeUtil.isScalar
+import graphql.schema.LightDataFetcher
 import kotlinx.coroutines.future.future
 import org.slf4j.LoggerFactory
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.*
+import java.util.function.Supplier
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
@@ -35,13 +36,9 @@ internal class MethodFieldResolver(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val additionalLastArgument =
-        try {
-            (method.kotlinFunction?.valueParameters?.size
-                ?: method.parameterCount) == (field.inputValueDefinitions.size + getIndexOffset() + 1)
-        } catch (e: InternalError) {
-            method.parameterCount == (field.inputValueDefinitions.size + getIndexOffset() + 1)
-        }
+    private val isSuspendFunction = method.isSuspendFunction()
+    private val numberOfParameters = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+    private val hasAdditionalParameter = numberOfParameters == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
         val args = mutableListOf<ArgumentPlaceholder>()
@@ -53,6 +50,7 @@ internal class MethodFieldResolver(
 
             args.add { environment ->
                 val source = environment.getSource<Any>()
+                    ?: throw ResolverError("Expected source object to not be null!")
                 if (!expectedType.isAssignableFrom(source.javaClass)) {
                     throw ResolverError("Source type (${source.javaClass.name}) is not expected type (${expectedType.name})!")
                 }
@@ -97,7 +95,7 @@ internal class MethodFieldResolver(
         }
 
         // Add DataFetchingEnvironment/Context argument
-        if (this.additionalLastArgument) {
+        if (this.hasAdditionalParameter) {
             when (this.method.parameterTypes.last()) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
                 options.contextClass -> args.add { environment ->
@@ -114,15 +112,18 @@ internal class MethodFieldResolver(
                         environment.getContext() // TODO: remove deprecated use in next major release
                     }
                 }
+
                 GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
                 else -> args.add { environment -> environment }
             }
         }
 
-        return if (args.isEmpty() && isTrivialDataFetcher(this.method)) {
-            TrivialMethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+        return if (numberOfParameters > 0 || isSuspendFunction) {
+            // requires arguments and environment or is a suspend function
+            MethodFieldResolverDataFetcher(createSourceResolver(), this.method, args, options, isSuspendFunction)
         } else {
-            MethodFieldResolverDataFetcher(getSourceResolver(), this.method, args, options)
+            // if there are no parameters an optimized version of the data fetcher can be used
+            LightMethodFieldResolverDataFetcher(createSourceResolver(), this.method, options)
         }
     }
 
@@ -139,19 +140,23 @@ internal class MethodFieldResolver(
         return when (type) {
             is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
                 && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
+
             is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && type.name != "ID" }
                 ?: false
+
             is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)
             else -> false
         }
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val unwrappedGenericType = genericType.unwrapGenericType(try {
-            method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
-        } catch (e: InternalError) {
-            method.genericReturnType
-        })
+        val unwrappedGenericType = genericType.unwrapGenericType(
+            try {
+                method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
+            } catch (e: InternalError) {
+                method.genericReturnType
+            }
+        )
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
@@ -183,68 +188,92 @@ internal class MethodFieldResolver(
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-internal open class MethodFieldResolverDataFetcher(
+internal class MethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    method: Method,
+    private val method: Method,
     private val args: List<ArgumentPlaceholder>,
-    private val options: SchemaParserOptions
+    private val options: SchemaParserOptions,
+    private val isSuspendFunction: Boolean
 ) : DataFetcher<Any> {
 
-    private val resolverMethod = method
-    private val isSuspendFunction = try {
-        method.kotlinFunction?.isSuspend == true
-    } catch (e: InternalError) {
-        false
-    }
-
-    private class CompareGenericWrappers {
-        companion object : Comparator<GenericWrapper> {
-            override fun compare(w1: GenericWrapper, w2: GenericWrapper): Int = when {
-                w1.type.isAssignableFrom(w2.type) -> 1
-                else -> -1
-            }
-        }
-    }
-
     override fun get(environment: DataFetchingEnvironment): Any? {
-        val source = sourceResolver(environment)
+        val source = sourceResolver.resolve(environment, null)
         val args = this.args.map { it(environment) }.toTypedArray()
 
         return if (isSuspendFunction) {
             environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
-                invokeSuspend(source, resolverMethod, args)?.transformWithGenericWrapper(environment)
+                invokeSuspend(source, method, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
             }
         } else {
-            invoke(resolverMethod, source, args)?.transformWithGenericWrapper(environment)
+            invoke(method, source, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
         }
     }
 
-    private fun Any.transformWithGenericWrapper(environment: DataFetchingEnvironment): Any? {
-        return options.genericWrappers
-            .asSequence()
-            .filter { it.type.isInstance(this) }
-            .sortedWith(CompareGenericWrappers)
-            .firstOrNull()
-            ?.transformer?.invoke(this, environment) ?: this
-    }
-
     /**
-     * Function that returns the object used to fetch the data.
-     * It can be a DataFetcher or an entity.
+     * Function that returns the object used to fetch the data. It can be a DataFetcher or an entity.
      */
     @Suppress("unused")
-    open fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
-        return sourceResolver(environment)
+    fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
+        return sourceResolver.resolve(environment, null)
     }
 }
 
-internal class TrivialMethodFieldResolverDataFetcher(
-    sourceResolver: SourceResolver,
-    method: Method,
-    args: List<ArgumentPlaceholder>,
-    options: SchemaParserOptions
-) : MethodFieldResolverDataFetcher(sourceResolver, method, args, options),
-    TrivialDataFetcher<Any> // just to mark it for tracing and optimizations
+/**
+ * Similar to [MethodFieldResolverDataFetcher] but for light data fetchers which do not require the environment to be supplied unless generic wrappers are used.
+ */
+internal class LightMethodFieldResolverDataFetcher(
+    private val sourceResolver: SourceResolver,
+    private val method: Method,
+    private val options: SchemaParserOptions
+) : LightDataFetcher<Any?> {
+
+    override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+        val source = sourceResolver.resolve(null, sourceObject)
+
+        return invoke(method, source, emptyArray())?.transformWithGenericWrapper(options.genericWrappers, environmentSupplier)
+    }
+
+    override fun get(environment: DataFetchingEnvironment): Any? {
+        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null)) { environment }
+    }
+
+    /**
+     * Function that returns the object used to fetch the data. It can be a DataFetcher or an entity.
+     */
+    @Suppress("unused")
+    fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
+        return sourceResolver.resolve(environment, null)
+    }
+}
+
+private fun Any.transformWithGenericWrapper(
+    genericWrappers: List<GenericWrapper>,
+    environmentSupplier: Supplier<DataFetchingEnvironment>
+): Any {
+    return genericWrappers
+        .asSequence()
+        .filter { it.type.isInstance(this) }
+        .sortedWith(CompareGenericWrappers)
+        .firstOrNull()
+        ?.transformer?.invoke(this, environmentSupplier.get()) ?: this
+}
+
+private class CompareGenericWrappers {
+    companion object : Comparator<GenericWrapper> {
+        override fun compare(w1: GenericWrapper, w2: GenericWrapper): Int = when {
+            w1.type.isAssignableFrom(w2.type) -> 1
+            else -> -1
+        }
+    }
+}
+
+private fun Method.isSuspendFunction(): Boolean {
+    return try {
+        this.kotlinFunction?.isSuspend == true
+    } catch (e: InternalError) {
+        false
+    }
+}
 
 private suspend inline fun invokeSuspend(target: Any, resolverMethod: Method, args: Array<Any?>): Any? {
     return suspendCoroutineUninterceptedOrReturn { continuation ->
@@ -256,7 +285,7 @@ private fun invoke(method: Method, instance: Any, args: Array<Any?>): Any? {
     try {
         return method.invoke(instance, *args)
     } catch (e: InvocationTargetException) {
-        throw  e.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
+        throw e.cause ?: RuntimeException("Unknown error occurred while invoking resolver method")
     }
 }
 

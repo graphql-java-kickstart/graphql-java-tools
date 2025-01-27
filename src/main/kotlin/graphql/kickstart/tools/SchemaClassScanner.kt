@@ -102,6 +102,8 @@ internal class SchemaClassScanner(
             } while (scanQueue())
         }
 
+        handleDirectives()
+
         return validateAndCreateResult(rootTypeHolder)
     }
 
@@ -132,6 +134,31 @@ internal class SchemaClassScanner(
         unvalidatedTypes.add(rootType.type)
         scanInterfacesOfType(rootType.type)
         scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
+    }
+
+
+    private fun handleDirectives() {
+        for (directive in directiveDefinitions) {
+            for (input in directive.inputValueDefinitions) {
+                handleDirectiveInput(input.type)
+            }
+        }
+    }
+
+    private fun handleDirectiveInput(inputType: Type<*>) {
+        val inputTypeName = (inputType.unwrap() as TypeName).name
+        val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[inputTypeName]
+            ?: definitionsByName[inputTypeName]
+            ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
+        when (typeDefinition) {
+            is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
+            is EnumTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
+                "Enum type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
+            }
+            is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
+                "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
+            }
+        }
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
@@ -186,9 +213,9 @@ internal class SchemaClassScanner(
                 log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
             }
 
-        val fieldResolvers = fieldResolversByType.flatMap { it.value.map { it.value } }
-        val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<NormalResolverInfo>()
-        val observedMultiResolverInfos = fieldResolvers.map { it.resolverInfo }.distinct().filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }
+        val fieldResolvers = fieldResolversByType.flatMap { entry -> entry.value.map { it.value } }
+        val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.filterIsInstance<NormalResolverInfo>().toSet()
+        val observedMultiResolverInfos = fieldResolvers.map { it.resolverInfo }.filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }.toSet()
 
         (resolverInfos - observedNormalResolverInfos - observedMultiResolverInfos).forEach { resolverInfo ->
             log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolverInfo.resolver}")
@@ -283,16 +310,9 @@ internal class SchemaClassScanner(
         }
     }
 
-    private fun handleFoundType(match: TypeClassMatcher.Match) {
-        when (match) {
-            is TypeClassMatcher.ScalarMatch -> {
-                handleFoundScalarType(match.type)
-            }
-
-            is TypeClassMatcher.ValidMatch -> {
-                handleFoundType(match.type, match.javaType, match.reference)
-            }
-        }
+    private fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {
+        is TypeClassMatcher.ScalarMatch -> handleFoundScalarType(match.type)
+        is TypeClassMatcher.ValidMatch -> handleFoundType(match.type, match.javaType, match.reference)
     }
 
     private fun handleFoundScalarType(type: ScalarTypeDefinition) {
@@ -395,12 +415,10 @@ internal class SchemaClassScanner(
         val filteredMethods = methods.filter {
             it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
         }.sortedBy { it.name.length }
-        return filteredMethods.find {
-            !it.isSynthetic
-        }?.genericReturnType ?: filteredMethods.firstOrNull(
-        )?.genericReturnType ?: clazz.fields.find {
-            it.name == name
-        }?.genericType
+
+        return filteredMethods.find { !it.isSynthetic }?.genericReturnType
+            ?: filteredMethods.firstOrNull()?.genericReturnType
+            ?: clazz.fields.find { it.name == name }?.genericType
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)

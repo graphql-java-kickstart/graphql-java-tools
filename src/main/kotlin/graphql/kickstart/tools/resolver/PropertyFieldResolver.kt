@@ -6,7 +6,10 @@ import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLFieldDefinition
+import graphql.schema.LightDataFetcher
 import java.lang.reflect.Field
+import java.util.function.Supplier
 
 /**
  * @author Andrew Potter
@@ -19,7 +22,7 @@ internal class PropertyFieldResolver(
 ) : FieldResolver(field, search, options, property.declaringClass) {
 
     override fun createDataFetcher(): DataFetcher<*> {
-        return PropertyFieldResolverDataFetcher(getSourceResolver(), property)
+        return PropertyFieldResolverDataFetcher(createSourceResolver(), property)
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
@@ -28,7 +31,8 @@ internal class PropertyFieldResolver(
                 field.type,
                 property.genericType,
                 genericType,
-                SchemaClassScanner.FieldTypeReference(property.toString()))
+                SchemaClassScanner.FieldTypeReference(property.toString())
+            )
         )
     }
 
@@ -38,9 +42,13 @@ internal class PropertyFieldResolver(
 internal class PropertyFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val field: Field
-) : DataFetcher<Any> {
+) : LightDataFetcher<Any> {
+
+    override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+        return field.get(sourceResolver.resolve(null, sourceObject))
+    }
 
     override fun get(environment: DataFetchingEnvironment): Any? {
-        return field.get(sourceResolver(environment))
+        return get(environment.fieldDefinition, sourceResolver.resolve(environment, null)) { environment }
     }
 }

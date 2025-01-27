@@ -1,10 +1,6 @@
 package graphql.kickstart.tools.resolver
 
 import graphql.kickstart.tools.*
-import graphql.kickstart.tools.GenericType
-import graphql.kickstart.tools.ResolverError
-import graphql.kickstart.tools.ResolverInfo
-import graphql.kickstart.tools.TypeClassMatcher
 import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
@@ -29,12 +25,15 @@ internal abstract class FieldResolver(
     /**
      * Add source resolver depending on whether or not this is a resolver method
      */
-    protected fun getSourceResolver(): SourceResolver {
+    protected fun createSourceResolver(): SourceResolver {
         return if (this.search.source != null) {
-            { this.search.source }
+            SourceResolver { _, _ -> this.search.source }
         } else {
-            { environment ->
-                val source = environment.getSource<Any>()
+            SourceResolver { environment, sourceObject ->
+                // if source object is known, environment is null as an optimization (LightDataFetcher)
+                val source = sourceObject
+                    ?: environment?.getSource<Any>()
+                    ?: throw ResolverError("Expected DataFetchingEnvironment and source object to not be null!")
 
                 if (!this.genericType.isAssignableFrom(source.javaClass)) {
                     throw ResolverError("Expected source object to be an instance of '${this.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
@@ -46,4 +45,7 @@ internal abstract class FieldResolver(
     }
 }
 
-internal typealias SourceResolver = (DataFetchingEnvironment) -> Any
+fun interface SourceResolver {
+
+    fun resolve(environment: DataFetchingEnvironment?, source: Any?): Any
+}
