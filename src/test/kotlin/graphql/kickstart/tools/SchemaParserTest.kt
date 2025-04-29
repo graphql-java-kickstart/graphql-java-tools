@@ -10,6 +10,7 @@ import org.junit.Before
 import org.junit.Test
 import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
+import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.Future
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -665,6 +666,10 @@ class SchemaParserTest {
 
     @Test
     fun `parser should verify subscription resolver return type`() {
+        class Subscription : GraphQLSubscriptionResolver {
+            fun onItemCreated(env: DataFetchingEnvironment) = env.hashCode()
+        }
+
         val error = assertThrows(FieldResolverError::class.java) {
             SchemaParser.newParser()
                 .schemaString(
@@ -689,9 +694,9 @@ class SchemaParserTest {
         val expected = """
             No method or field found as defined in schema <unknown>:3 with any of the following signatures (with or without one of [interface graphql.schema.DataFetchingEnvironment, class graphql.GraphQLContext] as the last argument), in priority order:
 
-              graphql.kickstart.tools.SchemaParserTest${"$"}Subscription.onItemCreated()
-              graphql.kickstart.tools.SchemaParserTest${"$"}Subscription.getOnItemCreated()
-              graphql.kickstart.tools.SchemaParserTest${"$"}Subscription.onItemCreated
+              graphql.kickstart.tools.SchemaParserTest${"$"}parser should verify subscription resolver return type${"$"}Subscription.onItemCreated()
+              graphql.kickstart.tools.SchemaParserTest${"$"}parser should verify subscription resolver return type${"$"}Subscription.getOnItemCreated()
+              graphql.kickstart.tools.SchemaParserTest${"$"}parser should verify subscription resolver return type${"$"}Subscription.onItemCreated
 
             Note that a Subscription data fetcher must return a Publisher of events
         """.trimIndent()
@@ -699,7 +704,43 @@ class SchemaParserTest {
         assertEquals(error.message, expected)
     }
 
-    class Subscription : GraphQLSubscriptionResolver {
-        fun onItemCreated(env: DataFetchingEnvironment) = env.hashCode()
+    @Test
+    fun `parser should verify subscription resolver generic future return type`() {
+        class Subscription : GraphQLSubscriptionResolver {
+            fun onItemCreated(env: DataFetchingEnvironment) = completedFuture(env.hashCode())
+        }
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Subscription {
+                        onItemCreated: Int!
+                    }
+
+                    type Query {
+                        test: String
+                    }
+                    """
+                )
+                .resolvers(
+                    Subscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        }
+
+        val expected = """
+            No method or field found as defined in schema <unknown>:3 with any of the following signatures (with or without one of [interface graphql.schema.DataFetchingEnvironment, class graphql.GraphQLContext] as the last argument), in priority order:
+
+              graphql.kickstart.tools.SchemaParserTest${"$"}parser should verify subscription resolver generic future return type${"$"}Subscription.onItemCreated()
+              graphql.kickstart.tools.SchemaParserTest${"$"}parser should verify subscription resolver generic future return type${"$"}Subscription.getOnItemCreated()
+              graphql.kickstart.tools.SchemaParserTest${"$"}parser should verify subscription resolver generic future return type${"$"}Subscription.onItemCreated
+
+            Note that a Subscription data fetcher must return a Publisher of events
+        """.trimIndent()
+
+        assertEquals(error.message, expected)
     }
 }

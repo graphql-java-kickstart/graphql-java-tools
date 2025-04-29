@@ -123,6 +123,7 @@ type Mutation {
 
 type Subscription {
     onItemCreated: Item!
+    onItemCreatedFuture: Item!
     onItemCreatedCoroutineChannel: Item!
     onItemCreatedCoroutineChannelAndSuspendFunction: Item!
 }
@@ -373,13 +374,20 @@ class Subscription : GraphQLSubscriptionResolver {
     fun onItemCreated(env: DataFetchingEnvironment) =
         Publisher<Item> { subscriber ->
             subscriber.onNext(env.graphQlContext["newItem"])
-//            subscriber.onComplete()
         }
 
     fun onItemCreatedCoroutineChannel(env: DataFetchingEnvironment): ReceiveChannel<Item> {
         val channel = Channel<Item>(1)
         channel.trySend(env.graphQlContext["newItem"])
         return channel
+    }
+
+    fun onItemCreatedFuture(env: DataFetchingEnvironment): CompletableFuture<Publisher<Item>> {
+        return CompletableFuture.supplyAsync {
+            Publisher<Item> { subscriber ->
+                subscriber.onNext(env.graphQlContext["newItem"])
+            }
+        }
     }
 
     suspend fun onItemCreatedCoroutineChannelAndSuspendFunction(env: DataFetchingEnvironment): ReceiveChannel<Item> {
