@@ -1,6 +1,5 @@
 package graphql.kickstart.tools
 
-import com.fasterxml.jackson.module.kotlin.jacksonMapperBuilder
 import graphql.*
 import graphql.execution.AsyncExecutionStrategy
 import graphql.schema.*
@@ -96,6 +95,44 @@ class EndToEndTest {
 
         assert(result.errors.isEmpty())
         assertEquals(returnedItem?.get("onItemCreated"), mapOf("id" to 1))
+    }
+    
+    @Test
+    fun `generated schema should execute the subscription query future`() {
+        val newItem = Item(1, "item", Type.TYPE_1, UUID.randomUUID(), listOf())
+        var returnedItem: Map<String, Map<String, Any>>? = null
+
+        val closure = {
+            """
+            subscription {
+                onItemCreatedFuture {
+                    id
+                }
+            }
+            """
+        }
+
+        val result = gql.execute(ExecutionInput.newExecutionInput()
+            .query(closure.invoke())
+            .graphQLContext(mapOf("newItem" to newItem))
+            .variables(mapOf()))
+
+        val data = result.getData() as Publisher<ExecutionResult>
+        val latch = CountDownLatch(1)
+        data.subscribe(object : Subscriber<ExecutionResult> {
+            override fun onNext(item: ExecutionResult?) {
+                returnedItem = item?.getData()
+                latch.countDown()
+            }
+
+            override fun onError(throwable: Throwable?) {}
+            override fun onComplete() {}
+            override fun onSubscribe(p0: Subscription?) {}
+        })
+        latch.await(3, TimeUnit.SECONDS)
+
+        assert(result.errors.isEmpty())
+        assertEquals(returnedItem?.get("onItemCreatedFuture"), mapOf("id" to 1))
     }
 
     @Test

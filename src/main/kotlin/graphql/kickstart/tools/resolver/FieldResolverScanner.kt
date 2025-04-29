@@ -15,10 +15,8 @@ import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
 import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
-import java.lang.reflect.AccessibleObject
-import java.lang.reflect.Method
-import java.lang.reflect.Modifier
-import java.lang.reflect.Type
+import java.lang.reflect.*
+import java.util.concurrent.CompletableFuture
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
@@ -131,7 +129,17 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun resolverMethodReturnsPublisher(method: Method) =
-        method.returnType.isAssignableFrom(Publisher::class.java) || receiveChannelToPublisherWrapper(method)
+        method.returnType.isAssignableFrom(Publisher::class.java)
+            || resolverMethodReturnsPublisherFuture(method)
+            || receiveChannelToPublisherWrapper(method)
+
+    private fun resolverMethodReturnsPublisherFuture(method: Method) =
+        method.returnType.isAssignableFrom(CompletableFuture::class.java)
+            && method.genericReturnType is ParameterizedType
+            && (method.genericReturnType as ParameterizedType).actualTypeArguments
+            .any {
+                it is ParameterizedType && it.rawType == Publisher::class.java
+            }
 
     private fun receiveChannelToPublisherWrapper(method: Method) =
         method.returnType.isAssignableFrom(ReceiveChannel::class.java)
