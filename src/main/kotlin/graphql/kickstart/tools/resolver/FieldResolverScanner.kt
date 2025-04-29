@@ -138,7 +138,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             && method.genericReturnType is ParameterizedType
             && (method.genericReturnType as ParameterizedType).actualTypeArguments
             .any {
-                it is ParameterizedType && it.rawType == Publisher::class.java
+                it is ParameterizedType && it.unwrap().isAssignableFrom(Publisher::class.java)
             }
 
     private fun receiveChannelToPublisherWrapper(method: Method) =
