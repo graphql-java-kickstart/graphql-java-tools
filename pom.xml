@@ -17,7 +17,7 @@
         <kotlin.version>2.1.20</kotlin.version>
         <kotlin-coroutines.version>1.10.2</kotlin-coroutines.version>
         <jackson.version>2.19.0</jackson.version>
-        <graphql-java.version>22.3</graphql-java.version>
+        <graphql-java.version>23.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
         <maven.compiler.source>${java.version}</maven.compiler.source>
