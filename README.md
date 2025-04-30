@@ -21,12 +21,12 @@ Are you interested in improving our documentation, working on the codebase, revi
 ### Using Gradle
 Set the Kotlin version in your `gradle.properties`:
 ```
-kotlin.version=2.0.20
+kotlin.version=2.1.20
 ```
 
 Add the dependency:
 ```groovy
-compile 'com.graphql-java-kickstart:graphql-java-tools:14.0.0'
+compile 'com.graphql-java-kickstart:graphql-java-tools:14.0.1'
 ```
 
 ### Using Maven
@@ -34,7 +34,7 @@ Set the Kotlin version in your `<properties>` section:
 ```xml
 
 <properties>
-    <kotlin.version>2.0.20</kotlin.version>
+    <kotlin.version>2.1.20</kotlin.version>
 </properties>
 ```
 
@@ -43,7 +43,7 @@ Add the dependency:
 <dependency>
     <groupId>com.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>14.0.0</version>
+    <version>14.0.1</version>
 </dependency>
 ```
 
@@ -65,4 +65,3 @@ A few libraries exist to ease the boilerplate pain, including [GraphQL-Java's bu
 ## Known Issues
 
 [Known issues are aggregated at the wiki](https://github.com/graphql-java-kickstart/graphql-java-tools/wiki/Known-Issues).
-
