@@ -501,7 +501,7 @@ val customScalarUUID = GraphQLScalarType.newScalar()
 val customScalarMap = GraphQLScalarType.newScalar()
     .name("customScalarMap")
     .description("customScalarMap")
-    .coercing(object : Coercing<Map<String, Any>, Map<String, Any>> {
+    .coercing(object : Coercing<Map<String, Any?>, Map<String, Any?>> {
 
         @Suppress("UNCHECKED_CAST")
         override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): Map<String, Any> = input as Map<String, Any>
@@ -515,8 +515,10 @@ val customScalarMap = GraphQLScalarType.newScalar()
             variables: CoercedVariables,
             context: GraphQLContext,
             locale: Locale
-        ): Map<String, Any> =
-            (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
+        ): Map<String, Any?> =
+            (input as ObjectValue).objectFields
+                .associateBy { it.name }
+                .mapValues { (it.value.value as StringValue).value }
     })
     .build()
 

@@ -263,9 +263,9 @@ class SchemaParserTest {
             .getFieldDefinition("id")
             .definition!!.sourceLocation
         assertNotNull(sourceLocation)
-        assertEquals(sourceLocation.line, 2)
-        assertEquals(sourceLocation.column, 5)
-        assertNull(sourceLocation.sourceName)
+        assertEquals(sourceLocation?.line, 2)
+        assertEquals(sourceLocation?.column, 5)
+        assertNull(sourceLocation?.sourceName)
     }
 
     @Test
@@ -280,9 +280,9 @@ class SchemaParserTest {
             .getFieldDefinition("id")
             .definition!!.sourceLocation
         assertNotNull(sourceLocation)
-        assertEquals(sourceLocation.line, 2)
-        assertEquals(sourceLocation.column, 3)
-        assertEquals(sourceLocation.sourceName, "Test.graphqls")
+        assertEquals(sourceLocation?.line, 2)
+        assertEquals(sourceLocation?.column, 3)
+        assertEquals(sourceLocation?.sourceName, "Test.graphqls")
     }
 
     @Test
