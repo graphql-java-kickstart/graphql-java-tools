@@ -1,7 +1,7 @@
 # GraphQL Java Tools
 
 [![Github Build](https://github.com/graphql-java-kickstart/graphql-java-tools/actions/workflows/snapshot.yml/badge.svg)](https://github.com/graphql-java-kickstart/graphql-java-tools/actions/workflows/snapshot.yml)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.graphql-java-kickstart/graphql-java-tools)
+[![Maven Central](https://maven-badges.sml.io/maven-central/io.github.graphql-java-kickstart/graphql-java-tools/badge.svg)](https://maven-badges.sml.io/maven-central/io.github.graphql-java-kickstart/graphql-java-tools)
 [![Discuss on GitHub](https://img.shields.io/badge/GitHub-discuss-orange)](https://github.com/graphql-java-kickstart/graphql-java-tools/discussions)
 
 This library allows you to use the GraphQL schema language to build your [graphql-java](https://github.com/graphql-java/graphql-java) schema.
