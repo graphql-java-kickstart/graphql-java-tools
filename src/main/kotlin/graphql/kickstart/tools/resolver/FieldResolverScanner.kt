@@ -202,8 +202,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             isSubscription = isSubscription || search.source is GraphQLSubscriptionResolver
         }
 
-        val sourceName = if (field.sourceLocation != null && field.sourceLocation.sourceName != null) field.sourceLocation.sourceName else "<unknown>"
-        val sourceLocation = if (field.sourceLocation != null) "$sourceName:${field.sourceLocation.line}" else "<unknown>"
+        val sourceName = field.sourceLocation?.sourceName ?: "<unknown>"
+        val sourceLocation = field.sourceLocation?.let { "$sourceName:${it.line}" } ?: "<unknown>"
+
         return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures " +
             "(with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}" +
             if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""

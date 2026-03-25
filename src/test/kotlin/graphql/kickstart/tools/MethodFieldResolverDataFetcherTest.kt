@@ -296,15 +296,17 @@ class MethodFieldResolverDataFetcherTest {
         return FieldResolverScanner(options).findFieldResolver(field, resolverInfo).createDataFetcher()
     }
 
-    private fun createEnvironment(source: Any = Object(), arguments: Map<String, Any> = emptyMap(), context: GraphQLContext? = null): DataFetchingEnvironment {
-        return DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext())
-            .source(source)
-            .arguments(arguments)
-            .graphQLContext(context)
-            .build()
-    }
+    private fun createEnvironment(
+        source: Any = Object(),
+        arguments: Map<String, Any> = emptyMap(),
+        context: GraphQLContext = GraphQLContext.newContext().build()
+    ) = DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext(context))
+        .source(source)
+        .arguments(arguments)
+        .graphQLContext(context)
+        .build()
 
-    private fun buildExecutionContext(): ExecutionContext {
+    private fun buildExecutionContext(context: GraphQLContext): ExecutionContext {
         val executionStrategy = object : ExecutionStrategy() {
             override fun execute(executionContext: ExecutionContext, parameters: ExecutionStrategyParameters): CompletableFuture<ExecutionResult> {
                 throw AssertionError("should not be called")
@@ -312,6 +314,7 @@ class MethodFieldResolverDataFetcherTest {
         }
         val executionId = ExecutionId.from("executionId123")
         return ExecutionContextBuilder.newExecutionContextBuilder()
+            .graphQLContext(context)
             .instrumentation(SimplePerformantInstrumentation.INSTANCE)
             .executionId(executionId)
             .queryStrategy(executionStrategy)

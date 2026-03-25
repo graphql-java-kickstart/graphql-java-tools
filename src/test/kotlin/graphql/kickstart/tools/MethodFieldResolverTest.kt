@@ -246,7 +246,7 @@ class MethodFieldResolverTest {
         val value get() = internalValue
 
         companion object {
-            fun of(input: Any) = when (input) {
+            fun of(input: Any?) = when (input) {
                 is String -> CustomScalar(input)
                 else -> throw IllegalArgumentException()
             }
