@@ -26,7 +26,7 @@ kotlin.version=2.1.20
 
 Add the dependency:
 ```groovy
-compile 'com.graphql-java-kickstart:graphql-java-tools:14.0.1'
+compile 'io.github.graphql-java-kickstart:graphql-java-tools:14.0.1'
 ```
 
 ### Using Maven
@@ -41,7 +41,7 @@ Set the Kotlin version in your `<properties>` section:
 Add the dependency:
 ```xml
 <dependency>
-    <groupId>com.graphql-java-kickstart</groupId>
+    <groupId>io.github.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
     <version>14.0.1</version>
 </dependency>
