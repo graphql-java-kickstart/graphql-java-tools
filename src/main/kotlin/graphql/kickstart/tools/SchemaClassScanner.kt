@@ -91,21 +91,24 @@ internal class SchemaClassScanner(
             do {
                 val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
                     .filter { definition -> definition.name != "PageInfo" }
-                    .filterIsInstance<ObjectTypeDefinition>().distinct()
+                    .filter { isCompositeOrEnumType(it) }
+                    .distinct()
 
                 if (unusedDefinitions.isEmpty()) {
                     break
                 }
 
-                val unusedDefinition = unusedDefinitions.first()
-
-                handleDictionaryTypes(listOf(unusedDefinition)) { "Object type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
+                handleDictionaryTypes(unusedDefinitions) { "Type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
             } while (scanQueue())
         }
 
         handleDirectives()
 
         return validateAndCreateResult(rootTypeHolder)
+    }
+
+    private fun isCompositeOrEnumType(definition: TypeDefinition<*>): Boolean {
+        return definition is ObjectTypeDefinition || definition is InterfaceTypeDefinition || definition is UnionTypeDefinition || definition is EnumTypeDefinition
     }
 
     private fun scanQueue(): Boolean {
