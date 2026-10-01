@@ -19,7 +19,7 @@ fun assertNoGraphQlErrors(gql: GraphQL, args: Map<String, Any> = mapOf(), contex
         throw AssertionError("GraphQL result contained errors!\n${result.errors.map { it.message }.joinToString("\n")}")
     }
 
-    return result.getData() as Map<String, Any>
+    return result.getData<Any>() as Map<String, Any>
 }
 
 fun <T> assertEquals(actual: T, expected: T) {

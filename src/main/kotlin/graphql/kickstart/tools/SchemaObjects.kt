@@ -14,6 +14,9 @@ data class SchemaObjects(
     val codeRegistryBuilder: GraphQLCodeRegistry.Builder,
     val description: String?
 ) {
+    @Suppress("UNCHECKED_CAST")
+    private fun namedDictionary(): Set<GraphQLNamedType> = dictionary as Set<GraphQLNamedType>
+
     /**
      * Makes a GraphQLSchema with query, mutation and subscription.
      */
@@ -23,7 +26,7 @@ data class SchemaObjects(
             .query(query)
             .mutation(mutation)
             .subscription(subscription)
-            .additionalTypes(dictionary)
+            .additionalTypes(namedDictionary())
             .additionalDirectives(directives)
             .codeRegistry(codeRegistryBuilder.build())
             .build()
@@ -35,6 +38,6 @@ data class SchemaObjects(
     fun toReadOnlySchema(): GraphQLSchema = GraphQLSchema.newSchema()
         .description(description)
         .query(query)
-        .additionalTypes(dictionary)
+        .additionalTypes(namedDictionary())
         .build()
 }

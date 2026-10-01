@@ -6,6 +6,7 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLObjectType
+import graphql.schema.idl.SchemaPrinter
 import org.junit.Test
 
 class DeprecatedDirectiveTest {
@@ -111,7 +112,7 @@ class DeprecatedDirectiveTest {
         val userTypeEnum = schema.getType("UserType") as GraphQLEnumType
         val droidValue = userTypeEnum.getValue("DROID")
 
-        assert(droidValue.isDeprecated)
+        assert(droidValue!!.isDeprecated)
         assertEquals(droidValue.deprecationReason, "No longer supported")
     }
 
@@ -151,7 +152,7 @@ class DeprecatedDirectiveTest {
         val userTypeEnum = schema.getType("UserType") as GraphQLEnumType
         val droidValue = userTypeEnum.getValue("DROID")
 
-        assert(droidValue.isDeprecated)
+        assert(droidValue!!.isDeprecated)
         assertEquals(droidValue.deprecationReason, "This value is no longer used")
     }
 
@@ -250,7 +251,7 @@ class DeprecatedDirectiveTest {
             .makeExecutableSchema()
 
         val directive = schema.getDirective("uppercase")
-        val argument = directive.getArgument("firstCharacterOnly")
+        val argument = directive!!.getArgument("firstCharacterOnly")
 
         assert(argument.isDeprecated)
         assertEquals(argument.deprecationReason, "No longer supported")
@@ -285,7 +286,7 @@ class DeprecatedDirectiveTest {
             .makeExecutableSchema()
 
         val directive = schema.getDirective("uppercase")
-        val argument = directive.getArgument("firstCharacterOnly")
+        val argument = directive!!.getArgument("firstCharacterOnly")
 
         assert(argument.isDeprecated)
         assertEquals(argument.deprecationReason, "Do not use this thing")
@@ -363,6 +364,48 @@ class DeprecatedDirectiveTest {
 
         assert(firstField.isDeprecated)
         assertEquals(firstField.deprecationReason, "Please do not use this field")
+    }
+
+    @Test
+    fun `bare @deprecated gets the default reason and can be printed`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    users(first: Int @deprecated): UserConnection
+                }
+
+                type UserConnection {
+                    edges: [UserEdge!]!
+                }
+
+                type UserEdge {
+                    node: User!
+                }
+
+                enum UserType {
+                    JEDI
+                    BASIC
+                    DROID @deprecated
+                }
+
+                type User {
+                    id: ID!
+                    name: String @deprecated
+                    type: UserType @deprecated(reason: "custom")
+                }
+                """)
+            .resolvers(UsersQueryResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val name = (schema.getType("User") as GraphQLObjectType).getField("name")
+        assertEquals("No longer supported", name.getAppliedDirective("deprecated").getArgument("reason")!!.getValue<String>())
+
+        val printed = SchemaPrinter().print(schema)
+        assert(printed.contains("name: String @deprecated(reason : \"No longer supported\")"))
+        assert(printed.contains("type: UserType @deprecated(reason : \"custom\")"))
+        assert(printed.contains("DROID @deprecated(reason : \"No longer supported\")"))
     }
 
     private enum class UserType {

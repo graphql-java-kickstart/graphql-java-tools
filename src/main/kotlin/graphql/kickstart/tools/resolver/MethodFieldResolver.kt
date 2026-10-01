@@ -141,7 +141,7 @@ internal class MethodFieldResolver(
             is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
                 && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
 
-            is TypeName -> environment.graphQLSchema?.getType(type.name)?.let { isScalar(it) && type.name != "ID" }
+            is TypeName -> environment.graphQLSchema?.getType(type.name!!)?.let { isScalar(it) && type.name != "ID" }
                 ?: false
 
             is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)

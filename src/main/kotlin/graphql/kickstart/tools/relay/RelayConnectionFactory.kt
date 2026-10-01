@@ -71,7 +71,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
             .build()
 
     private fun Directive.forTypeName(): String? {
-        return (this.getArgument("for").value as StringValue).value
+        return (this.getArgument("for")!!.value as StringValue).value
     }
 
     private fun Directive.withField(field: FieldDefinition): DirectiveWithField {
@@ -92,9 +92,9 @@ class RelayConnectionFactory : TypeDefinitionFactory {
         fun getTypeName(): String {
             val type = field.type
             if (type is NonNullType) {
-                return (type.type as TypeName).name
+                return (type.type as TypeName).name!!
             }
-            return (field.type as TypeName).name
+            return (field.type as TypeName).name!!
         }
     }
 }
