@@ -14,10 +14,3 @@ interface SomeInterface {
     fun getValue(): String?
 }
 
-interface SomeUnion
-
-enum class SomeEnum {
-    A,
-    B
-}
-

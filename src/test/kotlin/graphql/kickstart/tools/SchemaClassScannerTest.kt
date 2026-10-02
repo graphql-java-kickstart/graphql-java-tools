@@ -503,7 +503,7 @@ class SchemaClassScannerTest {
     }
 
     @Test
-    fun `scanner should handle unused types with interfaces when option is true`() {
+    fun `scanner should handle unused types with interfaces, unions and enums when option is true`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -526,19 +526,28 @@ class SchemaClassScannerTest {
                 type Implementation implements SomeInterface {
                     value: String
                 }
-                
+
+                interface OtherInterface {
+                    value: String
+                }
+
                 union SomeUnion = Unused | Implementation
-                
+
                 enum SomeEnum {
-                   A
-                   B
+                    A
+                    B
+                }
+
+                enum OtherEnum {
+                    A
+                    B
                 }
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun whatever(): Whatever? = null
             })
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
-            .dictionary(Unused::class, Implementation::class, SomeInterface::class, SomeUnion::class, SomeEnum::class)
+            .dictionary(Unused::class, Implementation::class, SomeEnum::class)
             .build()
             .makeExecutableSchema()
 
@@ -547,11 +556,50 @@ class SchemaClassScannerTest {
         assert(objectTypes.any { it.name == "Unused" })
         assert(objectTypes.any { it.name == "Implementation" })
         assert(interfaceTypes.any { it.name == "SomeInterface" })
+        assert(schema.getType("OtherInterface") is GraphQLInterfaceType)
+        assert(schema.getType("SomeUnion") is GraphQLUnionType)
+        assert(schema.getType("SomeEnum") is GraphQLEnumType)
+        assert(schema.getType("OtherEnum") == null)
+    }
+
+    @Test
+    fun `scanner should handle unused enum used as an argument of a missing resolver when option is true`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    whatever: Whatever
+                    preview(value: SomeEnum): String
+                }
+
+                type Whatever {
+                    value: String
+                }
+
+                enum SomeEnum {
+                    A
+                    B
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun whatever(): Whatever? = null
+            })
+            .options(SchemaParserOptions.newOptions()
+                .includeUnusedTypes(true)
+                .missingResolverDataFetcherProvider { _, _ -> DataFetcher<Any?> { null } }
+                .build())
+            .dictionary(SomeEnum::class)
+            .build()
+            .makeExecutableSchema()
+
+        assert(schema.queryType.getFieldDefinition("preview").getArgument("value").type is GraphQLEnumType)
     }
 
     class Whatever {
         var value: String? = null
     }
+
+    enum class SomeEnum { A, B }
 
     class Unused {
         var someInterface: SomeInterface? = null
