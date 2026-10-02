@@ -13,7 +13,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
       - name: Build with Maven
         run: mvn --batch-mode --update-snapshots verify
 
@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           java-version: '11'
-          distribution: 'adopt'
+          distribution: 'temurin'
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
