@@ -6,6 +6,7 @@ import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
+import org.apache.commons.lang3.ClassUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 
@@ -28,7 +29,6 @@ internal class SchemaClassScanner(
     private val subscriptionResolvers = resolvers.filterIsInstance<GraphQLSubscriptionResolver>()
 
     private val resolverInfos = resolvers.asSequence().minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }.toList()
-    private val resolverInfosByDataClass = this.resolverInfos.associateBy { it.dataClassType }
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
     private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
@@ -270,27 +270,40 @@ internal class SchemaClassScanner(
     private fun getResolverInfoFromTypeDictionary(typeName: String): ResolverInfo? {
         val dictionaryType = initialDictionary[typeName]?.get()
         return if (dictionaryType != null) {
-            resolverInfosByDataClass[dictionaryType] ?: DataClassResolverInfo(dictionaryType)
+            getResolverInfoFromDataClass(dictionaryType)
         } else {
             null
         }
     }
 
     /**
+     * Find all resolvers for the data class or any of its supertypes, most specific first.
+     */
+    private fun getResolverInfoFromDataClass(dataClass: JavaType): ResolverInfo {
+        val resolverInfoList = resolverInfos
+            .filter { it.dataClassType == dataClass || isResolverForSupertype(it, dataClass) }
+            .sortedByDescending { ClassUtils.getAllSuperclasses(it.dataClassType).size + ClassUtils.getAllInterfaces(it.dataClassType).size }
+
+        return when {
+            resolverInfoList.isEmpty() -> DataClassResolverInfo(dataClass)
+            resolverInfoList.size == 1 && resolverInfoList.single().dataClassType == dataClass -> resolverInfoList.single()
+            else -> MultiResolverInfo(resolverInfoList, dataClass.unwrap())
+        }
+    }
+
+    private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: JavaType) =
+        dataClass is Class<*> && resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
+
+    /**
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        val resolverInfoList = this.resolverInfos.filter { it.dataClassType == item.clazz }
-        val resolverInfo: ResolverInfo = (if (resolverInfoList.size > 1) {
-            MultiResolverInfo(resolverInfoList)
+        val resolverInfo = if (item.clazz == Object::class.java) {
+            getResolverInfoFromTypeDictionary(item.type.name)
+                ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
         } else {
-            if (item.clazz == Object::class.java) {
-                getResolverInfoFromTypeDictionary(item.type.name)
-            } else {
-                resolverInfosByDataClass[item.clazz] ?: DataClassResolverInfo(item.clazz)
-            }
-        })
-            ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
+            getResolverInfoFromDataClass(item.clazz)
+        }
 
         scanResolverInfoForPotentialMatches(item.type, resolverInfo)
     }
