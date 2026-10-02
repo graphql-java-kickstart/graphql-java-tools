@@ -30,6 +30,13 @@
         "org.springframework"
       ],
       "allowedVersions": "<6.0.0"
+    },
+    {
+      "description": "Release/snapshot builds use the minimum supported JDK",
+      "matchDepNames": [
+        "java-jdk"
+      ],
+      "enabled": false
     }
   ]
 }
