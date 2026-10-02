@@ -15,10 +15,8 @@ import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
 import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
-import java.lang.reflect.AccessibleObject
-import java.lang.reflect.Method
-import java.lang.reflect.Modifier
-import java.lang.reflect.Type
+import java.lang.reflect.*
+import java.util.concurrent.CompletableFuture
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
@@ -131,7 +129,17 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun resolverMethodReturnsPublisher(method: Method) =
-        method.returnType.isAssignableFrom(Publisher::class.java) || receiveChannelToPublisherWrapper(method)
+        method.returnType.isAssignableFrom(Publisher::class.java)
+            || resolverMethodReturnsPublisherFuture(method)
+            || receiveChannelToPublisherWrapper(method)
+
+    private fun resolverMethodReturnsPublisherFuture(method: Method) =
+        method.returnType.isAssignableFrom(CompletableFuture::class.java)
+            && method.genericReturnType is ParameterizedType
+            && (method.genericReturnType as ParameterizedType).actualTypeArguments
+            .any {
+                it is ParameterizedType && it.unwrap().isAssignableFrom(Publisher::class.java)
+            }
 
     private fun receiveChannelToPublisherWrapper(method: Method) =
         method.returnType.isAssignableFrom(ReceiveChannel::class.java)
@@ -194,8 +202,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             isSubscription = isSubscription || search.source is GraphQLSubscriptionResolver
         }
 
-        val sourceName = if (field.sourceLocation != null && field.sourceLocation.sourceName != null) field.sourceLocation.sourceName else "<unknown>"
-        val sourceLocation = if (field.sourceLocation != null) "$sourceName:${field.sourceLocation.line}" else "<unknown>"
+        val sourceName = field.sourceLocation?.sourceName ?: "<unknown>"
+        val sourceLocation = field.sourceLocation?.let { "$sourceName:${it.line}" } ?: "<unknown>"
+
         return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures " +
             "(with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}" +
             if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""

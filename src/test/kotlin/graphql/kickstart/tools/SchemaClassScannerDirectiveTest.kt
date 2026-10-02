@@ -37,7 +37,7 @@ class SchemaClassScannerDirectiveTest {
         assertEquals(value.value, "some thing")
     }
 
-    data class CustomValue(val value: String)
+    data class CustomValue(val value: String?)
     private val customValueScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
         .name("CustomValue")
         .coercing(object : Coercing<CustomValue, String> {

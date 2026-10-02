@@ -54,7 +54,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
             .fieldDefinition(FieldDefinition("pageInfo", TypeName("PageInfo")))
             .build()
 
-    private fun createEdgeDefinition(connectionType: String, nodeType: String): ObjectTypeDefinition =
+    private fun createEdgeDefinition(connectionType: String, nodeType: String?): ObjectTypeDefinition =
         ObjectTypeDefinition.newObjectTypeDefinition()
             .name(connectionType + "Edge")
             .fieldDefinition(FieldDefinition("cursor", TypeName("String")))
@@ -70,7 +70,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
             .fieldDefinition(FieldDefinition("endCursor", TypeName("String")))
             .build()
 
-    private fun Directive.forTypeName(): String {
+    private fun Directive.forTypeName(): String? {
         return (this.getArgument("for").value as StringValue).value
     }
 
@@ -82,7 +82,13 @@ class RelayConnectionFactory : TypeDefinitionFactory {
         return this.directives.map { it.withField(this) }
     }
 
-    class DirectiveWithField(val field: FieldDefinition, name: String, arguments: List<Argument>, sourceLocation: SourceLocation, comments: List<Comment>) : Directive(name, arguments, sourceLocation, comments, IgnoredChars.EMPTY, emptyMap()) {
+    class DirectiveWithField(
+        val field: FieldDefinition,
+        name: String,
+        arguments: List<Argument>,
+        sourceLocation: SourceLocation?,
+        comments: List<Comment>
+    ) : Directive(name, arguments, sourceLocation, comments, IgnoredChars.EMPTY, emptyMap()) {
         fun getTypeName(): String {
             val type = field.type
             if (type is NonNullType) {

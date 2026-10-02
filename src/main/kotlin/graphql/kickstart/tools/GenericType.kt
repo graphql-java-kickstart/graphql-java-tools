@@ -151,8 +151,13 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     }
                 }
                 is TypeVariable<*> -> {
-                    if (declaringType is ParameterizedType) {
-                        TypeUtils.getRawType(type, declaringType)
+                    val genericDeclaration = type.genericDeclaration
+                    if (declaringType is ParameterizedType && genericDeclaration is Class<*>) {
+                        // keep the full type argument (e.g. List<Foo>) rather than its raw class so nested generics aren't lost
+                        TypeUtils.getTypeArguments(declaringType, genericDeclaration)?.get(type)
+                            ?.takeIf { it != type }
+                            ?.let { replaceTypeVariable(it) }
+                            ?: type
                     } else {
                         type
                     }

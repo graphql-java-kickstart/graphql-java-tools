@@ -123,6 +123,7 @@ type Mutation {
 
 type Subscription {
     onItemCreated: Item!
+    onItemCreatedFuture: Item!
     onItemCreatedCoroutineChannel: Item!
     onItemCreatedCoroutineChannelAndSuspendFunction: Item!
 }
@@ -373,13 +374,20 @@ class Subscription : GraphQLSubscriptionResolver {
     fun onItemCreated(env: DataFetchingEnvironment) =
         Publisher<Item> { subscriber ->
             subscriber.onNext(env.graphQlContext["newItem"])
-//            subscriber.onComplete()
         }
 
     fun onItemCreatedCoroutineChannel(env: DataFetchingEnvironment): ReceiveChannel<Item> {
         val channel = Channel<Item>(1)
         channel.trySend(env.graphQlContext["newItem"])
         return channel
+    }
+
+    fun onItemCreatedFuture(env: DataFetchingEnvironment): CompletableFuture<Publisher<Item>> {
+        return CompletableFuture.supplyAsync {
+            Publisher<Item> { subscriber ->
+                subscriber.onNext(env.graphQlContext["newItem"])
+            }
+        }
     }
 
     suspend fun onItemCreatedCoroutineChannelAndSuspendFunction(env: DataFetchingEnvironment): ReceiveChannel<Item> {
@@ -493,7 +501,7 @@ val customScalarUUID = GraphQLScalarType.newScalar()
 val customScalarMap = GraphQLScalarType.newScalar()
     .name("customScalarMap")
     .description("customScalarMap")
-    .coercing(object : Coercing<Map<String, Any>, Map<String, Any>> {
+    .coercing(object : Coercing<Map<String, Any?>, Map<String, Any?>> {
 
         @Suppress("UNCHECKED_CAST")
         override fun parseValue(input: Any, context: GraphQLContext, locale: Locale): Map<String, Any> = input as Map<String, Any>
@@ -507,8 +515,10 @@ val customScalarMap = GraphQLScalarType.newScalar()
             variables: CoercedVariables,
             context: GraphQLContext,
             locale: Locale
-        ): Map<String, Any> =
-            (input as ObjectValue).objectFields.associateBy { it.name }.mapValues { (it.value.value as StringValue).value }
+        ): Map<String, Any?> =
+            (input as ObjectValue).objectFields
+                .associateBy { it.name }
+                .mapValues { (it.value.value as StringValue).value }
     })
     .build()
 
