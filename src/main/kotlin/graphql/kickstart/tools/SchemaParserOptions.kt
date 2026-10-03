@@ -36,7 +36,8 @@ data class SchemaParserOptions internal constructor(
     val typeDefinitionFactories: List<TypeDefinitionFactory>,
     val fieldVisibility: GraphqlFieldVisibility?,
     val includeUnusedTypes: Boolean,
-    val useCommentsForDescriptions: Boolean
+    val useCommentsForDescriptions: Boolean,
+    val allowUndeclaredDirectives: Boolean
 ) {
     companion object {
         @JvmStatic
@@ -67,6 +68,7 @@ data class SchemaParserOptions internal constructor(
         private var fieldVisibility: GraphqlFieldVisibility? = null
         private var includeUnusedTypes = false
         private var useCommentsForDescriptions = true
+        private var allowUndeclaredDirectives = false
 
         fun contextClass(contextClass: Class<*>) = this.apply {
             this.contextClass = contextClass
@@ -153,6 +155,14 @@ data class SchemaParserOptions internal constructor(
             this.useCommentsForDescriptions = useCommentsForDescriptions
         }
 
+        /**
+         * Allows applying directives that have no definition in the schema, e.g. the Apollo Federation directives imported through `@link`.
+         * They're only added as applied directives, with argument types guessed from their values.
+         */
+        fun allowUndeclaredDirectives(allowUndeclaredDirectives: Boolean) = this.apply {
+            this.allowUndeclaredDirectives = allowUndeclaredDirectives
+        }
+
         @ExperimentalCoroutinesApi
         fun build(): SchemaParserOptions {
             val coroutineContextProvider = coroutineContextProvider
@@ -194,7 +204,8 @@ data class SchemaParserOptions internal constructor(
                 typeDefinitionFactories,
                 fieldVisibility,
                 includeUnusedTypes,
-                useCommentsForDescriptions
+                useCommentsForDescriptions,
+                allowUndeclaredDirectives
             )
         }
     }
