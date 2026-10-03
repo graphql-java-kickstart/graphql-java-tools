@@ -307,6 +307,54 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should fill in default values of directive arguments that weren't supplied`() {
+        val emailDirective = EmailDirective()
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @email(message: String = "{path} must be a valid email") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
+                directive @owner(team: String = "books-team") on SCHEMA | ENUM_VALUE
+
+                schema @owner {
+                    query: Query
+                }
+
+                enum AllowedState {
+                    ALLOWED @owner
+                    DISALLOWED
+                }
+
+                input PersonInput {
+                    email: String @email
+                }
+
+                type Query {
+                    contactEmail: String @email
+                    updatePersonEmail(email: String @email, backupEmail: String @email(message: "invalid backup email")): String
+                    updatePerson(person: PersonInput, state: AllowedState): String
+                }
+                """)
+            .resolvers(PersonQueryResolver())
+            .directive("email", emailDirective)
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(
+            emailDirective.messages,
+            mapOf(
+                "contactEmail" to ("{path} must be a valid email" to "{path} must be a valid email"),
+                "email" to ("{path} must be a valid email" to "{path} must be a valid email"),
+                "backupEmail" to ("invalid backup email" to "invalid backup email")
+            )
+        )
+        val inputField = (schema.getType("PersonInput") as GraphQLInputObjectType).getField("email")
+        assertEquals(inputField.getAppliedDirective("email").getArgument("message")?.getValue<String>(), "{path} must be a valid email")
+        assertEquals(schema.getSchemaAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
+        val enumValue = (schema.getType("AllowedState") as GraphQLEnumType).getValue("ALLOWED")!!
+        assertEquals(enumValue.getAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
+    }
+
+    @Test
     fun `should apply directives on the schema and its extensions`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -458,6 +506,16 @@ class DirectiveTest {
         val name: String?
     )
 
+    private class PersonQueryResolver : GraphQLQueryResolver {
+        fun contactEmail(): String? = null
+        fun updatePersonEmail(email: String?, backupEmail: String?): String? = email
+        fun updatePerson(person: PersonInput?, state: AllowedState?): String? = null
+    }
+
+    private data class PersonInput(
+        val email: String?
+    )
+
     private class QueryResolver : GraphQLQueryResolver {
         fun books(): List<Book> {
             return listOf(Book(42L, "Test Book"))
@@ -486,6 +544,26 @@ class DirectiveTest {
             // TODO
 
             return field
+        }
+    }
+
+    private class EmailDirective : SchemaDirectiveWiring {
+        val messages = mutableMapOf<String, Pair<String?, String?>>()
+
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+            recordMessage(environment)
+            return environment.element
+        }
+
+        override fun onArgument(environment: SchemaDirectiveWiringEnvironment<GraphQLArgument>): GraphQLArgument {
+            recordMessage(environment)
+            return environment.element
+        }
+
+        private fun recordMessage(environment: SchemaDirectiveWiringEnvironment<*>) {
+            val appliedMessage = environment.appliedDirective.getArgument("message")?.getValue<String>()
+            val legacyMessage = environment.directive.getArgument("message")?.let { GraphQLArgument.getArgumentValue<String>(it) }
+            messages[environment.element.name] = appliedMessage to legacyMessage
         }
     }
 
