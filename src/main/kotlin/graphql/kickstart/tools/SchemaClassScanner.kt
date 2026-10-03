@@ -281,6 +281,20 @@ internal class SchemaClassScanner(
         }
     }
 
+    /**
+     * Scan a new object for types that haven't been mapped yet.
+     */
+    private fun scanQueueItemForPotentialMatches(item: QueueItem) {
+        val resolverInfo = if (item.clazz == Object::class.java) {
+            getResolverInfoFromTypeDictionary(item.type.name)
+                ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
+        } else {
+            getResolverInfoFromDataClass(item.clazz)
+        }
+
+        scanResolverInfoForPotentialMatches(item.type, resolverInfo)
+    }
+
     private fun getResolverInfoFromTypeDictionary(typeName: String): ResolverInfo? {
         val dictionaryType = initialDictionary[typeName]?.get()
         return if (dictionaryType != null) {
@@ -307,20 +321,6 @@ internal class SchemaClassScanner(
 
     private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: JavaType) =
         dataClass is Class<*> && resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
-
-    /**
-     * Scan a new object for types that haven't been mapped yet.
-     */
-    private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        val resolverInfo = if (item.clazz == Object::class.java) {
-            getResolverInfoFromTypeDictionary(item.type.name)
-                ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
-        } else {
-            getResolverInfoFromDataClass(item.clazz)
-        }
-
-        scanResolverInfoForPotentialMatches(item.type, resolverInfo)
-    }
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->

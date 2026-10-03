@@ -13,6 +13,7 @@ class SupertypeResolverTest {
             type Query {
                 thing: Thing!
                 otherThing: OtherThing!
+                labelledThing: LabelledThing!
             }
 
             type Thing {
@@ -27,6 +28,10 @@ class SupertypeResolverTest {
                 active: Boolean!
                 label: String!
                 description: String!
+            }
+
+            type LabelledThing {
+                label: String!
             }
             """)
         .resolvers(QueryResolver(), BaseResolver(), NamedResolver(), OtherThingResolver())
@@ -82,9 +87,27 @@ class SupertypeResolverTest {
         ))
     }
 
+    @Test
+    fun `supertype resolvers should take precedence over getters on the data class`() {
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                labelledThing {
+                    label
+                }
+            }
+            """
+        }
+
+        assertEquals(data["labelledThing"], mapOf(
+            "label" to "base label"
+        ))
+    }
+
     class QueryResolver : GraphQLQueryResolver {
         fun thing(): Thing = Thing()
         fun otherThing(): OtherThing = OtherThing()
+        fun labelledThing(): LabelledThing = LabelledThing()
     }
 
     interface Named {
@@ -99,6 +122,11 @@ class SupertypeResolverTest {
 
     class OtherThing : Base() {
         override val name = "other thing"
+    }
+
+    class LabelledThing : Base() {
+        override val name = "labelled thing"
+        val label = "getter label"
     }
 
     class BaseResolver : GraphQLResolver<Base> {
