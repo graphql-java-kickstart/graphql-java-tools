@@ -16,7 +16,8 @@ import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
 import java.lang.reflect.*
-import kotlin.reflect.full.valueParameters
+import kotlin.reflect.KParameter
+import kotlin.reflect.full.extensionReceiverParameter
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
 
@@ -160,7 +161,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
                 it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
             } ?: false
         } else {
-            true
+            // an extension receiver can only take the source object
+            !isExtensionFunction(method)
         }
 
         val methodParameterCount = getMethodParameterCount(method)
@@ -173,7 +175,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private fun getMethodParameterCount(method: Method): Int {
         return try {
-            method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+            method.kotlinFunction?.parameters?.count { it.kind != KParameter.Kind.INSTANCE } ?: method.parameterCount
         } catch (e: InternalError) {
             method.parameterCount
         }
@@ -181,10 +183,18 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private fun getMethodLastParameter(method: Method): Type? {
         return try {
-            method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
+            method.kotlinFunction?.parameters?.lastOrNull { it.kind != KParameter.Kind.INSTANCE }?.type?.javaType
                 ?: method.parameterTypes.lastOrNull()
         } catch (e: InternalError) {
             method.parameterTypes.lastOrNull()
+        }
+    }
+
+    private fun isExtensionFunction(method: Method): Boolean {
+        return try {
+            method.kotlinFunction?.extensionReceiverParameter != null
+        } catch (e: InternalError) {
+            false
         }
     }
 
