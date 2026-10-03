@@ -628,6 +628,47 @@ class SchemaParserTest {
         assertNull(schema.description)
     }
 
+    @Test
+    fun `parser should use root types declared in schema extensions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                "This is a schema level description"
+                schema {
+                    query: SubstituteQuery
+                }
+
+                extend schema {
+                    mutation: SubstituteMutation
+                }
+
+                directive @contact(name: String!) on SCHEMA
+
+                extend schema @contact(name: "books-team")
+
+                type SubstituteQuery {
+                    query: String
+                }
+
+                type SubstituteMutation {
+                    mutation: String
+                }
+                """)
+            .resolvers(
+                object : GraphQLQueryResolver {
+                    fun query(): String? = null
+                },
+                object : GraphQLMutationResolver {
+                    fun mutation(): String? = null
+                })
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.queryType.name, "SubstituteQuery")
+        assertEquals(schema.mutationType?.name, "SubstituteMutation")
+        assertEquals(schema.description, "This is a schema level description")
+    }
+
     enum class EnumType {
         TEST
     }

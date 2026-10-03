@@ -7,6 +7,8 @@ import graphql.relay.SimpleListConnection
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
+import graphql.schema.idl.SchemaPrinter
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class DirectiveTest {
@@ -304,6 +306,83 @@ class DirectiveTest {
         assert((schema.getType("Book") as GraphQLObjectType).getField("name").isDeprecated)
     }
 
+    @Test
+    fun `should apply directives on the schema and its extensions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @link(url: String!, for: LinkPurpose, import: [String]) repeatable on SCHEMA
+                directive @contact(name: String!) on SCHEMA
+
+                enum LinkPurpose {
+                    SECURITY
+                    EXECUTION
+                }
+
+                extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable"])
+
+                schema @contact(name: "books-team") {
+                    query: Query
+                }
+
+                extend schema @link(url: "https://specs.apollo.dev/link/v1.0", for: SECURITY)
+
+                type Query {
+                    books: [Book!]
+                }
+
+                type Book {
+                    id: Int!
+                    name: String!
+                }
+                """)
+            .resolvers(QueryResolver())
+            .dictionary(LinkPurpose::class)
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.schemaAppliedDirectives.map { it.name }, listOf("contact", "link", "link"))
+        assertEquals(
+            schema.getSchemaAppliedDirectives("link").map { it.getArgument("url")?.getValue<String>() },
+            listOf("https://specs.apollo.dev/federation/v2.3", "https://specs.apollo.dev/link/v1.0")
+        )
+        assertEquals(
+            schema.getSchemaAppliedDirectives("link").first().getArgument("import")?.getValue<List<String>>(),
+            listOf("@key", "@shareable")
+        )
+        assertEquals(schema.getSchemaAppliedDirectives("link").last().getArgument("for")?.getValue<LinkPurpose>(), LinkPurpose.SECURITY)
+
+        val printed = SchemaPrinter(SchemaPrinter.Options.defaultOptions().includeSchemaDefinition(true)).print(schema)
+        assert(printed.contains("""schema @contact(name : "books-team") @link(import : ["@key", "@shareable"], url : "https://specs.apollo.dev/federation/v2.3") @link(for : SECURITY, url : "https://specs.apollo.dev/link/v1.0"){""")) {
+            printed
+        }
+    }
+
+    @Test
+    fun `should fail on undeclared schema directive`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    extend schema @link(url: "https://specs.apollo.dev/federation/v2.3")
+
+                    type Query {
+                        books: [Book!]
+                    }
+
+                    type Book {
+                        id: Int!
+                        name: String!
+                    }
+                    """)
+                .resolvers(QueryResolver())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Found applied directive link without corresponding directive definition.")
+    }
+
     private class BookQueryResolver : GraphQLQueryResolver {
         fun book(filter: BookFilter): Book? = null
     }
@@ -323,6 +402,11 @@ class DirectiveTest {
         val id: Long,
         val name: String
     )
+
+    private enum class LinkPurpose {
+        SECURITY,
+        EXECUTION
+    }
 
     private enum class AllowedState {
         ALLOWED,
