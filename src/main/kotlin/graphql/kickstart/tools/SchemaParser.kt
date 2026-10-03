@@ -380,19 +380,16 @@ class SchemaParser internal constructor(
                     }
                 }
                 .apply {
-                    // a bare @deprecated has no "reason" argument, which makes SchemaPrinter throw a NPE.
-                    // copy the default from the directive definition (for the built-in one: "No longer supported").
-                    if (directive.name == Directives.DeprecatedDirective.name && directive.arguments.none { it.name == "reason" }) {
-                        val reasonArgument = graphQLArguments["reason"]
-                        if (reasonArgument != null && reasonArgument.hasSetDefaultValue()) {
-                            argument(GraphQLAppliedDirectiveArgument.newArgument()
-                                .name(reasonArgument.name)
-                                .type(reasonArgument.type)
-                                .description(reasonArgument.description)
-                                .inputValueWithState(reasonArgument.argumentDefaultValue)
-                                .build()
-                            )
-                        }
+                    // arguments that weren't supplied get the default from the directive definition, like graphql-java does.
+                    // this also gives a bare @deprecated its "reason", without which SchemaPrinter throws a NPE.
+                    missingArgumentsWithDefault(directive, graphQLDirective).forEach { graphQLArgument ->
+                        argument(GraphQLAppliedDirectiveArgument.newArgument()
+                            .name(graphQLArgument.name)
+                            .type(graphQLArgument.type)
+                            .description(graphQLArgument.description)
+                            .inputValueWithState(graphQLArgument.argumentDefaultValue)
+                            .build()
+                        )
                     }
                 }
                 .build()
@@ -465,6 +462,15 @@ class SchemaParser internal constructor(
                                     .valueLiteral(arg.value)
                                     .build())
                             }
+                            missingArgumentsWithDefault(directive, graphQLDirective).forEach { graphQLArgument ->
+                                val defaultValue = graphQLArgument.argumentDefaultValue
+                                argument(GraphQLArgument.newArgument()
+                                    .name(graphQLArgument.name)
+                                    .type(graphQLArgument.type)
+                                    .description(graphQLArgument.description)
+                                    .apply { if (defaultValue.isLiteral) valueLiteral(defaultValue.value as Value<*>) else valueProgrammatic(defaultValue.value) }
+                                    .build())
+                            }
                         }
                         .build()
                 )
@@ -473,6 +479,9 @@ class SchemaParser internal constructor(
 
         return output.toTypedArray()
     }
+
+    private fun missingArgumentsWithDefault(directive: Directive, graphQLDirective: GraphQLDirective): List<GraphQLArgument> =
+        graphQLDirective.arguments.filter { it.hasSetDefaultValue() && directive.getArgument(it.name) == null }
 
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =
         determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject, inputObjects) as GraphQLOutputType
