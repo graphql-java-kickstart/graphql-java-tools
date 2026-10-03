@@ -6,9 +6,12 @@ import graphql.language.*
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
+import java.util.concurrent.CompletionStage
+import java.util.concurrent.Future
 
 /**
  * @author Andrew Potter
@@ -36,6 +39,12 @@ internal fun JavaType.unwrap(): Class<out Any> =
     } else {
         this as Class<*>
     }
+
+internal fun JavaType.typeArgument(type: Class<*>): JavaType? =
+    TypeUtils.getTypeArguments(this, type)?.get(type.typeParameters.first())
+
+internal fun JavaType.futureValueType(): JavaType? =
+    typeArgument(CompletionStage::class.java) ?: typeArgument(Future::class.java)
 
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
     val context: Any? = this.getContext()
