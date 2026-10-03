@@ -2,7 +2,6 @@ package graphql.kickstart.tools.resolver
 
 import graphql.GraphQLContext
 import graphql.Scalars
-import graphql.kickstart.tools.GraphQLSubscriptionResolver
 import graphql.kickstart.tools.ResolverInfo
 import graphql.kickstart.tools.RootResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
@@ -13,10 +12,10 @@ import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
+import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
 import java.lang.reflect.*
-import java.util.concurrent.CompletableFuture
 import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
@@ -124,27 +123,27 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             // to avoid issues with duplicate method declarations
             .filter { it.declaringClass != Object::class.java }
             // subscription resolvers must return a publisher
-            .filter { search.source !is GraphQLSubscriptionResolver || resolverMethodReturnsPublisher(it) }
+            .filter { !search.isSubscription || resolverMethodReturnsPublisher(it) }
             .toList()
     }
 
     private fun resolverMethodReturnsPublisher(method: Method) =
-        method.returnType.isAssignableFrom(Publisher::class.java)
+        // suspend functions and unbounded type variables are erased to Object, so the actual return type is unknown here
+        method.returnType == Any::class.java
+            || Publisher::class.java.isAssignableFrom(method.returnType)
             || resolverMethodReturnsPublisherFuture(method)
             || receiveChannelToPublisherWrapper(method)
 
     private fun resolverMethodReturnsPublisherFuture(method: Method) =
-        method.returnType.isAssignableFrom(CompletableFuture::class.java)
-            && method.genericReturnType is ParameterizedType
-            && (method.genericReturnType as ParameterizedType).actualTypeArguments
-            .any {
-                it is ParameterizedType && it.unwrap().isAssignableFrom(Publisher::class.java)
-            }
+        method.genericReturnType.futureValueType()
+            ?.let { if (it is WildcardType) it.upperBounds.first() else it }
+            ?.let { TypeUtils.isAssignable(it, Publisher::class.java) } == true
 
     private fun receiveChannelToPublisherWrapper(method: Method) =
-        method.returnType.isAssignableFrom(ReceiveChannel::class.java)
+        ReceiveChannel::class.java.isAssignableFrom(method.returnType)
             && options.genericWrappers.any { wrapper ->
             val isReceiveChannelWrapper = wrapper.type == method.returnType
+            // lambdas are erased to return Object, so this only checks that the transformer can return a Publisher
             val hasPublisherTransformer = wrapper
                 .transformer.javaClass
                 .declaredMethods
@@ -199,7 +198,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
         searches.forEach { search ->
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
-            isSubscription = isSubscription || search.source is GraphQLSubscriptionResolver
+            isSubscription = isSubscription || search.isSubscription
         }
 
         val sourceName = field.sourceLocation?.sourceName ?: "<unknown>"
@@ -241,7 +240,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         val resolverInfo: ResolverInfo,
         val source: Any?,
         val requiredFirstParameterType: Class<*>? = null
-    )
+    ) {
+        val isSubscription get() = resolverInfo is RootResolverInfo && resolverInfo.isSubscription
+    }
 }
 
 internal class FieldResolverError(msg: String) : RuntimeException(msg)
