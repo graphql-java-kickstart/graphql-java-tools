@@ -166,6 +166,39 @@ class GenericInputTypesTest {
         assertEquals(data["audit"], "why:op:1")
     }
 
+    @Test
+    fun `generic list fields inherited from parameterized superclasses are parsed`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    mutate(input: MutationInput!): String!
+                }
+
+                input MutationInput {
+                    items: [Item!]!
+                }
+
+                input Item {
+                    prop: String!
+                }
+                """)
+            .resolvers(InheritedListQueryResolver())
+            .build()
+            .makeExecutableSchema()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                mutate(input: { items: [{ prop: "a" }, { prop: "b" }] })
+            }
+            """
+        }
+
+        assertEquals(data["mutate"], "a,b")
+    }
+
     class QueryResolver : GraphQLQueryResolver {
         fun audit(input: AuditWrapper<LanguageInput>): String = "${input.operator}:${input.content?.id}"
         fun audits(input: AuditWrapper<List<LanguageInput>>): String = "${input.operator}:${input.content?.joinToString(",") { it.id.orEmpty() }}"
@@ -184,6 +217,10 @@ class GenericInputTypesTest {
         fun audit(input: AuditRequest): String = "${input.reason}:${input.audit?.operator}:${input.audit?.content?.id}"
     }
 
+    class InheritedListQueryResolver : GraphQLQueryResolver {
+        fun mutate(input: MutationInput): String = input.items.orEmpty().joinToString(",") { it.prop.orEmpty() }
+    }
+
     open class AuditWrapper<T> {
         var content: T? = null
         var operator: String? = null
@@ -194,6 +231,19 @@ class GenericInputTypesTest {
     class AuditRequest {
         var audit: AuditWrapper<LanguageInput>? = null
         var reason: String? = null
+    }
+
+    abstract class GenericMutationInput<T> {
+        @JvmField
+        var items: List<T>? = null
+    }
+
+    abstract class RenamedMutationInput<U> : GenericMutationInput<U>()
+
+    class MutationInput : RenamedMutationInput<MutationInput.Item>() {
+        class Item {
+            var prop: String? = null
+        }
     }
 
     class LanguageInput {
