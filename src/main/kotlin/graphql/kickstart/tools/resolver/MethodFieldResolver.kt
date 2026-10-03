@@ -6,6 +6,8 @@ import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
+import graphql.kickstart.tools.util.futureValueType
+import graphql.kickstart.tools.util.typeArgument
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.DataFetcher
@@ -14,6 +16,8 @@ import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLTypeUtil.isScalar
 import graphql.schema.LightDataFetcher
 import kotlinx.coroutines.future.future
+import org.apache.commons.lang3.reflect.TypeUtils
+import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
@@ -150,19 +154,25 @@ internal class MethodFieldResolver(
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val unwrappedGenericType = genericType.unwrapGenericType(
-            try {
-                method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
-            } catch (e: InternalError) {
-                method.genericReturnType
-            }
-        )
+        val returnType = try {
+            method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
+        } catch (e: InternalError) {
+            method.genericReturnType
+        }
+        val unwrappedGenericType = genericType.unwrapGenericType(if (search.isSubscription) returnType.asPublisher() else returnType)
         val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, unwrappedGenericType, genericType, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
             TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
+
+    // generic wrappers only match their exact type, so a Publisher implementation (e.g. Flux), or a future of one,
+    // is matched as a plain Publisher of its events
+    private fun JavaType.asPublisher(): JavaType =
+        (futureValueType() ?: this).typeArgument(Publisher::class.java)
+            ?.let { TypeUtils.parameterize(Publisher::class.java, it) }
+            ?: this
 
     private fun getIndexOffset(): Int {
         return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {

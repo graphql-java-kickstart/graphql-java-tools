@@ -1,16 +1,25 @@
 package graphql.kickstart.tools
 
+import graphql.ExecutionResult
+import graphql.GraphQL
 import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.reactive.publish
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
+import org.reactivestreams.Publisher
+import org.reactivestreams.tck.TestEnvironment
 import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.CompletableFuture.completedStage
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -783,5 +792,286 @@ class SchemaParserTest {
         """.trimIndent()
 
         assertEquals(error.message, expected)
+    }
+
+    @Test
+    fun `parser should find mutation methods on a resolver that is also a subscription resolver`() {
+        class MutationAndSubscription : GraphQLMutationResolver, GraphQLSubscriptionResolver {
+            fun addItem(name: String) = name
+            fun onItemAdded(): Publisher<String> = StringPublisher("added")
+        }
+
+        val gql = GraphQL.newGraphQL(
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: String
+                    }
+
+                    type Mutation {
+                        addItem(name: String!): String!
+                    }
+
+                    type Subscription {
+                        onItemAdded: String!
+                    }
+                    """
+                )
+                .resolvers(
+                    MutationAndSubscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        ).build()
+
+        val data = assertNoGraphQlErrors(gql) { """mutation { addItem(name: "item") }""" }
+
+        assertEquals(data["addItem"], "item")
+        assertEquals(gql.firstSubscriptionEvent("subscription { onItemAdded }"), mapOf("onItemAdded" to "added"))
+    }
+
+    @Test
+    fun `parser should find query methods on a resolver that is also a subscription resolver`() {
+        class QueryAndSubscription : GraphQLQueryResolver, GraphQLSubscriptionResolver {
+            fun item() = "item"
+            fun onItemAdded(): Publisher<String> = StringPublisher("added")
+        }
+
+        val gql = GraphQL.newGraphQL(
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        item: String!
+                    }
+
+                    type Subscription {
+                        onItemAdded: String!
+                    }
+                    """
+                )
+                .resolvers(QueryAndSubscription())
+                .build()
+                .makeExecutableSchema()
+        ).build()
+
+        val data = assertNoGraphQlErrors(gql) { "{ item }" }
+
+        assertEquals(data["item"], "item")
+        assertEquals(gql.firstSubscriptionEvent("subscription { onItemAdded }"), mapOf("onItemAdded" to "added"))
+    }
+
+    @Test
+    fun `parser should verify subscription return type on a resolver that is also a mutation resolver`() {
+        class MutationAndSubscription : GraphQLMutationResolver, GraphQLSubscriptionResolver {
+            fun addItem(name: String) = name
+            fun onItemAdded() = "added"
+        }
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: String
+                    }
+
+                    type Mutation {
+                        addItem(name: String!): String!
+                    }
+
+                    type Subscription {
+                        onItemAdded: String!
+                    }
+                    """
+                )
+                .resolvers(
+                    MutationAndSubscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assert(error.message!!.contains("onItemAdded()"))
+        assert(error.message!!.endsWith("Note that a Subscription data fetcher must return a Publisher of events"))
+    }
+
+    @Test
+    fun `parser should not mention subscriptions for a missing mutation method on a resolver that is also a subscription resolver`() {
+        class MutationAndSubscription : GraphQLMutationResolver, GraphQLSubscriptionResolver {
+            fun onItemAdded(): Publisher<String> = StringPublisher("added")
+        }
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: String
+                    }
+
+                    type Mutation {
+                        addItem(name: String!): String!
+                    }
+
+                    type Subscription {
+                        onItemAdded: String!
+                    }
+                    """
+                )
+                .resolvers(
+                    MutationAndSubscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assert(error.message!!.contains("addItem(~name)"))
+        assert(!error.message!!.contains("Subscription data fetcher")) { error.message!! }
+    }
+
+    @Test
+    fun `parser should accept subscription resolvers returning publisher subtypes`() {
+        class Subscription : OverriddenPublisherSubscription {
+            fun onCustomPublisher(): EventPublisher<Event> = SingleEventPublisher("onCustomPublisher")
+            fun onConcretePublisher() = SingleEventPublisher("onConcretePublisher")
+            override fun onOverriddenPublisher() = SingleEventPublisher("onOverriddenPublisher")
+        }
+
+        val gql = GraphQL.newGraphQL(
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: String
+                    }
+
+                    type Subscription {
+                        onCustomPublisher: Event!
+                        onConcretePublisher: Event!
+                        onOverriddenPublisher: Event!
+                    }
+
+                    type Event {
+                        name: String!
+                    }
+                    """
+                )
+                .resolvers(
+                    Subscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        ).build()
+
+        listOf("onCustomPublisher", "onConcretePublisher", "onOverriddenPublisher").forEach { field ->
+            assertEquals(gql.firstSubscriptionEvent("subscription { $field { name } }"), mapOf(field to mapOf("name" to field)))
+        }
+    }
+
+    @Test
+    fun `parser should accept subscription resolvers returning futures of publishers`() {
+        class Subscription : GraphQLSubscriptionResolver {
+            fun onCompletableFuture(): CompletableFuture<Publisher<Event>> = completedFuture(SingleEventPublisher("onCompletableFuture"))
+            fun onCompletionStage(): CompletionStage<Publisher<Event>> = completedStage(SingleEventPublisher("onCompletionStage"))
+            fun onFuture(): Future<Publisher<Event>> = completedFuture(SingleEventPublisher("onFuture"))
+            fun onConcretePublisherFuture(): CompletableFuture<SingleEventPublisher> = completedFuture(SingleEventPublisher("onConcretePublisherFuture"))
+            fun onWildcardPublisherFuture(): CompletionStage<out Publisher<Event>> = completedStage(SingleEventPublisher("onWildcardPublisherFuture"))
+        }
+
+        val gql = GraphQL.newGraphQL(
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: String
+                    }
+
+                    type Subscription {
+                        onCompletableFuture: Event!
+                        onCompletionStage: Event!
+                        onFuture: Event!
+                        onConcretePublisherFuture: Event!
+                        onWildcardPublisherFuture: Event!
+                    }
+
+                    type Event {
+                        name: String!
+                    }
+                    """
+                )
+                .resolvers(
+                    Subscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .build()
+                .makeExecutableSchema()
+        ).build()
+
+        listOf("onCompletableFuture", "onCompletionStage", "onFuture", "onConcretePublisherFuture", "onWildcardPublisherFuture").forEach { field ->
+            assertEquals(gql.firstSubscriptionEvent("subscription { $field { name } }"), mapOf(field to mapOf("name" to field)))
+        }
+    }
+
+    @Test
+    fun `parser should accept subscription resolvers returning a receive channel subtype with a wrapper for it`() {
+        class Subscription : GraphQLSubscriptionResolver {
+            fun onChannel(): Channel<String> = Channel<String>(1).also { it.trySend("onChannel") }
+        }
+
+        val gql = GraphQL.newGraphQL(
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: String
+                    }
+
+                    type Subscription {
+                        onChannel: String!
+                    }
+                    """
+                )
+                .resolvers(
+                    Subscription(),
+                    object : GraphQLQueryResolver { fun test() = "test" }
+                )
+                .options(
+                    SchemaParserOptions.newOptions()
+                        .genericWrappers(SchemaParserOptions.GenericWrapper.withTransformer(Channel::class, 0, { channel: Channel<*> ->
+                            publish { for (item in channel) send(item) }
+                        }))
+                        .build()
+                )
+                .build()
+                .makeExecutableSchema()
+        ).build()
+
+        assertEquals(gql.firstSubscriptionEvent("subscription { onChannel }"), mapOf("onChannel" to "onChannel"))
+    }
+
+    private fun GraphQL.firstSubscriptionEvent(query: String): Map<String, Any>? {
+        val result = execute(query)
+        assert(result.errors.isEmpty()) { result.errors.toString() }
+
+        val subscriber = TestEnvironment().newManualSubscriber(result.getData<Publisher<ExecutionResult>>())
+        return subscriber.requestNextElement().getData<Map<String, Any>>()
+    }
+
+    interface EventPublisher<T> : Publisher<T>
+
+    class StringPublisher(value: String) : Publisher<String> by publish(block = { send(value) })
+
+    data class Event(val name: String)
+
+    class SingleEventPublisher(name: String) : EventPublisher<Event>, Publisher<Event> by publish(block = { send(Event(name)) })
+
+    interface OverriddenPublisherSubscription : GraphQLSubscriptionResolver {
+        fun onOverriddenPublisher(): Publisher<Event>
     }
 }

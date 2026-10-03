@@ -68,7 +68,8 @@ internal class MultiResolverInfo(
 
 internal class RootResolverInfo(
     val resolvers: List<GraphQLRootResolver>,
-    private val options: SchemaParserOptions
+    private val options: SchemaParserOptions,
+    val isSubscription: Boolean = false
 ) : ResolverInfo() {
     override fun getFieldSearches() =
         resolvers.map { FieldResolverScanner.Search(getRealResolverClass(it, options), this, it) }
