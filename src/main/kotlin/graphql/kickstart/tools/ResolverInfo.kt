@@ -48,26 +48,19 @@ internal class NormalResolverInfo(
     }
 }
 
-internal class MultiResolverInfo(val resolverInfoList: List<NormalResolverInfo>) : DataClassTypeResolverInfo, ResolverInfo() {
-    override val dataClassType = findDataClass()
-
-    /**
-     * Checks if all `ResolverInfo` instances are related to the same data type
-     */
-    private fun findDataClass(): Class<out Any> {
-        val dataClass = resolverInfoList.asSequence().map { it.dataClassType }.distinct().singleOrNull()
-
-        if (dataClass == null) {
-            throw ResolverError("Resolvers may not use the same type.")
-        } else {
-            return dataClass
-        }
-    }
+/**
+ * Combines all resolvers that apply to a data class, i.e. resolvers for the data class itself and for any of its supertypes.
+ * Resolvers are searched in the given order, followed by the data class itself.
+ */
+internal class MultiResolverInfo(
+    val resolverInfoList: List<NormalResolverInfo>,
+    override val dataClassType: Class<out Any>
+) : DataClassTypeResolverInfo, ResolverInfo() {
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return resolverInfoList
             .asSequence()
-            .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, dataClassType) }
+            .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, it.dataClassType) }
             .plus(FieldResolverScanner.Search(dataClassType, this, null))
             .toList()
     }
