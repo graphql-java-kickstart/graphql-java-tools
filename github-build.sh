@@ -5,6 +5,14 @@ getVersion() {
   grep -m1 -o "<version>.*</version>$" pom.xml | awk -F'[><]' '{print $3}'
 }
 
+requireSnapshot() {
+  local APP_VERSION=$(getVersion)
+  if [[ ${APP_VERSION} != *-SNAPSHOT ]]; then
+    echo "Version in pom.xml must end with -SNAPSHOT to be released: '${APP_VERSION}'"
+    exit 1
+  fi
+}
+
 removeSnapshots() {
   sed -i 's/-SNAPSHOT//' pom.xml
 }
@@ -13,6 +21,15 @@ commitRelease() {
   local APP_VERSION=$(getVersion)
   git commit -a -m "Update version for release"
   git tag -a "v${APP_VERSION}" -m "Tag release version"
+}
+
+publishTag() {
+  local APP_VERSION=$(getVersion)
+  git push origin "v${APP_VERSION}"
+  # Release tags aren't on master's first-parent history, so GitHub can't find the previous one on its own
+  local PREVIOUS_TAG=$(gh release view --json tagName --jq .tagName)
+  gh release create "v${APP_VERSION}" --verify-tag --draft --generate-notes --notes-start-tag "${PREVIOUS_TAG}" --title "v${APP_VERSION}" \
+    || echo "::warning::Draft release for v${APP_VERSION} was not created, create it manually"
 }
 
 bumpVersion() {
@@ -43,11 +60,14 @@ commitNextVersion() {
 git config --global user.email "actions@github.com"
 git config --global user.name "GitHub Actions"
 
+requireSnapshot
+
 echo "Deploying release to Maven Central"
 removeSnapshots
 
 mvn --batch-mode -Prelease deploy
 
 commitRelease
+publishTag
 bumpVersion
 commitNextVersion
