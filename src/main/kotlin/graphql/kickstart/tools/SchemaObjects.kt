@@ -14,6 +14,7 @@ data class SchemaObjects(
     val codeRegistryBuilder: GraphQLCodeRegistry.Builder,
     val description: String?
 ) {
+    // TODO change dictionary to Set<GraphQLNamedType> in the next major version and remove this cast
     @Suppress("UNCHECKED_CAST")
     private fun namedDictionary(): Set<GraphQLNamedType> = dictionary as Set<GraphQLNamedType>
 
