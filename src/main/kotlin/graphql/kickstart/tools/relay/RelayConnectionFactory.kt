@@ -1,5 +1,6 @@
 package graphql.kickstart.tools.relay
 
+import graphql.kickstart.tools.SchemaError
 import graphql.kickstart.tools.TypeDefinitionFactory
 import graphql.language.*
 
@@ -54,7 +55,7 @@ class RelayConnectionFactory : TypeDefinitionFactory {
             .fieldDefinition(FieldDefinition("pageInfo", TypeName("PageInfo")))
             .build()
 
-    private fun createEdgeDefinition(connectionType: String, nodeType: String?): ObjectTypeDefinition =
+    private fun createEdgeDefinition(connectionType: String, nodeType: String): ObjectTypeDefinition =
         ObjectTypeDefinition.newObjectTypeDefinition()
             .name(connectionType + "Edge")
             .fieldDefinition(FieldDefinition("cursor", TypeName("String")))
@@ -70,9 +71,9 @@ class RelayConnectionFactory : TypeDefinitionFactory {
             .fieldDefinition(FieldDefinition("endCursor", TypeName("String")))
             .build()
 
-    private fun Directive.forTypeName(): String? {
-        return (this.getArgument("for")!!.value as StringValue).value
-    }
+    private fun Directive.forTypeName(): String =
+        (getArgument("for")?.value as? StringValue)?.value
+            ?: throw SchemaError("@connection directive is missing the required 'for' argument")
 
     private fun Directive.withField(field: FieldDefinition): DirectiveWithField {
         return DirectiveWithField(field, this.name, this.arguments, this.sourceLocation, this.comments)
