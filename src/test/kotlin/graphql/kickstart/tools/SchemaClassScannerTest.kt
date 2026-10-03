@@ -436,7 +436,7 @@ class SchemaClassScannerTest {
                 directive @key(fields: FieldSet!, resolvable: Boolean = true) repeatable on OBJECT | INTERFACE
                 directive @extends on OBJECT | INTERFACE
                 directive @external on FIELD_DEFINITION | OBJECT
-                directive @link(url: String!, as: String, for: link__Purpose) repeatable on SCHEMA
+                directive @link(url: String!, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
 
                 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@shareable"])
 
@@ -465,7 +465,7 @@ class SchemaClassScannerTest {
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .dictionary(User::class)
             .dictionary("link__Purpose", LinkPurpose::class)
-            .scalars(fieldSetScalar)
+            .scalars(fieldSetScalar, linkImportScalar)
             .build()
             .makeExecutableSchema()
 
@@ -485,6 +485,16 @@ class SchemaClassScannerTest {
                 FieldSet(input.toString())
             override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale) =
                 FieldSet(input.toString())
+        })
+        .build()
+
+    private val linkImportScalar: GraphQLScalarType = GraphQLScalarType.newScalar()
+        .name("link__Import")
+        .coercing(object : Coercing<String, String> {
+            override fun serialize(input: Any, context: GraphQLContext, locale: Locale) = input.toString()
+            override fun parseValue(input: Any, context: GraphQLContext, locale: Locale) = input.toString()
+            override fun parseLiteral(input: Value<*>, variables: CoercedVariables, context: GraphQLContext, locale: Locale) =
+                input.toString()
         })
         .build()
 

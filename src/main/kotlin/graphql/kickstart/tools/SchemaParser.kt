@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.Directives
+import graphql.Scalars
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
@@ -104,7 +105,10 @@ class SchemaParser internal constructor(
         val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
 
         val types = (additionalObjects.toSet() as Set<GraphQLType>) + inputObjects + enums + interfaces + unions
-        return SchemaObjects(query, mutation, subscription, types, schemaDirectives, codeRegistryBuilder, rootInfo.getDescription())
+        // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only GraphQLAppliedDirectives are built here, not
+        // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
+        val schemaAppliedDirectives = buildAppliedDirectives(rootInfo.getDirectives()).toList()
+        return SchemaObjects(query, mutation, subscription, types, schemaDirectives, codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
     }
 
     /**
@@ -352,7 +356,8 @@ class SchemaParser internal constructor(
         return directives.map { directive ->
             val graphQLDirective = schemaDirectives.find { d -> d.name == directive.name }
                 ?: BUILT_IN_DIRECTIVES[directive.name]
-                ?: throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
+                ?: if (options.allowUndeclaredDirectives) return@map buildUndeclaredAppliedDirective(directive)
+                else throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
             val graphQLArguments = graphQLDirective.arguments.associateBy { it.name }
 
             GraphQLAppliedDirective.newDirective()
@@ -394,6 +399,36 @@ class SchemaParser internal constructor(
         }.toTypedArray()
     }
 
+    private fun buildUndeclaredAppliedDirective(directive: Directive): GraphQLAppliedDirective {
+        return GraphQLAppliedDirective.newDirective()
+            .name(directive.name)
+            .definition(directive)
+            .comparatorRegistry(runtimeWiring.comparatorRegistry)
+            .apply {
+                directive.arguments.forEach { arg ->
+                    argument(GraphQLAppliedDirectiveArgument.newArgument()
+                        .name(arg.name)
+                        .type(guessDirectiveArgumentType(directive, arg.name, arg.value))
+                        .valueLiteral(arg.value)
+                        .build()
+                    )
+                }
+            }
+            .build()
+    }
+
+    // there's no directive definition to look the type up in, so it's guessed from the value
+    private fun guessDirectiveArgumentType(directive: Directive, argumentName: String, value: Value<*>): GraphQLInputType {
+        return when (value) {
+            is StringValue, is NullValue -> Scalars.GraphQLString
+            is IntValue -> Scalars.GraphQLInt
+            is FloatValue -> Scalars.GraphQLFloat
+            is BooleanValue -> Scalars.GraphQLBoolean
+            is ArrayValue -> GraphQLList(value.values.firstOrNull()?.let { guessDirectiveArgumentType(directive, argumentName, it) } ?: Scalars.GraphQLString)
+            else -> throw SchemaError("Can't guess the type of argument ${directive.name}#$argumentName of undeclared directive ${directive.name}, please declare the directive.")
+        }
+    }
+
     // TODO remove this once directives are fully replaced with applied directives
     private fun buildDirectives(
         directives: List<Directive>,
@@ -408,7 +443,9 @@ class SchemaParser internal constructor(
                 names.add(directive.name)
                 val graphQLDirective = this.schemaDirectives.find { d -> d.name == directive.name }
                     ?: BUILT_IN_DIRECTIVES[directive.name]
-                    ?: throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
+                    // graphql-java rejects legacy directives without a definition, so undeclared ones are only kept as applied directives
+                    ?: if (options.allowUndeclaredDirectives) continue
+                    else throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
                 val graphQLArguments = graphQLDirective.arguments.associateBy { it.name }
                 output.add(
                     GraphQLDirective.newDirective()
