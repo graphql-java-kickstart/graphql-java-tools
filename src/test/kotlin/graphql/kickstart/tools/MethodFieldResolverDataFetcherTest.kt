@@ -21,6 +21,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.tck.TestEnvironment
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
@@ -54,6 +55,33 @@ class MethodFieldResolverDataFetcherTest {
         suspend fun isActive(data: DataClass): Boolean {
             return coroutineContext[dispatcher.key] == dispatcher &&
                 coroutineContext[Job] == job.children.first()
+        }
+    }
+
+    @Test
+    fun `data fetcher does not invoke suspend function if coroutineContext defined by options is cancelled`() {
+        // setup
+        val cancelledClass = CancelledClass()
+
+        val resolver = createFetcher("active", cancelledClass, options = cancelledClass.options)
+
+        // expect
+        val future = resolver.get(createEnvironment(DataClass())) as CompletableFuture<*>
+        assert(runCatching { future.get() }.exceptionOrNull() is CancellationException)
+        assert(!cancelledClass.invoked)
+    }
+
+    class CancelledClass : GraphQLResolver<DataClass> {
+        var invoked = false
+
+        val options = SchemaParserOptions.Builder()
+            .coroutineContext(Dispatchers.Default + Job().apply { cancel() })
+            .build()
+
+        @Suppress("UNUSED_PARAMETER")
+        suspend fun isActive(data: DataClass): Boolean {
+            invoked = true
+            return true
         }
     }
 

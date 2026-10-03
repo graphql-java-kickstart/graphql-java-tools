@@ -15,6 +15,8 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLTypeUtil.isScalar
 import graphql.schema.LightDataFetcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
@@ -211,7 +213,10 @@ internal class MethodFieldResolverDataFetcher(
         val args = this.args.map { it(environment) }.toTypedArray()
 
         return if (isSuspendFunction) {
-            environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
+            // start undispatched so DataLoader loads are queued before graphql-java dispatches them,
+            // which runs the block even if the context is already cancelled, hence ensureActive
+            environment.coroutineScope().future(options.coroutineContextProvider.provide(), CoroutineStart.UNDISPATCHED) {
+                ensureActive()
                 invokeSuspend(source, method, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
             }
         } else {
