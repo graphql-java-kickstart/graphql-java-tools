@@ -105,8 +105,8 @@ class SchemaParser internal constructor(
         val additionalObjects = objects.filter { o -> o != query && o != subscription && o != mutation }
 
         val types = (additionalObjects.toSet() as Set<GraphQLType>) + inputObjects + enums + interfaces + unions
-        // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only applied directives are built here:
-        // graphql-java doesn't resolve type references in the deprecated legacy schema directives, so enum arguments would fail.
+        // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only GraphQLAppliedDirectives are built here, not
+        // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
         val schemaAppliedDirectives = buildAppliedDirectives(rootInfo.getDirectives()).toList()
         return SchemaObjects(query, mutation, subscription, types, schemaDirectives, codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
     }
