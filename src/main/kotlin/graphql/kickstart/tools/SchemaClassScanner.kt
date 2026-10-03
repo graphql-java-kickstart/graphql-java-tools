@@ -360,7 +360,7 @@ internal class SchemaClassScanner(
                     if (java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
                         throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
                     }
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.unwrap()}:\n|   ${reference.getDescription()}")
+                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.typeName}:\n|   ${reference.getDescription()}")
                 }
             }
         }
@@ -469,7 +469,7 @@ internal class SchemaClassScanner(
             references.add(reference)
         }
 
-        fun joinReferences() = "- ${typeClass()}:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
+        fun joinReferences() = "- ${javaType?.typeName}:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
 
         fun hasResolverRef(): Boolean {
             references.filterIsInstance<ReturnValueReference>().forEach { reference ->
