@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
+import graphql.schema.DataFetchingEnvironment
 import org.junit.Test
 
 class EnumDefaultValueTest {
@@ -42,6 +43,39 @@ class EnumDefaultValueTest {
         }
 
         assertEquals(data["test"], "createdOn")
+    }
+
+    @Test
+    fun `enum list argument default value is passed to resolvers as enums`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test(sortBy: [SortBy!] = [createdOn, updatedOn]): [String!]!
+                }
+                enum SortBy {
+                    createdOn
+                    updatedOn
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(sortBy: List<SortBy>, env: DataFetchingEnvironment): List<String> =
+                    env.getArgument<List<Any>>("sortBy")!!.map { "${it.javaClass.simpleName}:$it" }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val ggl = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(ggl) {
+            """
+            query {
+                test
+            }
+            """
+        }
+
+        assertEquals(data["test"], listOf("SortBy:createdOn", "SortBy:updatedOn"))
     }
 
     class MySortSpecifier {

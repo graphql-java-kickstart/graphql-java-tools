@@ -37,6 +37,48 @@ public class ResolverMethodsTest {
         assertEquals("false,null", ((Map<?, ?>) result.getData()).get("testOmittedBoolean"));
     }
 
+    // Kotlin reflection used to fail on anonymous Java classes (KT-41373), so these resolvers must stay in Java.
+    @Test
+    public void testAnonymousClassResolvers() {
+        GraphQLSchema schema = SchemaParser.newParser()
+            .schemaString("type Query { hello(name: String!): String! product: Product! } type Product { name: String! }")
+            .resolvers(
+                new GraphQLQueryResolver() {
+                    @SuppressWarnings("unused")
+                    public String hello(String name) {
+                        return "Hello, " + name;
+                    }
+
+                    @SuppressWarnings("unused")
+                    public Product product() {
+                        return new Product();
+                    }
+                },
+                new GraphQLResolver<Product>() {
+                    @SuppressWarnings("unused")
+                    public String name(Product product) {
+                        return "product";
+                    }
+                })
+            .build()
+            .makeExecutableSchema();
+
+        GraphQL gql = GraphQL.newGraphQL(schema).build();
+
+        ExecutionResult result = gql
+            .execute(ExecutionInput.newExecutionInput()
+                .query("query { hello(name: \"World\") product { name } }")
+                .root(new Object()));
+
+        assertTrue(result.getErrors().isEmpty());
+        Map<?, ?> data = result.getData();
+        assertEquals("Hello, World", data.get("hello"));
+        assertEquals(Map.of("name", "product"), data.get("product"));
+    }
+
+    static class Product {
+    }
+
     static class Resolver implements GraphQLQueryResolver {
 
         @SuppressWarnings("unused")

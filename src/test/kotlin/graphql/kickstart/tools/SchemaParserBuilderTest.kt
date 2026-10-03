@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.kickstart.tools.SchemaParser.Companion.newParser
 import graphql.parser.InvalidSyntaxException
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -15,6 +16,7 @@ class SchemaParserBuilderTest(private val schema: String, private val error: Str
             newParser()
                 .schemaString(schema)
                 .build()
+            fail("Expected InvalidSyntaxException")
         } catch (e: InvalidSyntaxException) {
             assert(e.toString().contains(error))
         }
