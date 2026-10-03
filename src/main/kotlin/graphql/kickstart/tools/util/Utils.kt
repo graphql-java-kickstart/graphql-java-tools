@@ -52,7 +52,7 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
 
 internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOptions): String? =
     when {
-        node is AbstractDescribedNode<*> && node.description != null -> node.description.content
+        node is AbstractDescribedNode<*> && node.description != null -> node.description?.content
         !options.useCommentsForDescriptions -> null
         node.comments.isNullOrEmpty() -> null
         else -> node.comments.asSequence()

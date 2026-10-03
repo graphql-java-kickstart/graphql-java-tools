@@ -18,8 +18,8 @@ class PlaceTest {
         val executionInput = ExecutionInput.newExecutionInput().query(query).build()
         val result = graphql.execute(executionInput)
 
-        assert(result.getData<Map<String, List<*>>>()["places1"]?.size == 3)
-        assert(result.getData<Map<String, List<*>>>()["places2"]?.size == 2)
+        assert(result.getData<Map<String, List<*>>>()!!["places1"]?.size == 3)
+        assert(result.getData<Map<String, List<*>>>()!!["places2"]?.size == 2)
     }
 }
 

@@ -79,7 +79,7 @@ class EndToEndTest {
             .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
-        val data = result.getData() as Publisher<ExecutionResult>
+        val data = result.getData<Any>() as Publisher<ExecutionResult>
         val latch = CountDownLatch(1)
         data.subscribe(object : Subscriber<ExecutionResult> {
             override fun onNext(item: ExecutionResult?) {
@@ -117,7 +117,7 @@ class EndToEndTest {
             .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
-        val data = result.getData() as Publisher<ExecutionResult>
+        val data = result.getData<Any>() as Publisher<ExecutionResult>
         val latch = CountDownLatch(1)
         data.subscribe(object : Subscriber<ExecutionResult> {
             override fun onNext(item: ExecutionResult?) {
@@ -639,7 +639,7 @@ class EndToEndTest {
             .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
-        val data = result.getData() as Publisher<ExecutionResult>
+        val data = result.getData<Any>() as Publisher<ExecutionResult>
         val subscriber = TestEnvironment().newManualSubscriber(data)
 
         val subscriberResult = subscriber.requestNextElement() as ExecutionResultImpl
@@ -667,7 +667,7 @@ class EndToEndTest {
             .graphQLContext(mapOf("newItem" to newItem))
             .variables(mapOf()))
 
-        val data = result.getData() as Publisher<ExecutionResult>
+        val data = result.getData<Any>() as Publisher<ExecutionResult>
         val subscriber = TestEnvironment().newManualSubscriber(data)
 
         val subscriberResult = subscriber.requestNextElement() as ExecutionResultImpl
