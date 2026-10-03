@@ -86,26 +86,40 @@ internal class SchemaClassScanner(
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
         } while (scanQueue())
 
-        // Find unused types and include them if required
-        if (options.includeUnusedTypes) {
-            do {
-                val unusedDefinitions = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
-                    .filter { definition -> definition.name != "PageInfo" }
-                    .filterIsInstance<ObjectTypeDefinition>().distinct()
-
-                if (unusedDefinitions.isEmpty()) {
-                    break
-                }
-
-                val unusedDefinition = unusedDefinitions.first()
-
-                handleDictionaryTypes(listOf(unusedDefinition)) { "Object type '${it.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${it.name}' in the parser's dictionary." }
-            } while (scanQueue())
-        }
-
         handleDirectives()
 
+        // Find unused types and include them if required
+        if (options.includeUnusedTypes) {
+            // One type at a time, since scanning it can discover other unused types along with their classes
+            while (true) {
+                val unusedDefinition = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
+                    .filter { definition -> definition.name != "PageInfo" }
+                    .firstOrNull { canIncludeUnusedType(it) }
+                    ?: break
+
+                handleUnusedType(unusedDefinition)
+                scanQueue()
+            }
+        }
+
         return validateAndCreateResult(rootTypeHolder)
+    }
+
+    private fun canIncludeUnusedType(definition: TypeDefinition<*>): Boolean = when (definition) {
+        is ObjectTypeDefinition, is InterfaceTypeDefinition, is UnionTypeDefinition -> true
+        // Enums can't be built without a class, so the ones missing from the dictionary are only reported as unused
+        is EnumTypeDefinition -> initialDictionary.containsKey(definition.name)
+        else -> false
+    }
+
+    private fun handleUnusedType(type: TypeDefinition<*>) {
+        val initialEntry = initialDictionary[type.name]
+        when {
+            initialEntry != null -> handleFoundType(type, initialEntry.get(), DictionaryReference())
+            // Interfaces and unions are resolved through the classes of their implementations, so they don't need one
+            type is InterfaceTypeDefinition || type is UnionTypeDefinition -> handleFoundType(type, null, UnusedTypeReference())
+            else -> throw SchemaClassScannerError("Object type '${type.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${type.name}' in the parser's dictionary.")
+        }
     }
 
     private fun scanQueue(): Boolean {
@@ -368,7 +382,7 @@ internal class SchemaClassScanner(
                                 handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
                                     inputValueDefinition.type,
                                     inputValueJavaType,
-                                    GenericType(javaType, options).relativeToType(inputValueJavaType),
+                                    GenericType(javaType, options).relativeToType(javaType),
                                     InputObjectReference(inputValueDefinition)
                                 )))
                             } else {
@@ -461,6 +475,10 @@ internal class SchemaClassScanner(
 
     private class DictionaryReference : Reference() {
         override fun getDescription() = "provided dictionary"
+    }
+
+    private class UnusedTypeReference : Reference() {
+        override fun getDescription() = "unused type"
     }
 
     private class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
