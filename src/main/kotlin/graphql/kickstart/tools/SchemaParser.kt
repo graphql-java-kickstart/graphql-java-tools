@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.Directives
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
@@ -8,7 +9,6 @@ import graphql.kickstart.tools.util.getExtendedFieldDefinitions
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.*
-import graphql.schema.idl.DirectiveInfo
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
@@ -351,7 +351,7 @@ class SchemaParser internal constructor(
     private fun buildAppliedDirectives(directives: List<Directive>): Array<GraphQLAppliedDirective> {
         return directives.map { directive ->
             val graphQLDirective = schemaDirectives.find { d -> d.name == directive.name }
-                ?: DirectiveInfo.GRAPHQL_SPECIFICATION_DIRECTIVE_MAP[directive.name]
+                ?: BUILT_IN_DIRECTIVES[directive.name]
                 ?: throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
             val graphQLArguments = graphQLDirective.arguments.associateBy { it.name }
 
@@ -374,6 +374,22 @@ class SchemaParser internal constructor(
                         )
                     }
                 }
+                .apply {
+                    // a bare @deprecated has no "reason" argument, which makes SchemaPrinter throw a NPE.
+                    // copy the default from the directive definition (for the built-in one: "No longer supported").
+                    if (directive.name == Directives.DeprecatedDirective.name && directive.arguments.none { it.name == "reason" }) {
+                        val reasonArgument = graphQLArguments["reason"]
+                        if (reasonArgument != null && reasonArgument.hasSetDefaultValue()) {
+                            argument(GraphQLAppliedDirectiveArgument.newArgument()
+                                .name(reasonArgument.name)
+                                .type(reasonArgument.type)
+                                .description(reasonArgument.description)
+                                .inputValueWithState(reasonArgument.argumentDefaultValue)
+                                .build()
+                            )
+                        }
+                    }
+                }
                 .build()
         }.toTypedArray()
     }
@@ -391,7 +407,7 @@ class SchemaParser internal constructor(
             if (repeatable || !names.contains(directive.name)) {
                 names.add(directive.name)
                 val graphQLDirective = this.schemaDirectives.find { d -> d.name == directive.name }
-                    ?: DirectiveInfo.GRAPHQL_SPECIFICATION_DIRECTIVE_MAP[directive.name]
+                    ?: BUILT_IN_DIRECTIVES[directive.name]
                     ?: throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
                 val graphQLArguments = graphQLDirective.arguments.associateBy { it.name }
                 output.add(
@@ -520,5 +536,17 @@ class SchemaParser internal constructor(
 class SchemaError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
 val GRAPHQL_SCALARS = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS.associateBy { it.name }
+
+// Built from the individual constants rather than Directives.BUILT_IN_DIRECTIVES_MAP (added in graphql-java 26)
+// so that the library keeps working with graphql-java 25. TODO replace with Directives.BUILT_IN_DIRECTIVES_MAP once we deploy a major version
+private val BUILT_IN_DIRECTIVES = listOf(
+    Directives.IncludeDirective,
+    Directives.SkipDirective,
+    Directives.DeprecatedDirective,
+    Directives.SpecifiedByDirective,
+    Directives.OneOfDirective,
+    Directives.DeferDirective,
+    Directives.ExperimentalDisableErrorPropagationDirective
+).associateBy { it.name }
 
 const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"

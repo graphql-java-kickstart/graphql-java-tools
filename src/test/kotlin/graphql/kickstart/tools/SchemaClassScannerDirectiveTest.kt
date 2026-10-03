@@ -31,7 +31,7 @@ class SchemaClassScannerDirectiveTest {
 
         val value = schema.queryType.getFieldDefinition("string")
             .getAppliedDirective("doSomething")
-            .getArgument("value")
+            .getArgument("value")!!
             .getValue<CustomValue>()
 
         assertEquals(value.value, "some thing")
@@ -72,7 +72,7 @@ class SchemaClassScannerDirectiveTest {
 
         val value = schema.queryType.getFieldDefinition("string")
             .getAppliedDirective("doSomething")
-            .getArgument("value")
+            .getArgument("value")!!
             .getValue<CustomEnum>()
 
         assertEquals(value, ONE)
@@ -103,7 +103,7 @@ class SchemaClassScannerDirectiveTest {
 
         val value = schema.queryType.getFieldDefinition("string")
             .getAppliedDirective("doSomething")
-            .getArgument("input")
+            .getArgument("input")!!
             .getValue<Map<*,*>>()["value"]
 
         assertEquals(value, "some value")

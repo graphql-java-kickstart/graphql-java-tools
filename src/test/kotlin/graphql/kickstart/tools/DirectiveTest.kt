@@ -275,6 +275,44 @@ class DirectiveTest {
             .build()
     }
 
+    @Test
+    fun `should resolve built-in directives`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                input BookFilter @oneOf {
+                    id: Int
+                    name: String
+                }
+
+                type Book {
+                    id: Int!
+                    name: String! @deprecated
+                }
+
+                type Query {
+                    book(filter: BookFilter!): Book
+                }
+                """)
+            .resolvers(BookQueryResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val filter = schema.getType("BookFilter") as GraphQLInputObjectType
+        assert(filter.isOneOf)
+        assertNotNull(filter.getAppliedDirective("oneOf"))
+        assert((schema.getType("Book") as GraphQLObjectType).getField("name").isDeprecated)
+    }
+
+    private class BookQueryResolver : GraphQLQueryResolver {
+        fun book(filter: BookFilter): Book? = null
+    }
+
+    private data class BookFilter(
+        val id: Int?,
+        val name: String?
+    )
+
     private class QueryResolver : GraphQLQueryResolver {
         fun books(): List<Book> {
             return listOf(Book(42L, "Test Book"))

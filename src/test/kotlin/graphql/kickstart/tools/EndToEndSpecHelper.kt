@@ -378,7 +378,7 @@ class Subscription : GraphQLSubscriptionResolver {
 
     fun onItemCreatedCoroutineChannel(env: DataFetchingEnvironment): ReceiveChannel<Item> {
         val channel = Channel<Item>(1)
-        channel.trySend(env.graphQlContext["newItem"])
+        channel.trySend(env.graphQlContext.get<Item>("newItem")!!)
         return channel
     }
 
@@ -393,7 +393,7 @@ class Subscription : GraphQLSubscriptionResolver {
     suspend fun onItemCreatedCoroutineChannelAndSuspendFunction(env: DataFetchingEnvironment): ReceiveChannel<Item> {
         return coroutineScope {
             val channel = Channel<Item>(1)
-            channel.trySend(env.graphQlContext["newItem"])
+            channel.trySend(env.graphQlContext.get<Item>("newItem")!!)
             channel
         }
     }

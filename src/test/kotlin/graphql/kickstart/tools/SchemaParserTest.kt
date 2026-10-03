@@ -259,7 +259,7 @@ class SchemaParserTest {
             .build()
             .makeExecutableSchema()
 
-        val sourceLocation = schema.getObjectType("Query")
+        val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
             .definition!!.sourceLocation
         assertNotNull(sourceLocation)
@@ -276,7 +276,7 @@ class SchemaParserTest {
             .build()
             .makeExecutableSchema()
 
-        val sourceLocation = schema.getObjectType("Query")
+        val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
             .definition!!.sourceLocation
         assertNotNull(sourceLocation)
@@ -505,10 +505,10 @@ class SchemaParserTest {
             .build()
             .makeExecutableSchema()
 
-        val testNonNullableArgument = schema.getObjectType("Query")
+        val testNonNullableArgument = schema.getObjectType("Query")!!
             .getFieldDefinition("testNonNullable")
             .arguments.first()
-        val testNullableArgument = schema.getObjectType("Query")
+        val testNullableArgument = schema.getObjectType("Query")!!
             .getFieldDefinition("testNullable")
             .arguments.first()
         assert(testNonNullableArgument.type is GraphQLNonNull)
@@ -539,7 +539,7 @@ class SchemaParserTest {
             .build()
             .makeExecutableSchema()
 
-        val queryType = schema.getObjectType("Query")
+        val queryType = schema.getObjectType("Query")!!
         assertEquals(queryType.getFieldDefinition("description").description, "description")
         assertEquals(queryType.getFieldDefinition("comment").description, "comment")
         assertNull(queryType.getFieldDefinition("omitted").description)
