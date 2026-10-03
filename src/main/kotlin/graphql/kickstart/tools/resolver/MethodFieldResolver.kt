@@ -24,7 +24,7 @@ import java.lang.reflect.Method
 import java.util.*
 import java.util.function.Supplier
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
-import kotlin.reflect.full.valueParameters
+import kotlin.reflect.KParameter
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
 
@@ -41,7 +41,7 @@ internal class MethodFieldResolver(
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val isSuspendFunction = method.isSuspendFunction()
-    private val numberOfParameters = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+    private val numberOfParameters = method.kotlinFunction?.parameters?.count { it.kind != KParameter.Kind.INSTANCE } ?: method.parameterCount
     private val hasAdditionalParameter = numberOfParameters == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
@@ -100,7 +100,8 @@ internal class MethodFieldResolver(
 
         // Add DataFetchingEnvironment/Context argument
         if (this.hasAdditionalParameter) {
-            when (this.method.parameterTypes.last()) {
+            // suspend functions have a trailing Continuation parameter
+            when (this.method.parameterTypes[numberOfParameters - 1]) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
                 options.contextClass -> args.add { environment ->
                     val context: Any? = environment.graphQlContext[options.contextClass]

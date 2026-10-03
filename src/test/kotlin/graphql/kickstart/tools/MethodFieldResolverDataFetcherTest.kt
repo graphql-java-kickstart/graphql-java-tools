@@ -213,6 +213,54 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @Test
+    fun `data fetcher passes context to suspend function if method has extra argument and context is specified`() {
+        val context = GraphQLContext.newContext().build()
+        val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
+            suspend fun isActive(dataClass: DataClass, ctx: GraphQLContext): Boolean {
+                return ctx == context
+            }
+        })
+
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), context = context)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    @Test
+    fun `data fetcher passes custom context to suspend function if method has extra argument and custom context is specified`() {
+        val customContext = ContextClass()
+        val context = GraphQLContext.of(mapOf(ContextClass::class.java to customContext))
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            suspend fun isActive(dataClass: DataClass, ctx: ContextClass): Boolean {
+                return ctx == customContext
+            }
+        })
+
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), context = context)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    @Test
+    fun `data fetcher uses extension function on the data class`() {
+        val resolver = createFetcher("name", object : GraphQLResolver<DataClass> {
+            fun DataClass.name(): String = "extension $name"
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass())), "extension TestName")
+    }
+
+    @Test
+    fun `data fetcher passes environment to extension function if method has extra argument`() {
+        val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
+            fun DataClass.isActive(env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass())), true)
+    }
+
+    @Test
     fun `data fetcher marshalls input object if required`() {
         val name = "correct name"
         val resolver = createFetcher("active", listOf(InputValueDefinition("input", TypeName("InputClass"))), object : GraphQLQueryResolver {

@@ -6,10 +6,12 @@ import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.resolver.PropertyFieldResolver
 import graphql.language.FieldDefinition
+import graphql.language.InputValueDefinition
 import graphql.language.TypeName
 import graphql.relay.Connection
 import graphql.relay.DefaultConnection
 import graphql.relay.DefaultPageInfo
+import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.util.*
@@ -98,6 +100,21 @@ class FieldResolverScannerTest {
         Locale.setDefault(default)
     }
 
+    @Test
+    fun `scanner ignores extension functions on root resolvers`() {
+        val resolver = RootResolverInfo(listOf(UserQuery(), ExtensionQuery()), options)
+        val field = FieldDefinition.newFieldDefinition()
+            .name("user")
+            .type(TypeName("String"))
+            .inputValueDefinition(InputValueDefinition("id", TypeName("ID")))
+            .build()
+
+        val user = scanner.findFieldResolver(field, resolver)
+
+        assert(user is MethodFieldResolver)
+        assertEquals((user as MethodFieldResolver).method.declaringClass, UserQuery::class.java)
+    }
+
     class RootQuery1 : GraphQLQueryResolver {
         fun field1() {}
     }
@@ -108,6 +125,14 @@ class FieldResolverScannerTest {
 
     class DuplicateQuery : GraphQLQueryResolver {
         fun field1() {}
+    }
+
+    class UserQuery : GraphQLQueryResolver {
+        fun user(id: String): String = id
+    }
+
+    class ExtensionQuery : GraphQLQueryResolver {
+        fun DataFetchingEnvironment.user(): String = field.name
     }
 
     class CamelCaseQuery1 : GraphQLQueryResolver {
