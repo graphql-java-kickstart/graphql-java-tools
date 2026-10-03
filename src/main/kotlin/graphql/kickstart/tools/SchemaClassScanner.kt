@@ -543,7 +543,7 @@ internal class SchemaClassScanner(
 
         private val queryResolverInfo = RootResolverInfo(queryResolvers, options)
         private val mutationResolverInfo = RootResolverInfo(mutationResolvers, options)
-        private val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers, options)
+        private val subscriptionResolverInfo = RootResolverInfo(subscriptionResolvers, options, isSubscription = true)
 
         val query = createRootType("query", queryDefinition, queryName, true, queryResolvers, GraphQLQueryResolver::class.java, queryResolverInfo)
         val mutation = createRootType("mutation", mutationDefinition, mutationName, rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)
