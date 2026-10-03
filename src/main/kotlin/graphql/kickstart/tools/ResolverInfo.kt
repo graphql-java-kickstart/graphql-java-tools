@@ -3,7 +3,10 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.util.GraphQLRootResolver
 import graphql.kickstart.tools.util.JavaType
+import graphql.kickstart.tools.util.eraseUnboundedWildcards
+import graphql.kickstart.tools.util.unwrap
 import org.apache.commons.lang3.reflect.TypeUtils
+import java.lang.reflect.ParameterizedType
 
 internal abstract class ResolverInfo {
     abstract fun getFieldSearches(): List<FieldResolverScanner.Search>
@@ -28,6 +31,11 @@ internal class NormalResolverInfo(
 
     private fun findDataClass(): Class<out Any> {
         val type = TypeUtils.getTypeArguments(resolverType, GraphQLResolver::class.java)[GraphQLResolver::class.java.typeParameters[0]]
+            ?.eraseUnboundedWildcards()
+
+        if (type is ParameterizedType) {
+            throw ResolverError("Resolver '${resolverType.name}' may not have a parameterized type (${type.typeName}) as its type, use the raw type or unbounded wildcards (<?> in Java, <*> in Kotlin) instead.")
+        }
 
         if (type == null || type !is Class<*>) {
             throw ResolverError("Unable to determine data class for resolver '${resolverType.name}' from generic interface! This is most likely a bug with graphql-java-tools.")
@@ -54,14 +62,16 @@ internal class NormalResolverInfo(
  */
 internal class MultiResolverInfo(
     val resolverInfoList: List<NormalResolverInfo>,
-    override val dataClassType: Class<out Any>
+    private val dataClass: JavaType
 ) : DataClassTypeResolverInfo, ResolverInfo() {
+
+    override val dataClassType = dataClass.unwrap()
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return resolverInfoList
             .asSequence()
             .map { FieldResolverScanner.Search(it.resolverType, this, it.resolver, it.dataClassType) }
-            .plus(FieldResolverScanner.Search(dataClassType, this, null))
+            .plus(FieldResolverScanner.Search(dataClass, this, null))
             .toList()
     }
 }
