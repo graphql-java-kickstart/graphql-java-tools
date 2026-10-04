@@ -12,6 +12,7 @@ import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.reflect.jvm.kotlinFunction
 
 /**
  * @author Andrew Potter
@@ -58,6 +59,18 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
             else -> this.declaredMethods.toList()
         }
     }
+
+internal fun JavaMethod.isSuspendFunction(): Boolean {
+    return try {
+        this.kotlinFunction?.isSuspend == true
+    } catch (e: InternalError) {
+        false
+    }
+}
+
+// the trailing Continuation of a suspend function isn't a resolver argument
+internal fun JavaMethod.parameterCountWithoutContinuation(): Int =
+    if (isSuspendFunction()) parameterCount - 1 else parameterCount
 
 internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOptions): String? =
     when {

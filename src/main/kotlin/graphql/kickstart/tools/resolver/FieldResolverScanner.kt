@@ -16,9 +16,7 @@ import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
 import java.lang.reflect.*
-import kotlin.reflect.KParameter
 import kotlin.reflect.full.extensionReceiverParameter
-import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
 
 /**
@@ -172,29 +170,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             !isExtensionFunction(method)
         }
 
-        val methodParameterCount = getMethodParameterCount(method)
-        val methodLastParameter = getMethodLastParameter(method)
+        val methodParameterCount = method.parameterCountWithoutContinuation()
+        val methodLastParameter = method.parameterTypes.getOrNull(methodParameterCount - 1)
 
         val correctParameterCount = methodParameterCount == requiredCount ||
             (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
         return correctParameterCount && appropriateFirstParameter
-    }
-
-    private fun getMethodParameterCount(method: Method): Int {
-        return try {
-            method.kotlinFunction?.parameters?.count { it.kind != KParameter.Kind.INSTANCE } ?: method.parameterCount
-        } catch (e: InternalError) {
-            method.parameterCount
-        }
-    }
-
-    private fun getMethodLastParameter(method: Method): Type? {
-        return try {
-            method.kotlinFunction?.parameters?.lastOrNull { it.kind != KParameter.Kind.INSTANCE }?.type?.javaType
-                ?: method.parameterTypes.lastOrNull()
-        } catch (e: InternalError) {
-            method.parameterTypes.lastOrNull()
-        }
     }
 
     private fun isExtensionFunction(method: Method): Boolean {
