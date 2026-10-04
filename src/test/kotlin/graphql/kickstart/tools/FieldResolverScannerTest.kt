@@ -98,6 +98,19 @@ class FieldResolverScannerTest {
         Locale.setDefault(default)
     }
 
+    @Test
+    fun `scanner finds field resolver methods in priority order`() {
+        val resolverInfo = RootResolverInfo(listOf(PriorityQuery()), options)
+
+        fun methodName(name: String, type: String) =
+            (scanner.findFieldResolver(FieldDefinition(name, TypeName(type)), resolverInfo) as MethodFieldResolver).method.name
+
+        assertEquals(methodName("name", "String"), "name")
+        assertEquals(methodName("active", "Boolean"), "isActive")
+        assertEquals(methodName("enabled", "String"), "getEnabled")
+        assertEquals(methodName("count", "Int"), "getFieldCount")
+    }
+
     class RootQuery1 : GraphQLQueryResolver {
         fun field1() {}
     }
@@ -116,6 +129,18 @@ class FieldResolverScannerTest {
 
     class CapitalizeQuery : GraphQLQueryResolver {
         fun getId(): HullType = HullType()
+    }
+
+    class PriorityQuery : GraphQLQueryResolver {
+        fun name(): String = "name"
+        fun getName(): String = "name"
+        fun getFieldName(): String = "name"
+        fun active(flag: Boolean): Boolean = flag
+        fun isActive(): Boolean = true
+        fun getActive(): Boolean = true
+        fun isEnabled(): Boolean = true
+        fun getEnabled(): String = "enabled"
+        fun getFieldCount(): Int = 1
     }
 
     class HullType
