@@ -29,6 +29,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
 
+    private val methodsByNameCache = mutableMapOf<Pair<Class<out Any>, Boolean>, Map<String, List<Method>>>()
+
     fun findFieldResolver(field: FieldDefinition, resolverInfo: ResolverInfo): FieldResolver {
         val searches = resolverInfo.getFieldSearches()
 
@@ -86,9 +88,10 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun findResolverMethod(field: FieldDefinition, search: Search): Method? {
-        val methods = getAllMethods(search)
+        val methodsByName = getMethodsByName(search)
         val argumentCount = field.inputValueDefinitions.size + if (search.requiredFirstParameterType != null) 1 else 0
         val name = field.name
+        val capitalizedName = name.replaceFirstChar(Char::titlecase)
 
         // Check for the following one by one:
         //   1. Method with exact field name
@@ -96,18 +99,22 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         //   3. Method with "get" style getter
         //   4. Method with "getField" style getter
         //   5. Method with "get" style getter with the field name converted from snake_case to camelCased. ex: key_ops -> getKeyOps()
-        return methods.find {
-            it.name == name && verifyMethodArguments(it, argumentCount, search)
-        } ?: methods.find {
-            (isBoolean(field.type) && it.name == "is${name.replaceFirstChar(Char::titlecase)}") && verifyMethodArguments(it, argumentCount, search)
-        } ?: methods.find {
-            it.name == "get${name.replaceFirstChar(Char::titlecase)}" && verifyMethodArguments(it, argumentCount, search)
-        } ?: methods.find {
-            it.name == "getField${name.replaceFirstChar(Char::titlecase)}" && verifyMethodArguments(it, argumentCount, search)
-        } ?: methods.find {
-            it.name == "get${name.snakeToCamelCase()}" && verifyMethodArguments(it, argumentCount, search)
+        return listOfNotNull(
+            name,
+            if (isBoolean(field.type)) "is$capitalizedName" else null,
+            "get$capitalizedName",
+            "getField$capitalizedName",
+            "get${name.snakeToCamelCase()}"
+        ).firstNotNullOfOrNull { methodName ->
+            methodsByName[methodName]?.find { verifyMethodArguments(it, argumentCount, search) }
         }
     }
+
+    // root fields are searched on every root resolver, so each class's methods are only indexed once
+    private fun getMethodsByName(search: Search): Map<String, List<Method>> =
+        methodsByNameCache.getOrPut(search.type.unwrap() to search.isSubscription) {
+            getAllMethods(search).groupBy { it.name }
+        }
 
     private fun getAllMethods(search: Search): List<Method> {
         val type = search.type.unwrap()
