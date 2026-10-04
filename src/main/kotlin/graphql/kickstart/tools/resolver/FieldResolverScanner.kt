@@ -16,8 +16,7 @@ import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
 import org.slf4j.LoggerFactory
 import java.lang.reflect.*
-import kotlin.reflect.full.valueParameters
-import kotlin.reflect.jvm.javaType
+import kotlin.reflect.full.extensionReceiverParameter
 import kotlin.reflect.jvm.kotlinFunction
 
 /**
@@ -167,31 +166,23 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
                 it == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
             } ?: false
         } else {
-            true
+            // an extension receiver can only take the source object
+            !isExtensionFunction(method)
         }
 
-        val methodParameterCount = getMethodParameterCount(method)
-        val methodLastParameter = getMethodLastParameter(method)
+        val methodParameterCount = method.parameterCountWithoutContinuation()
+        val methodLastParameter = method.parameterTypes.getOrNull(methodParameterCount - 1)
 
         val correctParameterCount = methodParameterCount == requiredCount ||
             (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
         return correctParameterCount && appropriateFirstParameter
     }
 
-    private fun getMethodParameterCount(method: Method): Int {
+    private fun isExtensionFunction(method: Method): Boolean {
         return try {
-            method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+            method.kotlinFunction?.extensionReceiverParameter != null
         } catch (e: InternalError) {
-            method.parameterCount
-        }
-    }
-
-    private fun getMethodLastParameter(method: Method): Type? {
-        return try {
-            method.kotlinFunction?.valueParameters?.lastOrNull()?.type?.javaType
-                ?: method.parameterTypes.lastOrNull()
-        } catch (e: InternalError) {
-            method.parameterTypes.lastOrNull()
+            false
         }
     }
 
