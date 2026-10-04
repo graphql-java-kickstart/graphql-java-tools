@@ -147,6 +147,122 @@ class SchemaClassScannerTest {
     }
 
     @Test
+    fun `scanner ignores fluent setters when finding input field types`() {
+        SchemaParser.newParser()
+            .resolvers(FluentSetterMutation(), object : GraphQLQueryResolver {
+                fun test(): Boolean = true
+            })
+            .schemaString(
+                """
+                type Query {
+                    test: Boolean
+                }
+
+                type Mutation {
+                    createRepairApply(body: RepairApplyInput): Boolean
+                    createRepairMan(body: RepairManInput): Boolean
+                }
+
+                input RepairApplyInput {
+                    id: ID
+                    repairMan: RepairManInput
+                    reviewer: RepairManInput
+                    approver: RepairManInput
+                }
+
+                input RepairManInput {
+                    id: ID
+                    userName: String
+                }
+                """)
+            .build()
+            .makeExecutableSchema()
+    }
+
+    private class FluentSetterMutation : GraphQLMutationResolver {
+        fun createRepairApply(body: RepairApply): Boolean = true
+        fun createRepairMan(body: RepairMan): Boolean = true
+
+        class RepairApply {
+            var id: String? = null
+            var repairMan: RepairMan? = null
+            private var reviewer: RepairMan? = null
+            @JvmField
+            var approver: RepairMan? = null
+
+            fun repairMan(repairMan: RepairMan?): RepairApply {
+                this.repairMan = repairMan
+                return this
+            }
+
+            fun reviewer(): RepairMan? = reviewer
+
+            fun reviewer(reviewer: RepairMan?): RepairApply {
+                this.reviewer = reviewer
+                return this
+            }
+
+            fun approver(approver: RepairMan?): RepairApply {
+                this.approver = approver
+                return this
+            }
+        }
+
+        class RepairMan {
+            var id: String? = null
+            var userName: String? = null
+        }
+    }
+
+    @Test
+    fun `scanner finds input field types through getters with arguments`() {
+        SchemaParser.newParser()
+            .resolvers(GetterWithArgumentsQuery())
+            .schemaString(
+                """
+                type Query {
+                    foo(input: FooInput): Foo
+                }
+
+                type Foo {
+                    bar: Bar
+                }
+
+                type Bar {
+                    name: String
+                }
+
+                input FooInput {
+                    bar: BarInput
+                }
+
+                input BarInput {
+                    name: String
+                }
+                """)
+            .build()
+            .makeExecutableSchema()
+    }
+
+    private class GetterWithArgumentsQuery : GraphQLQueryResolver {
+        fun foo(input: Foo): Foo = input
+
+        class Foo {
+            private var bar: Bar? = null
+
+            fun getBar(env: DataFetchingEnvironment): Bar? = bar
+
+            fun setBar(bar: Bar?) {
+                this.bar = bar
+            }
+        }
+
+        class Bar {
+            var name: String? = null
+        }
+    }
+
+    @Test
     fun `scanner handles input types extensions`() {
         val schema = SchemaParser.newParser()
             .schemaString(
