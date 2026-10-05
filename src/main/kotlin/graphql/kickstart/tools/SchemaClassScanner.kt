@@ -436,13 +436,15 @@ internal class SchemaClassScanner(
     private fun findInputValueTypeInType(name: String, clazz: Class<*>): JavaType? {
         val methods = clazz.methods
 
-        val filteredMethods = methods.filter {
+        val (getters, methodsWithParameters) = methods.filter {
             it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
-        }.sortedBy { it.name.length }
+        }.sortedBy { it.name.length }.partition { it.parameterCount == 0 }
 
-        return filteredMethods.find { !it.isSynthetic }?.genericReturnType
-            ?: filteredMethods.firstOrNull()?.genericReturnType
+        return getters.find { !it.isSynthetic }?.genericReturnType
+            ?: getters.firstOrNull()?.genericReturnType
             ?: clazz.fields.find { it.name == name }?.genericType
+            ?: methodsWithParameters.find { !it.isSynthetic }?.genericReturnType
+            ?: methodsWithParameters.firstOrNull()?.genericReturnType
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)

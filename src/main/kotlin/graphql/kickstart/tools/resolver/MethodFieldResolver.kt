@@ -7,6 +7,8 @@ import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
 import graphql.kickstart.tools.util.futureValueType
+import graphql.kickstart.tools.util.isSuspendFunction
+import graphql.kickstart.tools.util.parameterCountWithoutContinuation
 import graphql.kickstart.tools.util.typeArgument
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
@@ -15,6 +17,8 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLTypeUtil.isScalar
 import graphql.schema.LightDataFetcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
@@ -24,7 +28,6 @@ import java.lang.reflect.Method
 import java.util.*
 import java.util.function.Supplier
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
-import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
 
@@ -41,7 +44,7 @@ internal class MethodFieldResolver(
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val isSuspendFunction = method.isSuspendFunction()
-    private val numberOfParameters = method.kotlinFunction?.valueParameters?.size ?: method.parameterCount
+    private val numberOfParameters = method.parameterCountWithoutContinuation()
     private val hasAdditionalParameter = numberOfParameters == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     override fun createDataFetcher(): DataFetcher<*> {
@@ -100,7 +103,8 @@ internal class MethodFieldResolver(
 
         // Add DataFetchingEnvironment/Context argument
         if (this.hasAdditionalParameter) {
-            when (this.method.parameterTypes.last()) {
+            // suspend functions have a trailing Continuation parameter
+            when (this.method.parameterTypes[numberOfParameters - 1]) {
                 null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
                 options.contextClass -> args.add { environment ->
                     val context: Any? = environment.graphQlContext[options.contextClass]
@@ -211,7 +215,10 @@ internal class MethodFieldResolverDataFetcher(
         val args = this.args.map { it(environment) }.toTypedArray()
 
         return if (isSuspendFunction) {
-            environment.coroutineScope().future(options.coroutineContextProvider.provide()) {
+            // start undispatched so DataLoader loads are queued before graphql-java dispatches them,
+            // which runs the block even if the context is already cancelled, hence ensureActive
+            environment.coroutineScope().future(options.coroutineContextProvider.provide(), CoroutineStart.UNDISPATCHED) {
+                ensureActive()
                 invokeSuspend(source, method, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
             }
         } else {
@@ -274,14 +281,6 @@ private class CompareGenericWrappers {
             w1.type.isAssignableFrom(w2.type) -> 1
             else -> -1
         }
-    }
-}
-
-private fun Method.isSuspendFunction(): Boolean {
-    return try {
-        this.kotlinFunction?.isSuspend == true
-    } catch (e: InternalError) {
-        false
     }
 }
 

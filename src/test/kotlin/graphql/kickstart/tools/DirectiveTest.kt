@@ -7,6 +7,8 @@ import graphql.relay.SimpleListConnection
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
+import graphql.schema.idl.SchemaPrinter
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class DirectiveTest {
@@ -304,6 +306,149 @@ class DirectiveTest {
         assert((schema.getType("Book") as GraphQLObjectType).getField("name").isDeprecated)
     }
 
+    @Test
+    fun `should apply directives on the schema and its extensions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @link(url: String!, for: LinkPurpose, import: [String]) repeatable on SCHEMA
+                directive @contact(name: String!) on SCHEMA
+
+                enum LinkPurpose {
+                    SECURITY
+                    EXECUTION
+                }
+
+                extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable"])
+
+                schema @contact(name: "books-team") {
+                    query: Query
+                }
+
+                extend schema @link(url: "https://specs.apollo.dev/link/v1.0", for: SECURITY)
+
+                type Query {
+                    books: [Book!]
+                }
+
+                type Book {
+                    id: Int!
+                    name: String!
+                }
+                """)
+            .resolvers(QueryResolver())
+            .dictionary(LinkPurpose::class)
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.schemaAppliedDirectives.map { it.name }, listOf("contact", "link", "link"))
+        assertEquals(
+            schema.getSchemaAppliedDirectives("link").map { it.getArgument("url")?.getValue<String>() },
+            listOf("https://specs.apollo.dev/federation/v2.3", "https://specs.apollo.dev/link/v1.0")
+        )
+        assertEquals(
+            schema.getSchemaAppliedDirectives("link").first().getArgument("import")?.getValue<List<String>>(),
+            listOf("@key", "@shareable")
+        )
+        assertEquals(schema.getSchemaAppliedDirectives("link").last().getArgument("for")?.getValue<LinkPurpose>(), LinkPurpose.SECURITY)
+
+        val printed = SchemaPrinter(SchemaPrinter.Options.defaultOptions().includeSchemaDefinition(true)).print(schema)
+        assert(printed.contains("""schema @contact(name : "books-team") @link(import : ["@key", "@shareable"], url : "https://specs.apollo.dev/federation/v2.3") @link(for : SECURITY, url : "https://specs.apollo.dev/link/v1.0"){""")) {
+            printed
+        }
+    }
+
+    @Test
+    fun `should fail on undeclared schema directive`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    extend schema @link(url: "https://specs.apollo.dev/federation/v2.3")
+
+                    type Query {
+                        books: [Book!]
+                    }
+
+                    type Book {
+                        id: Int!
+                        name: String!
+                    }
+                    """)
+                .resolvers(QueryResolver())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Found applied directive link without corresponding directive definition.")
+    }
+
+    @Test
+    fun `should allow undeclared directives when enabled`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key", "@shareable"])
+
+                type Query {
+                    books: [Book!] @shareable
+                }
+
+                type Book @key(fields: "id", resolvable: true) @custom(weight: 1.5, limit: 3, tag: null) {
+                    id: Int!
+                    name: String!
+                }
+                """)
+            .resolvers(QueryResolver())
+            .options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
+            .build()
+            .makeExecutableSchema()
+
+        val link = schema.getSchemaAppliedDirective("link")
+        assertEquals(link.getArgument("import")?.getValue<List<String>>(), listOf("@key", "@shareable"))
+        assertNotNull(schema.queryType.getField("books").getAppliedDirective("shareable"))
+
+        val book = schema.getObjectType("Book")!!
+        val key = book.getAppliedDirective("key")
+        assertEquals(key.getArgument("fields")?.getValue<String>(), "id")
+        assertEquals(key.getArgument("resolvable")?.getValue<Boolean>(), true)
+        val custom = book.getAppliedDirective("custom")
+        assertEquals(custom.getArgument("weight")?.getValue<Double>(), 1.5)
+        assertEquals(custom.getArgument("limit")?.getValue<Int>(), 3)
+        assertNull(custom.getArgument("tag")?.getValue<String>())
+        // graphql-java rejects legacy directives without a definition
+        assert(book.directives.isEmpty())
+
+        val printed = SchemaPrinter(SchemaPrinter.Options.defaultOptions().includeSchemaDefinition(true)).print(schema)
+        assert(printed.contains("""type Book @custom(limit : 3, tag : null, weight : 1.5) @key(fields : "id", resolvable : true) {""")) {
+            printed
+        }
+    }
+
+    @Test
+    fun `should fail on undeclared directive with an argument whose type can't be guessed`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        books: [Book!] @policy(purpose: SECURITY)
+                    }
+
+                    type Book {
+                        id: Int!
+                        name: String!
+                    }
+                    """)
+                .resolvers(QueryResolver())
+                .options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Can't guess the type of argument policy#purpose of undeclared directive policy, please declare the directive.")
+    }
+
     private class BookQueryResolver : GraphQLQueryResolver {
         fun book(filter: BookFilter): Book? = null
     }
@@ -323,6 +468,11 @@ class DirectiveTest {
         val id: Long,
         val name: String
     )
+
+    private enum class LinkPurpose {
+        SECURITY,
+        EXECUTION
+    }
 
     private enum class AllowedState {
         ALLOWED,
