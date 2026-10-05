@@ -7,20 +7,22 @@ import org.junit.Test
 class InheritedTypeVariablesTest {
 
     @Test
-    fun `type variables passed through several superclasses are resolved for fields`() {
+    fun `type variables passed through several superclasses are resolved`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
                     item: Item!
-                    holder: Holder!
+                    ownerItem: OwnerItem!
                 }
 
                 type Item {
                     id: ID!
+                    value: ID!
                 }
 
-                type Holder {
+                type OwnerItem {
+                    id: Owner!
                     value: Owner!
                 }
 
@@ -28,7 +30,7 @@ class InheritedTypeVariablesTest {
                     name: String!
                 }
                 """)
-            .resolvers(FieldItemQueryResolver())
+            .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
         val gql = GraphQL.newGraphQL(schema).build()
@@ -36,58 +38,21 @@ class InheritedTypeVariablesTest {
         val data = assertNoGraphQlErrors(gql) {
             """
             query {
-                item { id }
-                holder { value { name } }
+                item { id value }
+                ownerItem {
+                    id { name }
+                    value { name }
+                }
             }
             """
         }
 
-        assertEquals(data["item"], mapOf("id" to "1"))
-        assertEquals(data["holder"], mapOf("value" to mapOf("name" to "owner")))
+        assertEquals(data["item"], mapOf("id" to "1", "value" to "1"))
+        assertEquals(data["ownerItem"], mapOf("id" to mapOf("name" to "owner"), "value" to mapOf("name" to "owner")))
     }
 
     @Test
-    fun `type variables passed through several superclasses are resolved for getters`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    item: Item!
-                    holder: Holder!
-                }
-
-                type Item {
-                    id: ID!
-                }
-
-                type Holder {
-                    value: Owner!
-                }
-
-                type Owner {
-                    name: String!
-                }
-                """)
-            .resolvers(GetterItemQueryResolver())
-            .build()
-            .makeExecutableSchema()
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val data = assertNoGraphQlErrors(gql) {
-            """
-            query {
-                item { id }
-                holder { value { name } }
-            }
-            """
-        }
-
-        assertEquals(data["item"], mapOf("id" to "2"))
-        assertEquals(data["holder"], mapOf("value" to mapOf("name" to "owner")))
-    }
-
-    @Test
-    fun `type variables renamed by superclasses are resolved`() {
+    fun `type variables renamed and reordered by superclasses are resolved`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -104,7 +69,7 @@ class InheritedTypeVariablesTest {
                     name: String!
                 }
                 """)
-            .resolvers(AccountQueryResolver())
+            .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
         val gql = GraphQL.newGraphQL(schema).build()
@@ -120,48 +85,7 @@ class InheritedTypeVariablesTest {
             """
         }
 
-        assertEquals(data["account"], mapOf("id" to "3", "owner" to mapOf("name" to "owner")))
-    }
-
-    @Test
-    fun `type variables reordered by a superclass are resolved`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    tuple: Tuple!
-                }
-
-                type Tuple {
-                    first: Owner!
-                    second: Tag!
-                }
-
-                type Owner {
-                    name: String!
-                }
-
-                type Tag {
-                    label: String!
-                }
-                """)
-            .resolvers(TupleQueryResolver())
-            .build()
-            .makeExecutableSchema()
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val data = assertNoGraphQlErrors(gql) {
-            """
-            query {
-                tuple {
-                    first { name }
-                    second { label }
-                }
-            }
-            """
-        }
-
-        assertEquals(data["tuple"], mapOf("first" to mapOf("name" to "owner"), "second" to mapOf("label" to "tag")))
+        assertEquals(data["account"], mapOf("id" to "2", "owner" to mapOf("name" to "owner")))
     }
 
     @Test
@@ -175,9 +99,16 @@ class InheritedTypeVariablesTest {
 
                 type OwnerConnection {
                     edges: [OwnerEdge!]!
+                    nodes: [Owner]!
+                    entries: [OwnerEntry!]!
                 }
 
                 type OwnerEdge {
+                    node: Owner!
+                }
+
+                type OwnerEntry {
+                    position: Int!
                     node: Owner!
                 }
 
@@ -185,7 +116,7 @@ class InheritedTypeVariablesTest {
                     name: String!
                 }
                 """)
-            .resolvers(ConnectionQueryResolver())
+            .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
         val gql = GraphQL.newGraphQL(schema).build()
@@ -197,12 +128,22 @@ class InheritedTypeVariablesTest {
                     edges {
                         node { name }
                     }
+                    nodes { name }
+                    entries {
+                        position
+                        node { name }
+                    }
                 }
             }
             """
         }
 
-        assertEquals(data["owners"], mapOf("edges" to listOf(mapOf("node" to mapOf("name" to "owner")))))
+        val owner = mapOf("name" to "owner")
+        assertEquals(data["owners"], mapOf(
+            "edges" to listOf(mapOf("node" to owner)),
+            "nodes" to listOf(owner),
+            "entries" to listOf(mapOf("position" to 0, "node" to owner))
+        ))
     }
 
     @Test
@@ -247,99 +188,21 @@ class InheritedTypeVariablesTest {
     }
 
     @Test
-    fun `type variables in wildcard bounds are resolved`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    owners: OwnerList!
-                }
-
-                type OwnerList {
-                    items: [Owner]!
-                }
-
-                type Owner {
-                    name: String!
-                }
-                """)
-            .resolvers(WildcardQueryResolver())
-            .build()
-            .makeExecutableSchema()
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val data = assertNoGraphQlErrors(gql) {
-            """
-            query {
-                owners {
-                    items { name }
-                }
-            }
-            """
-        }
-
-        assertEquals(data["owners"], mapOf("items" to listOf(mapOf("name" to "owner"))))
-    }
-
-    @Test
-    fun `type variables of outer classes are resolved`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    owners: OwnerListing!
-                }
-
-                type OwnerListing {
-                    entries: [OwnerEntry!]!
-                }
-
-                type OwnerEntry {
-                    position: Int!
-                    value: Owner!
-                }
-
-                type Owner {
-                    name: String!
-                }
-                """)
-            .resolvers(ListingQueryResolver())
-            .build()
-            .makeExecutableSchema()
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val data = assertNoGraphQlErrors(gql) {
-            """
-            query {
-                owners {
-                    entries {
-                        position
-                        value { name }
-                    }
-                }
-            }
-            """
-        }
-
-        assertEquals(data["owners"], mapOf("entries" to listOf(mapOf("position" to 0, "value" to mapOf("name" to "owner")))))
-    }
-
-    @Test
     fun `generic types bound differently by subclasses can't share a type`() {
         val error = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
                 .schemaString(
                     """
                     type Query {
-                        owners: OwnerPage!
-                        tags: TagPage!
+                        ownerPage: OwnerPage!
+                        accountPage: AccountPage!
                     }
 
                     type OwnerPage {
                         meta: Meta!
                     }
 
-                    type TagPage {
+                    type AccountPage {
                         meta: Meta!
                     }
 
@@ -347,7 +210,7 @@ class InheritedTypeVariablesTest {
                         total: Int!
                     }
                     """)
-                .resolvers(MetaQueryResolver())
+                .resolvers(QueryResolver())
                 .build()
                 .makeExecutableSchema()
         }
@@ -355,7 +218,7 @@ class InheritedTypeVariablesTest {
         val message = error.message.orEmpty()
         assert(message.startsWith("Two different classes used for type Meta")) { message }
         assert(message.contains("${Meta::class.java.name}<${Owner::class.java.name}>")) { message }
-        assert(message.contains("${Meta::class.java.name}<${Tag::class.java.name}>")) { message }
+        assert(message.contains("${Meta::class.java.name}<${Account::class.java.name}>")) { message }
     }
 
     @Test
@@ -380,97 +243,46 @@ class InheritedTypeVariablesTest {
         assert(error.message.orEmpty().startsWith("Could not resolve type variable")) { error.message.orEmpty() }
     }
 
-    class FieldItemQueryResolver : GraphQLQueryResolver {
-        fun item(): FieldItem = FieldItem(1)
-        fun holder(): FieldHolder<Owner> = FieldHolder(Owner("owner"))
+    class QueryResolver : GraphQLQueryResolver {
+        fun item(): Item = Item(1)
+        fun ownerItem(): BaseItem<Owner> = BaseItem(Owner("owner"))
+        fun account(): Account = Account(2, Owner("owner"))
+        fun owners(): OwnerConnection = OwnerConnection(listOf(Owner("owner")))
+        fun ownerPage(): OwnerPage = OwnerPage()
+        fun accountPage(): AccountPage = AccountPage()
     }
 
-    open class AbstractFieldItem<T>(@JvmField val id: T)
+    // id is a public field, value a getter
+    open class AbstractItem<T>(@JvmField val id: T, val value: T)
 
-    open class BaseFieldItem<T>(id: T) : AbstractFieldItem<T>(id)
+    open class BaseItem<T>(value: T) : AbstractItem<T>(value, value)
 
-    class FieldItem(id: Long) : BaseFieldItem<Long>(id)
-
-    open class BaseFieldHolder<U>(@JvmField val value: U)
-
-    class FieldHolder<T>(value: T) : BaseFieldHolder<T>(value)
-
-    class GetterItemQueryResolver : GraphQLQueryResolver {
-        fun item(): GetterItem = GetterItem(2)
-        fun holder(): OwnerHolder = OwnerHolder(Owner("owner"))
-    }
-
-    open class AbstractGetterItem<T>(val id: T)
-
-    open class BaseGetterItem<T>(id: T) : AbstractGetterItem<T>(id)
-
-    class GetterItem(id: Long) : BaseGetterItem<Long>(id)
-
-    open class AbstractHolder<T>(val value: T)
-
-    open class BaseHolder<T>(value: T) : AbstractHolder<T>(value)
-
-    class OwnerHolder(value: Owner) : BaseHolder<Owner>(value)
-
-    class AccountQueryResolver : GraphQLQueryResolver {
-        fun account(): Account = Account(3, Owner("owner"))
-    }
+    class Item(value: Long) : BaseItem<Long>(value)
 
     interface Identifiable<I> {
         val id: I
     }
 
-    abstract class OwnedEntity<K, R>(override val id: K, val owner: R) : Identifiable<K>
+    abstract class Entity<K, R>(override val id: K, val owner: R) : Identifiable<K>
 
-    abstract class AuditableEntity<E, O>(id: E, owner: O) : OwnedEntity<E, O>(id, owner)
+    // passes its K as Entity's R and vice versa
+    abstract class SwappedEntity<K, R>(id: R, owner: K) : Entity<R, K>(id, owner)
 
-    class Account(id: Long, owner: Owner) : AuditableEntity<Long, Owner>(id, owner)
+    class Account(id: Long, owner: Owner) : SwappedEntity<Owner, Long>(id, owner)
 
-    class TupleQueryResolver : GraphQLQueryResolver {
-        fun tuple(): OwnerTagTuple = OwnerTagTuple(Owner("owner"), Tag("tag"))
+    abstract class Connection<T>(val nodes: List<@JvmWildcard T>) {
+        val edges: List<Edge<T>>
+            get() = nodes.map { Edge(it) }
+
+        val entries: List<Entry>
+            get() = nodes.mapIndexed { position, node -> Entry(position, node) }
+
+        inner class Entry(val position: Int, val node: T)
     }
-
-    open class Tuple<A, B>(val first: A, val second: B)
-
-    open class ReversedTuple<A, B>(first: B, second: A) : Tuple<B, A>(first, second)
-
-    class OwnerTagTuple(first: Owner, second: Tag) : ReversedTuple<Tag, Owner>(first, second)
-
-    class ConnectionQueryResolver : GraphQLQueryResolver {
-        fun owners(): OwnerConnection = OwnerConnection(listOf(Edge(Owner("owner"))))
-    }
-
-    abstract class Connection<T>(val edges: List<Edge<T>>)
 
     class Edge<T>(val node: T)
 
-    class OwnerConnection(edges: List<Edge<Owner>>) : Connection<Owner>(edges)
-
-    class WildcardQueryResolver : GraphQLQueryResolver {
-        fun owners(): OwnerList = OwnerList(listOf(Owner("owner")))
-    }
-
-    abstract class WildcardList<T>(val items: List<@JvmWildcard T>)
-
-    class OwnerList(items: List<Owner>) : WildcardList<Owner>(items)
-
-    class ListingQueryResolver : GraphQLQueryResolver {
-        fun owners(): OwnerListing = OwnerListing(listOf(Owner("owner")))
-    }
-
-    abstract class Listing<T>(private val values: List<T>) {
-        val entries: List<Entry>
-            get() = values.mapIndexed { position, value -> Entry(position, value) }
-
-        inner class Entry(val position: Int, val value: T)
-    }
-
-    class OwnerListing(values: List<Owner>) : Listing<Owner>(values)
-
-    class MetaQueryResolver : GraphQLQueryResolver {
-        fun owners(): OwnerPage = OwnerPage()
-        fun tags(): TagPage = TagPage()
-    }
+    class OwnerConnection(nodes: List<Owner>) : Connection<Owner>(nodes)
 
     class Meta<T>(val total: Int)
 
@@ -480,7 +292,7 @@ class InheritedTypeVariablesTest {
 
     class OwnerPage : MetaPage<Owner>()
 
-    class TagPage : MetaPage<Tag>()
+    class AccountPage : MetaPage<Account>()
 
     open class GenericMethodBase<T>
 
@@ -491,6 +303,4 @@ class InheritedTypeVariablesTest {
     }
 
     class Owner(val name: String)
-
-    class Tag(val label: String)
 }
