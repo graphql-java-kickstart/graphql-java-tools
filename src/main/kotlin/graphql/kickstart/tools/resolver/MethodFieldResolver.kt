@@ -266,13 +266,16 @@ internal class LightMethodFieldResolverDataFetcher(
 private fun Any.transformWithGenericWrapper(
     genericWrappers: List<GenericWrapper>,
     environmentSupplier: Supplier<DataFetchingEnvironment>
-): Any {
-    return genericWrappers
+): Any? {
+    val genericWrapper = genericWrappers
         .asSequence()
         .filter { it.type.isInstance(this) }
         .sortedWith(CompareGenericWrappers)
         .firstOrNull()
-        ?.transformer?.invoke(this, environmentSupplier.get()) ?: this
+        ?: return this
+
+    // a transformer may map a value to null, e.g. the empty case of an Option-like wrapper
+    return genericWrapper.transformer(this, environmentSupplier.get())
 }
 
 private class CompareGenericWrappers {
