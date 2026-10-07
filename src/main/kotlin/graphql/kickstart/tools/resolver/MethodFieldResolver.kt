@@ -128,8 +128,10 @@ internal class MethodFieldResolver(
             }
         }
 
-        // the class the schema type was matched to, so a value that happens to implement Future isn't mistaken for a wrapper
-        val valueClass = TypeUtils.getRawType(getUnwrappedReturnType(), null) ?: Any::class.java
+        // the class the return type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
+        // Object (e.g. for a union) can't tell them apart, so then every future of a method declared to return Future is checked
+        val valueClass = (TypeUtils.getRawType(getUnwrappedReturnType(), null) ?: Any::class.java)
+            .takeUnless { it == Any::class.java && TypeUtils.getRawType(getReturnType(), null) == Future::class.java }
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
@@ -177,14 +179,15 @@ internal class MethodFieldResolver(
             ?.let { TypeUtils.parameterize(Publisher::class.java, it) }
             ?: this
 
-    private fun getUnwrappedReturnType(): JavaType {
-        val returnType = try {
+    private fun getReturnType(): JavaType =
+        try {
             method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
         } catch (e: InternalError) {
             method.genericReturnType
         }
-        return genericType.unwrapGenericType(if (search.isSubscription) returnType.asPublisher() else returnType)
-    }
+
+    private fun getUnwrappedReturnType(): JavaType =
+        getReturnType().let { genericType.unwrapGenericType(if (search.isSubscription) it.asPublisher() else it) }
 
     private fun getIndexOffset(): Int {
         return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {
@@ -216,7 +219,7 @@ internal class MethodFieldResolverDataFetcher(
     private val args: List<ArgumentPlaceholder>,
     private val options: SchemaParserOptions,
     private val isSuspendFunction: Boolean,
-    private val valueClass: Class<*>
+    private val valueClass: Class<*>?
 ) : DataFetcher<Any> {
 
     override fun get(environment: DataFetchingEnvironment): Any? {
@@ -253,7 +256,7 @@ internal class LightMethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val method: Method,
     private val options: SchemaParserOptions,
-    private val valueClass: Class<*>
+    private val valueClass: Class<*>?
 ) : LightDataFetcher<Any?> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
@@ -293,8 +296,8 @@ private fun Any.transformWithGenericWrapper(
 
 // graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
 // that a suspend function completes with, would reach it as the field value
-private fun Any?.requireAwaitable(valueClass: Class<*>, method: Method, isSuspendFunction: Boolean): Any? {
-    if (this !is Future<*> || valueClass.isInstance(this)) {
+private fun Any?.requireAwaitable(valueClass: Class<*>?, method: Method, isSuspendFunction: Boolean): Any? {
+    if (this !is Future<*> || valueClass?.isInstance(this) == true) {
         return this
     }
 

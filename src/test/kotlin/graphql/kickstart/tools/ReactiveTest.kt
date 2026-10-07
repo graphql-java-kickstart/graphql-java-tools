@@ -89,14 +89,17 @@ class ReactiveTest {
     }
 
     @Test
-    fun `future that a generic wrapper or a type variable resolves to fails with a clear error`() {
+    fun `future that a generic wrapper, a type variable or a union resolves to fails with a clear error`() {
         val schema = newParser()
             .schemaString(
                 """
                 type Query {
                     item: Item
                     boxedItem: Item
+                    search: SearchResult
                 }
+
+                union SearchResult = Item
 
                 type Item {
                     id: ID
@@ -109,12 +112,13 @@ class ReactiveTest {
             .build()
             .makeExecutableSchema()
 
-        val result = GraphQL.newGraphQL(schema).build().execute("query { item { id } boxedItem { id } }")
+        val result = GraphQL.newGraphQL(schema).build().execute("query { item { id } boxedItem { id } search { ... on Item { id } } }")
 
-        assertEquals(result.getData(), mapOf("item" to null, "boxedItem" to null))
+        assertEquals(result.getData(), mapOf("item" to null, "boxedItem" to null, "search" to null))
         assertEquals(result.errorMessagesByPath(), mapOf(
             "item" to plainFutureError(ItemQuery::class.java, "item"),
-            "boxedItem" to plainFutureError(FutureItemQuery::class.java, "boxedItem")
+            "boxedItem" to plainFutureError(FutureItemQuery::class.java, "boxedItem"),
+            "search" to plainFutureError(FutureItemQuery::class.java, "search")
         ))
     }
 
@@ -219,6 +223,7 @@ class ReactiveTest {
 
     private class FutureItemQuery : ItemQuery<Future<Item>>({ FutureTask { Item(1) }.also { it.run() } }), GraphQLQueryResolver {
         fun boxedItem(): Box<Item> = Box(Item(2))
+        fun search(): Future<Any> = FutureTask<Any> { Item(3) }.also { it.run() }
     }
 
     private class Box<T>(val value: T)
