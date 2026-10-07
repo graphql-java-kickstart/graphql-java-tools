@@ -21,6 +21,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.tck.TestEnvironment
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
@@ -54,6 +55,33 @@ class MethodFieldResolverDataFetcherTest {
         suspend fun isActive(data: DataClass): Boolean {
             return coroutineContext[dispatcher.key] == dispatcher &&
                 coroutineContext[Job] == job.children.first()
+        }
+    }
+
+    @Test
+    fun `data fetcher does not invoke suspend function if coroutineContext defined by options is cancelled`() {
+        // setup
+        val cancelledClass = CancelledClass()
+
+        val resolver = createFetcher("active", cancelledClass, options = cancelledClass.options)
+
+        // expect
+        val future = resolver.get(createEnvironment(DataClass())) as CompletableFuture<*>
+        assert(runCatching { future.get() }.exceptionOrNull() is CancellationException)
+        assert(!cancelledClass.invoked)
+    }
+
+    class CancelledClass : GraphQLResolver<DataClass> {
+        var invoked = false
+
+        val options = SchemaParserOptions.Builder()
+            .coroutineContext(Dispatchers.Default + Job().apply { cancel() })
+            .build()
+
+        @Suppress("UNUSED_PARAMETER")
+        suspend fun isActive(data: DataClass): Boolean {
+            invoked = true
+            return true
         }
     }
 
@@ -210,6 +238,54 @@ class MethodFieldResolverDataFetcherTest {
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
+    }
+
+    @Test
+    fun `data fetcher passes context to suspend function if method has extra argument and context is specified`() {
+        val context = GraphQLContext.newContext().build()
+        val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
+            suspend fun isActive(dataClass: DataClass, ctx: GraphQLContext): Boolean {
+                return ctx == context
+            }
+        })
+
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), context = context)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    @Test
+    fun `data fetcher passes custom context to suspend function if method has extra argument and custom context is specified`() {
+        val customContext = ContextClass()
+        val context = GraphQLContext.of(mapOf(ContextClass::class.java to customContext))
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            suspend fun isActive(dataClass: DataClass, ctx: ContextClass): Boolean {
+                return ctx == customContext
+            }
+        })
+
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), context = context)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    @Test
+    fun `data fetcher uses extension function on the data class`() {
+        val resolver = createFetcher("name", object : GraphQLResolver<DataClass> {
+            fun DataClass.name(): String = "extension $name"
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass())), "extension TestName")
+    }
+
+    @Test
+    fun `data fetcher passes environment to extension function if method has extra argument`() {
+        val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
+            fun DataClass.isActive(env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass())), true)
     }
 
     @Test
