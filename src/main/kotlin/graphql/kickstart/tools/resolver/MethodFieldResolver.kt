@@ -290,7 +290,7 @@ private fun Any.transformWithGenericWrapper(
         .firstOrNull()
         ?: return this
 
-    // a transformer may map a value to null, e.g. the empty case of an Option-like wrapper
+    // returned as is, even if null, so a transformer can map a value to null
     return genericWrapper.transformer(this, environmentSupplier.get())
 }
 
