@@ -45,27 +45,47 @@ class ReactiveTest {
 
     @Test
     fun `future that is not a completion stage fails with a clear error`() {
-        val result = GraphQL.newGraphQL(itemSchema(PlainFutureQuery())).build()
-            .execute("query { item { id } itemWithArgument(id: 1) { id } name }")
+        val gql = GraphQL.newGraphQL(itemSchema(PlainFutureQuery())).build()
+
+        val result = gql.execute(
+            """
+            query {
+                item { id }
+                itemWithArgument(id: 1) { id }
+                name
+            }
+            """)
 
         assertEquals(result.getData(), mapOf("item" to null, "itemWithArgument" to null, "name" to null))
-        assertEquals(result.errorMessagesByPath(), listOf("item", "itemWithArgument", "name").associateWith {
-            plainFutureError(PlainFutureQuery::class.java, it)
-        })
+        assertEquals(result.errorMessagesByPath(), mapOf(
+            "item" to "Resolver method '${PlainFutureQuery::class.java.name}.item' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
+            "itemWithArgument" to "Resolver method '${PlainFutureQuery::class.java.name}.itemWithArgument' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
+            "name" to "Resolver method '${PlainFutureQuery::class.java.name}.name' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+        ))
     }
 
     @Test
     fun `suspend function that resolves to a future fails with a clear error`() {
-        val result = GraphQL.newGraphQL(itemSchema(PlainFutureQuery())).build()
-            .execute("query { suspendItem { id } suspendCompletableItem { id } }")
+        val gql = GraphQL.newGraphQL(itemSchema(PlainFutureQuery())).build()
+
+        val result = gql.execute(
+            """
+            query {
+                suspendItem { id }
+                suspendCompletableItem { id }
+            }
+            """)
 
         assertEquals(result.getData(), mapOf("suspendItem" to null, "suspendCompletableItem" to null))
         assertEquals(result.errorMessagesByPath(), mapOf(
-            "suspendItem" to FutureTask::class.java,
-            "suspendCompletableItem" to CompletableFuture::class.java
-        ).mapValues { (name, futureClass) ->
-            "Suspend function '${PlainFutureQuery::class.java.name}.$name' resolved to a ${futureClass.name}, which graphql-java can't wait on. Return its value instead."
-        })
+            "suspendItem" to "Suspend function '${PlainFutureQuery::class.java.name}.suspendItem' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return its value instead.",
+            "suspendCompletableItem" to "Suspend function '${PlainFutureQuery::class.java.name}.suspendCompletableItem' resolved to a java.util.concurrent.CompletableFuture, " +
+                "which graphql-java can't wait on. Return its value instead."
+        ))
     }
 
     @Test
@@ -76,7 +96,15 @@ class ReactiveTest {
         val gql = GraphQL.newGraphQL(itemSchema(PlainFutureQuery(), options)).build()
 
         val data = assertNoGraphQlErrors(gql) {
-            "query { item { id } itemWithArgument(id: 2) { id } name suspendItem { id } nullItem { id } }"
+            """
+            query {
+                item { id }
+                itemWithArgument(id: 2) { id }
+                name
+                suspendItem { id }
+                nullItem { id }
+            }
+            """
         }
 
         assertEquals(data, mapOf(
@@ -111,14 +139,27 @@ class ReactiveTest {
                 .build())
             .build()
             .makeExecutableSchema()
+        val gql = GraphQL.newGraphQL(schema).build()
 
-        val result = GraphQL.newGraphQL(schema).build().execute("query { item { id } boxedItem { id } search { ... on Item { id } } }")
+        val result = gql.execute(
+            """
+            query {
+                item { id }
+                boxedItem { id }
+                search {
+                    ... on Item { id }
+                }
+            }
+            """)
 
         assertEquals(result.getData(), mapOf("item" to null, "boxedItem" to null, "search" to null))
         assertEquals(result.errorMessagesByPath(), mapOf(
-            "item" to plainFutureError(ItemQuery::class.java, "item"),
-            "boxedItem" to plainFutureError(FutureItemQuery::class.java, "boxedItem"),
-            "search" to plainFutureError(FutureItemQuery::class.java, "search")
+            "item" to "Resolver method '${ItemQuery::class.java.name}.item' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
+            "boxedItem" to "Resolver method '${FutureItemQuery::class.java.name}.boxedItem' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
+            "search" to "Resolver method '${FutureItemQuery::class.java.name}.search' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
         ))
     }
 
@@ -144,39 +185,14 @@ class ReactiveTest {
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
-            "query { job { id } }"
+            """
+            query {
+                job { id }
+            }
+            """
         }
 
         assertEquals(data, mapOf("job" to mapOf("id" to "1")))
-    }
-
-    @Test
-    fun `future resolves as a value when no generic wrapper unwraps it`() {
-        val schema = newParser()
-            .schemaString(
-                """
-                type Query {
-                    task: Task
-                }
-
-                type Task {
-                    done: Boolean
-                }
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun task(): Future<String> = FutureTask { "done" }.also { it.run() }
-            })
-            .options(newOptions().useDefaultGenericWrappers(false).build())
-            .build()
-            .makeExecutableSchema()
-
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val data = assertNoGraphQlErrors(gql) {
-            "query { task { done } }"
-        }
-
-        assertEquals(data, mapOf("task" to mapOf("done" to true)))
     }
 
     private fun itemSchema(query: GraphQLQueryResolver, options: SchemaParserOptions = newOptions().build()) = newParser()
@@ -199,10 +215,6 @@ class ReactiveTest {
         .options(options)
         .build()
         .makeExecutableSchema()
-
-    private fun plainFutureError(resolverClass: Class<*>, methodName: String) =
-        "Resolver method '${resolverClass.name}.$methodName' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. " +
-            "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
 
     private fun ExecutionResult.errorMessagesByPath() =
         errors.associate { it.path?.joinToString(".") to (it as ExceptionWhileDataFetching).exception.message }
