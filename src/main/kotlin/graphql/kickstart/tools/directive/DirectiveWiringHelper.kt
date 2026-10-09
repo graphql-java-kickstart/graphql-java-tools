@@ -2,9 +2,7 @@ package graphql.kickstart.tools.directive
 
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.*
-import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.directive.SchemaDirectiveWiringEnvironmentImpl.Parameters
-import graphql.language.DirectiveDefinition
 import graphql.language.NamedNode
 import graphql.language.NodeParentTree
 import graphql.schema.*
@@ -12,11 +10,9 @@ import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
 import java.util.*
 
-class DirectiveWiringHelper(
-    private val options: SchemaParserOptions,
+internal class DirectiveWiringHelper(
     private val runtimeWiring: RuntimeWiring,
-    codeRegistryBuilder: GraphQLCodeRegistry.Builder,
-    private val directiveDefinitions: List<DirectiveDefinition>
+    codeRegistryBuilder: GraphQLCodeRegistry.Builder
 ) {
     private val schemaDirectiveParameters = Parameters(runtimeWiring, codeRegistryBuilder)
 
