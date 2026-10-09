@@ -65,14 +65,16 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 match(potentialMatch, graphQLType.type, realType)
             }
 
-            is ListType -> {
-                if (realType is ParameterizedType && isListType(realType, potentialMatch)) {
+            is ListType -> when {
+                realType is ParameterizedType && isListType(realType, potentialMatch) ->
                     match(potentialMatch, graphQLType.type, realType.actualTypeArguments.first())
-                } else if (realType is Class<*> && realType.isArray) {
+                realType is Class<*> && realType.isArray ->
                     match(potentialMatch, graphQLType.type, realType.componentType)
-                } else {
+                // e.g. a property map value: the element type is unknown, so match it as Object too
+                realType == Object::class.java ->
+                    match(potentialMatch, graphQLType.type, realType)
+                else ->
                     throw error(potentialMatch, "Java class is not a List or generic type information was lost: $realType")
-                }
             }
 
             is TypeName -> {
