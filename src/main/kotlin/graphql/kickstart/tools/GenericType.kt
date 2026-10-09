@@ -94,7 +94,7 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                     }
 
                     val unwrapsTo = genericType.schemaWrapper.invoke(typeArguments[genericType.index])
-                    return unwrapGenericType(unwrapsTo)
+                    unwrapGenericType(unwrapsTo)
                 }
                 is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' of ${TypeUtils.toString(declaringType)} relative to ${TypeUtils.toString(mostSpecificType)}")
                 is WildcardType -> type.upperBounds.firstOrNull()
@@ -128,9 +128,9 @@ internal open class GenericType(protected val mostSpecificType: JavaType, protec
                         // only a variable leaked from a raw type can be bound to a type containing itself (e.g. T -> List<T>),
                         // erase it like the raw type does instead of expanding it forever
                         type in resolving -> TypeUtils.getRawType(type.bounds.first(), null) ?: Any::class.java
-                        // the most specific type binds the variables of its supertypes and its owner types those of outer classes,
-                        // the declaring type may not
+                        // the most specific type binds the variables of all its supertypes
                         genericDeclaration is Class<*> -> generateSequence(mostSpecificType) { (it as? ParameterizedType)?.ownerType }
+                            // an inner class can also use the variables of its outer class, those are bound by its owner type (e.g. Connection<Owner>.Entry)
                             .firstNotNullOfOrNull { TypeUtils.getTypeArguments(it, genericDeclaration)?.get(type) }
                             // keep the full type argument (e.g. List<Foo>) rather than its raw class so nested generics aren't lost
                             ?.let { replaceTypeVariable(it, resolving + type) }
