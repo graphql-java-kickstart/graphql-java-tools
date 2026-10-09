@@ -396,7 +396,7 @@ class DirectiveTest {
 
                 type Query {
                     contactEmail: String @email
-                    updatePersonEmail(email: String @email, backupEmail: String @email(message: "invalid backup email")): String
+                    updatePersonEmail(primaryEmail: String @email, backupEmail: String @email(message: "invalid backup email")): String
                     updatePerson(person: PersonInput, state: AllowedState): String
                 }
                 """)
@@ -405,14 +405,13 @@ class DirectiveTest {
             .build()
             .makeExecutableSchema()
 
-        assertEquals(
-            emailDirective.messages,
-            mapOf(
-                "contactEmail" to ("{path} must be a valid email" to "{path} must be a valid email"),
-                "email" to ("{path} must be a valid email" to "{path} must be a valid email"),
-                "backupEmail" to ("invalid backup email" to "invalid backup email")
-            )
+        val expectedMessages = mapOf(
+            "contactEmail" to "{path} must be a valid email",
+            "primaryEmail" to "{path} must be a valid email",
+            "backupEmail" to "invalid backup email"
         )
+        assertEquals(emailDirective.appliedMessages, expectedMessages)
+        assertEquals(emailDirective.legacyMessages, expectedMessages)
         val inputField = (schema.getType("PersonInput") as GraphQLInputObjectType).getField("email")
         assertEquals(inputField.getAppliedDirective("email").getArgument("message")?.getValue<String>(), "{path} must be a valid email")
         assertEquals(schema.getSchemaAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
@@ -574,7 +573,7 @@ class DirectiveTest {
 
     private class PersonQueryResolver : GraphQLQueryResolver {
         fun contactEmail(): String? = null
-        fun updatePersonEmail(email: String?, backupEmail: String?): String? = email
+        fun updatePersonEmail(primaryEmail: String?, backupEmail: String?): String? = primaryEmail
         fun updatePerson(person: PersonInput?, state: AllowedState?): String? = null
     }
 
@@ -614,7 +613,8 @@ class DirectiveTest {
     }
 
     private class EmailDirective : SchemaDirectiveWiring {
-        val messages = mutableMapOf<String, Pair<String?, String?>>()
+        val appliedMessages = mutableMapOf<String, String?>()
+        val legacyMessages = mutableMapOf<String, String?>()
 
         override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
             recordMessage(environment)
@@ -627,9 +627,9 @@ class DirectiveTest {
         }
 
         private fun recordMessage(environment: SchemaDirectiveWiringEnvironment<*>) {
-            val appliedMessage = environment.appliedDirective.getArgument("message")?.getValue<String>()
-            val legacyMessage = environment.directive.getArgument("message")?.let { GraphQLArgument.getArgumentValue<String>(it) }
-            messages[environment.element.name] = appliedMessage to legacyMessage
+            val name = environment.element.name
+            appliedMessages[name] = environment.appliedDirective.getArgument("message")?.getValue<String>()
+            legacyMessages[name] = environment.directive.getArgument("message")?.let { GraphQLArgument.getArgumentValue<String>(it) }
         }
     }
 
