@@ -1,7 +1,6 @@
 package graphql.kickstart.tools.resolver
 
 import graphql.kickstart.tools.*
-import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -12,11 +11,10 @@ import graphql.schema.DataFetchingEnvironment
 internal abstract class FieldResolver(
     val field: FieldDefinition,
     val search: FieldResolverScanner.Search,
-    val options: SchemaParserOptions,
-    relativeTo: JavaType
+    val options: SchemaParserOptions
 ) {
     val resolverInfo: ResolverInfo = search.resolverInfo
-    val genericType = GenericType(search.type, options).relativeToPotentialParent(relativeTo)
+    val genericType = GenericType(search.type, options)
 
     abstract fun scanForMatches(): List<TypeClassMatcher.PotentialMatch>
 

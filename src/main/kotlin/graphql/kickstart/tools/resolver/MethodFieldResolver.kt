@@ -41,7 +41,7 @@ internal class MethodFieldResolver(
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
     val method: Method
-) : FieldResolver(field, search, options, search.type) {
+) : FieldResolver(field, search, options) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 

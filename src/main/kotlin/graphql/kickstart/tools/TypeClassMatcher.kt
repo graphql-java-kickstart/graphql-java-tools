@@ -109,15 +109,15 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     internal data class PotentialMatch(
         val graphQLType: GraphQLLangType,
         val javaType: JavaType,
-        val generic: GenericType.RelativeTo,
+        val generic: GenericType,
         val reference: SchemaClassScanner.Reference,
         val location: Location
     ) {
         companion object {
-            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference) =
+            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType, reference: SchemaClassScanner.Reference) =
                 PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE)
 
-            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType.RelativeTo, reference: SchemaClassScanner.Reference) =
+            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType, reference: SchemaClassScanner.Reference) =
                 PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE)
         }
     }
