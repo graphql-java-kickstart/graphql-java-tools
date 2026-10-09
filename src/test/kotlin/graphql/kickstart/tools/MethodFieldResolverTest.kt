@@ -239,6 +239,51 @@ class MethodFieldResolverTest {
         assertEquals(exceptionWhileDataFetching.exception.message, "Whoops")
     }
 
+    @Test
+    fun `should return null when generic wrapper transformer returns null`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    name: String
+                    names: [String!]
+                    nameWithArgument(input: String): String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun name(): Maybe<String> = Maybe.None
+                fun names(): Maybe<List<String>> = Maybe.None
+                fun nameWithArgument(input: String?): Maybe<String> = Maybe.None
+            })
+            .options(SchemaParserOptions.newOptions()
+                .genericWrappers(SchemaParserOptions.GenericWrapper.withTransformer(Maybe::class, 0, { maybe -> (maybe as? Maybe.Some)?.value }))
+                .build())
+            .build()
+            .makeExecutableSchema()
+
+        val gql = GraphQL.newGraphQL(schema).build()
+        val result = gql.execute(ExecutionInput.newExecutionInput().query(
+            """
+            query {
+                name
+                names
+                nameWithArgument(input: "test")
+            }
+            """))
+
+        assertEquals(result.errors, listOf())
+        assertEquals(result.getData(), mapOf(
+            "name" to null,
+            "names" to null,
+            "nameWithArgument" to null
+        ))
+    }
+
+    sealed class Maybe<out T> {
+        data class Some<T>(val value: T) : Maybe<T>()
+        object None : Maybe<Nothing>()
+    }
+
     /**
      * Custom Scalar Class type that doesn't work with Jackson serialization/deserialization
      */

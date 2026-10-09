@@ -41,6 +41,16 @@ internal fun JavaType.unwrap(): Class<out Any> =
         this as Class<*>
     }
 
+/**
+ * Replaces a parameterized type whose type arguments are all unbounded wildcards, e.g. Kotlin's Page<*>, by its raw type.
+ */
+internal fun JavaType.eraseUnboundedWildcards(): JavaType =
+    if (this is ParameterizedType && this.actualTypeArguments.all { TypeUtils.equals(it, TypeUtils.WILDCARD_ALL) }) {
+        this.rawType
+    } else {
+        this
+    }
+
 internal fun JavaType.typeArgument(type: Class<*>): JavaType? =
     TypeUtils.getTypeArguments(this, type)?.get(type.typeParameters.first())
 
