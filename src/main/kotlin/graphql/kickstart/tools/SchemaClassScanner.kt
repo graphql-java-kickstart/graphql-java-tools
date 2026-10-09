@@ -308,19 +308,20 @@ internal class SchemaClassScanner(
      * Find all resolvers for the data class or any of its supertypes, most specific first.
      */
     private fun getResolverInfoFromDataClass(dataClass: JavaType): ResolverInfo {
+        val rawDataClass = dataClass.unwrap()
         val resolverInfoList = resolverInfos
-            .filter { it.dataClassType == dataClass || isResolverForSupertype(it, dataClass) }
+            .filter { it.dataClassType == rawDataClass || isResolverForSupertype(it, rawDataClass) }
             .sortedByDescending { ClassUtils.getAllSuperclasses(it.dataClassType).size + ClassUtils.getAllInterfaces(it.dataClassType).size }
 
         return when {
             resolverInfoList.isEmpty() -> DataClassResolverInfo(dataClass)
             resolverInfoList.size == 1 && resolverInfoList.single().dataClassType == dataClass -> resolverInfoList.single()
-            else -> MultiResolverInfo(resolverInfoList, dataClass.unwrap())
+            else -> MultiResolverInfo(resolverInfoList, dataClass)
         }
     }
 
-    private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: JavaType) =
-        dataClass is Class<*> && resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
+    private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: Class<*>) =
+        resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
@@ -436,13 +437,15 @@ internal class SchemaClassScanner(
     private fun findInputValueTypeInType(name: String, clazz: Class<*>): JavaType? {
         val methods = clazz.methods
 
-        val filteredMethods = methods.filter {
+        val (getters, methodsWithParameters) = methods.filter {
             it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
-        }.sortedBy { it.name.length }
+        }.sortedBy { it.name.length }.partition { it.parameterCount == 0 }
 
-        return filteredMethods.find { !it.isSynthetic }?.genericReturnType
-            ?: filteredMethods.firstOrNull()?.genericReturnType
+        return getters.find { !it.isSynthetic }?.genericReturnType
+            ?: getters.firstOrNull()?.genericReturnType
             ?: clazz.fields.find { it.name == name }?.genericType
+            ?: methodsWithParameters.find { !it.isSynthetic }?.genericReturnType
+            ?: methodsWithParameters.firstOrNull()?.genericReturnType
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)

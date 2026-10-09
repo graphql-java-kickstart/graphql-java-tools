@@ -12,6 +12,7 @@ import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.reflect.jvm.kotlinFunction
 
 /**
  * @author Andrew Potter
@@ -40,6 +41,16 @@ internal fun JavaType.unwrap(): Class<out Any> =
         this as Class<*>
     }
 
+/**
+ * Replaces a parameterized type whose type arguments are all unbounded wildcards, e.g. Kotlin's Page<*>, by its raw type.
+ */
+internal fun JavaType.eraseUnboundedWildcards(): JavaType =
+    if (this is ParameterizedType && this.actualTypeArguments.all { TypeUtils.equals(it, TypeUtils.WILDCARD_ALL) }) {
+        this.rawType
+    } else {
+        this
+    }
+
 internal fun JavaType.typeArgument(type: Class<*>): JavaType? =
     TypeUtils.getTypeArguments(this, type)?.get(type.typeParameters.first())
 
@@ -58,6 +69,18 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
             else -> this.declaredMethods.toList()
         }
     }
+
+internal fun JavaMethod.isSuspendFunction(): Boolean {
+    return try {
+        this.kotlinFunction?.isSuspend == true
+    } catch (e: InternalError) {
+        false
+    }
+}
+
+// the trailing Continuation of a suspend function isn't a resolver argument
+internal fun JavaMethod.parameterCountWithoutContinuation(): Int =
+    if (isSuspendFunction()) parameterCount - 1 else parameterCount
 
 internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOptions): String? =
     when {

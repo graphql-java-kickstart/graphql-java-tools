@@ -203,6 +203,72 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should chain element changes of named directive wirings`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @auth on FIELD_DEFINITION
+                directive @log on FIELD_DEFINITION
+
+                type Query {
+                    "Name"
+                    name: String @auth @log
+                }
+                """)
+            .resolvers(NameResolver())
+            .directive("auth", DescriptionDirective("auth"))
+            .directive("log", DescriptionDirective("log"))
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.queryType.getField("name").description, "Name +auth +log")
+    }
+
+    @Test
+    fun `should chain element changes of named and static directive wirings`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @auth on FIELD_DEFINITION
+
+                type Query {
+                    "Name"
+                    name: String @auth
+                }
+                """)
+            .resolvers(NameResolver())
+            .directive("auth", DescriptionDirective("auth"))
+            .directiveWiring(DescriptionDirective("static"))
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.queryType.getField("name").description, "Name +auth +static")
+    }
+
+    @Test
+    fun `should fail when a directive wiring returns null`() {
+        val error = assertThrows(IllegalStateException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    directive @auth on FIELD_DEFINITION
+
+                    type Query {
+                        name: String @auth
+                    }
+                    """)
+                .resolvers(NameResolver())
+                .directive("auth", object : SchemaDirectiveWiring {
+                    override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "The SchemaDirectiveWiring MUST return a non null return value for element 'name'")
+    }
+
+    @Test
     fun `should have access to applied directives through the data fetching environment`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -598,6 +664,13 @@ class DirectiveTest {
             environment.fieldDataFetcher = wrappedDataFetcher
 
             return field
+        }
+    }
+
+    private class DescriptionDirective(private val name: String) : SchemaDirectiveWiring {
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+            val field = environment.element
+            return field.transform { it.description("${field.description} +$name") }
         }
     }
 

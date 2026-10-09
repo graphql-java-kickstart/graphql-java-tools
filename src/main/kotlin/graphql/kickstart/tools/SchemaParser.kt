@@ -59,7 +59,7 @@ class SchemaParser internal constructor(
         (inputObjectDefinitions.map { it.name } + enumDefinitions.map { it.name }).toSet()
 
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
-    private val directiveWiringHelper = DirectiveWiringHelper(options, runtimeWiring, codeRegistryBuilder, directiveDefinitions)
+    private val directiveWiringHelper = DirectiveWiringHelper(runtimeWiring, codeRegistryBuilder)
 
     private lateinit var schemaDirectives : Set<GraphQLDirective>
 
