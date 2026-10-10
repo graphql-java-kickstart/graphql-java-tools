@@ -506,8 +506,7 @@ class SchemaParser internal constructor(
                     scalarType
                 } else {
                     if (!allowedTypeReferences.contains(typeDefinition.name)) {
-                        throw SchemaError("Expected type '${typeDefinition.name}' to be a ${expectedType.simpleName}, but it wasn't!  " +
-                            "Was a type only permitted for object types incorrectly used as an input type, or vice-versa?")
+                        throw unexpectedTypeError(typeDefinition, expectedType)
                     }
                     inputObjects.find { it.name == typeDefinition.name } ?: GraphQLTypeReference(typeDefinition.name)
                 }
@@ -538,8 +537,7 @@ class SchemaParser internal constructor(
                     scalarType
                 } else {
                     if (!allowedTypeReferences.contains(typeDefinition.name)) {
-                        throw SchemaError("Expected type '${typeDefinition.name}' to be a ${expectedType.simpleName}, but it wasn't!  " +
-                            "Was a type only permitted for object types incorrectly used as an input type, or vice-versa?")
+                        throw unexpectedTypeError(typeDefinition, expectedType)
                     }
                     val found = inputObjects.filter { it.name == typeDefinition.name }
                     if (found.size == 1) {
@@ -564,6 +562,65 @@ class SchemaParser internal constructor(
             }
             else -> throw SchemaError("Unknown type: $typeDefinition")
         }
+
+    private fun unexpectedTypeError(typeName: TypeName, expectedType: KClass<*>): SchemaError {
+        val name = typeName.name
+        val subject = "Type '$name'" +
+            (findUsage(typeName)?.let { " used by $it" } ?: "") +
+            (typeName.sourceLocation?.let { " at line ${it.line}, column ${it.column}" + (it.sourceName?.let { source -> " of $source" } ?: "") } ?: "")
+        // unused ones first, since the extensions of an unused type are still among the definitions
+        val definition = unusedDefinitions.find { it.name == name }
+            ?: definitions.filterIsInstance<TypeDefinition<*>>().find { it.name == name }
+        val isInput = expectedType == GraphQLInputType::class
+        val kind = when (definition) {
+            is InputObjectTypeDefinition -> "an input object type"
+            is InterfaceTypeDefinition -> "an interface"
+            is UnionTypeDefinition -> "a union"
+            else -> "an object type"
+        }
+
+        return SchemaError(when {
+            definition == null -> "$subject is not defined in the schema."
+            isInput && definition !is InputObjectTypeDefinition && definition !is EnumTypeDefinition && definition !is ScalarTypeDefinition ->
+                "$subject is $kind, which can't be used as an input type. Input types are input objects, enums and scalars."
+            !isInput && definition is InputObjectTypeDefinition ->
+                "$subject is $kind, which can't be used as an output type. Output types are object types, interfaces, unions, enums and scalars."
+            definition in unusedDefinitions ->
+                "$subject is defined in the schema, but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
+                    unreachedTypeHint(definition)
+            else -> "$subject can't be used as ${if (isInput) "an input" else "an output"} type."
+        })
+    }
+
+    // what makes the scanner reach the type depends on its kind, see SchemaClassScanner.canIncludeUnusedType
+    private fun unreachedTypeHint(definition: TypeDefinition<*>): String = when (definition) {
+        is InterfaceTypeDefinition, is UnionTypeDefinition ->
+            "Return it from a resolver method or one of those classes, or set SchemaParserOptions.includeUnusedTypes."
+        is EnumTypeDefinition ->
+            "Use it in a resolver method or one of those classes, or set SchemaParserOptions.includeUnusedTypes and pass its enum class in the parser's dictionary."
+        is InputObjectTypeDefinition ->
+            "Use it in an argument of a resolver method, directly or through another input type. SchemaParserOptions.includeUnusedTypes doesn't include input types."
+        is ScalarTypeDefinition ->
+            "Use it in a resolver method or one of those classes. SchemaParserOptions.includeUnusedTypes doesn't include scalars."
+        else ->
+            "Return it from a resolver method or one of those classes, or set SchemaParserOptions.includeUnusedTypes and pass a class for it in the parser's dictionary."
+    }
+
+    // determineType only gets the type reference, so the definition using it is looked up for the error message
+    private fun findUsage(typeName: TypeName): String? = definitions.asSequence().flatMap { definition ->
+        when (definition) {
+            is ObjectTypeDefinition -> fieldUsages(definition.name, definition.fieldDefinitions)
+            is InterfaceTypeDefinition -> fieldUsages(definition.name, definition.fieldDefinitions)
+            is InputObjectTypeDefinition -> definition.inputValueDefinitions.map { "input field '${definition.name}.${it.name}'" to it.type }
+            is DirectiveDefinition -> definition.inputValueDefinitions.map { "argument '${it.name}' of directive '@${definition.name}'" to it.type }
+            else -> emptyList()
+        }
+    }.find { (_, type) -> type.unwrap() === typeName }?.first
+
+    private fun fieldUsages(typeName: String, fields: List<FieldDefinition>): List<Pair<String, Type<*>>> = fields.flatMap { field ->
+        listOf("field '$typeName.${field.name}'" to field.type) +
+            field.inputValueDefinitions.map { "argument '${it.name}' of field '$typeName.${field.name}'" to it.type }
+    }
 
     /**
      * Returns an optional [String] describing a deprecated field/enum.
