@@ -20,6 +20,7 @@ import java.util.concurrent.Future
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
+@ConsistentCopyVisibility
 data class SchemaParserOptions internal constructor(
     val contextClass: Class<*>?,
     val genericWrappers: List<GenericWrapper>,

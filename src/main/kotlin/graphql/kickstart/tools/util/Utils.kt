@@ -7,6 +7,8 @@ import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.apache.commons.lang3.reflect.TypeUtils
+import org.slf4j.LoggerFactory
+import java.lang.invoke.MethodHandles
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
@@ -17,6 +19,8 @@ import kotlin.reflect.jvm.kotlinFunction
 /**
  * @author Andrew Potter
  */
+
+private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
 internal typealias GraphQLRootResolver = GraphQLResolver<Void>
 
@@ -60,8 +64,23 @@ internal fun JavaType.futureValueType(): JavaType? =
     typeArgument(CompletionStage::class.java) ?: typeArgument(Future::class.java)
 
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
+    val scope: Any? = graphQlContext[CoroutineScope::class.java]
+    if (scope is CoroutineScope) {
+        return scope
+    }
+
+    @Suppress("DEPRECATION")
     val context: Any? = this.getContext()
-    return if (context is CoroutineScope) context else CoroutineScope(Dispatchers.Default)
+    if (context is CoroutineScope) {
+        log.warn(
+            "Passing a CoroutineScope as the context object has been deprecated by graphql-java. " +
+                "Please insert it into the GraphQLContext map under the CoroutineScope class key when building the ExecutionInput. " +
+                "Support for the context object will be removed in the next major release."
+        )
+        return context
+    }
+
+    return CoroutineScope(Dispatchers.Default)
 }
 
 internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>

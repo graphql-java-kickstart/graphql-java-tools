@@ -13,6 +13,7 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -82,6 +83,43 @@ class MethodFieldResolverDataFetcherTest {
         suspend fun isActive(data: DataClass): Boolean {
             invoked = true
             return true
+        }
+    }
+
+    @Test
+    fun `data fetcher executes suspend function in CoroutineScope from GraphQLContext`() {
+        // setup
+        val scopeClass = ScopeClass()
+        val context = GraphQLContext.of(mapOf(CoroutineScope::class.java to scopeClass.scope))
+
+        val resolver = createFetcher("active", scopeClass)
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), context = context)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    @Test
+    fun `data fetcher executes suspend function in CoroutineScope from legacy context`() {
+        // setup
+        val scopeClass = ScopeClass()
+
+        val resolver = createFetcher("active", scopeClass)
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), legacyContext = scopeClass.scope)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    class ScopeClass : GraphQLResolver<DataClass> {
+        private val job = Job()
+        val scope = CoroutineScope(job)
+
+        @Suppress("UNUSED_PARAMETER")
+        suspend fun isActive(data: DataClass): Boolean {
+            return coroutineContext[Job] == job.children.first()
         }
     }
 
@@ -375,11 +413,16 @@ class MethodFieldResolverDataFetcherTest {
     private fun createEnvironment(
         source: Any = Object(),
         arguments: Map<String, Any> = emptyMap(),
-        context: GraphQLContext = GraphQLContext.newContext().build()
+        context: GraphQLContext = GraphQLContext.newContext().build(),
+        legacyContext: Any? = null
     ) = DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext(context))
         .source(source)
         .arguments(arguments)
         .graphQLContext(context)
+        .apply {
+            @Suppress("DEPRECATION")
+            if (legacyContext != null) context(legacyContext)
+        }
         .build()
 
     private fun buildExecutionContext(context: GraphQLContext): ExecutionContext {

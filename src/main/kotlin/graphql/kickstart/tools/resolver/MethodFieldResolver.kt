@@ -119,6 +119,7 @@ internal class MethodFieldResolver(
                                 "please insert it into the GraphQLContext map when building the ExecutionInput. " +
                                 "This warning will become an error in the future."
                         )
+                        @Suppress("DEPRECATION")
                         environment.getContext() // TODO: remove deprecated use in next major release
                     }
                 }

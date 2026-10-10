@@ -96,6 +96,8 @@ internal class DirectiveWiringHelper(
         return checkNotNull(wrapper.invoker(wiring, env)) { "The SchemaDirectiveWiring MUST return a non null return value for element '${wrapper.graphQlType.name}'" }
     }
 
+    // the legacy directives still back the deprecated getters of SchemaDirectiveWiringEnvironment
+    @Suppress("DEPRECATION")
     private fun <T : GraphQLDirectiveContainer> buildEnvironment(wrapper: WiringWrapper<T>, element: T, appliedDirective: GraphQLAppliedDirective? = null): SchemaDirectiveWiringEnvironmentImpl<T> {
         val type = wrapper.graphQlType
         val directive = appliedDirective?.let { d -> type.directives.find { it.name == d.name } }

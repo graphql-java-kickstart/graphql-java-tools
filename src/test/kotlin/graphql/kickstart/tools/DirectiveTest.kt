@@ -629,6 +629,7 @@ class DirectiveTest {
         private fun recordMessage(environment: SchemaDirectiveWiringEnvironment<*>) {
             val name = environment.element.name
             appliedMessages[name] = environment.appliedDirective.getArgument("message")?.getValue<String>()
+            @Suppress("DEPRECATION")
             legacyMessages[name] = environment.directive.getArgument("message")?.let { GraphQLArgument.getArgumentValue<String>(it) }
         }
     }
