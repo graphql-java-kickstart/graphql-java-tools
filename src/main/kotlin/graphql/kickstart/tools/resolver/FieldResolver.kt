@@ -14,7 +14,7 @@ internal abstract class FieldResolver(
     val options: SchemaParserOptions
 ) {
     val resolverInfo: ResolverInfo = search.resolverInfo
-    val genericType = GenericType(search.type, options)
+    val typeResolver = GenericTypeResolver(search.type, options)
 
     abstract fun scanForMatches(): List<TypeClassMatcher.PotentialMatch>
 
@@ -33,8 +33,8 @@ internal abstract class FieldResolver(
                     ?: environment?.getSource<Any>()
                     ?: throw ResolverError("Expected DataFetchingEnvironment and source object to not be null!")
 
-                if (!this.genericType.isAssignableFrom(source.javaClass)) {
-                    throw ResolverError("Expected source object to be an instance of '${this.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
+                if (!this.typeResolver.isAssignableFrom(source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${this.typeResolver.getRawClass().name}' but instead got '${source.javaClass.name}'")
                 }
 
                 source

@@ -12,7 +12,7 @@ import java.lang.reflect.WildcardType
 /**
  * @author Andrew Potter
  */
-internal class GenericType(private val containingType: JavaType, private val options: SchemaParserOptions) {
+internal class GenericTypeResolver(private val containingType: JavaType, private val options: SchemaParserOptions) {
 
     fun getRawClass() = getRawClass(containingType)
 
@@ -29,7 +29,7 @@ internal class GenericType(private val containingType: JavaType, private val opt
      * - wildcards are replaced by their upper bound, e.g. `? extends Foo` becomes `Foo`
      * - primitives are replaced by their boxed class, e.g. `int` becomes `Integer`
      */
-    fun unwrapGenericType(javaType: JavaType): JavaType {
+    fun resolve(javaType: JavaType): JavaType {
         return when (val type = resolveTypeVariables(javaType)) {
             is ParameterizedType -> {
                 val rawType = type.rawType
@@ -42,7 +42,7 @@ internal class GenericType(private val containingType: JavaType, private val opt
                 }
 
                 val unwrapsTo = wrapper.schemaWrapper.invoke(typeArguments[wrapper.index])
-                unwrapGenericType(unwrapsTo)
+                resolve(unwrapsTo)
             }
             is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' relative to ${TypeUtils.toString(containingType)}")
             is WildcardType -> type.upperBounds.firstOrNull()

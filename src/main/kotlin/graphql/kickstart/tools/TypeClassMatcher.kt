@@ -22,14 +22,14 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     private fun match(potentialMatch: PotentialMatch, graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
 
-        var realType = potentialMatch.generic.unwrapGenericType(javaType)
+        var realType = potentialMatch.typeResolver.resolve(javaType)
 
         if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
             if (potentialMatch.location != Location.RETURN_TYPE) {
                 throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used as a return type")
             }
 
-            realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
+            realType = potentialMatch.typeResolver.resolve(realType.actualTypeArguments.first())
 
             if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
                 throw error(potentialMatch, "${DataFetcherResult::class.java.name} cannot be nested within itself")
@@ -46,7 +46,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
                 throw error(potentialMatch, "${Optional::class.java.name} can only be used at the top level of a return type")
             }
 
-            realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
+            realType = potentialMatch.typeResolver.resolve(realType.actualTypeArguments.first())
 
             if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
                 throw error(potentialMatch, "${Optional::class.java.name} cannot be nested within itself")
@@ -104,16 +104,16 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
     internal data class PotentialMatch(
         val graphQLType: GraphQLLangType,
         val javaType: JavaType,
-        val generic: GenericType,
+        val typeResolver: GenericTypeResolver,
         val reference: SchemaClassScanner.Reference,
         val location: Location
     ) {
         companion object {
-            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType, reference: SchemaClassScanner.Reference) =
-                PotentialMatch(graphQLType, javaType, generic, reference, Location.RETURN_TYPE)
+            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: SchemaClassScanner.Reference) =
+                PotentialMatch(graphQLType, javaType, typeResolver, reference, Location.RETURN_TYPE)
 
-            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, generic: GenericType, reference: SchemaClassScanner.Reference) =
-                PotentialMatch(graphQLType, javaType, generic, reference, Location.PARAMETER_TYPE)
+            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: SchemaClassScanner.Reference) =
+                PotentialMatch(graphQLType, javaType, typeResolver, reference, Location.PARAMETER_TYPE)
         }
     }
 }

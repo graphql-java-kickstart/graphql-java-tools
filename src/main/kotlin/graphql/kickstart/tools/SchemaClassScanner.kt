@@ -396,7 +396,7 @@ internal class SchemaClassScanner(
                                 handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
                                     inputValueDefinition.type,
                                     inputValueJavaType,
-                                    GenericType(javaType, options),
+                                    GenericTypeResolver(javaType, options),
                                     InputObjectReference(inputValueDefinition)
                                 )))
                             } else {

@@ -30,7 +30,7 @@ internal class PropertyFieldResolver(
             TypeClassMatcher.PotentialMatch.returnValue(
                 field.type,
                 property.genericType,
-                genericType,
+                typeResolver,
                 SchemaClassScanner.FieldTypeReference(property.toString())
             )
         )
