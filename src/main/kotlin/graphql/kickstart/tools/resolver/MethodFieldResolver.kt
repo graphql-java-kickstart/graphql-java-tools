@@ -41,7 +41,7 @@ internal class MethodFieldResolver(
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
     val method: Method
-) : FieldResolver(field, search, options, search.type) {
+) : FieldResolver(field, search, options) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -72,11 +72,11 @@ internal class MethodFieldResolver(
         this.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
             val parameterType = this.getMethodParameterType(index)
-                ?.apply { genericType.getRawClass(this) }
+                ?.apply { typeResolver.getRawClass(this) }
                 ?: throw ResolverError("Missing method type at position ${this.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
             val isNonNull = definition.type is NonNullType
-            val isOptional = this.genericType.getRawClass(parameterType) == Optional::class.java
+            val isOptional = this.typeResolver.getRawClass(parameterType) == Optional::class.java
 
             args.add { environment ->
                 val argumentPresent = environment.arguments.containsKey(definition.name)
@@ -130,7 +130,7 @@ internal class MethodFieldResolver(
 
         // the class the return type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
         // Object (e.g. for a union) can't tell them apart, so then every future of a method declared to return Future is checked
-        val valueClass = (TypeUtils.getRawType(getUnwrappedReturnType(), null) ?: Any::class.java)
+        val valueClass = (TypeUtils.getRawType(getResolvedReturnType(), null) ?: Any::class.java)
             .takeUnless { it == Any::class.java && TypeUtils.getRawType(getReturnType(), null) == Future::class.java }
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
@@ -153,8 +153,8 @@ internal class MethodFieldResolver(
      */
     private fun isConcreteScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean {
         return when (type) {
-            is ListType -> List::class.java.isAssignableFrom(this.genericType.getRawClass(genericParameterType))
-                && isConcreteScalarType(environment, type.type, this.genericType.unwrapGenericType(genericParameterType))
+            is ListType -> List::class.java.isAssignableFrom(this.typeResolver.getRawClass(genericParameterType))
+                && isConcreteScalarType(environment, type.type, this.typeResolver.resolve(genericParameterType))
 
             is TypeName -> environment.graphQLSchema?.getType(type.name!!)?.let { isScalar(it) && type.name != "ID" }
                 ?: false
@@ -165,10 +165,10 @@ internal class MethodFieldResolver(
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, getUnwrappedReturnType(), genericType, SchemaClassScanner.ReturnValueReference(method))
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, getResolvedReturnType(), typeResolver, SchemaClassScanner.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, genericType, SchemaClassScanner.MethodParameterReference(method, i))
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, typeResolver, SchemaClassScanner.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
 
@@ -186,8 +186,8 @@ internal class MethodFieldResolver(
             method.genericReturnType
         }
 
-    private fun getUnwrappedReturnType(): JavaType =
-        getReturnType().let { genericType.unwrapGenericType(if (search.isSubscription) it.asPublisher() else it) }
+    private fun getResolvedReturnType(): JavaType =
+        getReturnType().let { typeResolver.resolve(if (search.isSubscription) it.asPublisher() else it) }
 
     private fun getIndexOffset(): Int {
         return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {

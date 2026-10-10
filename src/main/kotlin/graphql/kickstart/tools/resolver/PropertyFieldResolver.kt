@@ -19,7 +19,7 @@ internal class PropertyFieldResolver(
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
     private val property: Field
-) : FieldResolver(field, search, options, property.declaringClass) {
+) : FieldResolver(field, search, options) {
 
     override fun createDataFetcher(): DataFetcher<*> {
         return PropertyFieldResolverDataFetcher(createSourceResolver(), property)
@@ -30,7 +30,7 @@ internal class PropertyFieldResolver(
             TypeClassMatcher.PotentialMatch.returnValue(
                 field.type,
                 property.genericType,
-                genericType,
+                typeResolver,
                 SchemaClassScanner.FieldTypeReference(property.toString())
             )
         )
