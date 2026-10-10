@@ -75,16 +75,19 @@ internal class SchemaClassScanner(
 
         scanQueue()
 
-        // Loop over all objects scanning each one only once for more objects to discover.
-        do {
-            do {
-                // Require all implementors of discovered interfaces to be discovered or provided.
-                handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-            } while (scanQueue())
+        // Loop over all objects scanning each one only once for more objects to discover. Each step only runs once the steps
+        // above it have nothing left, and anything new starts over from the top.
+        while (true) {
+            // Require all implementors of discovered interfaces to be discovered or provided.
+            handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
+            if (scanQueue()) continue
 
             // Require all members of discovered unions to be discovered.
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-        } while (scanQueue())
+            if (scanQueue()) continue
+
+            break
+        }
 
         handleDirectives()
 
