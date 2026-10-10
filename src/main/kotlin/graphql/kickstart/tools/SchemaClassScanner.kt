@@ -75,16 +75,24 @@ internal class SchemaClassScanner(
 
         scanQueue()
 
-        // Loop over all objects scanning each one only once for more objects to discover.
-        do {
-            do {
-                // Require all implementors of discovered interfaces to be discovered or provided.
-                handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-            } while (scanQueue())
+        // Loop over all objects scanning each one only once for more objects to discover. Each step only runs once the steps
+        // above it have nothing left, and anything new starts over from the top.
+        while (true) {
+            // Require all implementors of discovered interfaces to be discovered or provided.
+            handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
+            if (scanQueue()) continue
 
             // Require all members of discovered unions to be discovered.
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-        } while (scanQueue())
+            if (scanQueue()) continue
+
+            // Look for unions and interfaces used only by interface fields last, so types that can be reached some other way
+            // are still discovered in the same order as before. With includeUnusedTypes the unused types loop below already
+            // picks these up one at a time, scanning in between, so leave that path unchanged.
+            if (!options.includeUnusedTypes && handleInterfaceFieldTypes()) continue
+
+            break
+        }
 
         handleDirectives()
 
@@ -268,6 +276,26 @@ internal class SchemaClassScanner(
                     ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union")
             }
         }.flatten().distinct()
+    }
+
+    /**
+     * Implementations can narrow an interface field to a member of its union or an implementor of its interface, so such a
+     * union or interface may not be reachable from any object field. Returns whether any new types were found.
+     */
+    private fun handleInterfaceFieldTypes(): Boolean {
+        val newTypes = dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().flatMap { iface ->
+            iface.fieldDefinitions.mapNotNull { field ->
+                val type = definitionsByName[(field.type.unwrap() as TypeName).name]
+                if ((type is UnionTypeDefinition || type is InterfaceTypeDefinition) && !dictionary.containsKey(type)) {
+                    type to FieldTypeReference("${iface.name}.${field.name}")
+                } else {
+                    null
+                }
+            }
+        }
+
+        newTypes.forEach { (type, reference) -> handleFoundType(type, null, reference) }
+        return newTypes.isNotEmpty()
     }
 
     private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
