@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.parser.InvalidSyntaxException
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
@@ -292,6 +293,137 @@ class SchemaParserTest {
         assertEquals(sourceLocation?.line, 2)
         assertEquals(sourceLocation?.column, 3)
         assertEquals(sourceLocation?.sourceName, "Test.graphqls")
+    }
+
+    @Test
+    fun `parser should report syntax error line relative to the schema string containing it`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    id: ID!
+                    |}
+                    """.trimMargin())
+                .schemaString(
+                    """
+                    |type Foo {
+                    |    bar: String!!
+                    |}
+                    """.trimMargin())
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 17")
+        assertEquals(error.location?.line, 2)
+    }
+
+    @Test
+    fun `parser should include file name in syntax error`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .file("Test.graphqls")
+                .file("InvalidSyntax.graphqls")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 15 in InvalidSyntax.graphqls")
+        assertEquals(error.location?.sourceName, "InvalidSyntax.graphqls")
+    }
+
+    @Test
+    fun `parser should include source name in syntax error from named schema string`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    id: ID!
+                    |}
+                    """.trimMargin(), "Query.graphqls")
+                .schemaString(
+                    """
+                    |type Foo {
+                    |    bar: String!!
+                    |}
+                    """.trimMargin(), "Foo.graphqls")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 17 in Foo.graphqls")
+        assertEquals(error.location?.sourceName, "Foo.graphqls")
+    }
+
+    @Test
+    fun `parser should report syntax error on the last line of the last schema string relative to it`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    id: ID!
+                    |}
+                    """.trimMargin())
+                .schemaString("type Foo { bar: String!! }")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 1 column 24")
+        assertEquals(error.location?.line, 1)
+    }
+
+    @Test
+    fun `parser should report unexpected end of the last schema string relative to it`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    id: ID!
+                    |}
+                    """.trimMargin(), "Query.graphqls")
+                .schemaString("type Foo {\n    bar: String\n", "Foo.graphqls")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '<EOF>' at line 3 column 1 in Foo.graphqls")
+        assertEquals(error.location?.line, 3)
+    }
+
+    @Test
+    fun `parser should report unexpected end of the last schema string relative to it after 1000 lines`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .schemaString((1..1100).joinToString("\n") { "type Type$it { id: ID! }" }, "Types.graphqls")
+                .schemaString("type Foo {\n    bar: String\n", "Foo.graphqls")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '<EOF>' at line 3 column 1 in Foo.graphqls")
+        assertEquals(error.location?.line, 3)
+    }
+
+    @Test
+    fun `parser should include source location for field definition in named schema string`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                |schema {
+                |    query: Query
+                |}
+                """.trimMargin(), "Schema.graphqls")
+            .schemaString("type Query { id: ID! }", "Query.graphqls")
+            .resolvers(QueryWithIdResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val sourceLocation = schema.getObjectType("Query")!!
+            .getFieldDefinition("id")
+            .definition!!.sourceLocation
+        assertNotNull(sourceLocation)
+        assertEquals(sourceLocation?.line, 1)
+        assertEquals(sourceLocation?.column, 14)
+        assertEquals(sourceLocation?.sourceName, "Query.graphqls")
     }
 
     @Test
