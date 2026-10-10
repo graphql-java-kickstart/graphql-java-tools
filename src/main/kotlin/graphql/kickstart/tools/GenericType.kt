@@ -12,36 +12,39 @@ import java.lang.reflect.WildcardType
 /**
  * @author Andrew Potter
  */
-internal class GenericType(private val mostSpecificType: JavaType, private val options: SchemaParserOptions) {
+internal class GenericType(private val containingType: JavaType, private val options: SchemaParserOptions) {
 
-    fun isTypeAssignableFromRawClass(type: ParameterizedType, clazz: Class<*>) =
-        clazz.isAssignableFrom(getRawClass(type.rawType))
+    fun getRawClass() = getRawClass(containingType)
 
-    fun getRawClass() = getRawClass(mostSpecificType)
+    fun getRawClass(type: JavaType): Class<*> = TypeUtils.getRawType(type, containingType)
 
-    fun getRawClass(type: JavaType): Class<*> = TypeUtils.getRawType(type, mostSpecificType)
-
-    fun isAssignableFrom(type: JavaType) = TypeUtils.isAssignable(type, mostSpecificType)
+    fun isAssignableFrom(type: JavaType) = TypeUtils.isAssignable(type, containingType)
 
     /**
-     * Unwrap certain Java types to find the "real" class.
+     * Turns a type as declared in the source (a method's return or parameter type, or a field's type) into the type
+     * the GraphQL type is matched against:
+     * - type variables are resolved relative to the containing type,
+     *   e.g. `T` of `AbstractItem<T>.getId()` becomes `Long` for `class Item : AbstractItem<Long>()`
+     * - generic wrappers are replaced by their wrapped type, e.g. `CompletableFuture<Foo>` becomes `Foo`
+     * - wildcards are replaced by their upper bound, e.g. `? extends Foo` becomes `Foo`
+     * - primitives are replaced by their boxed class, e.g. `int` becomes `Integer`
      */
     fun unwrapGenericType(javaType: JavaType): JavaType {
-        return when (val type = replaceTypeVariable(javaType)) {
+        return when (val type = resolveTypeVariables(javaType)) {
             is ParameterizedType -> {
                 val rawType = type.rawType
-                val genericType = options.genericWrappers.find { it.type == rawType }
+                val wrapper = options.genericWrappers.find { it.type == rawType }
                     ?: return type
 
                 val typeArguments = type.actualTypeArguments
-                if (typeArguments.size <= genericType.index) {
-                    throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${genericType.index}!")
+                if (typeArguments.size <= wrapper.index) {
+                    throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${wrapper.index}!")
                 }
 
-                val unwrapsTo = genericType.schemaWrapper.invoke(typeArguments[genericType.index])
+                val unwrapsTo = wrapper.schemaWrapper.invoke(typeArguments[wrapper.index])
                 unwrapGenericType(unwrapsTo)
             }
-            is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' relative to ${TypeUtils.toString(mostSpecificType)}")
+            is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' relative to ${TypeUtils.toString(containingType)}")
             is WildcardType -> type.upperBounds.firstOrNull()
                 ?: error("Unable to unwrap type, wildcard has no upper bound: $type")
             is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
@@ -49,21 +52,21 @@ internal class GenericType(private val mostSpecificType: JavaType, private val o
         }
     }
 
-    private fun replaceTypeVariable(type: JavaType, resolving: Set<TypeVariable<*>> = emptySet()): JavaType {
+    private fun resolveTypeVariables(type: JavaType, resolving: Set<TypeVariable<*>> = emptySet()): JavaType {
         return when (type) {
             is ParameterizedType -> {
-                val actualTypeArguments = type.actualTypeArguments.map { replaceTypeVariable(it, resolving) }.toTypedArray()
-                ParameterizedTypeImpl(type.rawType as Class<*>, actualTypeArguments, type.ownerType?.let { replaceTypeVariable(it, resolving) })
+                val actualTypeArguments = type.actualTypeArguments.map { resolveTypeVariables(it, resolving) }.toTypedArray()
+                ParameterizedTypeImpl(type.rawType as Class<*>, actualTypeArguments, type.ownerType?.let { resolveTypeVariables(it, resolving) })
             }
             is WildcardType -> TypeUtils.wildcardType()
-                .withUpperBounds(*type.upperBounds.map { replaceTypeVariable(it, resolving) }.toTypedArray())
-                .withLowerBounds(*type.lowerBounds.map { replaceTypeVariable(it, resolving) }.toTypedArray())
+                .withUpperBounds(*type.upperBounds.map { resolveTypeVariables(it, resolving) }.toTypedArray())
+                .withLowerBounds(*type.lowerBounds.map { resolveTypeVariables(it, resolving) }.toTypedArray())
                 .build()
             is ResolvedType -> {
                 if (type.typeParameters.isEmpty()) {
                     type.erasedType
                 } else {
-                    val actualTypeArguments = type.typeParameters.map { replaceTypeVariable(it) }.toTypedArray()
+                    val actualTypeArguments = type.typeParameters.map { resolveTypeVariables(it) }.toTypedArray()
                     ParameterizedTypeImpl(type.erasedType, actualTypeArguments, null)
                 }
             }
@@ -73,19 +76,17 @@ internal class GenericType(private val mostSpecificType: JavaType, private val o
                     // only a variable leaked from a raw type can be bound to a type containing itself (e.g. T -> List<T>),
                     // erase it like the raw type does instead of expanding it forever
                     type in resolving -> TypeUtils.getRawType(type.bounds.first(), null) ?: Any::class.java
-                    // the most specific type binds the variables of all its supertypes
-                    genericDeclaration is Class<*> -> generateSequence(mostSpecificType) { (it as? ParameterizedType)?.ownerType }
+                    // the containing type binds the variables of all its supertypes
+                    genericDeclaration is Class<*> -> generateSequence(containingType) { (it as? ParameterizedType)?.ownerType }
                         // an inner class can also use the variables of its outer class, those are bound by its owner type (e.g. Connection<Owner>.Entry)
                         .firstNotNullOfOrNull { TypeUtils.getTypeArguments(it, genericDeclaration)?.get(type) }
                         // keep the full type argument (e.g. List<Foo>) rather than its raw class so nested generics aren't lost
-                        ?.let { replaceTypeVariable(it, resolving + type) }
+                        ?.let { resolveTypeVariables(it, resolving + type) }
                         ?: type
                     else -> type
                 }
             }
-            else -> {
-                type
-            }
+            else -> type
         }
     }
 }

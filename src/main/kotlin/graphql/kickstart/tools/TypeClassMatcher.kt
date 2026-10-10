@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.util.GraphQLLangType
 import graphql.kickstart.tools.util.JavaType
+import graphql.kickstart.tools.util.isSubtypeOf
 import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import java.lang.reflect.ParameterizedType
@@ -12,10 +13,6 @@ import java.util.*
  * @author Andrew Potter
  */
 internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition<*>>) {
-
-    companion object {
-        fun isListType(realType: ParameterizedType, generic: GenericType) = generic.isTypeAssignableFromRawClass(realType, Iterable::class.java)
-    }
 
     private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) for reference ${potentialMatch.reference} with java type (${potentialMatch.javaType}): $msg")
 
@@ -27,14 +24,14 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
         var realType = potentialMatch.generic.unwrapGenericType(javaType)
 
-        if (realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, DataFetcherResult::class.java)) {
+        if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
             if (potentialMatch.location != Location.RETURN_TYPE) {
                 throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used as a return type")
             }
 
             realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
 
-            if (realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, DataFetcherResult::class.java)) {
+            if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
                 throw error(potentialMatch, "${DataFetcherResult::class.java.name} cannot be nested within itself")
             }
         }
@@ -42,7 +39,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         var optional = false
 
         // Handle jdk8 Optionals
-        if (realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
+        if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
             optional = true
 
             if (potentialMatch.location == Location.RETURN_TYPE && !root) {
@@ -51,7 +48,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
             realType = potentialMatch.generic.unwrapGenericType(realType.actualTypeArguments.first())
 
-            if (realType is ParameterizedType && potentialMatch.generic.isTypeAssignableFromRawClass(realType, Optional::class.java)) {
+            if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
                 throw error(potentialMatch, "${Optional::class.java.name} cannot be nested within itself")
             }
         }
@@ -66,7 +63,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
             }
 
             is ListType -> when {
-                realType is ParameterizedType && isListType(realType, potentialMatch) ->
+                realType is ParameterizedType && realType.isSubtypeOf(Iterable::class.java) ->
                     match(potentialMatch, graphQLType.type, realType.actualTypeArguments.first())
                 realType is Class<*> && realType.isArray ->
                     match(potentialMatch, graphQLType.type, realType.componentType)
@@ -92,8 +89,6 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
             else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
         }
     }
-
-    private fun isListType(realType: ParameterizedType, potentialMatch: PotentialMatch) = isListType(realType, potentialMatch.generic)
 
     internal sealed interface Match
 

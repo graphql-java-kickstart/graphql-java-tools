@@ -41,6 +41,8 @@ internal fun JavaType.unwrap(): Class<out Any> =
         this as Class<*>
     }
 
+internal fun ParameterizedType.isSubtypeOf(type: Class<*>): Boolean = type.isAssignableFrom(unwrap())
+
 /**
  * Replaces a parameterized type whose type arguments are all unbounded wildcards, e.g. Kotlin's Page<*>, by its raw type.
  */
