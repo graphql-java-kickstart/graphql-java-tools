@@ -62,6 +62,8 @@ class SchemaParser internal constructor(
     private val directiveWiringHelper = DirectiveWiringHelper(runtimeWiring, codeRegistryBuilder)
 
     private lateinit var schemaDirectives : Set<GraphQLDirective>
+    // replaces the first definition of a directive with the real one while they're being created, see createDirectives
+    private var finishDirective: (String) -> Unit = {}
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -183,7 +185,7 @@ class SchemaParser internal constructor(
                                 .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
                                 .type(determineInputType(fieldDefinition.type, inputObjects, referencingInputObjects))
                                 .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives))
-                                .withDirectives(*buildDirectives(definition.directives, INPUT_FIELD_DEFINITION))
+                                .withDirectives(*buildDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION))
                                 .build()
                         )
                     }
@@ -314,23 +316,24 @@ class SchemaParser internal constructor(
     }
 
     private fun createDirectives(inputObjects: MutableList<GraphQLInputObjectType>) {
+        // Input objects used by directive arguments get built here, and building them needs the definitions of their own applied
+        // directives. So a first set of definitions only refers to input objects by type reference, and each one is replaced by the
+        // real definition the first time it's looked up, so that input objects see the real definitions of the directives applied
+        // to them. Only where a directive is applied within its own argument types, i.e. a cycle, do they see the first definition.
         schemaDirectives = directiveDefinitions.map { definition ->
-            val locations = definition.directiveLocations.map { Introspection.DirectiveLocation.valueOf(it.name) }.toTypedArray()
-
-            GraphQLDirective.newDirective()
-                .name(definition.name)
-                .description(getDocumentation(definition, options))
-                .definition(definition)
-                .comparatorRegistry(runtimeWiring.comparatorRegistry)
-                .validLocations(*locations)
-                .repeatable(definition.isRepeatable)
-                .apply {
-                    definition.inputValueDefinitions.forEach { argumentDefinition ->
-                        argument(createDirectiveArgument(argumentDefinition, inputObjects))
-                    }
-                }
-                .build()
+            createDirective(definition) { determineType(GraphQLInputType::class, it, permittedTypesForInputObject, inputObjects) as GraphQLInputType }
         }.toSet()
+        val unfinishedDefinitions = directiveDefinitions.associateByTo(mutableMapOf()) { it.name }
+        // shared by all definitions, so that an input object that's still being built isn't built again for another directive
+        val referencingInputObjects = mutableSetOf<String>()
+        finishDirective = { name ->
+            unfinishedDefinitions.remove(name)?.let { definition ->
+                val directive = createDirective(definition) { determineInputType(it, inputObjects, referencingInputObjects) }
+                schemaDirectives = schemaDirectives.map { if (it.name == name) directive else it }.toSet()
+            }
+        }
+        directiveDefinitions.forEach { finishDirective(it.name) }
+        finishDirective = {}
         // because the arguments can have directives too, we attach them only after the directives themselves are created
         schemaDirectives = schemaDirectives.map { d ->
             val arguments = d.arguments.map { a -> a.transform {
@@ -341,12 +344,35 @@ class SchemaParser internal constructor(
         }.toSet()
     }
 
-    private fun createDirectiveArgument(definition: InputValueDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLArgument {
+    private fun createDirective(definition: DirectiveDefinition, determineArgumentType: (Type<*>) -> GraphQLInputType): GraphQLDirective {
+        val locations = definition.directiveLocations.map { Introspection.DirectiveLocation.valueOf(it.name) }.toTypedArray()
+
+        return GraphQLDirective.newDirective()
+            .name(definition.name)
+            .description(getDocumentation(definition, options))
+            .definition(definition)
+            .comparatorRegistry(runtimeWiring.comparatorRegistry)
+            .validLocations(*locations)
+            .repeatable(definition.isRepeatable)
+            .apply {
+                definition.inputValueDefinitions.forEach { argumentDefinition ->
+                    argument(createDirectiveArgument(argumentDefinition, determineArgumentType))
+                }
+            }
+            .build()
+    }
+
+    private fun findDirective(name: String): GraphQLDirective? {
+        finishDirective(name)
+        return schemaDirectives.find { it.name == name }
+    }
+
+    private fun createDirectiveArgument(definition: InputValueDefinition, determineArgumentType: (Type<*>) -> GraphQLInputType): GraphQLArgument {
         return GraphQLArgument.newArgument()
             .name(definition.name)
             .definition(definition)
             .description(getDocumentation(definition, options))
-            .type(determineInputType(definition.type, inputObjects, mutableSetOf()))
+            .type(determineArgumentType(definition.type))
             .apply { getDeprecated(definition.directives)?.let { deprecate(it) } }
             .apply { definition.defaultValue?.let { defaultValueLiteral(it) } }
             .build()
@@ -354,7 +380,7 @@ class SchemaParser internal constructor(
 
     private fun buildAppliedDirectives(directives: List<Directive>): Array<GraphQLAppliedDirective> {
         return directives.map { directive ->
-            val graphQLDirective = schemaDirectives.find { d -> d.name == directive.name }
+            val graphQLDirective = findDirective(directive.name)
                 ?: BUILT_IN_DIRECTIVES[directive.name]
                 ?: if (options.allowUndeclaredDirectives) return@map buildUndeclaredAppliedDirective(directive)
                 else throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
@@ -438,7 +464,7 @@ class SchemaParser internal constructor(
             val repeatable = directiveDefinitions.find { it.name.equals(directive.name) }?.isRepeatable ?: false
             if (repeatable || !names.contains(directive.name)) {
                 names.add(directive.name)
-                val graphQLDirective = this.schemaDirectives.find { d -> d.name == directive.name }
+                val graphQLDirective = findDirective(directive.name)
                     ?: BUILT_IN_DIRECTIVES[directive.name]
                     // graphql-java rejects legacy directives without a definition, so undeclared ones are only kept as applied directives
                     ?: if (options.allowUndeclaredDirectives) continue
@@ -525,8 +551,8 @@ class SchemaParser internal constructor(
         inputObjects: List<GraphQLInputObjectType>,
         referencingInputObjects: MutableSet<String>): GraphQLInputType =
         when (typeDefinition) {
-            is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
-            is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
+            is ListType -> GraphQLList(determineInputType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects, referencingInputObjects))
+            is NonNullType -> GraphQLNonNull(determineInputType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects, referencingInputObjects))
             is InputObjectTypeDefinition -> {
                 log.info("Create input object")
                 createInputObject(typeDefinition, inputObjects, referencingInputObjects as MutableSet<String>)

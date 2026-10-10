@@ -526,6 +526,101 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `input objects nested in list and non-null input fields should resolve to GraphQLInputObjectType during directive wiring`() {
+        val wiredFieldTypes = mutableMapOf<String, String>()
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test(filter: NestedFilter): Boolean
+                }
+
+                input NestedFilter {
+                    subs: [SubFilter!]
+                    other: OtherFilter!
+                    direct: DirectFilter
+                }
+
+                extend input NestedFilter {
+                    extended: [ExtendedFilter]!
+                }
+
+                input SubFilter { name: String }
+                input OtherFilter { name: String }
+                input DirectFilter { name: String }
+                input ExtendedFilter { name: String }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(filter: NestedFilter?): Boolean = false
+            })
+            .directiveWiring(InputFieldTypeRecorder(wiredFieldTypes))
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(wiredFieldTypes, mapOf(
+            "subs" to "GraphQLInputObjectType",
+            "other" to "GraphQLInputObjectType",
+            "direct" to "GraphQLInputObjectType",
+            "extended" to "GraphQLInputObjectType"
+        ))
+    }
+
+    @Test
+    fun `circular input objects should resolve to GraphQLInputObjectType during directive wiring except where they recurse`() {
+        val wiredFieldTypes = mutableMapOf<String, String>()
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test(filter: TreeFilter!): Boolean
+                }
+
+                input TreeFilter {
+                    and: [TreeFilter!]
+                    node: TreeNode!
+                }
+
+                input TreeNode {
+                    parent: TreeFilter
+                    children: [TreeNode!]!
+                    leaf: TreeLeaf!
+                }
+
+                input TreeLeaf { name: String }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(filter: TreeFilter): Boolean = false
+            })
+            .directiveWiring(InputFieldTypeRecorder(wiredFieldTypes))
+            .build()
+            .makeExecutableSchema()
+
+        // TreeFilter is built first, so only the fields pointing back at a type that's still being built are references. This is on
+        // purpose: types are built depth-first through list and non-null wrappers, so in a cycle it's the edge back that stays a
+        // reference, wherever the wrappers are. Before, the wrapped edges were references instead, so `parent` was resolved.
+        assertEquals(wiredFieldTypes, mapOf(
+            "and" to "GraphQLTypeReference",
+            "node" to "GraphQLInputObjectType",
+            "parent" to "GraphQLTypeReference",
+            "children" to "GraphQLTypeReference",
+            "leaf" to "GraphQLInputObjectType"
+        ))
+        listOf("TreeFilter", "TreeNode").flatMap { (schema.getType(it) as GraphQLInputObjectType).fields }.forEach { field ->
+            assert(GraphQLTypeUtil.unwrapAll(field.type) is GraphQLInputObjectType) { "${field.name} wasn't resolved" }
+        }
+    }
+
+    private class InputFieldTypeRecorder(private val wiredFieldTypes: MutableMap<String, String>) : SchemaDirectiveWiring {
+        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+            val type = GraphQLTypeUtil.unwrapAllAs<GraphQLType>(environment.element.type)
+            if (type !is GraphQLScalarType) {
+                wiredFieldTypes[environment.element.name] = type.javaClass.simpleName
+            }
+            return environment.element
+        }
+    }
+
+    @Test
     fun `parser should use comments for descriptions`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -689,6 +784,22 @@ class SchemaParserTest {
     class Filter {
         fun filter(): String? = null
     }
+
+    data class NestedFilter(val subs: List<SubFilter>?, val other: OtherFilter, val direct: DirectFilter?, val extended: List<ExtendedFilter?>)
+
+    data class SubFilter(val name: String?)
+
+    data class OtherFilter(val name: String?)
+
+    data class DirectFilter(val name: String?)
+
+    data class ExtendedFilter(val name: String?)
+
+    data class TreeFilter(val and: List<TreeFilter>?, val node: TreeNode)
+
+    data class TreeNode(val parent: TreeFilter?, val children: List<TreeNode>, val leaf: TreeLeaf)
+
+    data class TreeLeaf(val name: String?)
 
     class CustomGenericWrapper<T, V>
 

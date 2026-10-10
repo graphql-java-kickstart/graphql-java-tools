@@ -59,13 +59,13 @@ internal class DirectiveWiringHelper(
 
     private fun wireInputFields(fieldsContainer: GraphQLInputFieldsContainer): List<GraphQLInputObjectField> {
         return fieldsContainer.fieldDefinitions.map { field ->
-            wireDirectives(WiringWrapper(field, FIELD_DEFINITION, SchemaDirectiveWiring::onInputObjectField, inputFieldsContainer = fieldsContainer))
+            wireDirectives(WiringWrapper(field, INPUT_FIELD_DEFINITION, SchemaDirectiveWiring::onInputObjectField, inputFieldsContainer = fieldsContainer))
         }
     }
 
     private fun wireEnumValues(enumType: GraphQLEnumType): List<GraphQLEnumValueDefinition> {
         return enumType.values.map { value ->
-            wireDirectives(WiringWrapper(value, FIELD_DEFINITION, SchemaDirectiveWiring::onEnumValue, enumType = enumType))
+            wireDirectives(WiringWrapper(value, ENUM_VALUE, SchemaDirectiveWiring::onEnumValue, enumType = enumType))
         }
     }
 
