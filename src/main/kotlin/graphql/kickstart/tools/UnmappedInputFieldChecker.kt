@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES
+import com.fasterxml.jackson.databind.JavaType
 import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.deser.BeanDeserializerBase
@@ -35,25 +36,28 @@ internal class UnmappedInputFieldChecker(
     // a deserializer is cached by its mapper, so this is per mapper, class and input type, and ends recursive input types
     private val checked = mutableSetOf<Pair<JsonDeserializer<*>, String>>()
 
-    // reported once, for the first argument found using it
-    private val messages = linkedMapOf<Triple<String, String, Class<*>>, String>()
+    // reported once for each consequence, with the first argument found using it, since mappers differ in ignoring unknown properties
+    private val messages = linkedMapOf<Unmapped, String>()
 
     fun check(objectType: String, resolver: MethodFieldResolver) {
-        val mapper = resolver.objectMapper
-        val context = (mapper.deserializationContext as? DefaultDeserializationContext)?.createDummyInstance(mapper.deserializationConfig) ?: return
-
         resolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
             val inputObject = (argument.type.unwrap() as? TypeName)?.let { inputObjects[it.name] } ?: return@forEachIndexed
-            val parameterType = resolver.getMethodParameterType(index) ?: return@forEachIndexed
             val usage = "argument '${argument.name}' of field '$objectType.${resolver.field.name}'"
 
             try {
+                val parameterType = resolver.getMethodParameterType(index) ?: return@forEachIndexed
+                val mapper = resolver.objectMapper
+                val context = (mapper.deserializationContext as? DefaultDeserializationContext)
+                    ?.createDummyInstance(mapper.deserializationConfig) ?: return@forEachIndexed
                 // the same lookup as convertValue's when it converts the argument
                 val deserializer = context.findRootValueDeserializer(mapper.typeFactory.constructType(parameterType))
                 checkFields(mapper, context, deserializer, inputObject, usage)
-            } catch (e: Exception) {
-                // e.g. a class Jackson can't deserialize, which only fails once the argument is converted, as it did before this check
-                log.debug("Can't check the input fields of $usage with Jackson's deserializer for $parameterType", e)
+            } catch (e: VirtualMachineError) {
+                throw e
+            } catch (e: Throwable) {
+                // e.g. a class Jackson can't deserialize, or one that refers to a missing class, which only fails once the argument is
+                // converted, as it did before this check. Errors are caught too, since the lookup used to run on the first query
+                log.debug("Can't check the input fields of $usage with Jackson", e)
             }
         }
     }
@@ -85,9 +89,8 @@ internal class UnmappedInputFieldChecker(
             val property = beanDeserializer.findProperty(field.name)
             if (property == null) {
                 knownPropertiesIfUnmapped(mapper, context, beanDeserializer, field.name)?.let { knownProperties ->
-                    messages.getOrPut(Triple(inputObject.name, field.name, beanDeserializer.handledType())) {
-                        message(mapper, inputObject, field, beanDeserializer.handledType(), usage, knownProperties)
-                    }
+                    val unmapped = Unmapped(inputObject.name, field.name, beanDeserializer.handledType(), consequence(mapper, inputObject, field))
+                    messages.getOrPut(unmapped) { message(unmapped, usage, knownProperties) }
                 }
             } else if (property.valueTypeDeserializer == null) {
                 // a polymorphic property's class is only known once its type id is read
@@ -103,11 +106,23 @@ internal class UnmappedInputFieldChecker(
             is BeanDeserializerBase -> deserializer.takeUnless { it.valueInstantiator.canCreateUsingDelegate() }
             // a Map gets the fields as its keys
             is ContainerDeserializerBase<*> ->
-                if (deserializer.valueType.isMapLikeType) null else beanDeserializer(context, deserializer.contentDeserializer)
-            is ReferenceTypeDeserializer<*> ->
-                beanDeserializer(context, context.findContextualValueDeserializer(deserializer.valueType.referencedType, null))
+                if (deserializer.valueType.isMapLikeType || isPolymorphic(context, deserializer.contentType)) null
+                else beanDeserializer(context, deserializer.contentDeserializer)
+            is ReferenceTypeDeserializer<*> -> {
+                val referencedType = deserializer.valueType.referencedType
+                if (isPolymorphic(context, referencedType)) null
+                else beanDeserializer(context, context.findContextualValueDeserializer(referencedType, null))
+            }
             else -> null
         }
+
+    /**
+     * Whether the elements of a list, an array or an Optional are read with type info, so that their class is only known once their
+     * type id is read. Their deserializer is the base class's, which doesn't know the subclasses' properties. The same lookup as
+     * Jackson's when it creates the deserializer: type info from a property's annotation, or else from the class or default typing.
+     */
+    private fun isPolymorphic(context: DeserializationContext, contentType: JavaType): Boolean =
+        contentType.getTypeHandler<Any?>() != null || context.factory.findTypeDeserializer(context.config, contentType) != null
 
     /**
      * Returns the properties Jackson knows if it fails on the field, or null if it maps or ignores it.
@@ -140,23 +155,21 @@ internal class UnmappedInputFieldChecker(
     private fun inputObjectOf(type: GraphQLType): GraphQLInputObjectType? =
         (GraphQLTypeUtil.unwrapAllAs<GraphQLType>(type) as? GraphQLNamedType)?.let { inputObjects[it.name] }
 
-    private fun message(
-        mapper: ObjectMapper,
-        inputObject: GraphQLInputObjectType,
-        field: GraphQLInputObjectField,
-        clazz: Class<*>,
-        usage: String,
-        knownProperties: Collection<Any>
-    ): String {
-        val consequence = when {
+    private fun consequence(mapper: ObjectMapper, inputObject: GraphQLInputObjectType, field: GraphQLInputObjectField): String =
+        when {
             !mapper.deserializationConfig.isEnabled(FAIL_ON_UNKNOWN_PROPERTIES) -> "drops the field's value, since the ObjectMapper ignores unknown properties"
             field.hasSetDefaultValue() -> "fails for every '${inputObject.name}' value sent, since the field has a default value"
             else -> "fails whenever the field is sent"
         }
+
+    private fun message(unmapped: Unmapped, usage: String, knownProperties: Collection<Any>): String {
         val properties = knownProperties.map { it.toString() }.sorted().ifEmpty { listOf("none") }
 
-        return "Input field '${inputObject.name}.${field.name}' has no matching property in ${clazz.name}. Converting $usage $consequence. " +
+        return "Input field '${unmapped.inputObject}.${unmapped.field}' has no matching property in ${unmapped.clazz.name}. " +
+            "Converting $usage ${unmapped.consequence}. " +
             "Known properties: ${properties.joinToString(", ")}. " +
-            "Rename the property or map it with @JsonProperty(\"${field.name}\"). If it's left unmapped on purpose, list it in @JsonIgnoreProperties on the class."
+            "Rename the property or map it with @JsonProperty(\"${unmapped.field}\"). If it's left unmapped on purpose, list it in @JsonIgnoreProperties on the class."
     }
+
+    private data class Unmapped(val inputObject: String, val field: String, val clazz: Class<*>, val consequence: String)
 }
