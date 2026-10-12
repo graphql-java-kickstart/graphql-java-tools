@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
+import com.fasterxml.jackson.databind.exc.InvalidDefinitionException
+import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.node.POJONode
@@ -65,6 +67,7 @@ class CustomScalarInputTest {
             """
             query(${'$'}input: EventInput!) {
                 literal: event(input: { date: "2020-01-02", opaque: "literal" })
+                opaqueOnly: event(input: { opaque: "alone" })
                 variable: event(input: ${'$'}input)
                 events(inputs: [{ date: "2020-01-02" }, { opaque: "second" }])
                 optionalEvent(input: { date: "2020-01-02", opaque: "optional" })
@@ -75,6 +78,7 @@ class CustomScalarInputTest {
 
         assertEquals(data, mapOf(
             "literal" to "2020-01-02 literal",
+            "opaqueOnly" to "null alone",
             "variable" to "2021-03-04 variable",
             "events" to listOf("2020-01-02 null", "null second"),
             "optionalEvent" to "2020-01-02 optional",
@@ -139,6 +143,9 @@ class CustomScalarInputTest {
                 type Query {
                     event(input: EventInput!): String!
                     eventMap(input: EventMapInput!): Boolean!
+                    rawMap(input: RawMapInput!): Boolean!
+                    listMap(inputs: [ListMapInput!]!): Boolean!
+                    optionalMap(input: OptionalMapInput): Boolean!
                 }
 
                 input EventInput {
@@ -153,6 +160,18 @@ class CustomScalarInputTest {
                     price: Money
                     id: UUID
                     next: EventMapInput
+                }
+
+                input RawMapInput {
+                    price: Money
+                }
+
+                input ListMapInput {
+                    price: Money
+                }
+
+                input OptionalMapInput {
+                    price: Money
                 }
                 """)
             .scalars(localDateScalar, moneyScalar, uuidScalar)
@@ -181,18 +200,24 @@ class CustomScalarInputTest {
                     id: "4dbd9a3d-4a26-4d10-9bb2-5b2dc4c8a0f0"
                     next: { date: "2021-03-04" }
                 })
+                rawMap(input: { price: "6" })
+                listMap(inputs: [{ price: "7" }, { price: "8" }])
+                optionalMap(input: { price: "9" })
             }
             """
         }
 
-        // the ObjectMapper has a serializer for UUID, so that still arrives in its serialized form
+        // including those the ObjectMapper has a serializer for, e.g. UUID
         assertEquals(resolver.input, mapOf(
             "name" to null,
             "date" to LocalDate.of(2020, 1, 2),
             "price" to Money(5, "CAD"),
-            "id" to "4dbd9a3d-4a26-4d10-9bb2-5b2dc4c8a0f0",
+            "id" to UUID.fromString("4dbd9a3d-4a26-4d10-9bb2-5b2dc4c8a0f0"),
             "next" to mapOf("date" to LocalDate.of(2021, 3, 4))
         ))
+        assertEquals(resolver.rawInput, mapOf("price" to Money(6, "CAD")))
+        assertEquals(resolver.listInput, listOf(mapOf("price" to Money(7, "CAD")), mapOf("price" to Money(8, "CAD"))))
+        assertEquals(resolver.optionalInput, Optional.of(mapOf("price" to Money(9, "CAD"))))
     }
 
     @Test
@@ -302,7 +327,8 @@ class CustomScalarInputTest {
         }
 
         assertEquals(data, mapOf("event" to "2020-01-03 null", "eventMap" to true, "javaUpload" to "copy of a.txt: Hello"))
-        assertEquals(resolver.input, mapOf("date" to "2020-01-02"))
+        // a Map gets the coerced value, not the serialized one, but the inclusion setting still applies
+        assertEquals(resolver.input, mapOf("date" to LocalDate.of(2020, 1, 2)))
     }
 
     @Test
@@ -336,9 +362,89 @@ class CustomScalarInputTest {
 
         assertEquals(result.errors.size, 1)
         val exception = (result.errors[0] as ExceptionWhileDataFetching).exception
-        assert(exception.message.orEmpty().contains("JSON property name due to missing")) { exception.message.orEmpty() }
-        val conversionError = exception.suppressed.single()
-        assert(conversionError.message.orEmpty().startsWith("Java 8 date/time type `java.time.LocalDate` not supported")) { conversionError.message.orEmpty() }
+        assertEquals((exception.cause as MismatchedInputException).path.map { it.fieldName }, listOf("name"))
+        val conversionError = exception.suppressed.single().cause as InvalidDefinitionException
+        assertEquals(conversionError.type.rawClass, LocalDate::class.java)
+    }
+
+    @Test
+    fun `custom scalars whose values only sometimes convert are passed to the resolver`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                scalar LocalDate
+                scalar Box
+
+                type Query {
+                    box(input: BoxInput!): String!
+                }
+
+                input BoxInput {
+                    box: Box
+                    date: LocalDate
+                }
+                """)
+            .scalars(localDateScalar, boxScalar)
+            .resolvers(BoxQueryResolver())
+            .build()
+            .makeExecutableSchema()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        // a box of text converts, so only the date is embedded, but a box of a date has to be embedded too
+        val text = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                box(input: { box: "text", date: "2020-01-02" })
+            }
+            """
+        }
+        val date = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                box(input: { box: "date:2021-03-04" })
+            }
+            """
+        }
+
+        assertEquals(text, mapOf("box" to "text 2020-01-02"))
+        assertEquals(date, mapOf("box" to "2021-03-04 null"))
+    }
+
+    @Test
+    fun `custom scalars read as a String are converted with toString`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                scalar LocalDate
+                scalar Opaque
+
+                type Query {
+                    label(input: LabelInput!): String!
+                }
+
+                input LabelInput {
+                    date: LocalDate
+                    opaque: Opaque
+                }
+                """)
+            .scalars(localDateScalar, opaqueScalar)
+            .resolvers(LabelQueryResolver())
+            .build()
+            .makeExecutableSchema()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                date: label(input: { date: "2020-01-02" })
+                opaque: label(input: { opaque: "secret" })
+            }
+            """
+        }
+
+        // a LocalDate gives its ISO date, but a class that doesn't override toString() gives a meaningless one
+        assertEquals(data["date"], "2020-01-02 null")
+        assert((data["opaque"] as String).startsWith("null ${Opaque::class.java.name}@")) { data["opaque"].toString() }
     }
 
     class EventQueryResolver : GraphQLQueryResolver {
@@ -370,12 +476,31 @@ class CustomScalarInputTest {
 
     class MapQueryResolver : GraphQLQueryResolver {
         var input: Map<String, Any?>? = null
+        var rawInput: LinkedHashMap<*, *>? = null
+        var listInput: List<Map<String, Any?>>? = null
+        var optionalInput: Optional<Map<String, Any?>>? = null
 
         // the scalars are only found through the fields of input classes, not of Map inputs
         fun event(input: EventInput): String = "${input.date} ${input.price}"
 
         fun eventMap(input: Map<String, Any?>): Boolean {
             this.input = input
+            return true
+        }
+
+        // the signature from https://github.com/graphql-java-kickstart/graphql-java-tools/issues/424
+        fun rawMap(input: LinkedHashMap<*, *>): Boolean {
+            rawInput = input
+            return true
+        }
+
+        fun listMap(inputs: List<Map<String, Any?>>): Boolean {
+            listInput = inputs
+            return true
+        }
+
+        fun optionalMap(input: Optional<Map<String, Any?>>): Boolean {
+            optionalInput = input
             return true
         }
     }
@@ -401,8 +526,28 @@ class CustomScalarInputTest {
 
     data class DefaultedInput(val name: String = "default", val date: LocalDate? = null)
 
+    class BoxQueryResolver : GraphQLQueryResolver {
+        fun box(input: BoxInput): String = "${input.box?.content} ${input.date}"
+    }
+
+    class BoxInput {
+        var box: Box? = null
+        var date: LocalDate? = null
+    }
+
+    data class Box(val content: Any)
+
+    class LabelQueryResolver : GraphQLQueryResolver {
+        fun label(input: LabelInput): String = "${input.date} ${input.opaque}"
+    }
+
+    class LabelInput {
+        var date: String? = null
+        var opaque: String? = null
+    }
+
     /**
-     * Has no creator Jackson could use, like the coerced values of many custom scalars.
+     * Can't be rebuilt from its serialized properties, like the coerced values of many custom scalars.
      */
     class Opaque private constructor(private val internalValue: String) {
         val value get() = internalValue
@@ -454,6 +599,7 @@ class CustomScalarInputTest {
     private val moneyScalar = scalar("Money") { Money(it.toInt(), "CAD") }
     private val uuidScalar = scalar("UUID") { UUID.fromString(it) }
     private val geoPointScalar = scalar("GeoPoint") { value -> value.split(",").map { it.toDouble() }.let { GeoPoint(it[0], it[1]) } }
+    private val boxScalar = scalar("Box") { Box(if (it.startsWith("date:")) LocalDate.parse(it.removePrefix("date:")) else it) }
 
     private fun <T : Any> scalar(name: String, parse: (String) -> T): GraphQLScalarType = GraphQLScalarType.newScalar()
         .name(name)

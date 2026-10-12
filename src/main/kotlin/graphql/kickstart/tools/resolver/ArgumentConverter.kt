@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.JavaType
-import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.JsonSerializable
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -14,9 +13,6 @@ import com.fasterxml.jackson.databind.SerializerProvider
 import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler
 import com.fasterxml.jackson.databind.deser.ValueInstantiator
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer
-import com.fasterxml.jackson.databind.ser.impl.UnknownSerializer
-import com.fasterxml.jackson.databind.ser.impl.UnsupportedTypeSerializer
-import com.fasterxml.jackson.databind.ser.std.BeanSerializerBase
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import java.io.IOException
 import java.lang.reflect.Type
@@ -29,12 +25,15 @@ import java.util.concurrent.ConcurrentHashMap
  * often don't survive, e.g. an upload, or a LocalDate without the jsr310 module. Those are handed to Jackson as embedded
  * objects instead, which its deserializers return as they are if they have the type being read. Where a String is read,
  * they're converted with toString().
+ *
+ * An untyped parameter, e.g. a Map<String, Any?>, gets the coerced values as they are, apart from strings, numbers,
+ * booleans and enums, which are converted as before.
  */
 internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private val javaType = mapper.typeFactory.constructType(type)
     private val isUntyped = javaType.isUntyped()
-    private val convertsToOwnClassCache = ConcurrentHashMap<Class<*>, Boolean>()
+    private val nonConvertingClasses: MutableSet<Class<*>> = ConcurrentHashMap.newKeySet()
 
     fun convert(value: Any?): Any? {
         if (value == null) {
@@ -42,9 +41,8 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         }
 
         if (isUntyped) {
-            // nothing that reads an untyped value depends on its serialized form, so the scalar values are kept,
-            // unless the mapper has a serializer for them that defines that form
-            val embedded = embedValues(value) { !hasSerializerOfItsOwn(it) }
+            // nothing that reads an untyped value depends on its serialized form, so the coerced values are kept
+            val embedded = embedValues(value) { true }
             return if (embedded != null) readEmbedded(embedded) else mapper.convertValue(value, javaType)
         }
 
@@ -77,22 +75,17 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         return embed(value).takeIf { embedsAny }
     }
 
-    // a bean serializer writes the value's properties, which an untyped value would get as a Map, the other two fail
-    private fun hasSerializerOfItsOwn(value: Any): Boolean {
-        val serializer = try {
-            mapper.serializerProviderInstance.findValueSerializer(value.javaClass)
-        } catch (e: JsonMappingException) {
+    // failing to convert can be expensive, e.g. an upload, so those classes are remembered. Whether a value converts
+    // can depend on what it holds, so values of the other classes are checked every time
+    private fun convertsToOwnClass(value: Any): Boolean {
+        if (value.javaClass in nonConvertingClasses) {
             return false
         }
-        return serializer !is BeanSerializerBase && serializer !is UnknownSerializer && serializer !is UnsupportedTypeSerializer
-    }
-
-    // the values of a scalar usually all convert or all don't, and converting one can be expensive, e.g. an upload
-    private fun convertsToOwnClass(value: Any): Boolean = convertsToOwnClassCache.getOrPut(value.javaClass) {
-        try {
+        return try {
             mapper.convertValue(value, value.javaClass)
             true
         } catch (e: IllegalArgumentException) {
+            nonConvertingClasses.add(value.javaClass)
             false
         }
     }
