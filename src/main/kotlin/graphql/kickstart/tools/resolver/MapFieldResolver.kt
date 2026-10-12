@@ -36,7 +36,7 @@ internal class MapFieldResolver(
         val resolvedType = TypeResolver().resolve(mapClass)
         val typeParameters = resolvedType.typeParametersFor(Map::class.java)
 
-        return typeParameters.elementAtOrElse(1) { Object::class.java }
+        return typeParameters.elementAtOrElse(1) { Any::class.java }
     }
 
     override fun createDataFetcher(): DataFetcher<*> {

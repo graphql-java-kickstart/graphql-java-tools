@@ -12,7 +12,7 @@ import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
+import graphql.schema.visibility.BlockedFields
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 
@@ -68,7 +68,9 @@ class SchemaParser internal constructor(
      */
     fun parseSchemaObjects(): SchemaObjects {
         if (!options.introspectionEnabled) {
-            codeRegistryBuilder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
+            // What the deprecated NoIntrospectionGraphqlFieldVisibility does. Its suggested replacement,
+            // Introspection.enabledJvmWide, would also turn introspection off for every other schema in the JVM.
+            codeRegistryBuilder.fieldVisibility(BlockedFields.newBlock().addPattern("__.*").build())
         }
         // this overrides the above introspection enabled setting obviously... todo: add documentation
         options.fieldVisibility?.let { codeRegistryBuilder.fieldVisibility(it) }
@@ -427,6 +429,7 @@ class SchemaParser internal constructor(
     }
 
     // TODO remove this once directives are fully replaced with applied directives
+    @Suppress("DEPRECATION") // legacy directive argument values
     private fun buildDirectives(
         directives: List<Directive>,
         directiveLocation: Introspection.DirectiveLocation
@@ -529,7 +532,7 @@ class SchemaParser internal constructor(
             is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
             is InputObjectTypeDefinition -> {
                 log.info("Create input object")
-                createInputObject(typeDefinition, inputObjects, referencingInputObjects as MutableSet<String>)
+                createInputObject(typeDefinition, inputObjects, referencingInputObjects)
             }
             is TypeName -> {
                 val scalarType = customScalars[typeDefinition.name]

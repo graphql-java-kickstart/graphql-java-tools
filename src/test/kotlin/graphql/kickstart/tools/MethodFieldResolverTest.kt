@@ -51,7 +51,7 @@ class MethodFieldResolverTest {
                 testNull(input: null)
             }
             """)
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf(
             "testValue" to "Optional[test-value]",
@@ -93,7 +93,7 @@ class MethodFieldResolverTest {
                 testNull(input: null)
             }
             """)
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf(
             "testValue" to "Optional[test-value]",
@@ -128,7 +128,7 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to "FooBar"))
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
     }
@@ -159,7 +159,7 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to listOf("Foo", "Bar")))
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
     }
@@ -206,7 +206,7 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to listOf("Foo", "Bar")))
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
     }

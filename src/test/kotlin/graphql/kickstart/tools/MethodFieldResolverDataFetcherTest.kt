@@ -14,6 +14,7 @@ import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -124,6 +125,7 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @ExperimentalCoroutinesApi
+    @OptIn(DelicateCoroutinesApi::class)
     @Test
     fun `canceling subscription Publisher also cancels underlying Kotlin coroutine channel`() {
         // setup
@@ -236,7 +238,7 @@ class MethodFieldResolverDataFetcherTest {
     @Test
     fun `data fetcher passes environment if method has extra argument`() {
         val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
-            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment?): Boolean = env != null
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass())), true)
@@ -246,7 +248,7 @@ class MethodFieldResolverDataFetcherTest {
     fun `data fetcher passes environment if method has extra argument even if context is specified`() {
         val context = GraphQLContext.newContext().build()
         val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
-            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment?): Boolean = env != null
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
@@ -320,7 +322,7 @@ class MethodFieldResolverDataFetcherTest {
     @Test
     fun `data fetcher passes environment to extension function if method has extra argument`() {
         val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
-            fun DataClass.isActive(env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+            fun DataClass.isActive(env: DataFetchingEnvironment?): Boolean = env != null
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass())), true)
@@ -411,7 +413,7 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     private fun createEnvironment(
-        source: Any = Object(),
+        source: Any = Any(),
         arguments: Map<String, Any> = emptyMap(),
         context: GraphQLContext = GraphQLContext.newContext().build(),
         legacyContext: Any? = null
