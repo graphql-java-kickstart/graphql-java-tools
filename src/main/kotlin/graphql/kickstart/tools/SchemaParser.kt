@@ -5,6 +5,7 @@ import graphql.Scalars
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
+import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.unwrap
@@ -85,7 +86,10 @@ class SchemaParser internal constructor(
             }
         }
         val interfaces = interfaceDefinitions.map { createInterfaceObject(it, inputObjects) }
-        val objects = objectDefinitions.map { createObject(it, interfaces, inputObjects) }
+        val unmappedInputFieldChecker = if (options.unmappedInputFields == UnmappedInputFields.IGNORE) null
+            else UnmappedInputFieldChecker(inputObjects.associateBy { it.name }, options.unmappedInputFields)
+        val objects = objectDefinitions.map { createObject(it, interfaces, inputObjects, unmappedInputFieldChecker) }
+        unmappedInputFieldChecker?.report()
         val unions = unionDefinitions.map { createUnionObject(it, objects) }
         val enums = enumDefinitions.map { createEnumObject(it) }
 
@@ -125,7 +129,12 @@ class SchemaParser internal constructor(
     @Suppress("unused")
     fun getUnusedDefinitions(): Set<TypeDefinition<*>> = unusedDefinitions
 
-    private fun createObject(objectDefinition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>, inputObjects: List<GraphQLInputObjectType>): GraphQLObjectType {
+    private fun createObject(
+        objectDefinition: ObjectTypeDefinition,
+        interfaces: List<GraphQLInterfaceType>,
+        inputObjects: List<GraphQLInputObjectType>,
+        unmappedInputFieldChecker: UnmappedInputFieldChecker?
+    ): GraphQLObjectType {
         val name = objectDefinition.name
         val extensions = typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name)
         val directives = directivesOf(objectDefinition, extensions)
@@ -147,11 +156,15 @@ class SchemaParser internal constructor(
                 objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { fieldDefinition ->
                     field { field ->
                         createField(field, fieldDefinition, inputObjects)
+                        val fieldResolver = fieldResolversByType[objectDefinition]?.get(fieldDefinition)
+                            ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
                         codeRegistryBuilder.dataFetcher(
                             FieldCoordinates.coordinates(objectDefinition.name, fieldDefinition.name),
-                            fieldResolversByType[objectDefinition]?.get(fieldDefinition)?.createDataFetcher()
-                                ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
+                            fieldResolver.createDataFetcher()
                         )
+                        if (fieldResolver is MethodFieldResolver) {
+                            unmappedInputFieldChecker?.check(objectDefinition.name, fieldResolver)
+                        }
 
                         val wiredField = field.build()
                         GraphQLFieldDefinition.Builder(wiredField)
