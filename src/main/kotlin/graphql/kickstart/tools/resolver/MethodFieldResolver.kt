@@ -40,7 +40,9 @@ internal class MethodFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    val method: Method
+    val method: Method,
+    // the method that's called, which is the interface method that [method] implements if the resolver is a JDK dynamic proxy
+    private val invocableMethod: Method
 ) : FieldResolver(field, search, options) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -136,10 +138,10 @@ internal class MethodFieldResolver(
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
-            MethodFieldResolverDataFetcher(createSourceResolver(), this.method, args, options, isSuspendFunction, valueClass)
+            MethodFieldResolverDataFetcher(createSourceResolver(), invocableMethod, args, options, isSuspendFunction, valueClass)
         } else {
             // if there are no parameters an optimized version of the data fetcher can be used
-            LightMethodFieldResolverDataFetcher(createSourceResolver(), this.method, options, valueClass)
+            LightMethodFieldResolverDataFetcher(createSourceResolver(), invocableMethod, options, valueClass)
         }
     }
 
