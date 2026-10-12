@@ -93,14 +93,17 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     // the implementation of a generic interface method takes the type arguments, e.g. echo(String) for echo(T) of Api<String>,
-    // and the compiler bridges the erased echo(Object) to it. Kotlin also unboxes them, e.g. increment(int) for Api<Int>
+    // and the compiler bridges the erased echo(Object) to it. Kotlin also unboxes them, e.g. increment(int) for Api<Int>.
+    // A method inherited from a generic superclass is erased itself, e.g. getValue(Object) for getValue(T), so both sides are
+    // resolved against the target class
     private fun Method.implements(interfaceMethod: Method, type: Class<*>): Boolean =
         name == interfaceMethod.name
             && parameterCount == interfaceMethod.parameterCount
             && parameterTypes.indices.all { i ->
             val interfaceParameterType = interfaceMethod.genericParameterTypes[i]
-            val resolvedType = TypeUtils.getRawType(interfaceParameterType, type) ?: interfaceMethod.parameterTypes[i]
-            resolvedType == if (interfaceParameterType is TypeVariable<*>) ClassUtils.primitiveToWrapper(parameterTypes[i]) else parameterTypes[i]
+            val resolvedInterfaceType = TypeUtils.getRawType(interfaceParameterType, type) ?: interfaceMethod.parameterTypes[i]
+            val resolvedType = TypeUtils.getRawType(genericParameterTypes[i], type) ?: parameterTypes[i]
+            resolvedInterfaceType == if (interfaceParameterType is TypeVariable<*>) ClassUtils.primitiveToWrapper(resolvedType) else resolvedType
         }
 
     private fun trySetAccessible(field: FieldDefinition, type: JavaType): AccessibleObject.() -> Unit = {

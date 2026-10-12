@@ -242,6 +242,60 @@ class ProxiedResolverTest {
     }
 
     @Test
+    fun `JDK proxied field resolver methods inherited from a generic superclass are called through the interface the proxy implements`() {
+        val gql = graphQL(petSchema, PetQuery(), jdkProxy(InheritedPetResolver()))
+
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                pet {
+                    greeting
+                }
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("pet" to mapOf("greeting" to "Hello, Rex")))
+        assertEquals(invocations, listOf("GenericGreetingApi.greeting"))
+    }
+
+    interface GenericGreetingApi<T> {
+        fun greeting(pet: T): String
+    }
+
+    abstract class GenericGreetingResolver<T : Named> : GraphQLResolver<T>, GenericGreetingApi<T> {
+        override fun greeting(pet: T) = "Hello, ${pet.name}"
+    }
+
+    // inherits the erased greeting(Named)
+    class InheritedPetResolver : GenericGreetingResolver<Pet>()
+
+    @Test
+    fun `JDK proxied field resolver methods inherited from a generic superclass are called through a non-generic interface the proxy implements`() {
+        val gql = graphQL(petSchema, PetQuery(), jdkProxy(MixedPetResolver()))
+
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                pet {
+                    greeting
+                }
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("pet" to mapOf("greeting" to "Hello, Rex")))
+        assertEquals(invocations, listOf("GreetingApi.greeting"))
+    }
+
+    abstract class PlainGreetingResolver<T : Named> : GraphQLResolver<T> {
+        fun greeting(pet: T) = "Hello, ${pet.name}"
+    }
+
+    // the inherited greeting(Named) implements GreetingApi.greeting(Pet) through a synthetic bridge, which isn't scanned
+    class MixedPetResolver : PlainGreetingResolver<Pet>(), GreetingApi
+
+    @Test
     fun `JDK proxied resolver methods declared on a non-public interface are called through the interface the proxy implements`() {
         val gql = graphQL(
             """
@@ -304,15 +358,13 @@ class ProxiedResolverTest {
         val resolver = jdkProxy(ClassOnlyQuery())
 
         val error = assertThrows(FieldResolverError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        test: String
-                    }
-                    """)
-                .resolvers(resolver)
-                .build()
+            parse(
+                """
+                type Query {
+                    test: String
+                }
+                """,
+                resolver)
         }
 
         val queryClass = ClassOnlyQuery::class.java.name
@@ -322,6 +374,54 @@ class ProxiedResolverTest {
     }
 
     class ClassOnlyQuery : GraphQLQueryResolver {
+        fun test() = "ok"
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when a JDK proxied resolver method is only declared on an interface the proxy doesn't implement`() {
+        // the target implements QueryApi, but the proxy only exposes the interfaces it's given
+        val resolver = ProxyFactory().apply {
+            setTarget(Query())
+            setInterfaces(GraphQLQueryResolver::class.java)
+        }.proxy as GraphQLQueryResolver
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            parse(
+                """
+                type Query {
+                    test: String
+                }
+                """,
+                resolver)
+        }
+
+        assertEquals(error.message?.substringBefore(" as defined"), "Resolver method '${Query::class.java.name}.test' for field 'test'")
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when a JDK proxied resolver method is only declared as a static interface method`() {
+        val error = assertThrows(FieldResolverError::class.java) {
+            parse(
+                """
+                type Query {
+                    test: String
+                }
+                """,
+                jdkProxy(StaticInterfaceQuery()))
+        }
+
+        assertEquals(error.message?.substringBefore(" as defined"), "Resolver method '${StaticInterfaceQuery::class.java.name}.test' for field 'test'")
+    }
+
+    interface StaticApi {
+        companion object {
+            @JvmStatic
+            fun test() = "static"
+        }
+    }
+
+    // calling the static StaticApi.test() would skip both the proxy and the resolver's own test()
+    class StaticInterfaceQuery : GraphQLQueryResolver, StaticApi {
         fun test() = "ok"
     }
 
@@ -361,11 +461,11 @@ class ProxiedResolverTest {
         (ProxyFactory(resolver).apply { addAdvice(interceptor) }.proxy as GraphQLResolver<*>)
             .also { assert(Proxy.isProxyClass(it.javaClass)) }
 
-    private fun graphQL(schema: String, vararg resolvers: GraphQLResolver<*>) = GraphQL.newGraphQL(
-        SchemaParser.newParser()
-            .schemaString(schema)
-            .resolvers(*resolvers)
-            .build()
-            .makeExecutableSchema())
+    private fun graphQL(schema: String, vararg resolvers: GraphQLResolver<*>) =
+        GraphQL.newGraphQL(parse(schema, *resolvers).makeExecutableSchema()).build()
+
+    private fun parse(schema: String, vararg resolvers: GraphQLResolver<*>) = SchemaParser.newParser()
+        .schemaString(schema)
+        .resolvers(*resolvers)
         .build()
 }
