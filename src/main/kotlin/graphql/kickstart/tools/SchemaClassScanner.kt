@@ -46,7 +46,7 @@ internal class SchemaClassScanner(
     private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
     private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
     // enums that had no class when the directives using them were scanned, they're in unvalidatedTypes too
-    private val directiveOnlyEnums = mutableSetOf<EnumTypeDefinition>()
+    private val directiveEnumsWithoutClass = mutableSetOf<EnumTypeDefinition>()
     private val queue = linkedSetOf<QueueItem>()
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
@@ -181,8 +181,9 @@ internal class SchemaClassScanner(
     }
 
     /**
-     * Directive argument values are never passed to resolver methods, so an enum used by directives doesn't need a class. Unless
-     * one is found for it, it's built with its value names as values, like graphql-java does.
+     * Directive argument values are never passed to resolver methods, so an enum that only directives use doesn't need a class.
+     * If no field, argument or input field uses it either, it's built with its value names as values, like graphql-java does,
+     * see [validateAndCreateResult].
      */
     private fun handleDirectiveEnum(type: EnumTypeDefinition) {
         if (dictionary.containsKey(type) || unvalidatedTypes.contains(type)) {
@@ -194,8 +195,28 @@ internal class SchemaClassScanner(
             handleFoundType(type, initialEntry.get(), DictionaryReference())
         } else {
             unvalidatedTypes.add(type)
-            directiveOnlyEnums.add(type)
+            directiveEnumsWithoutClass.add(type)
         }
+    }
+
+    /**
+     * The names of the types that the fields, arguments and input fields of [definitions] use, including those added by extensions.
+     */
+    private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
+        val names = definitions.map { it.name }.toSet()
+        return (definitions + extensionDefinitions + inputExtensionDefinitions)
+            .filter { it.name in names }
+            .flatMap { definition ->
+                when (definition) {
+                    is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
+                        listOf(field.type) + field.inputValueDefinitions.map { it.type }
+                    }
+                    is InputObjectTypeDefinition -> definition.inputValueDefinitions.map { it.type }
+                    else -> emptyList()
+                }
+            }
+            .mapNotNull { (it.unwrap() as TypeName).name }
+            .toSet()
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
@@ -264,9 +285,12 @@ internal class SchemaClassScanner(
 
         val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
 
-        // a class found for an enum after its directives were scanned, e.g. through an unused type, is used after all. This checks the
-        // scanner's dictionary rather than the bimap, so an enum matched to Object or a Map is still rejected by the parser
-        val directiveOnlyEnums = directiveOnlyEnums.filter { it !in this.dictionary }.toSet()
+        // Only enums that no field, argument or input field uses can do without a class. Any such use needs one, even where the
+        // scanner has no parameter or property to find it through, since the values then reach user code, e.g. through a
+        // Map-bound input or an unimplemented field's argument. Types found after the directives were scanned, e.g. unused types,
+        // count too: a class found through them is used, and an enum matched to Object or a Map is rejected by the parser.
+        val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
+        val directiveOnlyEnums = directiveEnumsWithoutClass.filter { it.name !in typeNamesUsedByFields }.toSet()
 
         return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }

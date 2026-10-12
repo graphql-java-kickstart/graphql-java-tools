@@ -352,35 +352,80 @@ class SchemaClassScannerDirectiveTest {
 
     class Holder(val purpose: Purpose?)
 
+    class ObjectHolder(val purpose: Any?)
+
     @Test
-    fun `scanner builds enums used by directives and by input fields without a property from their names`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                enum Purpose { SECURITY EXECUTION }
+    fun `scanner requires a Java enum for enums used by directives and properties of type Object of unused types`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    enum Purpose { SECURITY EXECUTION }
 
-                directive @link(url: String!, for: Purpose) repeatable on SCHEMA
+                    directive @link(url: String!, for: Purpose) repeatable on SCHEMA
 
-                input Filter { purpose: Purpose }
+                    type Query { hello: String }
 
-                type Query {
-                    hello(filter: Filter!): String
-                }
-                """)
-            .resolvers(object : GraphQLQueryResolver { fun hello(filter: Map<String, Any>): String = filter["purpose"] as String })
-            .build()
-            .makeExecutableSchema()
-
-        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
-            """
-            query {
-                hello(filter: { purpose: SECURITY })
-            }
-            """
+                    type ObjectHolder { purpose: Purpose }
+                    """)
+                .resolvers(object : GraphQLQueryResolver { fun hello(): String = "hello" })
+                .dictionary(ObjectHolder::class)
+                .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+                .build()
+                .makeExecutableSchema()
         }
 
-        // a Map has no property for the field to find the enum's class through, so the resolver gets the value's name
-        assertEquals(data["hello"], "SECURITY")
+        assertEquals(error.message, "Expected enum with name 'Purpose' but found none!")
+    }
+
+    @Test
+    fun `scanner requires a class for enums used by directives and by input fields without a property`() {
+        // the resolver would get the enum's values through the Map, so the directive doesn't make the class optional
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    enum Purpose { SECURITY EXECUTION }
+
+                    directive @link(url: String!, for: Purpose) repeatable on SCHEMA
+
+                    input Filter { purpose: Purpose }
+
+                    type Query {
+                        hello(filter: Filter!): String
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver { fun hello(filter: Map<String, Any>): String = filter.toString() })
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Expected enum with name 'Purpose' but found none!")
+    }
+
+    @Test
+    fun `scanner requires a class for enums used by directives and by arguments of unimplemented fields in extensions`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    enum Purpose { SECURITY EXECUTION }
+
+                    directive @link(url: String!, for: Purpose) repeatable on SCHEMA
+
+                    type Query { hello: String }
+
+                    extend type Query {
+                        unimplemented(purpose: Purpose): String
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver { fun hello(): String = "hello" })
+                .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Expected enum with name 'Purpose' but found none!")
     }
 
     enum class Purpose { SECURITY, EXECUTION }
