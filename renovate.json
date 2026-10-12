@@ -11,6 +11,13 @@
       ]
     },
     {
+      "description": "Stay on Kotlin 2.3.10, 2.4 can't compile against graphql-java 26's JSpecify annotations (#809)",
+      "matchPackagePrefixes": [
+        "org.jetbrains.kotlin:"
+      ],
+      "allowedVersions": "<=2.3.10"
+    },
+    {
       "description": "Align antlr version with graphql-java",
       "matchPackagePrefixes": [
         "org.antlr"
