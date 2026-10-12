@@ -1,6 +1,5 @@
 package graphql.kickstart.tools.resolver
 
-import com.fasterxml.jackson.core.type.TypeReference
 import graphql.GraphQLContext
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
@@ -77,6 +76,7 @@ internal class MethodFieldResolver(
 
             val isNonNull = definition.type is NonNullType
             val isOptional = this.typeResolver.getRawClass(parameterType) == Optional::class.java
+            val argumentConverter = ArgumentConverter(mapper, parameterType)
 
             args.add { environment ->
                 val argumentPresent = environment.arguments.containsKey(definition.name)
@@ -94,9 +94,7 @@ internal class MethodFieldResolver(
                 }
 
                 if (value == null || shouldValueBeConverted(value, definition, parameterType, environment)) {
-                    return@add mapper.convertValue(value, object : TypeReference<Any>() {
-                        override fun getType() = parameterType
-                    })
+                    return@add argumentConverter.convert(value)
                 }
 
                 return@add value
