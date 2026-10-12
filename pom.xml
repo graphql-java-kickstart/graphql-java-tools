@@ -356,6 +356,35 @@
 
     <profiles>
         <profile>
+            <!-- Tests of Java sealed classes, which need Java 17 to compile -->
+            <id>java17-tests</id>
+            <activation>
+                <jdk>[17,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java17-test-compile</id>
+                                <goals>
+                                    <goal>testCompile</goal>
+                                </goals>
+                                <configuration>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/test/java17</compileSourceRoot>
+                                    </compileSourceRoots>
+                                    <release>17</release>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>release</id>
             <build>
                 <plugins>
