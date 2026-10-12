@@ -7,8 +7,10 @@ import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.ClassUtils
+import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
+import java.lang.reflect.ParameterizedType
 
 /**
  * @author Andrew Potter
@@ -299,14 +301,104 @@ internal class SchemaClassScanner(
     }
 
     private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
+        val typesWithoutClass = mutableListOf<TypeDefinition<*>>()
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
                 val initialEntry = initialDictionary[type.name]
-                    ?: throw SchemaClassScannerError(failureMessage(type))
-                handleFoundType(type, initialEntry.get(), DictionaryReference())
+                if (initialEntry != null) {
+                    handleFoundType(type, initialEntry.get(), DictionaryReference())
+                } else {
+                    typesWithoutClass.add(type)
+                }
             }
         }
+
+        // Scanning the sealed subclasses found for some of these types may find classes for the rest, so only fail if there are none
+        val sealedSubclasses = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { type -> findSealedSubclass(type)?.let { type to it } }
+        if (sealedSubclasses.isEmpty()) {
+            typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassHint(it)) }
+        }
+
+        // Enter them all before any is scanned, so a different class found for one of them is reported whatever order the types are in
+        sealedSubclasses.forEach { (type, sealedSubclass) -> handleFoundType(type, sealedSubclass.subclass, SealedSubclassReference(sealedSubclass.sealedType)) }
+    }
+
+    /**
+     * A member of a union or an implementor of an interface may never be returned directly, e.g. `NormalPet` when only
+     * `pets(): List<Pet>` returns `union Pet`. If the class found for the union or interface is sealed, its only subclass with
+     * the object type's name is used for it.
+     */
+    private fun findSealedSubclass(type: ObjectTypeDefinition): SealedSubclass? =
+        sealedSubclassesNamedAfter(type, sealedTypesOf(type)).singleOrNull()
+
+    /**
+     * Explains why no sealed subclass was used for the type, if any of its unions or interfaces has a sealed class.
+     */
+    private fun sealedSubclassHint(type: TypeDefinition<*>): String {
+        if (type !is ObjectTypeDefinition) {
+            return ""
+        }
+
+        val sealedTypes = sealedTypesOf(type)
+        if (sealedTypes.isEmpty()) {
+            return ""
+        }
+
+        val sealedTypeNames = sealedTypes.joinToString(" or ") { it.unwrap().name }
+        val subclasses = sealedSubclassesNamedAfter(type, sealedTypes)
+        return if (subclasses.isEmpty()) {
+            "  No subclass of sealed type $sealedTypeNames is named '${type.name}'."
+        } else {
+            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${subclasses.joinToString { it.subclass.unwrap().name }}."
+        }
+    }
+
+    /**
+     * The classes found for the type's unions and interfaces that are sealed.
+     */
+    private fun sealedTypesOf(type: ObjectTypeDefinition): List<JavaType> =
+        dictionary
+            .filterKeys { definition ->
+                when (definition) {
+                    is UnionTypeDefinition -> definition.memberTypes.any { it is TypeName && it.name == type.name }
+                    is InterfaceTypeDefinition -> type.implements.any { it is TypeName && it.name == definition.name }
+                    else -> false
+                }
+            }
+            .values.mapNotNull { it.javaType }
+            .distinct()
+            .filter { it.unwrap().kotlin.isSealed }
+
+    private fun sealedSubclassesNamedAfter(type: ObjectTypeDefinition, sealedTypes: List<JavaType>): List<SealedSubclass> =
+        sealedTypes
+            .flatMap { sealedType ->
+                sealedSubclasses(sealedType.unwrap())
+                    .filter { it.simpleName == type.name }
+                    .map { SealedSubclass(sealedType, parameterize(it, sealedType)) }
+            }
+            .distinctBy { it.subclass.unwrap() }
+
+    /**
+     * All subclasses of a sealed class, including those of its sealed subclasses. kotlin-reflect also returns the permitted
+     * subclasses of Java sealed classes.
+     */
+    private fun sealedSubclasses(clazz: Class<*>): List<Class<*>> =
+        clazz.kotlin.sealedSubclasses.flatMap { listOf(it.java) + sealedSubclasses(it.java) }.distinct()
+
+    /**
+     * Passes the type arguments of a parameterized sealed class on to its generic subclass, e.g. `Success<Pet>` for
+     * `Result<Pet>`, so the types of the subclass's fields can be resolved.
+     */
+    private fun parameterize(subclass: Class<*>, sealedType: JavaType): JavaType {
+        if (sealedType !is ParameterizedType || subclass.typeParameters.isEmpty()) {
+            return subclass
+        }
+
+        return TypeUtils.determineTypeArguments(subclass, sealedType)
+            ?.takeIf { it.keys.containsAll(subclass.typeParameters.asList()) }
+            ?.let { TypeUtils.parameterize(subclass, it) }
+            ?: subclass
     }
 
     /**
@@ -478,6 +570,8 @@ internal class SchemaClassScanner(
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
 
+    private class SealedSubclass(val sealedType: JavaType, val subclass: JavaType)
+
     private class DictionaryEntry {
         private val references = mutableListOf<Reference>()
         var javaType: JavaType? = null
@@ -527,6 +621,10 @@ internal class SchemaClassScanner(
 
     private class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
         override fun getDescription() = "interface declarations of ${type.name}"
+    }
+
+    private class SealedSubclassReference(private val sealedType: JavaType) : Reference() {
+        override fun getDescription() = "subclass of sealed type ${sealedType.typeName}"
     }
 
     private class InputObjectReference(private val type: InputValueDefinition) : Reference() {
