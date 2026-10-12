@@ -15,6 +15,7 @@ import graphql.schema.GraphQLScalarType
 internal data class ScannedSchemaObjects(
     val dictionary: TypeClassDictionary,
     val definitions: Set<SDLNamedDefinition<*>>,
+    val typeExtensions: TypeExtensions,
     val customScalars: CustomScalarMap,
     val rootInfo: RootTypeInfo,
     val fieldResolversByType: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>,
@@ -23,3 +24,5 @@ internal data class ScannedSchemaObjects(
 
 internal typealias TypeClassDictionary = BiMap<TypeDefinition<*>, JavaType>
 internal typealias CustomScalarMap = Map<String, GraphQLScalarType>
+// the extensions of each type by type name, in the order they're declared
+internal typealias TypeExtensions = Map<String, List<TypeDefinition<*>>>

@@ -5,6 +5,7 @@ import graphql.Scalars
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
+import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
 import graphql.kickstart.tools.util.unwrap
@@ -35,6 +36,7 @@ class SchemaParser internal constructor(
 
     private val dictionary = scanResult.dictionary
     private val definitions = scanResult.definitions
+    private val typeExtensions = scanResult.typeExtensions
     private val customScalars = scanResult.customScalars
     private val rootInfo = scanResult.rootInfo
     private val fieldResolversByType = scanResult.fieldResolversByType
@@ -124,21 +126,24 @@ class SchemaParser internal constructor(
 
     private fun createObject(objectDefinition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>, inputObjects: List<GraphQLInputObjectType>): GraphQLObjectType {
         val name = objectDefinition.name
+        val extensions = typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name)
+        val directives = directivesOf(objectDefinition, extensions)
         val builder = GraphQLObjectType.newObject()
             .name(name)
             .definition(objectDefinition)
+            .extensionDefinitions(extensions)
             .description(getDocumentation(objectDefinition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(objectDefinition.directives))
-            .withDirectives(*buildDirectives(objectDefinition.directives, Introspection.DirectiveLocation.OBJECT))
+            .withAppliedDirectives(*buildAppliedDirectives(directives))
+            .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.OBJECT))
             .apply {
-                objectDefinition.implements.forEach { implementsDefinition ->
+                (objectDefinition.implements + extensions.flatMap { it.implements }).forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(interfaces.find { it.name == interfaceName }
                         ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
                 }
             }
             .apply {
-                objectDefinition.getExtendedFieldDefinitions(extensionDefinitions).forEach { fieldDefinition ->
+                objectDefinition.getExtendedFieldDefinitions(extensions).forEach { fieldDefinition ->
                     field { field ->
                         createField(field, fieldDefinition, inputObjects)
                         codeRegistryBuilder.dataFetcher(
@@ -160,7 +165,8 @@ class SchemaParser internal constructor(
 
     private fun createInputObject(definition: InputObjectTypeDefinition, inputObjects: List<GraphQLInputObjectType>,
                                   referencingInputObjects: MutableSet<String>): GraphQLInputObjectType {
-        val extensionDefinitions = inputExtensionDefinitions.filter { it.name == definition.name }
+        val extensionDefinitions = typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(definition.name)
+        val directives = directivesOf(definition, extensionDefinitions)
 
         referencingInputObjects.add(definition.name)
 
@@ -169,9 +175,10 @@ class SchemaParser internal constructor(
             .definition(definition)
             .extensionDefinitions(extensionDefinitions)
             .description(getDocumentation(definition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
-            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.INPUT_OBJECT))
+            .withAppliedDirectives(*buildAppliedDirectives(directives))
+            .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.INPUT_OBJECT))
             .apply {
+                // unlike graphql-java the fields of the extensions come first, which is kept so the order of the fields doesn't change
                 (extensionDefinitions + definition).forEach { typeDefinition ->
                     typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
                         field(
@@ -199,14 +206,19 @@ class SchemaParser internal constructor(
             ?: throw SchemaError("Expected enum with name '$name' but found none!")
         if (!type.unwrap().isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
+        val extensions = typeExtensions.extensionsOf<EnumTypeExtensionDefinition>(name)
+        val directives = directivesOf(definition, extensions)
         val builder = GraphQLEnumType.newEnum()
             .name(name)
             .definition(definition)
+            .extensionDefinitions(extensions)
             .description(getDocumentation(definition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
-            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.ENUM))
+            .withAppliedDirectives(*buildAppliedDirectives(directives))
+            .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.ENUM))
             .apply {
-                definition.enumValueDefinitions.forEach { valueDefinition ->
+                // graphql-java rejects a value that an extension repeats. Here it's kept once, with its first definition, so schemas
+                // that repeated the values of the enum in an extension to work around #552 keep building.
+                (definition.enumValueDefinitions + extensions.flatMap { it.enumValueDefinitions }).distinctBy { it.name }.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
                     val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
                         ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
@@ -229,19 +241,24 @@ class SchemaParser internal constructor(
     }
 
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
+        val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
+        val directives = directivesOf(interfaceDefinition, extensions)
         val builder = GraphQLInterfaceType.newInterface()
             .name(interfaceDefinition.name)
             .definition(interfaceDefinition)
+            .extensionDefinitions(extensions)
             .description(getDocumentation(interfaceDefinition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(interfaceDefinition.directives))
-            .withDirectives(*buildDirectives(interfaceDefinition.directives, Introspection.DirectiveLocation.INTERFACE))
+            .withAppliedDirectives(*buildAppliedDirectives(directives))
+            .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.INTERFACE))
             .apply {
-                interfaceDefinition.fieldDefinitions.forEach { fieldDefinition ->
+                // graphql-java rejects a field that an extension repeats. Here it's kept once, with its first definition, so schemas
+                // that repeated the fields of the interface in an extension to work around #552 keep building.
+                (interfaceDefinition.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }).distinctBy { it.name }.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
                 }
             }
             .apply {
-                interfaceDefinition.implements.forEach { implementsDefinition ->
+                (interfaceDefinition.implements + extensions.flatMap { it.implements }).forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(GraphQLTypeReference(interfaceName))
                 }
@@ -251,12 +268,15 @@ class SchemaParser internal constructor(
     }
 
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
+        val extensions = typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name)
+        val directives = directivesOf(definition, extensions)
         val builder = GraphQLUnionType.newUnionType()
             .name(definition.name)
             .definition(definition)
+            .extensionDefinitions(extensions)
             .description(getDocumentation(definition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(definition.directives))
-            .withDirectives(*buildDirectives(definition.directives, Introspection.DirectiveLocation.UNION))
+            .withAppliedDirectives(*buildAppliedDirectives(directives))
+            .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.UNION))
             .apply {
                 getLeafUnionObjects(definition, types).forEach { possibleType(it) }
             }
@@ -268,7 +288,7 @@ class SchemaParser internal constructor(
         val name = definition.name
         val leafObjects = mutableListOf<GraphQLObjectType>()
 
-        definition.memberTypes.forEach {
+        (definition.memberTypes + typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(name).flatMap { it.memberTypes }).forEach {
             val typeName = (it as TypeName).name
 
             // Is this a nested union? If so, expand
@@ -283,6 +303,23 @@ class SchemaParser internal constructor(
         }
         return leafObjects
     }
+
+    // Like graphql-java, the directives of the extensions follow those of the type. graphql-java rejects a non-repeatable directive
+    // that an extension applies again. Here the repeat is dropped and the first one kept, so those schemas still build, as they did
+    // when extension directives were ignored, and the applied directives agree with the legacy ones (see buildDirectives).
+    // Undeclared directives may be repeatable, so they're all kept.
+    private fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> {
+        val applied = definition.directives.mapTo(mutableSetOf()) { it.name }
+        return definition.directives + extensions.flatMap { extension ->
+            val (repeated, kept) = extension.directives.partition { it.name in applied && isNonRepeatable(it.name) }
+            repeated.forEach { log.warn("Directive @${it.name} isn't repeatable but an extension of type '${definition.name}' applies it again, only the first one is kept.") }
+            kept.mapTo(applied) { it.name }
+            kept
+        }
+    }
+
+    private fun isNonRepeatable(directiveName: String): Boolean =
+        directiveDefinitions.find { it.name == directiveName }?.let { !it.isRepeatable } ?: BUILT_IN_DIRECTIVES.containsKey(directiveName)
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
         return field
