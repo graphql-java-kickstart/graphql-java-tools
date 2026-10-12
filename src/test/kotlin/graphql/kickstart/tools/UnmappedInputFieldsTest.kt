@@ -13,15 +13,20 @@ import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.JsonUnwrapped
 import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.BeanDescription
+import com.fasterxml.jackson.databind.DeserializationConfig
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.InjectableValues
+import com.fasterxml.jackson.databind.JavaType
+import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.PropertyNamingStrategies
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonNaming
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
+import com.fasterxml.jackson.databind.module.SimpleDeserializers
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.node.ObjectNode
 import graphql.GraphQL
@@ -47,7 +52,7 @@ class UnmappedInputFieldsTest {
                 createProject(input: { name: "tools", technologies: [{ name: "Kotlin" }] })
             }
             """)
-        assertEquals(result.errors.single().message.contains("Unrecognized field \"technologies\""), true)
+        assertContains(result.errors.single().message, "Unrecognized field \"technologies\"")
     }
 
     @Test
@@ -113,7 +118,7 @@ class UnmappedInputFieldsTest {
         assertEquals(warnings, listOf(unmapped("ActiveInput.active", ActiveInput::class.java, "argument 'input' of field 'Query.active'", "isActive")))
 
         val result = GraphQL.newGraphQL(schema).build().execute("query { active(input: { active: true }) }")
-        assertEquals(result.errors.single().message.contains("Unrecognized field \"active\""), true)
+        assertContains(result.errors.single().message, "Unrecognized field \"active\"")
     }
 
     @Test
@@ -274,8 +279,47 @@ class UnmappedInputFieldsTest {
 
         val gql = GraphQL.newGraphQL(parser(SchemaParserOptions.newOptions()).makeExecutableSchema()).build()
         val result = gql.execute("query { snake(input: { firstName: \"Ada\" }) camel(input: { firstName: \"Ada\" }) }")
-        assertEquals(result.errors.single().message.contains("Unrecognized field \"firstName\""), true)
+        assertContains(result.errors.single().message, "Unrecognized field \"firstName\"")
         assertEquals(result.getData<Map<String, Any?>>()!!["camel"], "Ada")
+    }
+
+    @Test
+    fun `input class is reported once for each consequence of the ObjectMappers using it`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        lenient(input: GreetingInput!): String
+                        strict(input: GreetingInput!): String
+                        alsoStrict(input: GreetingInput!): String
+                    }
+
+                    input GreetingInput {
+                        name: String!
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun lenient(input: GreetingInput): String? = input.nmae
+                    fun strict(input: GreetingInput): String? = input.nmae
+                    fun alsoStrict(input: GreetingInput): String? = input.nmae
+                })
+                .options(failOptions()
+                    .objectMapperConfigurer { mapper, context ->
+                        if (context.field.name == "lenient") {
+                            mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                        }
+                    }
+                    .build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, listOf(
+            unmapped("GreetingInput.name", GreetingInput::class.java, "argument 'input' of field 'Query.lenient'", "nmae",
+                "drops the field's value, since the ObjectMapper ignores unknown properties"),
+            unmapped("GreetingInput.name", GreetingInput::class.java, "argument 'input' of field 'Query.strict'", "nmae")
+        ).joinToString("\n"))
     }
 
     @Test
@@ -304,7 +348,7 @@ class UnmappedInputFieldsTest {
             "fails for every 'SearchFilter' value sent, since the field has a default value")))
 
         val result = GraphQL.newGraphQL(schema).build().execute("query { search(filter: { query: \"a\" }) }")
-        assertEquals(result.errors.single().message.contains("Unrecognized field \"limit\""), true)
+        assertContains(result.errors.single().message, "Unrecognized field \"limit\"")
     }
 
     @Test
@@ -505,6 +549,7 @@ class UnmappedInputFieldsTest {
                     propertyIgnorals(input: PropertyIgnoralsInput!): String
                     filter(input: RequestFilter!): String
                     map(input: MapInput!): String
+                    beanMap(input: BeanMapInput!): String
                     objectNode(input: ObjectNodeInput!): String
                 }
 
@@ -550,6 +595,11 @@ class UnmappedInputFieldsTest {
                     filter: RequestFilter
                 }
 
+                input BeanMapInput {
+                    first: RequestFilter
+                    second: RequestFilter
+                }
+
                 input ObjectNodeInput {
                     anything: String
                 }
@@ -562,6 +612,8 @@ class UnmappedInputFieldsTest {
                 fun propertyIgnorals(input: PropertyIgnoralsInput): String? = input.inner?.name
                 fun filter(input: RequestFilter): String? = input.and?.single()?.or?.single()?.name
                 fun map(input: Map<String, Any?>): String = input.toString()
+                // the fields are the map's keys, not properties of its values
+                fun beanMap(input: Map<String, RequestFilter>): String = input.mapValues { it.value.name }.toString()
                 fun objectNode(input: ObjectNode): String = input.toString()
             })
             .options(failOptions().build())
@@ -578,6 +630,7 @@ class UnmappedInputFieldsTest {
                 propertyIgnorals(input: { inner: { name: "f", legacy: "x" } })
                 filter(input: { and: [{ or: [{ name: "g" }] }] })
                 map(input: { anything: "h", filter: { name: "i" } })
+                beanMap(input: { first: { name: "k" }, second: { name: "l" } })
                 objectNode(input: { anything: "j" })
             }
             """
@@ -591,6 +644,7 @@ class UnmappedInputFieldsTest {
             "propertyIgnorals" to "f",
             "filter" to "g",
             "map" to "{anything=h, filter={name=i}}",
+            "beanMap" to "{first=k, second=l}",
             "objectNode" to """{"anything":"j"}"""
         ))
     }
@@ -604,6 +658,9 @@ class UnmappedInputFieldsTest {
                     delegating(input: DelegatingInput!): String
                     builder(input: BuilderInput!): String
                     shape(input: ShapeInput!): String
+                    animals(input: [AnimalInput!]!): String
+                    animal(input: AnimalInput): String
+                    zoo(input: ZooInput!): String
                     money(input: MoneyInput!): String
                 }
 
@@ -621,6 +678,24 @@ class UnmappedInputFieldsTest {
                     side: Float
                 }
 
+                input AnimalInput {
+                    kind: String!
+                    name: String
+                    barks: Boolean
+                }
+
+                input PetInput {
+                    kind: String!
+                    name: String
+                    meows: Boolean
+                }
+
+                input ZooInput {
+                    animal: AnimalInput
+                    animals: [AnimalInput!]
+                    pets: [PetInput!]
+                }
+
                 input MoneyInput {
                     cents: Int
                 }
@@ -632,6 +707,11 @@ class UnmappedInputFieldsTest {
                     is Circle -> "circle ${input.radius}"
                     is Square -> "square ${input.side}"
                 }
+                // the base classes are concrete, so their properties are found, but not their subclasses'
+                fun animals(input: List<Animal>): String = input.joinToString { it.describe() }
+                fun animal(input: Optional<Animal>): String = input.map { it.describe() }.orElse("none")
+                fun zoo(input: Zoo): String =
+                    listOfNotNull(input.animal?.describe(), input.animals?.single()?.describe(), input.pets?.single()?.describe()).joinToString()
                 fun money(input: Money): String = input.amount.toString()
             })
             .options(failOptions()
@@ -646,6 +726,13 @@ class UnmappedInputFieldsTest {
                 delegating(input: { name: "a" })
                 builder(input: { name: "b" })
                 shape(input: { kind: "circle", radius: 1.5 })
+                animals(input: [{ kind: "dog", name: "c", barks: true }, { kind: "animal", name: "d" }])
+                animal(input: { kind: "dog", name: "e", barks: false })
+                zoo(input: {
+                    animal: { kind: "dog", name: "f", barks: true }
+                    animals: [{ kind: "dog", name: "g", barks: true }]
+                    pets: [{ kind: "cat", name: "h", meows: true }]
+                })
                 money(input: { cents: 250 })
             }
             """
@@ -655,6 +742,9 @@ class UnmappedInputFieldsTest {
             "delegating" to "{name=a}",
             "builder" to "b",
             "shape" to "circle 1.5",
+            "animals" to "dog c barks=true, animal d",
+            "animal" to "dog e barks=false",
+            "zoo" to "dog f barks=true, dog g barks=true, cat h meows=true",
             "money" to "250"
         ))
     }
@@ -711,7 +801,7 @@ class UnmappedInputFieldsTest {
 
         // neither injecting values nor a builder works with the placeholder object, so the fields are never read
         assertEquals(result.errors.map { it.path }, listOf(listOf("injected"), listOf("builder")))
-        assertEquals(result.errors.all { it.message.contains("Unrecognized field \"name\"") }, true)
+        result.errors.forEach { assertContains(it.message, "Unrecognized field \"name\"") }
         // Jackson drops what none of the unwrapped properties know
         assertEquals(result.getData<Map<String, Any?>>()!!["unwrapped"], "c null")
     }
@@ -738,10 +828,40 @@ class UnmappedInputFieldsTest {
 
         // it only fails once the argument is converted, as it did before the check
         val result = GraphQL.newGraphQL(schema).build().execute("query { broken(input: { name: \"a\" }) }")
-        assertEquals(result.errors.single().message.contains("Conflicting property-based creators"), true)
+        assertContains(result.errors.single().message, "Conflicting property-based creators")
     }
 
-    private fun failOptions() =SchemaParserOptions.newOptions().unmappedInputFields(UnmappedInputFields.FAIL)
+    @Test
+    fun `error while Jackson looks up a deserializer doesn't fail the build`() {
+        val (_, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        greet(input: GreetingInput!): String
+                    }
+
+                    input GreetingInput {
+                        name: String!
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun greet(input: GreetingInput): String? = input.nmae
+                })
+                .options(SchemaParserOptions.newOptions()
+                    .objectMapperConfigurer { mapper, _ -> mapper.registerModule(SimpleModule().apply { setDeserializers(MissingClassDeserializers()) }) }
+                    .build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        // the lookup only fails once the argument is converted, as it did before the check
+        assertEquals(warnings, emptyList<String>())
+    }
+
+    private fun failOptions() = SchemaParserOptions.newOptions().unmappedInputFields(UnmappedInputFields.FAIL)
+
+    private fun assertContains(actual: String, expected: String) = assert(actual.contains(expected)) { "expected:<$actual> to contain:<$expected>" }
 
     private fun projectParser(options: SchemaParserOptions = SchemaParserOptions.newOptions().build()) = SchemaParser.newParser()
         .schemaString(
@@ -910,6 +1030,42 @@ class UnmappedInputFieldsTest {
         var side: Double? = null
     }
 
+    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+    @JsonSubTypes(JsonSubTypes.Type(Animal::class, name = "animal"), JsonSubTypes.Type(Dog::class, name = "dog"))
+    open class Animal {
+        var name: String? = null
+
+        open fun describe() = "animal $name"
+    }
+
+    class Dog : Animal() {
+        var barks: Boolean? = null
+
+        override fun describe() = "dog $name barks=$barks"
+    }
+
+    // only polymorphic where a property says so
+    open class Pet {
+        var name: String? = null
+
+        open fun describe() = "pet $name"
+    }
+
+    class Cat : Pet() {
+        var meows: Boolean? = null
+
+        override fun describe() = "cat $name meows=$meows"
+    }
+
+    class Zoo {
+        var animal: Animal? = null
+        var animals: List<Animal>? = null
+
+        @field:JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+        @field:JsonSubTypes(JsonSubTypes.Type(Cat::class, name = "cat"))
+        var pets: List<Pet>? = null
+    }
+
     // the property doesn't match the schema, only the deserializer does
     class Money(val amount: Int)
 
@@ -944,6 +1100,12 @@ class UnmappedInputFieldsTest {
 
     class KotlinAddress {
         var stret: String? = null
+    }
+
+    // like a class that refers to one missing from the classpath
+    class MissingClassDeserializers : SimpleDeserializers() {
+        override fun findBeanDeserializer(type: JavaType, config: DeserializationConfig, beanDesc: BeanDescription): JsonDeserializer<*> =
+            throw NoClassDefFoundError("com/example/Missing")
     }
 
     abstract class InputResolver<I> : GraphQLQueryResolver {
