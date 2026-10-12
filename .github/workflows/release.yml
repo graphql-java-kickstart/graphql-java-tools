@@ -35,6 +35,11 @@ jobs:
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.GPG_SIGNING_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
+      - name: Setup Maven 3.9
+        # Under Maven 3.10, central-publishing-maven-plugin 0.11.0 adds maven-metadata-local.xml to the bundle, which Central rejects
+        run: |
+          curl -sSfL https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.9.16/apache-maven-3.9.16-bin.tar.gz | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-3.9.16/bin" >> "$GITHUB_PATH"
       - name: Publish release
         run: bash github-build.sh
         env:

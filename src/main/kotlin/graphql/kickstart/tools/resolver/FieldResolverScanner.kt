@@ -73,6 +73,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+        @Suppress("DEPRECATION")
         return if (options.allowUnimplementedResolvers
             || options.missingResolverDataFetcher != null
             || options.missingResolverDataFetcherProvider != null) {

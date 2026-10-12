@@ -1,7 +1,6 @@
 package graphql.kickstart.tools.resolver
 
 import graphql.kickstart.tools.*
-import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -12,11 +11,10 @@ import graphql.schema.DataFetchingEnvironment
 internal abstract class FieldResolver(
     val field: FieldDefinition,
     val search: FieldResolverScanner.Search,
-    val options: SchemaParserOptions,
-    relativeTo: JavaType
+    val options: SchemaParserOptions
 ) {
     val resolverInfo: ResolverInfo = search.resolverInfo
-    val genericType = GenericType(search.type, options).relativeToPotentialParent(relativeTo)
+    val typeResolver = GenericTypeResolver(search.type, options)
 
     abstract fun scanForMatches(): List<TypeClassMatcher.PotentialMatch>
 
@@ -35,8 +33,8 @@ internal abstract class FieldResolver(
                     ?: environment?.getSource<Any>()
                     ?: throw ResolverError("Expected DataFetchingEnvironment and source object to not be null!")
 
-                if (!this.genericType.isAssignableFrom(source.javaClass)) {
-                    throw ResolverError("Expected source object to be an instance of '${this.genericType.getRawClass().name}' but instead got '${source.javaClass.name}'")
+                if (!this.typeResolver.isAssignableFrom(source.javaClass)) {
+                    throw ResolverError("Expected source object to be an instance of '${this.typeResolver.getRawClass().name}' but instead got '${source.javaClass.name}'")
                 }
 
                 source
