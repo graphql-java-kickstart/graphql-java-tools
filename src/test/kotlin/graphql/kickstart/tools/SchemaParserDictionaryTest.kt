@@ -164,15 +164,14 @@ class SchemaParserDictionaryTest {
 
     @Test
     fun `input type and object type can share a dictionary class`() {
+        // ItemInput is only used by a directive, so its class can only come from the dictionary
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
-                type Query {
-                    node: Node
-                }
+                directive @d(arg: ItemInput) on FIELD_DEFINITION
 
-                type Mutation {
-                    save(item: ItemInput!): Node
+                type Query {
+                    node: Node @d(arg: { name: "z" })
                 }
 
                 interface Node {
@@ -189,16 +188,17 @@ class SchemaParserDictionaryTest {
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun node(): Node = Item().apply { name = "a" }
-            }, object : GraphQLMutationResolver {
-                fun save(item: Item): Node = item
             })
             .dictionary("Item", Item::class.java)
             .dictionary("ItemInput", Item::class.java)
             .build()
             .makeExecutableSchema()
-        val gql = GraphQL.newGraphQL(schema).build()
 
-        val queryData = assertNoGraphQlErrors(gql) {
+        val field = schema.queryType.getFieldDefinition("node")
+        assertEquals(field.getAppliedDirective("d").getArgument("arg")!!.getValue<Map<*, *>>(), mapOf("name" to "z"))
+
+        val gql = GraphQL.newGraphQL(schema).build()
+        val data = assertNoGraphQlErrors(gql) {
             """
             query {
                 node {
@@ -208,19 +208,8 @@ class SchemaParserDictionaryTest {
             }
             """
         }
-        val mutationData = assertNoGraphQlErrors(gql) {
-            """
-            mutation {
-                save(item: { name: "b" }) {
-                    __typename
-                    name
-                }
-            }
-            """
-        }
 
-        assertEquals(queryData["node"], mapOf("__typename" to "Item", "name" to "a"))
-        assertEquals(mutationData["save"], mapOf("__typename" to "Item", "name" to "b"))
+        assertEquals(data["node"], mapOf("__typename" to "Item", "name" to "a"))
     }
 
     @Test
@@ -241,16 +230,22 @@ class SchemaParserDictionaryTest {
                     type B {
                         name: String
                     }
+
+                    input AInput {
+                        name: String
+                    }
                     """)
                 .resolvers(object : GraphQLQueryResolver {
                     fun a(): Item? = null
                     fun b(): Item? = null
                 })
                 .dictionary("A", Item::class.java)
+                .dictionary("AInput", Item::class.java)
                 .dictionary("B", Item::class.java)
                 .build()
         }
 
+        // the input type sharing the class isn't part of the conflict
         assertEquals(error.message, "Class in supplied dictionary '${Item::class.java.name}' specified type names 'A', 'B', " +
             "but only input object types can share a class!")
     }

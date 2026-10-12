@@ -59,8 +59,9 @@ internal class SchemaClassScanner(
             }
         }
 
-        // Input types never go into the type => class bimap, so several of them can share a class, e.g. ObjectNode.
-        // Other types need one each.
+        // Input types never go into the type => class bimap, so several of them can share a class, e.g. ObjectNode. Every
+        // other kind still gets one class per type, as before. Most of them end up in the bimap, which interface and union
+        // type resolution use to find the type of an object.
         initialDictionary
             .filterKeys { definitionsByName[it] !is InputObjectTypeDefinition }
             .entries.groupBy({ it.value }, { it.key })
