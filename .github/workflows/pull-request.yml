@@ -24,3 +24,81 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
       - name: Build with Maven
         run: mvn --batch-mode --update-snapshots verify
+
+  # The same jar has to work with the oldest supported graphql-java, so build and test against it too
+  graphql-java-25:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup java
+        uses: actions/setup-java@v6
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+      - name: Cache Maven packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      - name: Build with Maven
+        run: mvn --batch-mode --update-snapshots verify -Dgraphql-java.version=25.1
+
+  # Builds the Maven Central bundle like the release workflow does, without uploading it
+  release-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup java
+        uses: actions/setup-java@v6
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+      - name: Setup Maven 3.9
+        # Same Maven as the release workflow
+        run: |
+          curl -sSfL https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.9.16/apache-maven-3.9.16-bin.tar.gz | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-3.9.16/bin" >> "$GITHUB_PATH"
+      - name: Cache Maven packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      - name: Build release bundle
+        # Snapshots aren't bundled, so drop -SNAPSHOT like github-build.sh does.
+        # The upload URL is unreachable, so the build fails at the upload, after the bundle is written.
+        run: |
+          sed -i 's/-SNAPSHOT//' pom.xml
+          mvn --batch-mode -Prelease deploy -DskipTests -Dgpg.skip -DcentralBaseUrl=http://127.0.0.1:9 || true
+        env:
+          MAVEN_USERNAME: dummy
+          MAVEN_PASSWORD: dummy
+      - name: Check release bundle
+        # Central rejects bundles with files that don't belong to a pom, e.g. maven-metadata-local.xml under Maven 3.10
+        run: |
+          bundle=target/central-publishing/central-bundle.zip
+          if [[ ! -f $bundle ]]; then
+            echo "::error::No release bundle was built, see the previous step"
+            exit 1
+          fi
+          version=$(grep -m1 -o "<version>.*</version>$" pom.xml | awk -F'[><]' '{print $3}')
+          dir="io/github/graphql-java-kickstart/graphql-java-tools/${version}"
+          files=$(unzip -Z1 "$bundle")
+          echo "$files"
+          unexpected=$(grep -vE "^${dir}/graphql-java-tools-${version}(-[a-z]+)?\.(pom|jar)(\.(md5|sha1|sha256|sha512|asc))?$" <<< "$files" || true)
+          if [[ -n $unexpected ]]; then
+            echo "::error::Unexpected files in the release bundle: ${unexpected//$'\n'/, }"
+            exit 1
+          fi
+          for file in graphql-java-tools-${version}.pom graphql-java-tools-${version}.jar graphql-java-tools-${version}-sources.jar graphql-java-tools-${version}-javadoc.jar; do
+            if ! grep -qxF "${dir}/${file}" <<< "$files"; then
+              echo "::error::${file} is missing from the release bundle"
+              exit 1
+            fi
+          done
