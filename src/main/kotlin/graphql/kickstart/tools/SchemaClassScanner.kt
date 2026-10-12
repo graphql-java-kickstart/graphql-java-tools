@@ -45,6 +45,8 @@ internal class SchemaClassScanner(
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
     private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
+    // enums that had no class when the directives using them were scanned, they're in unvalidatedTypes too
+    private val directiveOnlyEnums = mutableSetOf<EnumTypeDefinition>()
     private val queue = linkedSetOf<QueueItem>()
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
@@ -171,12 +173,28 @@ internal class SchemaClassScanner(
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
         when (typeDefinition) {
             is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
-            is EnumTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
-                "Enum type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
-            }
+            is EnumTypeDefinition -> handleDirectiveEnum(typeDefinition)
             is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
                 "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
             }
+        }
+    }
+
+    /**
+     * Directive argument values are never passed to resolver methods, so an enum used by directives doesn't need a class. Unless
+     * one is found for it, it's built with its value names as values, like graphql-java does.
+     */
+    private fun handleDirectiveEnum(type: EnumTypeDefinition) {
+        if (dictionary.containsKey(type) || unvalidatedTypes.contains(type)) {
+            return
+        }
+
+        val initialEntry = initialDictionary[type.name]
+        if (initialEntry != null) {
+            handleFoundType(type, initialEntry.get(), DictionaryReference())
+        } else {
+            unvalidatedTypes.add(type)
+            directiveOnlyEnums.add(type)
         }
     }
 
@@ -246,7 +264,11 @@ internal class SchemaClassScanner(
 
         val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
 
-        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        // a class found for an enum after its directives were scanned, e.g. through an unused type, is used after all. This checks the
+        // scanner's dictionary rather than the bimap, so an enum matched to Object or a Map is still rejected by the parser
+        val directiveOnlyEnums = directiveOnlyEnums.filter { it !in this.dictionary }.toSet()
+
+        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
