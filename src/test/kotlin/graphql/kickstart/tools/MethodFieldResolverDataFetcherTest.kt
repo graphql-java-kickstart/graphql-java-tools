@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.ExecutionResult
 import graphql.GraphQLContext
+import graphql.Scalars
 import graphql.execution.*
 import graphql.execution.instrumentation.SimplePerformantInstrumentation
 import graphql.kickstart.tools.resolver.FieldResolverError
@@ -13,6 +14,8 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
+import graphql.schema.GraphQLObjectType
+import graphql.schema.GraphQLSchema
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -429,7 +432,11 @@ class MethodFieldResolverDataFetcherTest {
             }
         }
         val executionId = ExecutionId.from("executionId123")
+        val schema = GraphQLSchema.newSchema()
+            .query(GraphQLObjectType.newObject().name("Query").field { it.name("active").type(Scalars.GraphQLBoolean) })
+            .build()
         return ExecutionContextBuilder.newExecutionContextBuilder()
+            .graphQLSchema(schema)
             .graphQLContext(context)
             .instrumentation(SimplePerformantInstrumentation.INSTANCE)
             .executionId(executionId)

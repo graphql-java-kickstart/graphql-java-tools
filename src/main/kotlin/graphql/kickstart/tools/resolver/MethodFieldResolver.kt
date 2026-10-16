@@ -152,14 +152,12 @@ internal class MethodFieldResolver(
      * because values can be coerced to multiple different Java types (eg. String, Long, UUID). All values of a non-concrete scalar
      * type must be converted to the target method parameter type.
      */
-    // graphql-java marks the schema non-null, but it's null in hand-built environments, e.g. in tests
-    @Suppress("UNNECESSARY_SAFE_CALL")
     private fun isConcreteScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean {
         return when (type) {
             is ListType -> List::class.java.isAssignableFrom(this.typeResolver.getRawClass(genericParameterType))
                 && isConcreteScalarType(environment, type.type, this.typeResolver.resolve(genericParameterType))
 
-            is TypeName -> environment.graphQLSchema?.getType(type.name!!)?.let { isScalar(it) && type.name != "ID" }
+            is TypeName -> environment.graphQLSchema.getType(type.name!!)?.let { isScalar(it) && type.name != "ID" }
                 ?: false
 
             is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)
