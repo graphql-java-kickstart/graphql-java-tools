@@ -9,8 +9,9 @@ import graphql.schema.DataFetcher
 internal class MissingFieldResolver(
     field: FieldDefinition,
     options: SchemaParserOptions
-) : FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options, Any::class.java) {
+) : FieldResolver(field, FieldResolverScanner.Search(Any::class.java, MissingResolverInfo(), null), options) {
 
+    @Suppress("DEPRECATION")
     private val missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider = options.missingResolverDataFetcherProvider
             ?: MissingResolverDataFetcherProvider {
                 _, options -> options.missingResolverDataFetcher ?: DataFetcher<Any> { TODO("Schema resolver not implemented") }

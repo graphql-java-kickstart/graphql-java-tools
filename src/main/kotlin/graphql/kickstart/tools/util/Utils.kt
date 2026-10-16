@@ -7,15 +7,20 @@ import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.apache.commons.lang3.reflect.TypeUtils
+import org.slf4j.LoggerFactory
+import java.lang.invoke.MethodHandles
 import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Proxy
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
+import kotlin.reflect.jvm.kotlinFunction
 
 /**
  * @author Andrew Potter
  */
+
+private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
 internal typealias GraphQLRootResolver = GraphQLResolver<Void>
 
@@ -40,6 +45,18 @@ internal fun JavaType.unwrap(): Class<out Any> =
         this as Class<*>
     }
 
+internal fun ParameterizedType.isSubtypeOf(type: Class<*>): Boolean = type.isAssignableFrom(unwrap())
+
+/**
+ * Replaces a parameterized type whose type arguments are all unbounded wildcards, e.g. Kotlin's Page<*>, by its raw type.
+ */
+internal fun JavaType.eraseUnboundedWildcards(): JavaType =
+    if (this is ParameterizedType && this.actualTypeArguments.all { TypeUtils.equals(it, TypeUtils.WILDCARD_ALL) }) {
+        this.rawType
+    } else {
+        this
+    }
+
 internal fun JavaType.typeArgument(type: Class<*>): JavaType? =
     TypeUtils.getTypeArguments(this, type)?.get(type.typeParameters.first())
 
@@ -47,8 +64,23 @@ internal fun JavaType.futureValueType(): JavaType? =
     typeArgument(CompletionStage::class.java) ?: typeArgument(Future::class.java)
 
 internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
+    val scope: Any? = graphQlContext[CoroutineScope::class.java]
+    if (scope is CoroutineScope) {
+        return scope
+    }
+
+    @Suppress("DEPRECATION")
     val context: Any? = this.getContext()
-    return if (context is CoroutineScope) context else CoroutineScope(Dispatchers.Default)
+    if (context is CoroutineScope) {
+        log.warn(
+            "Passing a CoroutineScope as the context object has been deprecated by graphql-java. " +
+                "Please insert it into the GraphQLContext map under the CoroutineScope class key when building the ExecutionInput. " +
+                "Support for the context object will be removed in the next major release."
+        )
+        return context
+    }
+
+    return CoroutineScope(Dispatchers.Default)
 }
 
 internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
@@ -58,6 +90,18 @@ internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
             else -> this.declaredMethods.toList()
         }
     }
+
+internal fun JavaMethod.isSuspendFunction(): Boolean {
+    return try {
+        this.kotlinFunction?.isSuspend == true
+    } catch (e: InternalError) {
+        false
+    }
+}
+
+// the trailing Continuation of a suspend function isn't a resolver argument
+internal fun JavaMethod.parameterCountWithoutContinuation(): Int =
+    if (isSuspendFunction()) parameterCount - 1 else parameterCount
 
 internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOptions): String? =
     when {

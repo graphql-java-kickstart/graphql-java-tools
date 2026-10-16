@@ -203,6 +203,72 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should chain element changes of named directive wirings`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @auth on FIELD_DEFINITION
+                directive @log on FIELD_DEFINITION
+
+                type Query {
+                    "Name"
+                    name: String @auth @log
+                }
+                """)
+            .resolvers(NameResolver())
+            .directive("auth", DescriptionDirective("auth"))
+            .directive("log", DescriptionDirective("log"))
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.queryType.getField("name").description, "Name +auth +log")
+    }
+
+    @Test
+    fun `should chain element changes of named and static directive wirings`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @auth on FIELD_DEFINITION
+
+                type Query {
+                    "Name"
+                    name: String @auth
+                }
+                """)
+            .resolvers(NameResolver())
+            .directive("auth", DescriptionDirective("auth"))
+            .directiveWiring(DescriptionDirective("static"))
+            .build()
+            .makeExecutableSchema()
+
+        assertEquals(schema.queryType.getField("name").description, "Name +auth +static")
+    }
+
+    @Test
+    fun `should fail when a directive wiring returns null`() {
+        val error = assertThrows(IllegalStateException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    directive @auth on FIELD_DEFINITION
+
+                    type Query {
+                        name: String @auth
+                    }
+                    """)
+                .resolvers(NameResolver())
+                .directive("auth", object : SchemaDirectiveWiring {
+                    override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "The SchemaDirectiveWiring MUST return a non null return value for element 'name'")
+    }
+
+    @Test
     fun `should have access to applied directives through the data fetching environment`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -304,6 +370,53 @@ class DirectiveTest {
         assert(filter.isOneOf)
         assertNotNull(filter.getAppliedDirective("oneOf"))
         assert((schema.getType("Book") as GraphQLObjectType).getField("name").isDeprecated)
+    }
+
+    @Test
+    fun `should fill in default values of directive arguments that weren't supplied`() {
+        val emailDirective = EmailDirective()
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @email(message: String = "{path} must be a valid email") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
+                directive @owner(team: String = "books-team") on SCHEMA | ENUM_VALUE
+
+                schema @owner {
+                    query: Query
+                }
+
+                enum AllowedState {
+                    ALLOWED @owner
+                    DISALLOWED
+                }
+
+                input PersonInput {
+                    email: String @email
+                }
+
+                type Query {
+                    contactEmail: String @email
+                    updatePersonEmail(primaryEmail: String @email, backupEmail: String @email(message: "invalid backup email")): String
+                    updatePerson(person: PersonInput, state: AllowedState): String
+                }
+                """)
+            .resolvers(PersonQueryResolver())
+            .directive("email", emailDirective)
+            .build()
+            .makeExecutableSchema()
+
+        val expectedMessages = mapOf(
+            "contactEmail" to "{path} must be a valid email",
+            "primaryEmail" to "{path} must be a valid email",
+            "backupEmail" to "invalid backup email"
+        )
+        assertEquals(emailDirective.appliedMessages, expectedMessages)
+        assertEquals(emailDirective.legacyMessages, expectedMessages)
+        val inputField = (schema.getType("PersonInput") as GraphQLInputObjectType).getField("email")
+        assertEquals(inputField.getAppliedDirective("email").getArgument("message")?.getValue<String>(), "{path} must be a valid email")
+        assertEquals(schema.getSchemaAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
+        val enumValue = (schema.getType("AllowedState") as GraphQLEnumType).getValue("ALLOWED")!!
+        assertEquals(enumValue.getAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
     }
 
     @Test
@@ -458,6 +571,16 @@ class DirectiveTest {
         val name: String?
     )
 
+    private class PersonQueryResolver : GraphQLQueryResolver {
+        fun contactEmail(): String? = null
+        fun updatePersonEmail(primaryEmail: String?, backupEmail: String?): String? = primaryEmail
+        fun updatePerson(person: PersonInput?, state: AllowedState?): String? = null
+    }
+
+    private data class PersonInput(
+        val email: String?
+    )
+
     private class QueryResolver : GraphQLQueryResolver {
         fun books(): List<Book> {
             return listOf(Book(42L, "Test Book"))
@@ -486,6 +609,28 @@ class DirectiveTest {
             // TODO
 
             return field
+        }
+    }
+
+    private class EmailDirective : SchemaDirectiveWiring {
+        val appliedMessages = mutableMapOf<String, String?>()
+        val legacyMessages = mutableMapOf<String, String?>()
+
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+            recordMessage(environment)
+            return environment.element
+        }
+
+        override fun onArgument(environment: SchemaDirectiveWiringEnvironment<GraphQLArgument>): GraphQLArgument {
+            recordMessage(environment)
+            return environment.element
+        }
+
+        private fun recordMessage(environment: SchemaDirectiveWiringEnvironment<*>) {
+            val name = environment.element.name
+            appliedMessages[name] = environment.appliedDirective.getArgument("message")?.getValue<String>()
+            @Suppress("DEPRECATION")
+            legacyMessages[name] = environment.directive.getArgument("message")?.let { GraphQLArgument.getArgumentValue<String>(it) }
         }
     }
 
@@ -520,6 +665,13 @@ class DirectiveTest {
             environment.fieldDataFetcher = wrappedDataFetcher
 
             return field
+        }
+    }
+
+    private class DescriptionDirective(private val name: String) : SchemaDirectiveWiring {
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+            val field = environment.element
+            return field.transform { it.description("${field.description} +$name") }
         }
     }
 

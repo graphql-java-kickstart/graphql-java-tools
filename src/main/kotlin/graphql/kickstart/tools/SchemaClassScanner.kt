@@ -75,16 +75,24 @@ internal class SchemaClassScanner(
 
         scanQueue()
 
-        // Loop over all objects scanning each one only once for more objects to discover.
-        do {
-            do {
-                // Require all implementors of discovered interfaces to be discovered or provided.
-                handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-            } while (scanQueue())
+        // Loop over all objects scanning each one only once for more objects to discover. Each step only runs once the steps
+        // above it have nothing left, and anything new starts over from the top.
+        while (true) {
+            // Require all implementors of discovered interfaces to be discovered or provided.
+            handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
+            if (scanQueue()) continue
 
             // Require all members of discovered unions to be discovered.
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-        } while (scanQueue())
+            if (scanQueue()) continue
+
+            // Look for unions and interfaces used only by interface fields last, so types that can be reached some other way
+            // are still discovered in the same order as before. With includeUnusedTypes the unused types loop below already
+            // picks these up one at a time, scanning in between, so leave that path unchanged.
+            if (!options.includeUnusedTypes && handleInterfaceFieldTypes()) continue
+
+            break
+        }
 
         handleDirectives()
 
@@ -270,6 +278,26 @@ internal class SchemaClassScanner(
         }.flatten().distinct()
     }
 
+    /**
+     * Implementations can narrow an interface field to a member of its union or an implementor of its interface, so such a
+     * union or interface may not be reachable from any object field. Returns whether any new types were found.
+     */
+    private fun handleInterfaceFieldTypes(): Boolean {
+        val newTypes = dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().flatMap { iface ->
+            iface.fieldDefinitions.mapNotNull { field ->
+                val type = definitionsByName[(field.type.unwrap() as TypeName).name]
+                if ((type is UnionTypeDefinition || type is InterfaceTypeDefinition) && !dictionary.containsKey(type)) {
+                    type to FieldTypeReference("${iface.name}.${field.name}")
+                } else {
+                    null
+                }
+            }
+        }
+
+        newTypes.forEach { (type, reference) -> handleFoundType(type, null, reference) }
+        return newTypes.isNotEmpty()
+    }
+
     private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
@@ -308,19 +336,20 @@ internal class SchemaClassScanner(
      * Find all resolvers for the data class or any of its supertypes, most specific first.
      */
     private fun getResolverInfoFromDataClass(dataClass: JavaType): ResolverInfo {
+        val rawDataClass = dataClass.unwrap()
         val resolverInfoList = resolverInfos
-            .filter { it.dataClassType == dataClass || isResolverForSupertype(it, dataClass) }
+            .filter { it.dataClassType == rawDataClass || isResolverForSupertype(it, rawDataClass) }
             .sortedByDescending { ClassUtils.getAllSuperclasses(it.dataClassType).size + ClassUtils.getAllInterfaces(it.dataClassType).size }
 
         return when {
             resolverInfoList.isEmpty() -> DataClassResolverInfo(dataClass)
             resolverInfoList.size == 1 && resolverInfoList.single().dataClassType == dataClass -> resolverInfoList.single()
-            else -> MultiResolverInfo(resolverInfoList, dataClass.unwrap())
+            else -> MultiResolverInfo(resolverInfoList, dataClass)
         }
     }
 
-    private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: JavaType) =
-        dataClass is Class<*> && resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
+    private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: Class<*>) =
+        resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
@@ -360,7 +389,7 @@ internal class SchemaClassScanner(
                     if (java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
                         throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
                     }
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.unwrap()}:\n|   ${reference.getDescription()}")
+                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.typeName}:\n|   ${reference.getDescription()}")
                 }
             }
         }
@@ -395,7 +424,7 @@ internal class SchemaClassScanner(
                                 handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
                                     inputValueDefinition.type,
                                     inputValueJavaType,
-                                    GenericType(javaType, options).relativeToType(javaType),
+                                    GenericTypeResolver(javaType, options),
                                     InputObjectReference(inputValueDefinition)
                                 )))
                             } else {
@@ -436,13 +465,15 @@ internal class SchemaClassScanner(
     private fun findInputValueTypeInType(name: String, clazz: Class<*>): JavaType? {
         val methods = clazz.methods
 
-        val filteredMethods = methods.filter {
+        val (getters, methodsWithParameters) = methods.filter {
             it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
-        }.sortedBy { it.name.length }
+        }.sortedBy { it.name.length }.partition { it.parameterCount == 0 }
 
-        return filteredMethods.find { !it.isSynthetic }?.genericReturnType
-            ?: filteredMethods.firstOrNull()?.genericReturnType
+        return getters.find { !it.isSynthetic }?.genericReturnType
+            ?: getters.firstOrNull()?.genericReturnType
             ?: clazz.fields.find { it.name == name }?.genericType
+            ?: methodsWithParameters.find { !it.isSynthetic }?.genericReturnType
+            ?: methodsWithParameters.firstOrNull()?.genericReturnType
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
@@ -469,7 +500,7 @@ internal class SchemaClassScanner(
             references.add(reference)
         }
 
-        fun joinReferences() = "- ${typeClass()}:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
+        fun joinReferences() = "- ${javaType?.typeName}:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
 
         fun hasResolverRef(): Boolean {
             references.filterIsInstance<ReturnValueReference>().forEach { reference ->

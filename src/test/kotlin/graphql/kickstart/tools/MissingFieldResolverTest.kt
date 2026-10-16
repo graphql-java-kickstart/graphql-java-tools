@@ -32,6 +32,7 @@ class MissingFieldResolverTest {
     }
 
     @Test
+    @Suppress("DEPRECATION")
     fun `should call missing resolver data fetcher if provided`() {
         val schema = SchemaParser.newParser()
             .schemaString(

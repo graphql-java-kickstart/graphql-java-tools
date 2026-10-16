@@ -6,6 +6,7 @@ import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -76,7 +77,63 @@ public class ResolverMethodsTest {
         assertEquals(Map.of("name", "product"), data.get("product"));
     }
 
+    // Raw types can't be expressed in Kotlin, so this resolver must stay in Java.
+    @Test
+    public void testRawResolverForParameterizedDataClass() {
+        GraphQLSchema schema = SchemaParser.newParser()
+            .schemaString("type Query { page: ItemPage! } type ItemPage { content: [Item!]! size: Int! } type Item { name: String! }")
+            .resolvers(new PageQueryResolver(), new RawPageResolver())
+            .build()
+            .makeExecutableSchema();
+
+        GraphQL gql = GraphQL.newGraphQL(schema).build();
+
+        ExecutionResult result = gql
+            .execute(ExecutionInput.newExecutionInput()
+                .query("query { page { content { name } size } }")
+                .root(new Object()));
+
+        assertTrue(result.getErrors().isEmpty());
+        Map<?, ?> data = result.getData();
+        assertEquals(Map.of("content", List.of(Map.of("name", "item")), "size", 1), data.get("page"));
+    }
+
     static class Product {
+    }
+
+    static class Page<T> {
+        private final List<T> content;
+
+        Page(List<T> content) {
+            this.content = content;
+        }
+
+        public List<T> getContent() {
+            return content;
+        }
+    }
+
+    static class Item {
+        public String getName() {
+            return "item";
+        }
+    }
+
+    static class PageQueryResolver implements GraphQLQueryResolver {
+
+        @SuppressWarnings("unused")
+        public Page<Item> page() {
+            return new Page<>(List.of(new Item()));
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    static class RawPageResolver implements GraphQLResolver<Page> {
+
+        @SuppressWarnings("unused")
+        public int size(Page page) {
+            return page.getContent().size();
+        }
     }
 
     static class Resolver implements GraphQLQueryResolver {

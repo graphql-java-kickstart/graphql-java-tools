@@ -38,9 +38,12 @@ class SchemaDirectiveWiringEnvironmentImpl<T : GraphQLDirectiveContainer?>(
     }
 
     override fun getElement(): T = element
+    @Deprecated("Use getAppliedDirective() instead", ReplaceWith("appliedDirective"))
     override fun getDirective(): GraphQLDirective? = registeredDirective
     override fun getAppliedDirective(): GraphQLAppliedDirective? = registeredAppliedDirective
+    @Deprecated("Use getAppliedDirectives() instead", ReplaceWith("appliedDirectives"))
     override fun getDirectives(): Map<String, GraphQLDirective> = LinkedHashMap(directives)
+    @Deprecated("Use getAppliedDirective(directiveName) instead", ReplaceWith("getAppliedDirective(directiveName)"))
     override fun getDirective(directiveName: String): GraphQLDirective = directives[directiveName]!!
     override fun getAppliedDirectives(): Map<String, GraphQLAppliedDirective> = appliedDirectives
     override fun getAppliedDirective(directiveName: String): GraphQLAppliedDirective = appliedDirectives[directiveName]!!
