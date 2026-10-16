@@ -1,6 +1,7 @@
 package graphql.kickstart.tools.resolver
 
 import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.GraphQLContext
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
@@ -49,9 +50,12 @@ internal class MethodFieldResolver(
     private val numberOfParameters = method.parameterCountWithoutContinuation()
     private val hasAdditionalParameter = numberOfParameters == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
+    // the arguments are converted with the same ObjectMapper that the UnmappedInputFieldChecker checks their classes with
+    internal val objectMapper: ObjectMapper by lazy { options.objectMapperProvider.provide(field) }
+
     override fun createDataFetcher(): DataFetcher<*> {
         val args = mutableListOf<ArgumentPlaceholder>()
-        val mapper = options.objectMapperProvider.provide(field)
+        val mapper = objectMapper
 
         // Add source argument if this is a resolver (but not a root resolver)
         if (this.search.requiredFirstParameterType != null) {
@@ -200,7 +204,8 @@ internal class MethodFieldResolver(
 
     private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
 
-    private fun getMethodParameterType(index: Int): JavaType? {
+    // the type that the value of the argument at the index is converted to
+    internal fun getMethodParameterType(index: Int): JavaType? {
         val methodIndex = getJavaMethodParameterIndex(index)
         val parameters = method.parameterTypes
 

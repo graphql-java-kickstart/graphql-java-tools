@@ -1,6 +1,8 @@
 package graphql.kickstart.tools
 
+import graphql.GraphQL
 import graphql.GraphQLContext
+import graphql.Scalars
 import graphql.execution.CoercedVariables
 import graphql.language.Value
 import graphql.schema.*
@@ -460,6 +462,53 @@ class SchemaClassScannerTest {
 
     class HasMapField {
         var map: Map<String, Any>? = null
+    }
+
+    @Test
+    fun `scanner handles custom scalars only used in input types bound to a Map`() {
+        val foo = GraphQLScalarType.newScalar(Scalars.GraphQLString)
+            .name("Foo")
+            .description("foo")
+            .build()
+
+        val schema = SchemaParser.newParser()
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(): String? = null
+            }, object : GraphQLMutationResolver {
+                fun createHuman(input: Map<String, Any?>): String = "${input["name"]} ${input["foo"]}"
+            })
+            .scalars(foo)
+            .schemaString(
+                """
+                scalar Foo
+
+                type Query {
+                    test: String
+                }
+
+                type Mutation {
+                    createHuman(input: CreateHumanInput!): String
+                }
+
+                input CreateHumanInput {
+                    name: String
+                    homePlanet: String
+                    foo: Foo
+                }
+                """)
+            .build()
+            .makeExecutableSchema()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            mutation {
+                createHuman(input: { name: "Luke", foo: "bar" })
+            }
+            """
+        }
+
+        assertEquals(data["createHuman"], "Luke bar")
     }
 
     @Test
