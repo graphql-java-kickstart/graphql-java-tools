@@ -197,9 +197,9 @@ class SchemaParser internal constructor(
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
         val name = definition.name
         // enums only used by directives can do without a class, see SchemaClassScanner.handleDirectiveEnum
-        val type = dictionary[definition]
-        if (type == null && definition !in directiveOnlyEnums) throw SchemaError("Expected enum with name '$name' but found none!")
-        if (type != null && !type.unwrap().isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
+        val enumClass = dictionary[definition]?.unwrap()
+        if (enumClass == null && definition !in directiveOnlyEnums) throw SchemaError("Expected enum with name '$name' but found none!")
+        if (enumClass != null && !enumClass.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
         val builder = GraphQLEnumType.newEnum()
             .name(name)
@@ -210,11 +210,11 @@ class SchemaParser internal constructor(
             .apply {
                 definition.enumValueDefinitions.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
-                    val enumValue = if (type == null) {
+                    val enumValue = if (enumClass == null) {
                         enumName
                     } else {
-                        type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
-                            ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
+                        enumClass.enumConstants.find { (it as Enum<*>).name == enumName }
+                            ?: throw SchemaError("Expected value for name '$enumName' in enum '${enumClass.simpleName}' but found none!")
                     }
 
                     value(
