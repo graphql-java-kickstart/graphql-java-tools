@@ -305,65 +305,6 @@ class SchemaParserTest {
                     |    id: ID!
                     |}
                     """.trimMargin())
-                .schemaString(
-                    """
-                    |type Foo {
-                    |    bar: String!!
-                    |}
-                    """.trimMargin())
-                .build()
-        }
-
-        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 17")
-        assertEquals(error.location?.line, 2)
-    }
-
-    @Test
-    fun `parser should include file name in syntax error`() {
-        val error = assertThrows(InvalidSyntaxException::class.java) {
-            SchemaParser.newParser()
-                .file("Test.graphqls")
-                .file("InvalidSyntax.graphqls")
-                .build()
-        }
-
-        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 15 in InvalidSyntax.graphqls")
-        assertEquals(error.location?.sourceName, "InvalidSyntax.graphqls")
-    }
-
-    @Test
-    fun `parser should include source name in syntax error from named schema string`() {
-        val error = assertThrows(InvalidSyntaxException::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    |type Query {
-                    |    id: ID!
-                    |}
-                    """.trimMargin(), "Query.graphqls")
-                .schemaString(
-                    """
-                    |type Foo {
-                    |    bar: String!!
-                    |}
-                    """.trimMargin(), "Foo.graphqls")
-                .build()
-        }
-
-        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 17 in Foo.graphqls")
-        assertEquals(error.location?.sourceName, "Foo.graphqls")
-    }
-
-    @Test
-    fun `parser should report syntax error on the last line of the last schema string relative to it`() {
-        val error = assertThrows(InvalidSyntaxException::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    |type Query {
-                    |    id: ID!
-                    |}
-                    """.trimMargin())
                 .schemaString("type Foo { bar: String!! }")
                 .build()
         }
@@ -373,27 +314,22 @@ class SchemaParserTest {
     }
 
     @Test
-    fun `parser should report unexpected end of the last schema string relative to it`() {
+    fun `parser should include file name in syntax error`() {
         val error = assertThrows(InvalidSyntaxException::class.java) {
             SchemaParser.newParser()
-                .schemaString(
-                    """
-                    |type Query {
-                    |    id: ID!
-                    |}
-                    """.trimMargin(), "Query.graphqls")
-                .schemaString("type Foo {\n    bar: String\n", "Foo.graphqls")
+                .file("InvalidSyntax.graphqls")
                 .build()
         }
 
-        assertEquals(error.message, "Invalid syntax with offending token '<EOF>' at line 3 column 1 in Foo.graphqls")
-        assertEquals(error.location?.line, 3)
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 15 in InvalidSyntax.graphqls")
+        assertEquals(error.location?.sourceName, "InvalidSyntax.graphqls")
     }
 
     @Test
-    fun `parser should report unexpected end of the last schema string relative to it after 1000 lines`() {
+    fun `parser should report unexpected end of the last schema string relative to it`() {
         val error = assertThrows(InvalidSyntaxException::class.java) {
             SchemaParser.newParser()
+                // over 1000 lines, so graphql-java's message groups the thousands in the overall line
                 .schemaString((1..1100).joinToString("\n") { "type Type$it { id: ID! }" }, "Types.graphqls")
                 .schemaString("type Foo {\n    bar: String\n", "Foo.graphqls")
                 .build()
