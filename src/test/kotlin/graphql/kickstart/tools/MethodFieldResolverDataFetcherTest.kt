@@ -16,7 +16,6 @@ import graphql.schema.DataFetchingEnvironmentImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -27,11 +26,9 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class MethodFieldResolverDataFetcherTest {
 
     @Test
-    @ExperimentalCoroutinesApi
     fun `data fetcher executes suspend function on coroutineContext defined by options`() {
         // setup
         val suspendClass = SuspendClass()
@@ -48,7 +45,6 @@ class MethodFieldResolverDataFetcherTest {
         private val dispatcher = Dispatchers.IO
         private val job = Job()
 
-        @ExperimentalCoroutinesApi
         val options = SchemaParserOptions.Builder()
             .coroutineContext(dispatcher + job)
             .build()
@@ -124,7 +120,6 @@ class MethodFieldResolverDataFetcherTest {
         }
     }
 
-    @ExperimentalCoroutinesApi
     @OptIn(DelicateCoroutinesApi::class)
     @Test
     fun `canceling subscription Publisher also cancels underlying Kotlin coroutine channel`() {

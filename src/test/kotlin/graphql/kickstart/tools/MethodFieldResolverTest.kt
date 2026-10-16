@@ -11,14 +11,12 @@ import graphql.schema.Coercing
 import graphql.schema.CoercingParseLiteralException
 import graphql.schema.CoercingSerializeException
 import graphql.schema.GraphQLScalarType
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.util.*
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class MethodFieldResolverTest {
 
     @Test

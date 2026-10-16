@@ -4,12 +4,10 @@ import graphql.GraphQLContext
 import graphql.execution.CoercedVariables
 import graphql.language.Value
 import graphql.schema.*
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.util.*
 import java.util.concurrent.CompletableFuture
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaClassScannerTest {
 
     @Test
