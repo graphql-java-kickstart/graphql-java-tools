@@ -24,3 +24,23 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
       - name: Build with Maven
         run: mvn --batch-mode --update-snapshots verify
+
+  # The same jar has to work with the oldest supported graphql-java, so build and test against it too
+  graphql-java-25:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup java
+        uses: actions/setup-java@v6
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+      - name: Cache Maven packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      - name: Build with Maven
+        run: mvn --batch-mode --update-snapshots verify -Dgraphql-java.version=25.1
