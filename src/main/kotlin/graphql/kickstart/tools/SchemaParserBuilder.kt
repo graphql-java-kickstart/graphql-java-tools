@@ -2,6 +2,8 @@ package graphql.kickstart.tools
 
 import graphql.language.Definition
 import graphql.language.Document
+import graphql.language.SourceLocation
+import graphql.parser.InvalidSyntaxException
 import graphql.parser.MultiSourceReader
 import graphql.parser.Parser
 import graphql.parser.ParserEnvironment
@@ -11,6 +13,7 @@ import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.misc.ParseCancellationException
+import java.text.NumberFormat
 import kotlin.Int.Companion.MAX_VALUE
 import kotlin.reflect.KClass
 
@@ -20,7 +23,7 @@ import kotlin.reflect.KClass
 class SchemaParserBuilder {
 
     private val dictionary = SchemaParserDictionary()
-    private val schemaString = StringBuilder()
+    private val schemaStrings = mutableListOf<Source>()
     private val files = mutableListOf<String>()
     private val resolvers = mutableListOf<GraphQLResolver<*>>()
     private val scalars = mutableListOf<GraphQLScalarType>()
@@ -49,10 +52,14 @@ class SchemaParserBuilder {
      * Add a GraphQL schema string directly.
      */
     fun schemaString(string: String) = this.apply {
-        if (schemaString.isNotEmpty()) {
-            schemaString.append("\n")
-        }
-        schemaString.append(string)
+        schemaStrings.add(Source(string, null))
+    }
+
+    /**
+     * Add a GraphQL schema string directly, naming its source in parse errors and source locations.
+     */
+    fun schemaString(string: String, sourceName: String) = this.apply {
+        schemaStrings.add(Source(string, sourceName))
     }
 
     /**
@@ -172,10 +179,10 @@ class SchemaParserBuilder {
 
     private fun parseDocuments(): List<Document> {
         try {
-            val documents = files.map { parseDocument(readFile(it), it) }.toMutableList()
+            val documents = files.map { parseDocument(listOf(Source(readFile(it), it))) }.toMutableList()
 
-            if (schemaString.isNotBlank()) {
-                documents.add(parseDocument(schemaString.toString()))
+            if (schemaStrings.any { it.text.isNotBlank() }) {
+                documents.add(parseDocument(schemaStrings))
             }
 
             return documents
@@ -189,16 +196,37 @@ class SchemaParserBuilder {
         }
     }
 
-    private fun parseDocument(input: String, sourceName: String? = null): Document {
-        val sourceReader = MultiSourceReader
-            .newMultiSourceReader()
-            .string(input, sourceName)
+    private fun parseDocument(sources: List<Source>): Document {
+        // graphql-java's MultiSourceReader numbers the last line of the last source from the start of the first one.
+        // Ending every source with a line break leaves only the end of input on that line, see syntaxErrorInSource.
+        val separated = if (sources.size > 1) sources.map { it.endingWithLineBreak() } else sources
+        val sourceReader = MultiSourceReader.newMultiSourceReader()
+            .apply { separated.forEach { string(it.text, it.name) } }
             .trackData(true).build()
         val environment = ParserEnvironment
             .newParserEnvironment()
             .document(sourceReader)
             .parserOptions(parserOptions).build()
-        return parser.parseDocument(environment)
+        try {
+            return parser.parseDocument(environment)
+        } catch (e: InvalidSyntaxException) {
+            throw syntaxErrorInSource(e, separated.last())
+        }
+    }
+
+    /**
+     * Makes the line of an unexpected end of input relative to the last source and adds the source name to the message.
+     */
+    private fun syntaxErrorInSource(e: InvalidSyntaxException, lastSource: Source): InvalidSyntaxException {
+        val location = e.location ?: return e
+        val line = if (e.offendingToken == "<EOF>") lastSource.text.lines().size else location.line
+        if (line == location.line && location.sourceName == null) return e
+
+        // graphql-java formats the line for the default locale, e.g. "1,103"
+        val number = NumberFormat.getInstance()
+        val message = e.message.orEmpty().replaceFirst(" ${number.format(location.line)} ", " ${number.format(line)} ")
+        val inSource = location.sourceName?.let { " in $it" }.orEmpty()
+        return SchemaSyntaxException(message + inSource, SourceLocation(line, location.column, location.sourceName), e)
     }
 
     private fun readFile(filename: String) =
@@ -209,6 +237,10 @@ class SchemaParserBuilder {
      * Build the parser with the supplied schema and dictionary.
      */
     fun build() = SchemaParser(scan(), options, runtimeWiringBuilder.build())
+
+    private data class Source(val text: String, val name: String?) {
+        fun endingWithLineBreak() = if (text.endsWith("\n")) this else copy(text = "$text\n")
+    }
 }
 
 class InvalidSchemaError(
@@ -218,3 +250,6 @@ class InvalidSchemaError(
     override val message: String
         get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }
+
+internal class SchemaSyntaxException(message: String, location: SourceLocation, e: InvalidSyntaxException) :
+    InvalidSyntaxException(message, location, e.offendingToken, e.sourcePreview, e)
