@@ -7,7 +7,6 @@ import graphql.parser.InvalidSyntaxException
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.reactive.publish
 import org.junit.Assert.assertThrows
@@ -23,7 +22,6 @@ import java.util.concurrent.CompletableFuture.completedStage
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
 

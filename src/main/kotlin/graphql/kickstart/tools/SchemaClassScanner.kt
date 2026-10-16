@@ -234,8 +234,8 @@ internal class SchemaClassScanner(
                 dictionary
                     .filter {
                         it.value.javaType != null
-                            && it.value.typeClass() != java.lang.Object::class.java
-                            && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
+                            && it.value.typeClass() != Any::class.java
+                            && !Map::class.java.isAssignableFrom(it.value.typeClass())
                             && it.key !is InputObjectTypeDefinition
                             && it.key !is UnionTypeDefinition
                     }.mapValuesTo(it) { it.value.javaType }
@@ -355,7 +355,7 @@ internal class SchemaClassScanner(
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        val resolverInfo = if (item.clazz == Object::class.java) {
+        val resolverInfo = if (item.clazz == Any::class.java) {
             getResolverInfoFromTypeDictionary(item.type.name)
                 ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
         } else {
@@ -391,7 +391,7 @@ internal class SchemaClassScanner(
     }
 
     private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: Class<*>) =
-        resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
+        resolverInfo.dataClassType != Any::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
@@ -428,7 +428,7 @@ internal class SchemaClassScanner(
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
                     log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
-                    if (java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
+                    if (Map::class.java.isAssignableFrom(javaType.unwrap())) {
                         throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
                     }
                     throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.typeName}:\n|   ${reference.getDescription()}")
