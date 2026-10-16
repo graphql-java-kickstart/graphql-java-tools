@@ -173,13 +173,49 @@ internal class SchemaClassScanner(
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
         when (typeDefinition) {
             is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
-            is EnumTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
-                "Enum type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
-            }
+            is EnumTypeDefinition -> handleDirectiveEnum(typeDefinition)
             is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
                 "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
             }
         }
+    }
+
+    /**
+     * Directive argument values never reach resolver methods, so an enum used in a directive doesn't need a class. Without one
+     * it goes into [unvalidatedTypes] and, unless a field uses it too, is built with its value names as values, see
+     * [validateAndCreateResult].
+     */
+    private fun handleDirectiveEnum(type: EnumTypeDefinition) {
+        if (dictionary.containsKey(type)) {
+            return
+        }
+
+        val initialEntry = initialDictionary[type.name]
+        if (initialEntry != null) {
+            handleFoundType(type, initialEntry.get(), DictionaryReference())
+        } else {
+            unvalidatedTypes.add(type)
+        }
+    }
+
+    /**
+     * The names of the types used by the fields, arguments and input fields of [definitions], including fields added by extensions.
+     */
+    private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
+        val names = definitions.map { it.name }.toSet()
+        return (definitions + extensionDefinitions + inputExtensionDefinitions)
+            .filter { it.name in names }
+            .flatMap { definition ->
+                when (definition) {
+                    is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
+                        field.inputValueDefinitions.map { it.type } + field.type
+                    }
+                    is InputObjectTypeDefinition -> definition.inputValueDefinitions.map { it.type }
+                    else -> emptyList()
+                }
+            }
+            .mapNotNull { (it.unwrap() as TypeName).name }
+            .toSet()
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
@@ -248,7 +284,13 @@ internal class SchemaClassScanner(
 
         val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
 
-        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
+        // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
+        // to a Map or an unimplemented field's argument.
+        val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
+        val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<EnumTypeDefinition>().filter { it.name !in typeNamesUsedByFields }.toSet()
+
+        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
