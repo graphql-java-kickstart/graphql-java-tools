@@ -70,6 +70,7 @@ class SchemaParser internal constructor(
         if (!options.introspectionEnabled) {
             // What the deprecated NoIntrospectionGraphqlFieldVisibility does. Its suggested replacement,
             // Introspection.enabledJvmWide, would also turn introspection off for every other schema in the JVM.
+            // TODO deprecate introspectionEnabled and remove this in 15.0.0 (#858)
             codeRegistryBuilder.fieldVisibility(BlockedFields.newBlock().addPattern("__.*").build())
         }
         // this overrides the above introspection enabled setting obviously... todo: add documentation
