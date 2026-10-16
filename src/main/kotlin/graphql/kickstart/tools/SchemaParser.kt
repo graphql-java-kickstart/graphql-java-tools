@@ -39,6 +39,7 @@ class SchemaParser internal constructor(
     private val rootInfo = scanResult.rootInfo
     private val fieldResolversByType = scanResult.fieldResolversByType
     private val unusedDefinitions = scanResult.unusedDefinitions
+    private val directiveOnlyEnums = scanResult.directiveOnlyEnums
 
     private val extensionDefinitions = definitions.filterIsInstance<ObjectTypeExtensionDefinition>()
     private val inputExtensionDefinitions = definitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
@@ -195,9 +196,10 @@ class SchemaParser internal constructor(
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
         val name = definition.name
-        val type = dictionary[definition]
-            ?: throw SchemaError("Expected enum with name '$name' but found none!")
-        if (!type.unwrap().isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
+        // enums only used by directives can do without a class, see SchemaClassScanner.handleDirectiveEnum
+        val enumClass = dictionary[definition]?.unwrap()
+        if (enumClass == null && definition !in directiveOnlyEnums) throw SchemaError("Expected enum with name '$name' but found none!")
+        if (enumClass != null && !enumClass.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
         val builder = GraphQLEnumType.newEnum()
             .name(name)
@@ -208,8 +210,12 @@ class SchemaParser internal constructor(
             .apply {
                 definition.enumValueDefinitions.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
-                    val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
-                        ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
+                    val enumValue = if (enumClass == null) {
+                        enumName
+                    } else {
+                        enumClass.enumConstants.find { (it as Enum<*>).name == enumName }
+                            ?: throw SchemaError("Expected value for name '$enumName' in enum '${enumClass.simpleName}' but found none!")
+                    }
 
                     value(
                         GraphQLEnumValueDefinition.newEnumValueDefinition()
