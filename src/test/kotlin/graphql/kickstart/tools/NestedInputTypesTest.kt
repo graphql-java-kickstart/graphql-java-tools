@@ -172,7 +172,10 @@ class NestedInputTypesTest {
 
                 input EntityUpdateInput {
                     id: ID!
-                    nested: Nested
+                    # named like methods of ObjectNode
+                    values: [Nested]
+                    elements: [Nested]
+                    fields: [Nested]
                 }
 
                 input Nested {
@@ -193,13 +196,13 @@ class NestedInputTypesTest {
             """
             mutation {
                 create(input: { name: "n", nested: { x: 1 } })
-                update(input: { id: "2", nested: { x: 3 } })
+                update(input: { id: "2", values: [{ x: 3 }], elements: [{ x: 4 }], fields: [{ x: 5 }] })
             }
             """
         }
 
         assertEquals(data["create"], """{"name":"n","nested":{"x":1}}""")
-        assertEquals(data["update"], """{"id":"2","nested":{"x":3}}""")
+        assertEquals(data["update"], """{"id":"2","values":[{"x":3}],"elements":[{"x":4}],"fields":[{"x":5}]}""")
     }
 
     @Test
@@ -335,43 +338,6 @@ class NestedInputTypesTest {
 
         assertEquals(data["byMap"], "{lines=[{sku=a}]}")
         assertEquals(data["byClass"], "b, c")
-    }
-
-    @Test
-    fun `input fields bound to ObjectNode are not matched against its own methods`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    create(input: EntityInput!): String
-                }
-
-                input EntityInput {
-                    values: [Nested]
-                    elements: [Nested]
-                    fields: [Nested]
-                }
-
-                input Nested {
-                    x: Int
-                }
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun create(input: ObjectNode): String = input.toString()
-            })
-            .build()
-            .makeExecutableSchema()
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val data = assertNoGraphQlErrors(gql) {
-            """
-            query {
-                create(input: { values: [{ x: 1 }], elements: [{ x: 2 }], fields: [{ x: 3 }] })
-            }
-            """
-        }
-
-        assertEquals(data["create"], """{"values":[{"x":1}],"elements":[{"x":2}],"fields":[{"x":3}]}""")
     }
 
     @Test

@@ -186,20 +186,55 @@ internal class SchemaClassScanner(
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
         when (typeDefinition) {
             is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
-            is EnumTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
-                "Enum type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
-            }
+            is EnumTypeDefinition -> handleDirectiveEnum(typeDefinition)
             is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
                 "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
             }
         }
     }
 
+    /**
+     * Directive argument values never reach resolver methods, so an enum used in a directive doesn't need a class. Without one
+     * it goes into [unvalidatedTypes] and, unless a field uses it too, is built with its value names as values, see
+     * [validateAndCreateResult].
+     */
+    private fun handleDirectiveEnum(type: EnumTypeDefinition) {
+        if (dictionary.containsKey(type)) {
+            return
+        }
+
+        val initialEntry = initialDictionary[type.name]
+        if (initialEntry != null) {
+            handleFoundType(type, initialEntry.get(), DictionaryReference())
+        } else {
+            unvalidatedTypes.add(type)
+        }
+    }
+
+    /**
+     * The names of the types used by the fields, arguments and input fields of [definitions], including fields added by extensions.
+     */
+    private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
+        val names = definitions.map { it.name }.toSet()
+        return (definitions + extensionDefinitions + inputExtensionDefinitions)
+            .filter { it.name in names }
+            .flatMap { definition ->
+                when (definition) {
+                    is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
+                        field.inputValueDefinitions.map { it.type } + field.type
+                    }
+                    is InputObjectTypeDefinition -> definition.inputValueDefinitions.map { it.type }
+                    else -> emptyList()
+                }
+            }
+            .mapNotNull { (it.unwrap() as TypeName).name }
+            .toSet()
+    }
+
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
-        enumsWithoutClass
-            .filter { dictionary[it.key]?.javaType == null }
-            .values.firstOrNull()
-            ?.let { throw SchemaClassScannerError(it) }
+        enumsWithoutClass.entries
+            .find { dictionary[it.key]?.javaType == null }
+            ?.let { throw SchemaClassScannerError(it.value) }
 
         initialDictionary
             .filter { !it.value.accessed }
@@ -218,8 +253,8 @@ internal class SchemaClassScanner(
                 dictionary
                     .filter {
                         it.value.javaType != null
-                            && it.value.typeClass() != java.lang.Object::class.java
-                            && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
+                            && it.value.typeClass() != Any::class.java
+                            && !Map::class.java.isAssignableFrom(it.value.typeClass())
                             && it.key !is InputObjectTypeDefinition
                             && it.key !is UnionTypeDefinition
                     }.mapValuesTo(it) { it.value.javaType }
@@ -266,7 +301,13 @@ internal class SchemaClassScanner(
 
         val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
 
-        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
+        // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
+        // to a Map or an unimplemented field's argument.
+        val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
+        val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<EnumTypeDefinition>().filter { it.name !in typeNamesUsedByFields }.toSet()
+
+        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -333,7 +374,7 @@ internal class SchemaClassScanner(
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        val resolverInfo = if (item.clazz == Object::class.java) {
+        val resolverInfo = if (item.clazz == Any::class.java) {
             getResolverInfoFromTypeDictionary(item.type.name)
                 ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
         } else {
@@ -369,7 +410,7 @@ internal class SchemaClassScanner(
     }
 
     private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: Class<*>) =
-        resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
+        resolverInfo.dataClassType != Any::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
@@ -406,7 +447,7 @@ internal class SchemaClassScanner(
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
                     log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
-                    if (java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
+                    if (Map::class.java.isAssignableFrom(javaType.unwrap())) {
                         throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
                     }
                     throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.typeName}:\n|   ${reference.getDescription()}")
@@ -441,27 +482,30 @@ internal class SchemaClassScanner(
      * has no known class, e.g. because it's only reachable through a Map.
      */
     private fun handleInputObjectFields(graphQLType: InputObjectTypeDefinition, javaType: JavaType?) {
+        val clazz = javaType?.unwrap()
         val inputObjectTypes = listOf(graphQLType) + inputExtensionDefinitions.filter { it.name == graphQLType.name }
         inputObjectTypes
             .flatMap { it.inputValueDefinitions }
             .forEach { inputValueDefinition ->
                 val inputGraphQLType = inputValueDefinition.type.unwrap()
-                if (inputGraphQLType is TypeName && !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                    val propertyType = javaType?.unwrap()?.let { findInputValueTypeInType(inputValueDefinition.name, it) }
-                    val inputValueJavaType = propertyType ?: initialDictionary[inputGraphQLType.name]?.get()
-                    if (inputValueJavaType != null) {
-                        val genericContext = javaType ?: inputValueJavaType
-                        handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
-                            // a class from the dictionary is for the unwrapped type, not for its list or non-null wrapper
-                            if (propertyType != null) inputValueDefinition.type else inputGraphQLType,
-                            inputValueJavaType,
-                            GenericTypeResolver(genericContext, options),
-                            InputObjectReference(inputValueDefinition)
-                        )))
-                    } else {
-                        handleInputValueWithoutJavaType(graphQLType, inputValueDefinition, inputGraphQLType, javaType?.unwrap())
-                    }
+                if (inputGraphQLType !is TypeName || ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                    return@forEach
                 }
+
+                val propertyType = clazz?.let { findInputValueTypeInType(inputValueDefinition.name, it) }
+                val inputValueJavaType = propertyType ?: initialDictionary[inputGraphQLType.name]?.get()
+                if (inputValueJavaType == null) {
+                    handleInputValueWithoutJavaType(graphQLType, inputValueDefinition, inputGraphQLType, clazz)
+                    return@forEach
+                }
+
+                handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
+                    // a class from the dictionary is for the unwrapped type, not for its list or non-null wrapper
+                    if (propertyType != null) inputValueDefinition.type else inputGraphQLType,
+                    inputValueJavaType,
+                    GenericTypeResolver(javaType ?: inputValueJavaType, options),
+                    InputObjectReference(inputValueDefinition)
+                )))
             }
     }
 
@@ -472,8 +516,7 @@ internal class SchemaClassScanner(
     private fun handleInputValueWithoutJavaType(graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, inputGraphQLType: TypeName, clazz: Class<*>?) {
         if (clazz != null && !isPropertyMap(clazz)) {
             log.warn("Cannot find a public getter or field for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' of input type '${graphQLType.name}' on ${clazz.name}. " +
-                "Unless Jackson maps it some other way, e.g. through @JsonProperty, check that the property name matches the schema, " +
-                "otherwise the field's value is rejected or dropped when the input is deserialized.")
+                "If Jackson doesn't map it some other way, e.g. through @JsonProperty, the field's value is rejected or dropped when the input is deserialized.")
         }
 
         when (val definition = definitionsByName[inputGraphQLType.name]) {
@@ -493,23 +536,22 @@ internal class SchemaClassScanner(
         }
     }
 
+    // an input bound to Any gets a Map at runtime too
     private fun isPropertyMap(clazz: Class<*>) =
-        java.util.Map::class.java.isAssignableFrom(clazz) || JsonNode::class.java.isAssignableFrom(clazz) || clazz == Object::class.java
+        Map::class.java.isAssignableFrom(clazz) || JsonNode::class.java.isAssignableFrom(clazz) || clazz == Any::class.java
 
     private fun isLibraryClass(clazz: Class<*>) =
-        listOf("java.", "javax.", "kotlin.", "com.fasterxml.jackson.").any { clazz.name.startsWith(it) }
+        listOf("java.", "kotlin.", "com.fasterxml.jackson.").any { clazz.name.startsWith(it) }
 
-    private fun enumWithoutClassMessage(enum: EnumTypeDefinition, graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, clazz: Class<*>?): String {
+    private fun enumWithoutClassMessage(enumType: EnumTypeDefinition, graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, clazz: Class<*>?): String {
         val field = inputValueDefinition.name
-        val problem = "Enum type '${enum.name}' is used by field '$field' of input type '${graphQLType.name}', but its Java enum can't be determined"
-        return when {
-            clazz == null -> "$problem because no class was found for input type '${graphQLType.name}'. " +
-                "Pass the enum class for type '${enum.name}' in the parser's dictionary, or a class for '${graphQLType.name}' with a public getter or field '$field'."
-            isPropertyMap(clazz) && isLibraryClass(clazz) -> "$problem because '${graphQLType.name}' is bound to ${clazz.name}, which has no type information for its fields. " +
-                "Pass the enum class for type '${enum.name}' in the parser's dictionary, or use a class for '${graphQLType.name}' with a public getter or field '$field'."
-            else -> "$problem because ${clazz.name} has no public getter or field named '$field'. " +
-                "Add a public getter or field '$field' to the class used for '${graphQLType.name}', or pass the enum class for type '${enum.name}' in the parser's dictionary."
+        val reason = when {
+            clazz == null -> "no class was found for input type '${graphQLType.name}'"
+            isPropertyMap(clazz) && isLibraryClass(clazz) -> "'${graphQLType.name}' is bound to ${clazz.name}, which has no type information for its fields"
+            else -> "${clazz.name} has no public getter or field named '$field'"
         }
+        return "Enum type '${enumType.name}' is used by field '$field' of input type '${graphQLType.name}', but its Java enum can't be determined because $reason. " +
+            "Pass the enum class for type '${enumType.name}' in the parser's dictionary, or use a class for '${graphQLType.name}' with a public getter or field '$field'."
     }
 
     private fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {

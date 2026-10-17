@@ -7,7 +7,6 @@ import graphql.execution.AsyncExecutionStrategy
 import graphql.kickstart.tools.SchemaParser.Companion.newParser
 import graphql.kickstart.tools.SchemaParserOptions.Companion.newOptions
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -17,7 +16,6 @@ import java.util.concurrent.FutureTask
 //import io.reactivex.Single;
 //import io.reactivex.internal.operators.single.SingleJust;
 //import static io.reactivex.Maybe.just;
-@OptIn(ExperimentalCoroutinesApi::class)
 class ReactiveTest {
 
     @Test

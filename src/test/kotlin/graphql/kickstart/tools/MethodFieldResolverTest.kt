@@ -11,14 +11,12 @@ import graphql.schema.Coercing
 import graphql.schema.CoercingParseLiteralException
 import graphql.schema.CoercingSerializeException
 import graphql.schema.GraphQLScalarType
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.util.*
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class MethodFieldResolverTest {
 
     @Test
@@ -51,7 +49,7 @@ class MethodFieldResolverTest {
                 testNull(input: null)
             }
             """)
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf(
             "testValue" to "Optional[test-value]",
@@ -93,7 +91,7 @@ class MethodFieldResolverTest {
                 testNull(input: null)
             }
             """)
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf(
             "testValue" to "Optional[test-value]",
@@ -128,7 +126,7 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to "FooBar"))
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
     }
@@ -159,7 +157,7 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to listOf("Foo", "Bar")))
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
     }
@@ -206,7 +204,7 @@ class MethodFieldResolverTest {
             }
             """)
             .variables(mapOf("input" to listOf("Foo", "Bar")))
-            .root(Object()))
+            .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
     }

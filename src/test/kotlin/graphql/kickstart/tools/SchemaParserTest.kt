@@ -3,10 +3,10 @@ package graphql.kickstart.tools
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.parser.InvalidSyntaxException
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.reactive.publish
 import org.junit.Assert.assertThrows
@@ -22,7 +22,6 @@ import java.util.concurrent.CompletableFuture.completedStage
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
 
@@ -284,7 +283,7 @@ class SchemaParserTest {
                 .makeExecutableSchema()
         }
 
-        assertEquals(error.message, "Type 'Cat' used by field 'Pet.friend' at line 6, column 11 of UnreachedType.graphqls is defined in the schema, " +
+        assertEquals(error.message, "Type 'Cat' used by field 'Pet.friend' at line 6, column 11 in UnreachedType.graphqls is defined in the schema, " +
             "but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
             "Return it from a resolver method or one of those classes, or set SchemaParserOptions.includeUnusedTypes and pass a class for it in the parser's dictionary.")
     }
@@ -417,6 +416,73 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `parser should report syntax error line relative to the schema string containing it`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    id: ID!
+                    |}
+                    """.trimMargin())
+                .schemaString("type Foo { bar: String!! }")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 1 column 24")
+        assertEquals(error.location?.line, 1)
+    }
+
+    @Test
+    fun `parser should include file name in syntax error`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                .file("InvalidSyntax.graphqls")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '!' at line 2 column 15 in InvalidSyntax.graphqls")
+        assertEquals(error.location?.sourceName, "InvalidSyntax.graphqls")
+    }
+
+    @Test
+    fun `parser should report unexpected end of the last schema string relative to it`() {
+        val error = assertThrows(InvalidSyntaxException::class.java) {
+            SchemaParser.newParser()
+                // over 1000 lines, so graphql-java's message groups the thousands in the overall line
+                .schemaString((1..1100).joinToString("\n") { "type Type$it { id: ID! }" }, "Types.graphqls")
+                .schemaString("type Foo {\n    bar: String\n", "Foo.graphqls")
+                .build()
+        }
+
+        assertEquals(error.message, "Invalid syntax with offending token '<EOF>' at line 3 column 1 in Foo.graphqls")
+        assertEquals(error.location?.line, 3)
+    }
+
+    @Test
+    fun `parser should include source location for field definition in named schema string`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                |schema {
+                |    query: Query
+                |}
+                """.trimMargin(), "Schema.graphqls")
+            .schemaString("type Query { id: ID! }", "Query.graphqls")
+            .resolvers(QueryWithIdResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val sourceLocation = schema.getObjectType("Query")!!
+            .getFieldDefinition("id")
+            .definition!!.sourceLocation
+        assertNotNull(sourceLocation)
+        assertEquals(sourceLocation?.line, 1)
+        assertEquals(sourceLocation?.column, 14)
+        assertEquals(sourceLocation?.sourceName, "Query.graphqls")
+    }
+
+    @Test
     fun `support enum types if only used as input type`() {
         SchemaParser.newParser()
             .schemaString(
@@ -506,60 +572,42 @@ class SchemaParserTest {
 
     @Test
     fun `parser should throw descriptive exception when enum is only used in input Map without a class`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
+        val schema = """
+            type Query {
+                save(input: SaveInput!): Boolean
+            }
+
+            input SaveInput {
+                type: EnumType!
+            }
+
+            enum EnumType {
+                TEST
+            }
+            """
+        val mapError = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        save(input: SaveInput!): Boolean
-                    }
-
-                    input SaveInput {
-                        type: EnumType!
-                    }
-
-                    enum EnumType {
-                        TEST
-                    }
-                    """)
+                .schemaString(schema)
                 .resolvers(object : GraphQLQueryResolver {
                     fun save(input: Map<*, *>): Boolean = false
                 })
                 .build()
         }
-
-        assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
-            "because 'SaveInput' is bound to java.util.Map, which has no type information for its fields. Pass the enum class for type " +
-            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
-    }
-
-    @Test
-    fun `parser should throw descriptive exception when enum is only used in input Map subclass without a getter for it`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
+        val subclassError = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        save(input: SaveInput!): Boolean
-                    }
-
-                    input SaveInput {
-                        type: EnumType!
-                    }
-
-                    enum EnumType {
-                        TEST
-                    }
-                    """)
+                .schemaString(schema)
                 .resolvers(object : GraphQLQueryResolver {
                     fun save(input: SaveInputMap): Boolean = false
                 })
                 .build()
         }
 
-        assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
-            "because ${SaveInputMap::class.java.name} has no public getter or field named 'type'. Add a public getter or field 'type' to the class " +
-            "used for 'SaveInput', or pass the enum class for type 'EnumType' in the parser's dictionary.")
+        assertEquals(mapError.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
+            "because 'SaveInput' is bound to java.util.Map, which has no type information for its fields. Pass the enum class for type " +
+            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
+        assertEquals(subclassError.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
+            "because ${SaveInputMap::class.java.name} has no public getter or field named 'type'. Pass the enum class for type " +
+            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
     }
 
     @Test
@@ -592,7 +640,7 @@ class SchemaParserTest {
 
         assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'NestedInput', but its Java enum can't be determined " +
             "because no class was found for input type 'NestedInput'. Pass the enum class for type 'EnumType' in the parser's dictionary, " +
-            "or a class for 'NestedInput' with a public getter or field 'type'.")
+            "or use a class for 'NestedInput' with a public getter or field 'type'.")
     }
 
     @Test
@@ -765,6 +813,52 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `input objects behind list and non-null input fields should resolve to GraphQLInputObjectType during directive wiring`() {
+        val wiredFieldTypes = mutableMapOf<String, String>()
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test(filter: NestedFilter): Boolean
+                }
+
+                input NestedFilter {
+                    subs: [SubFilter!]
+                    other: OtherFilter!
+                }
+
+                input SubFilter {
+                    parent: NestedFilter
+                }
+
+                input OtherFilter {
+                    name: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(filter: NestedFilter?): Boolean = false
+            })
+            .directiveWiring(object : SchemaDirectiveWiring {
+                override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+                    val type = GraphQLTypeUtil.unwrapAllAs<GraphQLType>(environment.element.type)
+                    if (type !is GraphQLScalarType) {
+                        wiredFieldTypes[environment.element.name] = type.javaClass.simpleName
+                    }
+                    return environment.element
+                }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        // parent points back at NestedFilter while it's still being built, so it stays a type reference until the schema is built
+        assertEquals(wiredFieldTypes, mapOf(
+            "subs" to "GraphQLInputObjectType",
+            "other" to "GraphQLInputObjectType",
+            "parent" to "GraphQLTypeReference"
+        ))
+    }
+
+    @Test
     fun `parser should use comments for descriptions`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -930,6 +1024,12 @@ class SchemaParserTest {
     class Filter {
         fun filter(): String? = null
     }
+
+    data class NestedFilter(val subs: List<SubFilter>?, val other: OtherFilter)
+
+    data class SubFilter(val parent: NestedFilter?)
+
+    data class OtherFilter(val name: String?)
 
     class CustomGenericWrapper<T, V>
 
