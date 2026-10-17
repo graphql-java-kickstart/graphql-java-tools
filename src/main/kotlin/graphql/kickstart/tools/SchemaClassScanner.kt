@@ -59,16 +59,15 @@ internal class SchemaClassScanner(
             }
         }
 
-        // Input types never go into the type => class bimap, so several of them can share a class, e.g. ObjectNode. Every
-        // other kind still gets one class per type, as before. Most of them end up in the bimap, which interface and union
-        // type resolution use to find the type of an object.
+        // Input object types never go into the type => class bimap that interface and union type resolution use, so several of
+        // them can share a class, e.g. ObjectNode
         initialDictionary
             .filterKeys { definitionsByName[it] !is InputObjectTypeDefinition }
             .entries.groupBy({ it.value }, { it.key })
-            .filterValues { it.size > 1 }
-            .entries.firstOrNull()
-            ?.let { (clazz, names) ->
-                throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type names ${names.joinToString { "'$it'" }}, but only input object types can share a class!")
+            .forEach { (clazz, names) ->
+                if (names.size > 1) {
+                    throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type names ${names.joinToString { "'$it'" }}, but only input object types can share a class!")
+                }
             }
 
         if (options.allowUnimplementedResolvers) {
