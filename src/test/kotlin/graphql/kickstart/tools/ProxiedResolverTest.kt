@@ -146,6 +146,10 @@ class ProxiedResolverTest {
             setInterfaces(GraphQLQueryResolver::class.java)
         }.proxy as GraphQLQueryResolver
         assertEquals(buildError(hidingProxy)?.substringBefore(" as defined"), "Resolver method '${Query::class.java.name}.test' for field 'test'")
+
+        // test(Integer) is scanned, but the proxy would call test(int), which implements OverloadApi<Int>.test(T)
+        assertEquals(buildError(jdkProxy(OverloadQuery()), "type Query { test(value: Int!): String }")?.substringBefore(" as defined"),
+            "Resolver method '${OverloadQuery::class.java.name}.test' for field 'test'")
     }
 
     interface StaticApi {
@@ -158,6 +162,18 @@ class ProxiedResolverTest {
     // calling the static StaticApi.test() instead would skip both the proxy and the resolver's own test()
     class ClassOnlyQuery : GraphQLQueryResolver, StaticApi {
         fun test() = "ok"
+    }
+
+    interface OverloadApi<T> {
+        fun test(value: T): String
+    }
+
+    abstract class OverloadBase : OverloadApi<Int> {
+        override fun test(value: Int) = "override"
+    }
+
+    class OverloadQuery : OverloadBase(), GraphQLQueryResolver {
+        fun test(value: Int?) = "overload"
     }
 
     @Test
@@ -187,8 +203,8 @@ class ProxiedResolverTest {
             "query { dog { name greeting } }"
         }["dog"]
 
-    private fun buildError(resolver: GraphQLResolver<*>) =
-        assertThrows(FieldResolverError::class.java) { parse("type Query { test: String }", resolver) }.message
+    private fun buildError(resolver: GraphQLResolver<*>, schema: String = "type Query { test: String }") =
+        assertThrows(FieldResolverError::class.java) { parse(schema, resolver) }.message
 
     private fun graphQL(schema: String, vararg resolvers: GraphQLResolver<*>) =
         GraphQL.newGraphQL(parse(schema, *resolvers).makeExecutableSchema()).build()

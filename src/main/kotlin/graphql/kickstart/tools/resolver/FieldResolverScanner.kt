@@ -83,7 +83,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         return ClassUtils.getAllInterfaces(type)
             .filter { it.isInstance(source) }
             .flatMap { it.methods.toList() }
-            .find { !Modifier.isStatic(it.modifiers) && method.implements(it, type) }
+            // the proxy calls whichever method of the target class implements the interface method, so that has to be this method
+            // and not an overload, e.g. test(int) next to test(Integer) for Api<Int>.test(T)
+            .find { interfaceMethod ->
+                !Modifier.isStatic(interfaceMethod.modifiers)
+                    && type.methods.filter { !it.isBridge && it.implements(interfaceMethod, type) } == listOf(method)
+            }
             ?.apply(trySetAccessible(field, search.type))
             ?: throw FieldResolverError(
                 "Resolver method '${method.declaringClass.name}.${method.name}' for field '${field.name}' as defined in schema ${getSourceLocation(field)} " +
