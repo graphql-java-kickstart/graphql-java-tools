@@ -22,7 +22,7 @@ class ProxiedResolverTest {
     }
 
     @Test
-    fun `JDK proxied resolver methods are called through the interface the proxy implements`() {
+    fun `JDK proxied resolver methods are called through the proxy's interfaces and static methods directly`() {
         val gql = graphQL(
             """
             type Query {

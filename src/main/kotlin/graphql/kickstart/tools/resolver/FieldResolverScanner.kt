@@ -51,7 +51,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if (method != null) {
-            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)), findInvocableMethod(field, search, method))
+            val invocableMethod = findInvocableMethod(field, search, method)
+            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)), invocableMethod)
         }
 
         if (scanProperties) {
@@ -79,15 +80,15 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             return method
         }
 
-        val type = search.type.unwrap()
-        return ClassUtils.getAllInterfaces(type)
+        val targetClass = search.type.unwrap()
+        return ClassUtils.getAllInterfaces(targetClass)
             .filter { it.isInstance(source) }
             .flatMap { it.methods.toList() }
             // the proxy calls whichever method of the target class implements the interface method, so that has to be this method
             // and not an overload, e.g. test(int) next to test(Integer) for Api<Int>.test(T)
             .find { interfaceMethod ->
                 !Modifier.isStatic(interfaceMethod.modifiers)
-                    && type.methods.filter { !it.isBridge && it.implements(interfaceMethod, type) } == listOf(method)
+                    && targetClass.methods.filter { !it.isBridge && it.implements(interfaceMethod, targetClass) } == listOf(method)
             }
             ?.apply(trySetAccessible(field, search.type))
             ?: throw FieldResolverError(
@@ -99,16 +100,22 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     // the implementation of a generic interface method takes the type arguments, e.g. echo(String) for echo(T) of Api<String>,
-    // and the compiler bridges the erased echo(Object) to it. Kotlin also unboxes them, e.g. increment(int) for Api<Int>.
-    // A method inherited from a generic superclass is erased itself, e.g. getValue(Object) for getValue(T), so both sides are
-    // resolved against the target class
-    private fun Method.implements(interfaceMethod: Method, type: Class<*>): Boolean =
-        name == interfaceMethod.name && parameterCount == interfaceMethod.parameterCount && parameterTypes.indices.all { i ->
-            val interfaceParameterType = interfaceMethod.genericParameterTypes[i]
-            val resolvedInterfaceType = TypeUtils.getRawType(interfaceParameterType, type) ?: interfaceMethod.parameterTypes[i]
-            val resolvedType = TypeUtils.getRawType(genericParameterTypes[i], type) ?: parameterTypes[i]
-            resolvedInterfaceType == if (interfaceParameterType is TypeVariable<*>) ClassUtils.primitiveToWrapper(resolvedType) else resolvedType
+    // and the compiler bridges the erased echo(Object) to it. A method inherited from a generic superclass is erased itself,
+    // e.g. getValue(Object) for getValue(T), so both sides are resolved against the target class
+    private fun Method.implements(interfaceMethod: Method, targetClass: Class<*>): Boolean {
+        if (name != interfaceMethod.name || parameterCount != interfaceMethod.parameterCount) {
+            return false
         }
+
+        return parameterTypes.indices.all { i ->
+            val interfaceParameterType = interfaceMethod.genericParameterTypes[i]
+            val resolvedInterfaceType = TypeUtils.getRawType(interfaceParameterType, targetClass) ?: interfaceMethod.parameterTypes[i]
+            val resolvedType = (TypeUtils.getRawType(genericParameterTypes[i], targetClass) ?: parameterTypes[i])
+                // Kotlin unboxes type arguments, e.g. increment(int) for Api<Int>.increment(T)
+                .let { if (interfaceParameterType is TypeVariable<*>) ClassUtils.primitiveToWrapper(it) else it }
+            resolvedType == resolvedInterfaceType
+        }
+    }
 
     private fun trySetAccessible(field: FieldDefinition, type: JavaType): AccessibleObject.() -> Unit = {
         try {
