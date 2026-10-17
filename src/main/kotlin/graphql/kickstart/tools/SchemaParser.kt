@@ -8,6 +8,7 @@ import graphql.kickstart.tools.directive.DirectiveWiringHelper
 import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.getExtendedFieldDefinitions
+import graphql.kickstart.tools.util.getExtendedImplements
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.*
 import graphql.schema.*
@@ -137,7 +138,7 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.OBJECT))
             .apply {
-                (objectDefinition.implements + extensions.flatMap { it.implements }).forEach { implementsDefinition ->
+                objectDefinition.getExtendedImplements(extensions).forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(interfaces.find { it.name == interfaceName }
                         ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
@@ -262,7 +263,7 @@ class SchemaParser internal constructor(
                 }
             }
             .apply {
-                (interfaceDefinition.implements + extensions.flatMap { it.implements }).forEach { implementsDefinition ->
+                interfaceDefinition.getExtendedImplements(extensions).forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(GraphQLTypeReference(interfaceName))
                 }

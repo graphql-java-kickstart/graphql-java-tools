@@ -330,7 +330,10 @@ internal class SchemaClassScanner(
 
     private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
-            objectDefinitions.filter { obj -> obj.getExtendedImplements().filterIsInstance<TypeName>().any { it.name == iface.name } }
+            objectDefinitions.filter { obj ->
+                obj.getExtendedImplements(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(obj.name))
+                    .filterIsInstance<TypeName>().any { it.name == iface.name }
+            }
         }.flatten().distinctBy { it.name }
     }
 
@@ -563,16 +566,13 @@ internal class SchemaClassScanner(
     }
 
     private fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {
-        graphQLType.getExtendedImplements().forEach {
+        graphQLType.getExtendedImplements(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(graphQLType.name)).forEach {
             if (it is TypeName) {
                 handleFoundType(interfaceDefinitionsByName[it.name]
                     ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
             }
         }
     }
-
-    private fun ObjectTypeDefinition.getExtendedImplements(): List<Type<*>> =
-        implements + typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name).flatMap { it.implements }
 
     // e.g. `extend union Foo` of `type Foo`
     private fun extendsOtherKind(definition: TypeDefinition<*>): Boolean {

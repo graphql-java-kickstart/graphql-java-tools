@@ -39,6 +39,9 @@ internal fun ObjectTypeDefinition.getExtendedFieldDefinitions(extensions: List<O
     return this.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }
 }
 
+internal fun ImplementingTypeDefinition<*>.getExtendedImplements(extensions: List<ImplementingTypeDefinition<*>>): List<Type<*>> =
+    implements + extensions.flatMap { it.implements }
+
 internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =
     this[name].orEmpty().filterIsInstance<T>()
 

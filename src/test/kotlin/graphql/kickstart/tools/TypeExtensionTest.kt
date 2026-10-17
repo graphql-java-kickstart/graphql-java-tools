@@ -2,7 +2,6 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.Scalars
-import graphql.kickstart.tools.NestedInputTypesTest.Color
 import graphql.language.EnumTypeDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
@@ -470,6 +469,8 @@ class TypeExtensionTest {
     class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
 
     class Filter(val id: String?)
+
+    enum class Color { RED, GREEN }
 
     private class RecordingWiring : SchemaDirectiveWiring {
         val wired = mutableListOf<String>()
