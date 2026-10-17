@@ -684,7 +684,7 @@ class SchemaParser internal constructor(
     }
 
     // determineType only gets the type reference, so the definition using it is looked up for the error message
-    private fun findUsage(typeName: TypeName): String? = definitions.asSequence().flatMap { definition ->
+    private fun findUsage(typeName: TypeName): String? = (definitions + typeExtensions.values.flatten()).asSequence().flatMap { definition ->
         when (definition) {
             is ObjectTypeDefinition -> fieldUsages(definition.name, definition.fieldDefinitions)
             is InterfaceTypeDefinition -> fieldUsages(definition.name, definition.fieldDefinitions)

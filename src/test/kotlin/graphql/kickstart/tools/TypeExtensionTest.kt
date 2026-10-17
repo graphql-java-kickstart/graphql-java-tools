@@ -942,6 +942,41 @@ class TypeExtensionTest {
         assertEquals(error.message, "Type 'Foo' is defined as an object type, but extended as a union.")
     }
 
+    @Test
+    fun `type errors name the fields of interface extensions that use the type`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    today: String
+                    |}
+                    |
+                    |interface Searchable {
+                    |    id: ID!
+                    |}
+                    |
+                    |extend interface Searchable {
+                    |    search(criteria: Criteria): String
+                    |}
+                    |
+                    |input Criteria {
+                    |    text: String
+                    |}
+                    """.trimMargin())
+                .resolvers(object : GraphQLQueryResolver {
+                    fun today(): String? = null
+                })
+                .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assert(error.message.orEmpty().startsWith("Type 'Criteria' used by argument 'criteria' of field 'Searchable.search' at line 10, column 22 is defined")) {
+            error.message.orEmpty()
+        }
+    }
+
     // through the interface, since graphql-java 25 and 26 disagree on which types have a nullable definition
     private fun definitionClass(type: GraphQLNamedSchemaElement) = type.definition?.javaClass
 }
