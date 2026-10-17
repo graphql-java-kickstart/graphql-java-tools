@@ -16,7 +16,6 @@ import com.fasterxml.jackson.databind.jsontype.TypeSerializer
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import java.io.IOException
 import java.lang.reflect.Type
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Converts an argument value that graphql-java already coerced to the type of the resolver method's parameter.
@@ -33,7 +32,6 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private val javaType = mapper.typeFactory.constructType(type)
     private val isUntyped = javaType.isUntyped()
-    private val nonConvertingClasses: MutableSet<Class<*>> = ConcurrentHashMap.newKeySet()
 
     fun convert(value: Any?): Any? {
         if (value == null) {
@@ -49,7 +47,19 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         return try {
             mapper.convertValue<Any?>(value, javaType)
         } catch (e: IllegalArgumentException) {
-            val embedded = embed(value) { !convertsToOwnClass(it) } ?: throw e
+            // a class whose value failed to convert isn't tried again in this value, since that can be expensive, e.g. for
+            // a list of uploads. It isn't remembered across calls, so the same input always gives the same result
+            val nonConvertingClasses = HashSet<Class<*>>()
+            val embedded = embed(value) { scalar ->
+                when {
+                    scalar.javaClass in nonConvertingClasses -> true
+                    convertsToOwnClass(scalar) -> false
+                    else -> {
+                        nonConvertingClasses += scalar.javaClass
+                        true
+                    }
+                }
+            } ?: throw e
             try {
                 read(embedded)
             } catch (retryError: IllegalArgumentException) {
@@ -75,30 +85,19 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         return copy(value).takeIf { embedsAny }
     }
 
-    // failing to convert can be expensive, e.g. an upload, so those classes are remembered. Whether a value converts
-    // can depend on what it holds, so values of the other classes are checked every time
-    private fun convertsToOwnClass(value: Any): Boolean {
-        if (value.javaClass in nonConvertingClasses) {
-            return false
-        }
-        return try {
-            mapper.convertValue(value, value.javaClass)
-            true
-        } catch (e: IllegalArgumentException) {
-            nonConvertingClasses += value.javaClass
-            false
-        }
+    private fun convertsToOwnClass(value: Any): Boolean = try {
+        mapper.convertValue(value, value.javaClass)
+        true
+    } catch (e: IllegalArgumentException) {
+        false
     }
 
     // ObjectMapper.convertValue, but read with the handler for embedded values
     private fun read(value: Any): Any? {
         val buffer = TokenBuffer(mapper, false).forceUseOfBigDecimal(mapper.isEnabled(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS))
         return try {
-            mapper.writer().without(SerializationFeature.WRAP_ROOT_VALUE).writeValue(buffer, value)
-            mapper.readerFor(javaType)
-                .without(DeserializationFeature.UNWRAP_ROOT_VALUE)
-                .withHandler(embeddedValueHandler)
-                .readValue<Any?>(buffer.asParser())
+            writer.writeValue(buffer, value)
+            reader.readValue<Any?>(buffer.asParser())
         } catch (e: IOException) {
             throw IllegalArgumentException(e.message, e)
         }
@@ -120,6 +119,16 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         // called for an embedded value read as a bean of another class, which the value is converted to on its own
         override fun handleWeirdNativeValue(context: DeserializationContext, targetType: JavaType, valueToConvert: Any, p: JsonParser): Any? =
             mapper.convertValue(valueToConvert, targetType)
+    }
+
+    private val writer = mapper.writer().without(SerializationFeature.WRAP_ROOT_VALUE)
+
+    // built on first use, since readerFor looks up the deserializer right away, at schema build, and most arguments
+    // never need the reader
+    private val reader by lazy {
+        mapper.readerFor(javaType)
+            .without(DeserializationFeature.UNWRAP_ROOT_VALUE)
+            .withHandler(embeddedValueHandler)
     }
 
     // written to the buffer as an embedded object, which it keeps as it is

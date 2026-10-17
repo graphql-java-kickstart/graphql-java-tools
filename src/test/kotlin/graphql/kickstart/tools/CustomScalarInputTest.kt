@@ -46,8 +46,6 @@ class CustomScalarInputTest {
                 opaqueOnly: event(input: { opaque: "alone" })
                 variable: event(input: ${'$'}event)
                 file: event(input: { file: ${'$'}file })
-                boxOfText: event(input: { box: "text", date: "2020-01-02" })
-                boxOfDate: event(input: { box: "date:2021-03-04" })
                 events(inputs: [{ date: "2020-01-02" }, { opaque: "second" }])
                 optionalEvent(input: { date: "2020-01-02", opaque: "optional" })
                 message(input: { name: "greeting", file: ${'$'}file, files: ${'$'}files })
@@ -58,14 +56,11 @@ class CustomScalarInputTest {
             """
         }
 
-        // a box of text converts, so only the date is embedded, but the box of a date after it has to be embedded too
         assertEquals(data - "opaqueLabel", mapOf(
             "literal" to "2020-01-02 literal",
             "opaqueOnly" to "alone",
             "variable" to "2021-03-04 variable",
             "file" to "a.txt: Hello",
-            "boxOfText" to "2020-01-02 text",
-            "boxOfDate" to "2021-03-04",
             "events" to listOf("2020-01-02", "second"),
             "optionalEvent" to "2020-01-02 optional",
             "message" to "greeting: Hello big world",
@@ -149,8 +144,10 @@ class CustomScalarInputTest {
         val data = assertNoGraphQlErrors(graphQL(inputSchema)) {
             """
             query {
-                payment(input: { price: "5", reference: "ref", location: "1.5,2.5" })
-                withDate: payment(input: { price: "5", reference: "ref", location: "1.5,2.5", date: "2020-01-02" })
+                payment(input: { price: "5", reference: "ref", box: "text" })
+                withDate: payment(input: { price: "5", reference: "ref", box: "text", date: "2020-01-02" })
+                boxOfDate: payment(input: { box: "date:2021-03-04" })
+                afterBoxOfDate: payment(input: { price: "5", reference: "ref", box: "text", date: "2020-01-02" })
                 priceNode(input: { price: "5" })
                 price(price: "5")
             }
@@ -164,9 +161,13 @@ class CustomScalarInputTest {
             """
         }
 
+        // a box of a date can't be converted, so the deserializer gets it embedded and has no serialized form to read.
+        // That doesn't change how a later box of text is read
         assertEquals(data, mapOf(
-            "payment" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) GeoPoint(lat=1.5, lng=2.5) null",
-            "withDate" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) GeoPoint(lat=1.5, lng=2.5) 2020-01-02",
+            "payment" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) text",
+            "withDate" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) 2020-01-02 text",
+            "boxOfDate" to "<missing>",
+            "afterBoxOfDate" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) 2020-01-02 text",
             "priceNode" to """{"price":{"amount":5,"currency":"CAD"}}""",
             "price" to "MoneyDto(amount=5, currency=CAD)"
         ))
@@ -190,7 +191,7 @@ class CustomScalarInputTest {
     private fun graphQL(schema: String, options: SchemaParserOptions = SchemaParserOptions.defaultOptions()): GraphQL {
         val graphQLSchema = SchemaParser.newParser()
             .schemaString(schema)
-            .scalars(localDateScalar, opaqueScalar, boxScalar, moneyScalar, geoPointScalar, customScalarUUID, uploadScalar)
+            .scalars(localDateScalar, opaqueScalar, boxScalar, moneyScalar, customScalarUUID, uploadScalar)
             .resolvers(resolver)
             .options(options)
             .build()
@@ -203,7 +204,6 @@ class CustomScalarInputTest {
         scalar Opaque
         scalar Box
         scalar Money
-        scalar GeoPoint
         scalar Upload
 
         type Query {
@@ -221,7 +221,6 @@ class CustomScalarInputTest {
         input EventInput {
             date: LocalDate
             opaque: Opaque
-            box: Box
             file: Upload
         }
 
@@ -245,8 +244,8 @@ class CustomScalarInputTest {
         input PaymentInput {
             price: Money
             reference: Opaque
-            location: GeoPoint
             date: LocalDate
+            box: Box
         }
         """
 
@@ -265,7 +264,7 @@ class CustomScalarInputTest {
         val received = mutableMapOf<String, Any>()
 
         fun event(input: EventInput): String =
-            listOfNotNull(input.date, input.opaque?.value, input.box?.content, input.file?.let { "${it.name}: ${it.content()}" }).joinToString(" ")
+            listOfNotNull(input.date, input.opaque?.value, input.file?.let { "${it.name}: ${it.content()}" }).joinToString(" ")
 
         fun events(inputs: List<EventInput>): List<String> = inputs.map { event(it) }
         fun optionalEvent(input: Optional<EventInput>): String = input.map { event(it) }.orElse("empty")
@@ -273,7 +272,7 @@ class CustomScalarInputTest {
         fun label(input: LabelInput): String = "${input.date} ${input.opaque}"
         fun dateNode(input: ObjectNode): String = (input["date"] as POJONode).pojo.let { "${it.javaClass.simpleName} $it" }
         fun priceNode(input: ObjectNode): String = input.toString()
-        fun payment(input: PaymentInput): String = "${input.price} ${input.reference} ${input.location} ${input.date}"
+        fun payment(input: PaymentInput): String = listOfNotNull(input.price, input.reference, input.date, input.box).joinToString(" ")
         fun price(price: MoneyDto): String = price.toString()
 
         fun map(input: Map<String, Any?>) = receive("map", input)
@@ -294,7 +293,6 @@ class CustomScalarInputTest {
     class EventInput {
         var date: LocalDate? = null
         var opaque: Opaque? = null
-        var box: Box? = null
         var file: Part? = null
     }
 
@@ -305,10 +303,10 @@ class CustomScalarInputTest {
     class PaymentInput {
         var price: MoneyDto? = null
         var reference: OpaqueDto? = null
-
-        @field:JsonDeserialize(using = GeoPointDeserializer::class)
-        var location: GeoPoint? = null
         var date: LocalDate? = null
+
+        @field:JsonDeserialize(using = BoxContentDeserializer::class)
+        var box: String? = null
     }
 
     // serialized as {"value": ...}, which Jackson can't create it from, like the coerced values of many custom scalars
@@ -322,16 +320,13 @@ class CustomScalarInputTest {
 
     data class MoneyDto(val amount: Int, val currency: String)
 
+    // only converts if its content does
     data class Box(val content: Any)
 
-    data class GeoPoint(val lat: Double, val lng: Double)
-
-    // reads the serialized form, and an embedded GeoPoint wouldn't fail it
-    class GeoPointDeserializer : StdDeserializer<GeoPoint>(GeoPoint::class.java) {
-        override fun deserialize(p: JsonParser, context: DeserializationContext): GeoPoint {
-            val node = p.codec.readTree<JsonNode>(p)
-            return GeoPoint(node.path("lat").asDouble(), node.path("lng").asDouble())
-        }
+    // reads the serialized form, and an embedded Box wouldn't fail it
+    class BoxContentDeserializer : StdDeserializer<String>(String::class.java) {
+        override fun deserialize(p: JsonParser, context: DeserializationContext): String =
+            p.codec.readTree<JsonNode>(p).path("content").textValue() ?: "<missing>"
     }
 
     class NextDayDeserializer : StdDeserializer<LocalDate>(LocalDate::class.java) {
@@ -359,7 +354,6 @@ class CustomScalarInputTest {
     private val opaqueScalar = scalar("Opaque") { Opaque(it) }
     private val boxScalar = scalar("Box") { Box(if (it.startsWith("date:")) LocalDate.parse(it.removePrefix("date:")) else it) }
     private val moneyScalar = scalar("Money") { Money(it.toInt(), "CAD") }
-    private val geoPointScalar = scalar("GeoPoint") { value -> value.split(",").map { it.toDouble() }.let { GeoPoint(it[0], it[1]) } }
 
     private fun <T : Any> scalar(name: String, parse: (String) -> T): GraphQLScalarType = GraphQLScalarType.newScalar()
         .name(name)
