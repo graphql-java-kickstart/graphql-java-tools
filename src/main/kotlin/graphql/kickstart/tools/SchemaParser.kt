@@ -218,8 +218,7 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.ENUM))
             .apply {
-                // graphql-java rejects a value that an extension repeats. Here it's kept once, with its first definition, so schemas
-                // that repeated the values of the enum in an extension to work around #552 keep building.
+                // graphql-java rejects values that an extension repeats, but that was the workaround for #552, so the first one is kept
                 (definition.enumValueDefinitions + extensions.flatMap { it.enumValueDefinitions }).distinctBy { it.name }.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
                     val enumValue = if (enumClass == null) {
@@ -257,8 +256,7 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.INTERFACE))
             .apply {
-                // graphql-java rejects a field that an extension repeats. Here it's kept once, with its first definition, so schemas
-                // that repeated the fields of the interface in an extension to work around #552 keep building.
+                // graphql-java rejects fields that an extension repeats, but that was the workaround for #552, so the first one is kept
                 (interfaceDefinition.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }).distinctBy { it.name }.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
                 }
@@ -310,16 +308,15 @@ class SchemaParser internal constructor(
         return leafObjects
     }
 
-    // Like graphql-java, the directives of the extensions follow those of the type. graphql-java rejects a non-repeatable directive
-    // that an extension applies again. Here the repeat is dropped and the first one kept, so those schemas still build, as they did
-    // when extension directives were ignored, and the applied directives agree with the legacy ones (see buildDirectives).
-    // Undeclared directives may be repeatable, so they're all kept.
+    // The directives of the extensions follow those of the type, like in graphql-java. A non-repeatable directive that an extension
+    // applies again is dropped, where graphql-java rejects the schema, so those schemas keep building and the applied directives
+    // match the legacy ones (see buildDirectives). Undeclared directives may be repeatable, so they're all kept.
     private fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> {
         val applied = definition.directives.mapTo(mutableSetOf()) { it.name }
         return definition.directives + extensions.flatMap { extension ->
             val (repeated, kept) = extension.directives.partition { it.name in applied && isNonRepeatable(it.name) }
             repeated.forEach { log.warn("Directive @${it.name} isn't repeatable but an extension of type '${definition.name}' applies it again, only the first one is kept.") }
-            kept.mapTo(applied) { it.name }
+            applied += kept.map { it.name }
             kept
         }
     }
