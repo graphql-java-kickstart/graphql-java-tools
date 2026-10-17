@@ -12,7 +12,7 @@ import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.visibility.NoIntrospectionGraphqlFieldVisibility
+import graphql.schema.visibility.BlockedFields
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 
@@ -39,6 +39,7 @@ class SchemaParser internal constructor(
     private val rootInfo = scanResult.rootInfo
     private val fieldResolversByType = scanResult.fieldResolversByType
     private val unusedDefinitions = scanResult.unusedDefinitions
+    private val directiveOnlyEnums = scanResult.directiveOnlyEnums
 
     private val extensionDefinitions = definitions.filterIsInstance<ObjectTypeExtensionDefinition>()
     private val inputExtensionDefinitions = definitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
@@ -68,7 +69,10 @@ class SchemaParser internal constructor(
      */
     fun parseSchemaObjects(): SchemaObjects {
         if (!options.introspectionEnabled) {
-            codeRegistryBuilder.fieldVisibility(NoIntrospectionGraphqlFieldVisibility.NO_INTROSPECTION_FIELD_VISIBILITY)
+            // What the deprecated NoIntrospectionGraphqlFieldVisibility does. Its suggested replacement,
+            // Introspection.enabledJvmWide, would also turn introspection off for every other schema in the JVM.
+            // TODO deprecate introspectionEnabled and remove this in 15.0.0 (#858)
+            codeRegistryBuilder.fieldVisibility(BlockedFields.newBlock().addPattern("__.*").build())
         }
         // this overrides the above introspection enabled setting obviously... todo: add documentation
         options.fieldVisibility?.let { codeRegistryBuilder.fieldVisibility(it) }
@@ -195,9 +199,10 @@ class SchemaParser internal constructor(
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
         val name = definition.name
-        val type = dictionary[definition]
-            ?: throw SchemaError("Expected enum with name '$name' but found none!")
-        if (!type.unwrap().isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
+        // enums only used by directives can do without a class, see SchemaClassScanner.handleDirectiveEnum
+        val enumClass = dictionary[definition]?.unwrap()
+        if (enumClass == null && definition !in directiveOnlyEnums) throw SchemaError("Expected enum with name '$name' but found none!")
+        if (enumClass != null && !enumClass.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
         val builder = GraphQLEnumType.newEnum()
             .name(name)
@@ -208,8 +213,12 @@ class SchemaParser internal constructor(
             .apply {
                 definition.enumValueDefinitions.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
-                    val enumValue = type.unwrap().enumConstants.find { (it as Enum<*>).name == enumName }
-                        ?: throw SchemaError("Expected value for name '$enumName' in enum '${type.unwrap().simpleName}' but found none!")
+                    val enumValue = if (enumClass == null) {
+                        enumName
+                    } else {
+                        enumClass.enumConstants.find { (it as Enum<*>).name == enumName }
+                            ?: throw SchemaError("Expected value for name '$enumName' in enum '${enumClass.simpleName}' but found none!")
+                    }
 
                     value(
                         GraphQLEnumValueDefinition.newEnumValueDefinition()
@@ -427,6 +436,7 @@ class SchemaParser internal constructor(
     }
 
     // TODO remove this once directives are fully replaced with applied directives
+    @Suppress("DEPRECATION") // legacy directive argument values
     private fun buildDirectives(
         directives: List<Directive>,
         directiveLocation: Introspection.DirectiveLocation
@@ -528,7 +538,7 @@ class SchemaParser internal constructor(
             is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
             is InputObjectTypeDefinition -> {
                 log.info("Create input object")
-                createInputObject(typeDefinition, inputObjects, referencingInputObjects as MutableSet<String>)
+                createInputObject(typeDefinition, inputObjects, referencingInputObjects)
             }
             is TypeName -> {
                 val scalarType = customScalars[typeDefinition.name]

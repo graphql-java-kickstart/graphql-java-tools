@@ -5,6 +5,8 @@ module graphql.java.tools {
     requires kotlinx.coroutines.reactive;
 
     requires com.graphqljava;
+    // graphql-java's nullability annotations, only needed at compile time
+    requires static org.jspecify;
 
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.kotlin;
