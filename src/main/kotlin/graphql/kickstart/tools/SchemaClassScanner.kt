@@ -41,9 +41,7 @@ internal class SchemaClassScanner(
     private val typeDefinitions = allDefinitions.filterIsInstance<TypeDefinition<*>>()
     private val baseTypeNames = typeDefinitions.filter { it !is SDLExtensionDefinition }.map { it.name }.toSet()
 
-    // Extending a type that isn't defined isn't valid, but union, enum, interface and scalar extensions are subclasses of their
-    // definitions, so one without a definition was built as the type before #552. To keep those schemas building, the first one
-    // is the definition and the others extend it. Object and input extensions without a definition are ignored.
+    // the first extension of an undefined union, enum, interface or scalar stands in for its definition
     private val loneExtensions = typeDefinitions
         .filter { it is SDLExtensionDefinition && it !is ObjectTypeDefinition && it !is InputObjectTypeDefinition && it.name !in baseTypeNames }
         .distinctBy { it.name }

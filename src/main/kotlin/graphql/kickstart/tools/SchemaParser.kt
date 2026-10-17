@@ -311,8 +311,7 @@ class SchemaParser internal constructor(
         return leafObjects
     }
 
-    // graphql-java rejects a type that declares an enum value, interface field or union member twice, e.g. in the type and again in
-    // an extension. Those schemas built before #552, so the first one is kept and a warning is logged.
+    // TODO throw a SchemaError instead in 15.0.0 (#863), like graphql-java does
     private fun warnRepeated(typeName: String, kind: String, names: List<String?>) {
         names.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.forEach {
             log.warn("Type '$typeName' declares $kind '$it' more than once, only the first one is kept.")
