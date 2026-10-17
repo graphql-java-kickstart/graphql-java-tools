@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.resolver.FieldResolver
 import graphql.kickstart.tools.util.BiMap
 import graphql.kickstart.tools.util.JavaType
+import graphql.language.EnumTypeDefinition
 import graphql.language.FieldDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.SDLNamedDefinition
@@ -19,7 +20,8 @@ internal data class ScannedSchemaObjects(
     val customScalars: CustomScalarMap,
     val rootInfo: RootTypeInfo,
     val fieldResolversByType: Map<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>,
-    val unusedDefinitions: Set<TypeDefinition<*>>
+    val unusedDefinitions: Set<TypeDefinition<*>>,
+    val directiveOnlyEnums: Set<EnumTypeDefinition>
 )
 
 internal typealias TypeClassDictionary = BiMap<TypeDefinition<*>, JavaType>
