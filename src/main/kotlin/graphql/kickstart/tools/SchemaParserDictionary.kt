@@ -5,9 +5,14 @@ import kotlin.reflect.KClass
 
 class SchemaParserDictionary {
 
-    private val dictionary: BiMap<String, Class<*>> = BiMap.create()
+    // Not a BiMap, since several input types can share a class, e.g. ObjectNode. The scanner checks that other types don't.
+    private val dictionary = linkedMapOf<String, Class<*>>()
 
-    fun getDictionary(): BiMap<String, Class<*>> = BiMap.unmodifiableBiMap(dictionary)
+    /**
+     * Returns a copy of the entries added so far. If several types share a class, the inverse of the copy only maps that class
+     * back to the first of them.
+     */
+    fun getDictionary(): BiMap<String, Class<*>> = BiMap.unmodifiableCopyOf(dictionary)
 
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
