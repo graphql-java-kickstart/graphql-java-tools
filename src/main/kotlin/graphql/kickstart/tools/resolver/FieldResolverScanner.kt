@@ -34,11 +34,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         val searches = resolverInfo.getFieldSearches()
 
         val scanProperties = field.inputValueDefinitions.isEmpty()
+        // root fields must match a single resolver. Other fields use the first match, so the resolvers it shadows, e.g. for a
+        // supertype, are never called and aren't checked
         val found = searches.asSequence()
             .mapNotNull { search -> findFieldResolver(field, search, scanProperties) }
-            // only root fields must match a single resolver. Other fields use the first match, so the methods it shadows,
-            // e.g. a supertype resolver's, are never called and aren't checked
-            .let { if (resolverInfo is RootResolverInfo) it.toList() else it.take(1).toList() }
+            .let { if (resolverInfo is RootResolverInfo) it else it.take(1) }
+            .toList()
 
         if (resolverInfo is RootResolverInfo && found.size > 1) {
             throw FieldResolverError("Found more than one matching resolver for field '$field': $found")
@@ -81,7 +82,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         val type = search.type.unwrap()
         return ClassUtils.getAllInterfaces(type)
             .filter { it.isInstance(source) }
-            .flatMap { it.methods.asList() }
+            .flatMap { it.methods.toList() }
             .find { !Modifier.isStatic(it.modifiers) && method.implements(it, type) }
             ?.apply(trySetAccessible(field, search.type))
             ?: throw FieldResolverError(
@@ -97,9 +98,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     // A method inherited from a generic superclass is erased itself, e.g. getValue(Object) for getValue(T), so both sides are
     // resolved against the target class
     private fun Method.implements(interfaceMethod: Method, type: Class<*>): Boolean =
-        name == interfaceMethod.name
-            && parameterCount == interfaceMethod.parameterCount
-            && parameterTypes.indices.all { i ->
+        name == interfaceMethod.name && parameterCount == interfaceMethod.parameterCount && parameterTypes.indices.all { i ->
             val interfaceParameterType = interfaceMethod.genericParameterTypes[i]
             val resolvedInterfaceType = TypeUtils.getRawType(interfaceParameterType, type) ?: interfaceMethod.parameterTypes[i]
             val resolvedType = TypeUtils.getRawType(genericParameterTypes[i], type) ?: parameterTypes[i]
@@ -248,10 +247,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""
     }
 
-    private fun getSourceLocation(field: FieldDefinition): String {
-        val sourceName = field.sourceLocation?.sourceName ?: "<unknown>"
-        return field.sourceLocation?.let { "$sourceName:${it.line}" } ?: "<unknown>"
-    }
+    private fun getSourceLocation(field: FieldDefinition): String =
+        field.sourceLocation?.let { "${it.sourceName ?: "<unknown>"}:${it.line}" } ?: "<unknown>"
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
         val baseType = search.type.unwrap()
