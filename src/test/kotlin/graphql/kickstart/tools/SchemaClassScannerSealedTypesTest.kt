@@ -116,7 +116,10 @@ class SchemaClassScannerSealedTypesTest {
             val name: String?
         }
 
-        class Dog(override val name: String?, val barks: Boolean?) : Animal
+        sealed class Mammal : Animal
+
+        // a subclass of both Animal and Mammal, so it's found twice among the subclasses of Animal
+        class Dog(override val name: String?, val barks: Boolean?) : Mammal(), Animal
 
         class Cat(override val name: String?, val lives: Int?) : Animal
     }

@@ -363,14 +363,14 @@ internal class SchemaClassScanner(
             }
         }
 
-        // Scanning a sealed subclass can find the classes of the other types, so only fail when no type has a sealed subclass.
-        // Types still without a class fail on the next pass.
-        val sealedSubclasses = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassesNamedAfter(it).singleOrNull() }
-        if (sealedSubclasses.isEmpty()) {
+        // Scanning a sealed subclass can find the classes of the other types, so only fail when no type has exactly one sealed
+        // subclass named after it. Types still without a class fail on the next pass.
+        val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatches(it).singleOrNull() }
+        if (sealedMatches.isEmpty()) {
             typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassHint(it)) }
         }
 
-        sealedSubclasses.forEach { handleFoundType(it) }
+        sealedMatches.forEach { handleFoundType(it) }
     }
 
     /**
@@ -387,11 +387,11 @@ internal class SchemaClassScanner(
         }
 
         val sealedTypeNames = sealedTypes.joinToString(" or ") { it.unwrap().name }
-        val subclasses = sealedSubclassesNamedAfter(type)
-        return if (subclasses.isEmpty()) {
+        val matches = sealedSubclassMatches(type)
+        return if (matches.isEmpty()) {
             "  No subclass of sealed type $sealedTypeNames is named '${type.name}'."
         } else {
-            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${subclasses.joinToString { it.javaType.unwrap().name }}."
+            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${matches.joinToString { it.javaType.unwrap().name }}."
         }
     }
 
@@ -400,13 +400,15 @@ internal class SchemaClassScanner(
      * `pets(): List<Pet>` returns `union Pet`. If the class found for the union or interface is sealed, its subclass named
      * after the object type can be used instead.
      */
-    private fun sealedSubclassesNamedAfter(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
+    private fun sealedSubclassMatches(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
         sealedTypesOf(type)
             .flatMap { sealedType ->
                 sealedSubclasses(sealedType.unwrap())
                     .filter { it.simpleName == type.name }
                     .map { TypeClassMatcher.ValidMatch(type, parameterize(it, sealedType), SealedSubclassReference(sealedType)) }
             }
+            // a subclass is found twice when it's under two of these sealed types, or extends both a sealed type and one of its
+            // sealed subclasses
             .distinctBy { it.javaType.unwrap() }
 
     /**
