@@ -8,7 +8,7 @@ class PrimitivesTest {
     @Test
     fun `should wrap primitive Java class`() {
         val clazz = Primitives.wrap(Int::class.javaPrimitiveType)
-        Assert.assertEquals(Integer::class.java, clazz)
+        Assert.assertEquals(Int::class.javaObjectType, clazz)
     }
 
     @Test

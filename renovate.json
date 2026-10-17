@@ -11,6 +11,13 @@
       ]
     },
     {
+      "description": "Stay on Kotlin 2.3.10, no more upgrades until detekt figures itself out",
+      "matchPackagePrefixes": [
+        "org.jetbrains.kotlin:"
+      ],
+      "allowedVersions": "<=2.3.10"
+    },
+    {
       "description": "Align antlr version with graphql-java",
       "matchPackagePrefixes": [
         "org.antlr"

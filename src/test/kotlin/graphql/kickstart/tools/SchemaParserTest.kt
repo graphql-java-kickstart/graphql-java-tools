@@ -7,7 +7,6 @@ import graphql.parser.InvalidSyntaxException
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.reactive.publish
 import org.junit.Assert.assertThrows
@@ -23,7 +22,6 @@ import java.util.concurrent.CompletableFuture.completedStage
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class SchemaParserTest {
     private lateinit var builder: SchemaParserBuilder
 
@@ -201,24 +199,146 @@ class SchemaParserTest {
 
     @Test
     fun `parser should throw descriptive exception when object is used as input type incorrectly`() {
-        assertThrows("Was a type only permitted for object types incorrectly used as an input type, or vice-versa", SchemaError::class.java) {
+        val error = assertThrows(SchemaError::class.java) {
             SchemaParser.newParser()
                 .schemaString(
                     """
-                    type Query {
-                        name(filter: Filter): [String]
-                    }
-                    
-                    type Filter {
-                        filter: String
-                    }
-                    """)
+                    |type Query {
+                    |    name(filter: Filter): [String]
+                    |}
+                    |
+                    |type Filter {
+                    |    filter: String
+                    |}
+                    """.trimMargin())
                 .resolvers(object : GraphQLQueryResolver {
                     fun name(filter: Filter): List<String>? = null
                 })
                 .build()
                 .makeExecutableSchema()
         }
+
+        assertEquals(error.message, "Type 'Filter' used by argument 'filter' of field 'Query.name' at line 2, column 18 is an object type, " +
+            "which can't be used as an input type. Input types are input objects, enums and scalars.")
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when input object is used as output type incorrectly`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    filters: [Filter!]
+                    |}
+                    |
+                    |input Filter {
+                    |    filter: String
+                    |}
+                    """.trimMargin())
+                .resolvers(object : GraphQLQueryResolver {
+                    fun filters(): List<Filter>? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Filter' used by field 'Query.filters' at line 2, column 15 is an input object type, " +
+            "which can't be used as an output type. Output types are object types, interfaces, unions, enums and scalars.")
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when input type is not defined`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    test(input: TestInput): String
+                    |}
+                    |
+                    |input TestInput {
+                    |    nested: [Nested!]
+                    |}
+                    """.trimMargin())
+                .resolvers(object : GraphQLQueryResolver {
+                    fun test(input: Map<String, Any?>): String? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Nested' used by input field 'TestInput.nested' at line 6, column 14 is not defined in the schema.")
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when type was never reached by the scanner`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .file("UnreachedType.graphqls")
+                .resolvers(object : GraphQLQueryResolver {
+                    fun pet(): Pet? = null
+                })
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Cat' used by field 'Pet.friend' at line 6, column 11 in UnreachedType.graphqls is defined in the schema, " +
+            "but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
+            "Return it from a resolver method or one of those classes, or set SchemaParserOptions.includeUnusedTypes and pass a class for it in the parser's dictionary.")
+    }
+
+    @Test
+    fun `parser should build type that was never reached by the scanner when including unused types`() {
+        SchemaParser.newParser()
+            .file("UnreachedType.graphqls")
+            .resolvers(object : GraphQLQueryResolver {
+                fun pet(): Pet? = null
+            })
+            .dictionary(Cat::class)
+            .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+            .build()
+            .makeExecutableSchema()
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when input type is only used by an unused interface`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    |type Query {
+                    |    name: String
+                    |}
+                    |
+                    |interface Searchable {
+                    |    search(criteria: Criteria): String
+                    |}
+                    |
+                    |input Criteria {
+                    |    text: String
+                    |}
+                    """.trimMargin())
+                .resolvers(object : GraphQLQueryResolver {
+                    fun name(): String? = null
+                })
+                .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Criteria' used by argument 'criteria' of field 'Searchable.search' at line 6, column 22 is defined in the schema, " +
+            "but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
+            "Use it in an argument of a resolver method, directly or through another input type. " +
+            "SchemaParserOptions.includeUnusedTypes doesn't include input types.")
+    }
+
+    interface Pet {
+        val friend: Cat?
+    }
+
+    class Cat {
+        var name: String? = null
     }
 
     @Test
@@ -425,6 +545,105 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `support enum types used in input Map if their class is found elsewhere`() {
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    save(input: SaveInput!): Boolean
+                    type: EnumType
+                }
+
+                input SaveInput {
+                    type: EnumType!
+                }
+
+                enum EnumType {
+                    TEST
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun save(input: Map<*, *>): Boolean = false
+                fun type(): EnumType? = null
+            })
+            .build()
+            .makeExecutableSchema()
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when enum is only used in input Map without a class`() {
+        val schema = """
+            type Query {
+                save(input: SaveInput!): Boolean
+            }
+
+            input SaveInput {
+                type: EnumType!
+            }
+
+            enum EnumType {
+                TEST
+            }
+            """
+        val mapError = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(schema)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun save(input: Map<*, *>): Boolean = false
+                })
+                .build()
+        }
+        val subclassError = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(schema)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun save(input: SaveInputMap): Boolean = false
+                })
+                .build()
+        }
+
+        assertEquals(mapError.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
+            "because 'SaveInput' is bound to java.util.Map, which has no type information for its fields. Pass the enum class for type " +
+            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
+        assertEquals(subclassError.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
+            "because ${SaveInputMap::class.java.name} has no public getter or field named 'type'. Pass the enum class for type " +
+            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when enum is only used in a nested input without a class`() {
+        val error = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        save(input: SaveInput!): Boolean
+                    }
+
+                    input SaveInput {
+                        nested: NestedInput
+                    }
+
+                    input NestedInput {
+                        type: EnumType!
+                    }
+
+                    enum EnumType {
+                        TEST
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun save(input: Map<*, *>): Boolean = false
+                })
+                .build()
+        }
+
+        assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'NestedInput', but its Java enum can't be determined " +
+            "because no class was found for input type 'NestedInput'. Pass the enum class for type 'EnumType' in the parser's dictionary, " +
+            "or use a class for 'NestedInput' with a public getter or field 'type'.")
+    }
+
+    @Test
     fun `allow circular relations in input objects`() {
         SchemaParser.newParser()
             .schemaString(
@@ -594,6 +813,52 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `input objects behind list and non-null input fields should resolve to GraphQLInputObjectType during directive wiring`() {
+        val wiredFieldTypes = mutableMapOf<String, String>()
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test(filter: NestedFilter): Boolean
+                }
+
+                input NestedFilter {
+                    subs: [SubFilter!]
+                    other: OtherFilter!
+                }
+
+                input SubFilter {
+                    parent: NestedFilter
+                }
+
+                input OtherFilter {
+                    name: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(filter: NestedFilter?): Boolean = false
+            })
+            .directiveWiring(object : SchemaDirectiveWiring {
+                override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+                    val type = GraphQLTypeUtil.unwrapAllAs<GraphQLType>(environment.element.type)
+                    if (type !is GraphQLScalarType) {
+                        wiredFieldTypes[environment.element.name] = type.javaClass.simpleName
+                    }
+                    return environment.element
+                }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        // parent points back at NestedFilter while it's still being built, so it stays a type reference until the schema is built
+        assertEquals(wiredFieldTypes, mapOf(
+            "subs" to "GraphQLInputObjectType",
+            "other" to "GraphQLInputObjectType",
+            "parent" to "GraphQLTypeReference"
+        ))
+    }
+
+    @Test
     fun `parser should use comments for descriptions`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -750,6 +1015,8 @@ class SchemaParserTest {
         TEST
     }
 
+    class SaveInputMap : HashMap<String, Any?>()
+
     class QueryWithIdResolver : GraphQLQueryResolver {
         fun getId(): String? = null
     }
@@ -757,6 +1024,12 @@ class SchemaParserTest {
     class Filter {
         fun filter(): String? = null
     }
+
+    data class NestedFilter(val subs: List<SubFilter>?, val other: OtherFilter)
+
+    data class SubFilter(val parent: NestedFilter?)
+
+    data class OtherFilter(val name: String?)
 
     class CustomGenericWrapper<T, V>
 

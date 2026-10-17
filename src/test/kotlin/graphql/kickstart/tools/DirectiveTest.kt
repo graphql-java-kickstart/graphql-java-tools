@@ -408,7 +408,8 @@ class DirectiveTest {
         val expectedMessages = mapOf(
             "contactEmail" to "{path} must be a valid email",
             "primaryEmail" to "{path} must be a valid email",
-            "backupEmail" to "invalid backup email"
+            "backupEmail" to "invalid backup email",
+            "email" to "{path} must be a valid email"
         )
         assertEquals(emailDirective.appliedMessages, expectedMessages)
         assertEquals(emailDirective.legacyMessages, expectedMessages)
@@ -417,6 +418,83 @@ class DirectiveTest {
         assertEquals(schema.getSchemaAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
         val enumValue = (schema.getType("AllowedState") as GraphQLEnumType).getValue("ALLOWED")!!
         assertEquals(enumValue.getAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
+    }
+
+    @Test
+    fun `should build input objects used by directive arguments before wiring`() {
+        val meta = "directive @meta(info: ConfigInput!) on FIELD_DEFINITION"
+        val option = "directive @option(value: OptionInput) on INPUT_OBJECT | INPUT_FIELD_DEFINITION"
+        // ConfigInput is built for @meta and needs @option, whichever is declared first
+        listOf("$meta\n$option", "$option\n$meta").forEach { directives ->
+            val recorder = ArgumentTypeRecorder()
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    $directives
+
+                    type Query {
+                        name: String @meta(info: { level: 1 })
+                    }
+
+                    input ConfigInput @option(value: { label: "type" }) {
+                        level: Int @option(value: { label: "field" })
+                    }
+
+                    input OptionInput {
+                        label: String
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun name(): String? = null
+                })
+                .dictionary(ConfigInput::class, OptionInput::class)
+                .directive("meta", recorder)
+                .directive("option", recorder)
+                .build()
+                .makeExecutableSchema()
+
+            val inputObject = listOf("GraphQLInputObjectType")
+            val expectedTypes = mapOf("name" to inputObject, "ConfigInput" to inputObject, "level" to inputObject)
+            assert(recorder.argumentTypes == expectedTypes) { "${recorder.argumentTypes} with directives declared as $directives" }
+        }
+    }
+
+    @Test
+    fun `should wire input objects only once when a directive is applied within its own argument types`() {
+        val limit = "directive @limit(bound: BoundInput!) on INPUT_FIELD_DEFINITION"
+        val limits = "directive @limits(bounds: [BoundInput!]) on FIELD_DEFINITION"
+        listOf("$limits\n$limit", "$limit\n$limits").forEach { directives ->
+            val wiredFields = mutableListOf<String>()
+            val schema = SchemaParser.newParser()
+                .schemaString(
+                    """
+                    $directives
+
+                    type Query {
+                        name: String @limits(bounds: [{ max: 1 }])
+                    }
+
+                    input BoundInput {
+                        max: Int @limit(bound: { max: 10 })
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun name(): String? = null
+                })
+                .dictionary(BoundInput::class)
+                .directive("limit", object : SchemaDirectiveWiring {
+                    override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+                        wiredFields.add(environment.element.name)
+                        return environment.element
+                    }
+                })
+                .build()
+                .makeExecutableSchema()
+
+            assert(wiredFields == listOf("max")) { "$wiredFields with directives declared as $directives" }
+            val limit = (schema.getType("BoundInput") as GraphQLInputObjectType).getField("max").getAppliedDirective("limit")
+            assertEquals(limit.getArgument("bound")?.getValue<Map<String, Int>>(), mapOf("max" to 10))
+        }
     }
 
     @Test
@@ -626,11 +704,47 @@ class DirectiveTest {
             return environment.element
         }
 
+        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+            recordMessage(environment)
+            return environment.element
+        }
+
         private fun recordMessage(environment: SchemaDirectiveWiringEnvironment<*>) {
             val name = environment.element.name
             appliedMessages[name] = environment.appliedDirective.getArgument("message")?.getValue<String>()
             @Suppress("DEPRECATION")
             legacyMessages[name] = environment.directive.getArgument("message")?.let { GraphQLArgument.getArgumentValue<String>(it) }
+        }
+    }
+
+    private data class ConfigInput(
+        val level: Int?
+    )
+
+    private data class OptionInput(
+        val label: String?
+    )
+
+    private data class BoundInput(
+        val max: Int?
+    )
+
+    /**
+     * Records the unwrapped types of the arguments of each applied directive, by the name of the element it's applied to.
+     */
+    private class ArgumentTypeRecorder : SchemaDirectiveWiring {
+        val argumentTypes = mutableMapOf<String, List<String>>()
+
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>) = record(environment)
+
+        override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>) = record(environment)
+
+        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>) = record(environment)
+
+        private fun <T : GraphQLDirectiveContainer> record(environment: SchemaDirectiveWiringEnvironment<T>): T {
+            argumentTypes[environment.element.name] =
+                environment.appliedDirective.arguments.map { GraphQLTypeUtil.unwrapAllAs<GraphQLType>(it.type).javaClass.simpleName }
+            return environment.element
         }
     }
 

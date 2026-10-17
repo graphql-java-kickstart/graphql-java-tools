@@ -249,7 +249,7 @@ class SchemaClassScannerDirectiveTest {
             missingEnum)
 
         // an input field bound to a Map, which would get the enum's values
-        assertSchemaError(
+        val mapError = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
                 .schemaString(linkDirective)
                 .schemaString(
@@ -258,8 +258,12 @@ class SchemaClassScannerDirectiveTest {
 
                     type Query { hello(filter: Filter!): String }
                     """)
-                .resolvers(object : GraphQLQueryResolver { fun hello(filter: Map<String, Any>): String = filter.toString() }),
-            missingEnum)
+                .resolvers(object : GraphQLQueryResolver { fun hello(filter: Map<String, Any>): String = filter.toString() })
+                .build()
+        }
+        assertEquals(mapError.message, "Enum type 'Purpose' is used by field 'purpose' of input type 'Filter', but its Java enum can't be determined " +
+            "because 'Filter' is bound to java.util.Map, which has no type information for its fields. Pass the enum class for type " +
+            "'Purpose' in the parser's dictionary, or use a class for 'Filter' with a public getter or field 'purpose'.")
 
         // an argument of an unimplemented field added by an extension
         assertSchemaError(
