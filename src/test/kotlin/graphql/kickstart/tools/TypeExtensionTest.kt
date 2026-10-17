@@ -212,11 +212,11 @@ class TypeExtensionTest {
 
     @Test
     fun `directives of extensions follow those of the type and are wired`() {
-        val tagDirective = TagDirective()
+        val wiring = RecordingWiring()
         val schema = parser(
             """
             directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
-            directive @once(name: String!) on OBJECT
+            directive @once(name: String!) on OBJECT | INPUT_OBJECT
 
             type Query @once(name: "Query") {
                 node: Node
@@ -241,26 +241,33 @@ class TypeExtensionTest {
             extend enum Color @tag(name: "Color extension")
 
             input Filter @tag(name: "Filter") { id: ID }
-            extend input Filter @tag(name: "Filter extension")
+            extend input Filter @tag(name: "Filter extension") @once(name: "Filter extension")
 
             type Foo { foo: String }
             """) {
             dictionary(Item::class, Foo::class)
-            directive("tag", tagDirective)
-            directive("once", tagDirective)
+            directive("tag", wiring)
+            directive("once", wiring)
         }.makeExecutableSchema()
 
-        val extended = listOf("Node", "Item", "FooBar", "Color", "Filter")
-        extended.forEach { name ->
-            assertEquals(nameArguments(schema.getType(name) as GraphQLDirectiveContainer), listOf(name, "$name extension"))
+        val applied = listOf("Query", "Node", "Item", "FooBar", "Color", "Filter").associateWith { name ->
+            (schema.getType(name) as GraphQLDirectiveContainer).appliedDirectives.map { it.describe() }
         }
-        assertEquals(nameArguments(schema.queryType), listOf("Query"))
-        assertEquals(tagDirective.tagged.toSet(), extended.flatMap { listOf("$it=$it", "$it=$it extension") }.toSet() + "Query=Query")
+        assertEquals(applied, mapOf(
+            "Query" to listOf("@once(Query)"),
+            "Node" to listOf("@tag(Node)", "@tag(Node extension)"),
+            "Item" to listOf("@tag(Item)", "@tag(Item extension)"),
+            "FooBar" to listOf("@tag(FooBar)", "@tag(FooBar extension)"),
+            "Color" to listOf("@tag(Color)", "@tag(Color extension)"),
+            "Filter" to listOf("@tag(Filter)", "@tag(Filter extension)", "@once(Filter extension)")
+        ))
+        // each applied directive is wired once
+        assertEquals(wiring.wired.sorted(), applied.values.flatten().sorted())
 
         val item = schema.getType("Item") as GraphQLObjectType
         val filter = schema.getType("Filter") as GraphQLInputObjectType
         assertEquals(item.directives.map { it.name }, listOf("tag", "tag"))
-        assertEquals(filter.directives.map { it.name }, listOf("tag", "tag"))
+        assertEquals(filter.directives.map { it.name }, listOf("tag", "tag", "once"))
         assertEquals(schema.queryType.directives.map { it.name }, listOf("once"))
         assertEquals(item.fieldDefinitions.map { it.name }, listOf("id", "name"))
         assertEquals(filter.extensionDefinitions.size, 1)
@@ -363,17 +370,27 @@ class TypeExtensionTest {
     }
 
     @Test
-    fun `extensions of a different kind than the type are rejected`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
-            parser(
-                """
-                type Query { today: String }
-                extend union Foo = Bar
-                $fooBarBaz
-                """)
-        }
+    fun `extensions of a different kind than the type are ignored`() {
+        val schema = parser(
+            """
+            type Query { node: Node }
 
-        assertEquals(error.message, "Type 'Foo' is defined as an object type, but extended as a union.")
+            interface Node { id: ID! }
+            extend type Node { name: String }
+
+            type Item implements Node { id: ID! }
+            extend union Item = Foo
+
+            type Foo { foo: String }
+            """) {
+            dictionary(Item::class)
+        }.makeExecutableSchema()
+
+        val node = schema.getType("Node") as GraphQLInterfaceType
+        val item = schema.getType("Item") as GraphQLObjectType
+        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id"))
+        assertEquals(item.interfaces.map { it.name }, listOf("Node"))
+        assertEquals(node.extensionDefinitions.size + item.extensionDefinitions.size, 0)
     }
 
     @Test
@@ -431,8 +448,6 @@ class TypeExtensionTest {
     private fun parser(schema: String, configure: SchemaParserBuilder.() -> Unit = {}) =
         SchemaParser.newParser().schemaString(schema).resolvers(Query()).apply(configure).build()
 
-    private fun nameArguments(type: GraphQLDirectiveContainer) = type.appliedDirectives.map { it.getArgument("name")?.getValue<String>() }
-
     class Query : GraphQLQueryResolver {
         fun fooBar(): FooBar = Baz("baz")
         fun barBaz(): FooBar? = null
@@ -456,22 +471,24 @@ class TypeExtensionTest {
 
     class Filter(val id: String?)
 
-    private class TagDirective : SchemaDirectiveWiring {
-        val tagged = mutableListOf<String>()
+    private class RecordingWiring : SchemaDirectiveWiring {
+        val wired = mutableListOf<String>()
 
-        override fun onObject(environment: SchemaDirectiveWiringEnvironment<GraphQLObjectType>) = tag(environment)
+        override fun onObject(environment: SchemaDirectiveWiringEnvironment<GraphQLObjectType>) = record(environment)
 
-        override fun onInterface(environment: SchemaDirectiveWiringEnvironment<GraphQLInterfaceType>) = tag(environment)
+        override fun onInterface(environment: SchemaDirectiveWiringEnvironment<GraphQLInterfaceType>) = record(environment)
 
-        override fun onUnion(environment: SchemaDirectiveWiringEnvironment<GraphQLUnionType>) = tag(environment)
+        override fun onUnion(environment: SchemaDirectiveWiringEnvironment<GraphQLUnionType>) = record(environment)
 
-        override fun onEnum(environment: SchemaDirectiveWiringEnvironment<GraphQLEnumType>) = tag(environment)
+        override fun onEnum(environment: SchemaDirectiveWiringEnvironment<GraphQLEnumType>) = record(environment)
 
-        override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>) = tag(environment)
+        override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>) = record(environment)
 
-        private fun <T : GraphQLDirectiveContainer> tag(environment: SchemaDirectiveWiringEnvironment<T>): T {
-            tagged.add("${environment.element.name}=${environment.appliedDirective.getArgument("name")?.getValue<String>()}")
+        private fun <T : GraphQLDirectiveContainer> record(environment: SchemaDirectiveWiringEnvironment<T>): T {
+            wired.add(environment.appliedDirective.describe())
             return environment.element
         }
     }
 }
+
+private fun GraphQLAppliedDirective.describe() = "@$name(${getArgument("name")?.getValue<String>()})"

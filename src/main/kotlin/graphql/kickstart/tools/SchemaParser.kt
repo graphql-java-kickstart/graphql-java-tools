@@ -637,8 +637,6 @@ class SchemaParser internal constructor(
         val isInput = expectedType == GraphQLInputType::class
         val definition = unusedDefinitions.find { it.name == typeName.name }
             ?: definitions.filterIsInstance<TypeDefinition<*>>().find { it.name == typeName.name }
-            // an object or input extension without a definition, which isn't built
-            ?: typeExtensions[typeName.name]?.first()
         val outputOnlyKind = when (definition) {
             is ObjectTypeDefinition -> "an object type"
             is InterfaceTypeDefinition -> "an interface"

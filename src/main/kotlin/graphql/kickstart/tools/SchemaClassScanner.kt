@@ -47,7 +47,10 @@ internal class SchemaClassScanner(
         .distinctBy { it.name }
 
     private val definitionsByName = typeDefinitions.filter { it !is SDLExtensionDefinition || it in loneExtensions }.associateBy { it.name }
-    private val typeExtensions: TypeExtensions = typeDefinitions.filter { it is SDLExtensionDefinition && it !in loneExtensions }.groupBy { it.name }
+    // without extensions of a different kind than their type, which are ignored with a warning, see init
+    private val typeExtensions: TypeExtensions = typeDefinitions
+        .filter { it is SDLExtensionDefinition && it !in loneExtensions && !extendsOtherKind(it) }
+        .groupBy { it.name }
     private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>().filter { it !is ObjectTypeExtensionDefinition }
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = definitionsByName.values.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
@@ -68,11 +71,9 @@ internal class SchemaClassScanner(
             }
         }
 
-        typeExtensions.values.flatten().forEach { extension ->
-            val definition = definitionsByName[extension.name]
-            if (definition != null && definition.kind() != extension.kind()) {
-                throw SchemaClassScannerError("Type '${extension.name}' is defined as ${definition.kind()}, but extended as ${extension.kind()}.")
-            }
+        typeDefinitions.filter { extendsOtherKind(it) }.forEach { extension ->
+            val definition = definitionsByName.getValue(extension.name)
+            log.warn("Type '${extension.name}' is defined as ${definition.kind()}, but extended as ${extension.kind()}. The extension is ignored.")
         }
 
         if (options.allowUnimplementedResolvers) {
@@ -572,6 +573,12 @@ internal class SchemaClassScanner(
 
     private fun ObjectTypeDefinition.getExtendedImplements(): List<Type<*>> =
         implements + typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name).flatMap { it.implements }
+
+    // e.g. `extend union Foo` of `type Foo`
+    private fun extendsOtherKind(definition: TypeDefinition<*>): Boolean {
+        val type = definitionsByName[definition.name]
+        return definition is SDLExtensionDefinition && type != null && type.kind() != definition.kind()
+    }
 
     private fun TypeDefinition<*>.kind(): String = when (this) {
         is ObjectTypeDefinition -> "an object type"
