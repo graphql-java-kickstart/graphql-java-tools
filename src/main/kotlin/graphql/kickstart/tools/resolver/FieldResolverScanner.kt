@@ -56,7 +56,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             }
         }
 
-        if (java.util.Map::class.java.isAssignableFrom(search.type.unwrap())) {
+        if (Map::class.java.isAssignableFrom(search.type.unwrap())) {
             return MapFieldResolver(field, search, options, search.type.unwrap())
         }
 
@@ -73,6 +73,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     }
 
     private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+        @Suppress("DEPRECATION")
         return if (options.allowUnimplementedResolvers
             || options.missingResolverDataFetcher != null
             || options.missingResolverDataFetcherProvider != null) {
@@ -127,7 +128,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             .filter { !Modifier.isPrivate(it.modifiers) }
             // discard any methods that are coming off the root of the class hierarchy
             // to avoid issues with duplicate method declarations
-            .filter { it.declaringClass != Object::class.java }
+            .filter { it.declaringClass != Any::class.java }
             // subscription resolvers must return a publisher
             .filter { !search.isSubscription || resolverMethodReturnsPublisher(it) }
             .toList()

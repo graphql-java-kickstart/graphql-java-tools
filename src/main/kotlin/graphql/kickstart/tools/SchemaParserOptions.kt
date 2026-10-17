@@ -10,7 +10,6 @@ import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.visibility.GraphqlFieldVisibility
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.reactive.publish
 import org.reactivestreams.Publisher
@@ -20,6 +19,7 @@ import java.util.concurrent.Future
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
+@ExposedCopyVisibility
 data class SchemaParserOptions internal constructor(
     val contextClass: Class<*>?,
     val genericWrappers: List<GenericWrapper>,
@@ -44,7 +44,6 @@ data class SchemaParserOptions internal constructor(
         fun newOptions() = Builder()
 
         @JvmStatic
-        @ExperimentalCoroutinesApi
         fun defaultOptions() = Builder().build()
     }
 
@@ -163,7 +162,6 @@ data class SchemaParserOptions internal constructor(
             this.allowUndeclaredDirectives = allowUndeclaredDirectives
         }
 
-        @ExperimentalCoroutinesApi
         fun build(): SchemaParserOptions {
             val coroutineContextProvider = coroutineContextProvider
                 ?: DefaultCoroutineContextProvider(Dispatchers.Default)

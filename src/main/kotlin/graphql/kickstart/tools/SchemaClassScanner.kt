@@ -75,16 +75,24 @@ internal class SchemaClassScanner(
 
         scanQueue()
 
-        // Loop over all objects scanning each one only once for more objects to discover.
-        do {
-            do {
-                // Require all implementors of discovered interfaces to be discovered or provided.
-                handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-            } while (scanQueue())
+        // Loop over all objects scanning each one only once for more objects to discover. Each step only runs once the steps
+        // above it have nothing left, and anything new starts over from the top.
+        while (true) {
+            // Require all implementors of discovered interfaces to be discovered or provided.
+            handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
+            if (scanQueue()) continue
 
             // Require all members of discovered unions to be discovered.
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
-        } while (scanQueue())
+            if (scanQueue()) continue
+
+            // Look for unions and interfaces used only by interface fields last, so types that can be reached some other way
+            // are still discovered in the same order as before. With includeUnusedTypes the unused types loop below already
+            // picks these up one at a time, scanning in between, so leave that path unchanged.
+            if (!options.includeUnusedTypes && handleInterfaceFieldTypes()) continue
+
+            break
+        }
 
         handleDirectives()
 
@@ -163,13 +171,49 @@ internal class SchemaClassScanner(
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
         when (typeDefinition) {
             is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
-            is EnumTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
-                "Enum type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
-            }
+            is EnumTypeDefinition -> handleDirectiveEnum(typeDefinition)
             is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
                 "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
             }
         }
+    }
+
+    /**
+     * Directive argument values never reach resolver methods, so an enum used in a directive doesn't need a class. Without one
+     * it goes into [unvalidatedTypes] and, unless a field uses it too, is built with its value names as values, see
+     * [validateAndCreateResult].
+     */
+    private fun handleDirectiveEnum(type: EnumTypeDefinition) {
+        if (dictionary.containsKey(type)) {
+            return
+        }
+
+        val initialEntry = initialDictionary[type.name]
+        if (initialEntry != null) {
+            handleFoundType(type, initialEntry.get(), DictionaryReference())
+        } else {
+            unvalidatedTypes.add(type)
+        }
+    }
+
+    /**
+     * The names of the types used by the fields, arguments and input fields of [definitions], including fields added by extensions.
+     */
+    private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
+        val names = definitions.map { it.name }.toSet()
+        return (definitions + extensionDefinitions + inputExtensionDefinitions)
+            .filter { it.name in names }
+            .flatMap { definition ->
+                when (definition) {
+                    is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
+                        field.inputValueDefinitions.map { it.type } + field.type
+                    }
+                    is InputObjectTypeDefinition -> definition.inputValueDefinitions.map { it.type }
+                    else -> emptyList()
+                }
+            }
+            .mapNotNull { (it.unwrap() as TypeName).name }
+            .toSet()
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
@@ -190,8 +234,8 @@ internal class SchemaClassScanner(
                 dictionary
                     .filter {
                         it.value.javaType != null
-                            && it.value.typeClass() != java.lang.Object::class.java
-                            && !java.util.Map::class.java.isAssignableFrom(it.value.typeClass())
+                            && it.value.typeClass() != Any::class.java
+                            && !Map::class.java.isAssignableFrom(it.value.typeClass())
                             && it.key !is InputObjectTypeDefinition
                             && it.key !is UnionTypeDefinition
                     }.mapValuesTo(it) { it.value.javaType }
@@ -238,7 +282,13 @@ internal class SchemaClassScanner(
 
         val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
 
-        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions)
+        // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
+        // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
+        // to a Map or an unimplemented field's argument.
+        val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
+        val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<EnumTypeDefinition>().filter { it.name !in typeNamesUsedByFields }.toSet()
+
+        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -270,6 +320,26 @@ internal class SchemaClassScanner(
         }.flatten().distinct()
     }
 
+    /**
+     * Implementations can narrow an interface field to a member of its union or an implementor of its interface, so such a
+     * union or interface may not be reachable from any object field. Returns whether any new types were found.
+     */
+    private fun handleInterfaceFieldTypes(): Boolean {
+        val newTypes = dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().flatMap { iface ->
+            iface.fieldDefinitions.mapNotNull { field ->
+                val type = definitionsByName[(field.type.unwrap() as TypeName).name]
+                if ((type is UnionTypeDefinition || type is InterfaceTypeDefinition) && !dictionary.containsKey(type)) {
+                    type to FieldTypeReference("${iface.name}.${field.name}")
+                } else {
+                    null
+                }
+            }
+        }
+
+        newTypes.forEach { (type, reference) -> handleFoundType(type, null, reference) }
+        return newTypes.isNotEmpty()
+    }
+
     private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
@@ -285,7 +355,7 @@ internal class SchemaClassScanner(
      * Scan a new object for types that haven't been mapped yet.
      */
     private fun scanQueueItemForPotentialMatches(item: QueueItem) {
-        val resolverInfo = if (item.clazz == Object::class.java) {
+        val resolverInfo = if (item.clazz == Any::class.java) {
             getResolverInfoFromTypeDictionary(item.type.name)
                 ?: throw SchemaClassScannerError("The GraphQL schema type '${item.type.name}' maps to a field of type java.lang.Object however there is no matching entry for this type in the type dictionary. You may need to add this type to the dictionary before building the schema.")
         } else {
@@ -321,7 +391,7 @@ internal class SchemaClassScanner(
     }
 
     private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: Class<*>) =
-        resolverInfo.dataClassType != Object::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
+        resolverInfo.dataClassType != Any::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
@@ -358,7 +428,7 @@ internal class SchemaClassScanner(
                 if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
                     log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
                 } else {
-                    if (java.util.Map::class.java.isAssignableFrom(javaType.unwrap())) {
+                    if (Map::class.java.isAssignableFrom(javaType.unwrap())) {
                         throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
                     }
                     throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.typeName}:\n|   ${reference.getDescription()}")
@@ -396,7 +466,7 @@ internal class SchemaClassScanner(
                                 handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
                                     inputValueDefinition.type,
                                     inputValueJavaType,
-                                    GenericType(javaType, options).relativeToType(javaType),
+                                    GenericTypeResolver(javaType, options),
                                     InputObjectReference(inputValueDefinition)
                                 )))
                             } else {

@@ -6,11 +6,9 @@ import graphql.kickstart.tools.resolver.MissingResolverDataFetcherProvider
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import java.util.*
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class MissingFieldResolverTest {
 
     @Test(expected = FieldResolverError::class)
@@ -32,6 +30,7 @@ class MissingFieldResolverTest {
     }
 
     @Test
+    @Suppress("DEPRECATION")
     fun `should call missing resolver data fetcher if provided`() {
         val schema = SchemaParser.newParser()
             .schemaString(

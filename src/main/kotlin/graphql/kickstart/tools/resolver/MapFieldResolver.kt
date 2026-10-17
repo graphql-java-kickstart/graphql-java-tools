@@ -21,10 +21,10 @@ internal class MapFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    relativeTo: JavaType
-) : FieldResolver(field, search, options, relativeTo) {
+    mapClass: JavaType
+) : FieldResolver(field, search, options) {
 
-    private var mapGenericValue: JavaType = getMapGenericType(relativeTo)
+    private var mapGenericValue: JavaType = getMapGenericType(mapClass)
 
     /**
      * Takes a type which implements Map and tries to find the
@@ -36,7 +36,7 @@ internal class MapFieldResolver(
         val resolvedType = TypeResolver().resolve(mapClass)
         val typeParameters = resolvedType.typeParametersFor(Map::class.java)
 
-        return typeParameters.elementAtOrElse(1) { Object::class.java }
+        return typeParameters.elementAtOrElse(1) { Any::class.java }
     }
 
     override fun createDataFetcher(): DataFetcher<*> {
@@ -44,7 +44,7 @@ internal class MapFieldResolver(
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        return listOf(TypeClassMatcher.PotentialMatch.returnValue(field.type, mapGenericValue, genericType, SchemaClassScanner.FieldTypeReference(field.name)))
+        return listOf(TypeClassMatcher.PotentialMatch.returnValue(field.type, mapGenericValue, typeResolver, SchemaClassScanner.FieldTypeReference(field.name)))
     }
 
     override fun toString() = "MapFieldResolver{key=${field.name}}"

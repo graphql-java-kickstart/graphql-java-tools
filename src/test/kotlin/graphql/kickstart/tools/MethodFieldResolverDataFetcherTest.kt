@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.ExecutionResult
 import graphql.GraphQLContext
+import graphql.Scalars
 import graphql.execution.*
 import graphql.execution.instrumentation.SimplePerformantInstrumentation
 import graphql.kickstart.tools.resolver.FieldResolverError
@@ -13,8 +14,11 @@ import graphql.language.TypeName
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
+import graphql.schema.GraphQLObjectType
+import graphql.schema.GraphQLSchema
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -25,11 +29,9 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.coroutineContext
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class MethodFieldResolverDataFetcherTest {
 
     @Test
-    @ExperimentalCoroutinesApi
     fun `data fetcher executes suspend function on coroutineContext defined by options`() {
         // setup
         val suspendClass = SuspendClass()
@@ -46,7 +48,6 @@ class MethodFieldResolverDataFetcherTest {
         private val dispatcher = Dispatchers.IO
         private val job = Job()
 
-        @ExperimentalCoroutinesApi
         val options = SchemaParserOptions.Builder()
             .coroutineContext(dispatcher + job)
             .build()
@@ -85,7 +86,44 @@ class MethodFieldResolverDataFetcherTest {
         }
     }
 
-    @ExperimentalCoroutinesApi
+    @Test
+    fun `data fetcher executes suspend function in CoroutineScope from GraphQLContext`() {
+        // setup
+        val scopeClass = ScopeClass()
+        val context = GraphQLContext.of(mapOf(CoroutineScope::class.java to scopeClass.scope))
+
+        val resolver = createFetcher("active", scopeClass)
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), context = context)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    @Test
+    fun `data fetcher executes suspend function in CoroutineScope from legacy context`() {
+        // setup
+        val scopeClass = ScopeClass()
+
+        val resolver = createFetcher("active", scopeClass)
+
+        // expect
+        @Suppress("UNCHECKED_CAST")
+        val future = resolver.get(createEnvironment(DataClass(), legacyContext = scopeClass.scope)) as CompletableFuture<Boolean>
+        assert(future.get())
+    }
+
+    class ScopeClass : GraphQLResolver<DataClass> {
+        private val job = Job()
+        val scope = CoroutineScope(job)
+
+        @Suppress("UNUSED_PARAMETER")
+        suspend fun isActive(data: DataClass): Boolean {
+            return coroutineContext[Job] == job.children.first()
+        }
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
     @Test
     fun `canceling subscription Publisher also cancels underlying Kotlin coroutine channel`() {
         // setup
@@ -198,7 +236,7 @@ class MethodFieldResolverDataFetcherTest {
     @Test
     fun `data fetcher passes environment if method has extra argument`() {
         val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
-            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment?): Boolean = env != null
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass())), true)
@@ -208,7 +246,7 @@ class MethodFieldResolverDataFetcherTest {
     fun `data fetcher passes environment if method has extra argument even if context is specified`() {
         val context = GraphQLContext.newContext().build()
         val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
-            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+            fun isActive(dataClass: DataClass, env: DataFetchingEnvironment?): Boolean = env != null
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
@@ -282,7 +320,7 @@ class MethodFieldResolverDataFetcherTest {
     @Test
     fun `data fetcher passes environment to extension function if method has extra argument`() {
         val resolver = createFetcher("active", object : GraphQLResolver<DataClass> {
-            fun DataClass.isActive(env: DataFetchingEnvironment): Boolean = env is DataFetchingEnvironment
+            fun DataClass.isActive(env: DataFetchingEnvironment?): Boolean = env != null
         })
 
         assertEquals(resolver.get(createEnvironment(DataClass())), true)
@@ -373,13 +411,18 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     private fun createEnvironment(
-        source: Any = Object(),
+        source: Any = Any(),
         arguments: Map<String, Any> = emptyMap(),
-        context: GraphQLContext = GraphQLContext.newContext().build()
+        context: GraphQLContext = GraphQLContext.newContext().build(),
+        legacyContext: Any? = null
     ) = DataFetchingEnvironmentImpl.newDataFetchingEnvironment(buildExecutionContext(context))
         .source(source)
         .arguments(arguments)
         .graphQLContext(context)
+        .apply {
+            @Suppress("DEPRECATION")
+            if (legacyContext != null) context(legacyContext)
+        }
         .build()
 
     private fun buildExecutionContext(context: GraphQLContext): ExecutionContext {
@@ -389,7 +432,11 @@ class MethodFieldResolverDataFetcherTest {
             }
         }
         val executionId = ExecutionId.from("executionId123")
+        val schema = GraphQLSchema.newSchema()
+            .query(GraphQLObjectType.newObject().name("Query").field { it.name("active").type(Scalars.GraphQLBoolean) })
+            .build()
         return ExecutionContextBuilder.newExecutionContextBuilder()
+            .graphQLSchema(schema)
             .graphQLContext(context)
             .instrumentation(SimplePerformantInstrumentation.INSTANCE)
             .executionId(executionId)
