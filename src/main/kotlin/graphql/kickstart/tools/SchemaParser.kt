@@ -62,8 +62,9 @@ class SchemaParser internal constructor(
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
     private val directiveWiringHelper = DirectiveWiringHelper(runtimeWiring, codeRegistryBuilder)
 
-    private lateinit var schemaDirectives : Set<GraphQLDirective>
-    // replaces the first definition of a directive with the real one while they're being created, see createDirectives
+    // by name, in the order they're declared
+    private val schemaDirectives = mutableMapOf<String, GraphQLDirective>()
+    // set while createDirectives runs, see there
     private var finishDirective: (String) -> Unit = {}
 
     /**
@@ -114,7 +115,7 @@ class SchemaParser internal constructor(
         // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only GraphQLAppliedDirectives are built here, not
         // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
         val schemaAppliedDirectives = buildAppliedDirectives(rootInfo.getDirectives()).toList()
-        return SchemaObjects(query, mutation, subscription, types, schemaDirectives, codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
+        return SchemaObjects(query, mutation, subscription, types, schemaDirectives.values.toSet(), codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
     }
 
     /**
@@ -325,32 +326,31 @@ class SchemaParser internal constructor(
     }
 
     private fun createDirectives(inputObjects: MutableList<GraphQLInputObjectType>) {
-        // Input objects used by directive arguments get built here, and building them needs the definitions of their own applied
-        // directives. So a first set of definitions only refers to input objects by type reference, and each one is replaced by the
-        // real definition the first time it's looked up, so that input objects see the real definitions of the directives applied
-        // to them. Only where a directive is applied within its own argument types, i.e. a cycle, do they see the first definition.
-        schemaDirectives = directiveDefinitions.map { definition ->
-            createDirective(definition) { determineType(GraphQLInputType::class, it, permittedTypesForInputObject, inputObjects) as GraphQLInputType }
-        }.toSet()
+        // The input objects used by directive arguments are built here, and they need the directives applied to them. So every
+        // directive is first built with type references to input objects, then rebuilt with the input objects the first time it's
+        // looked up. Only a directive applied within its own argument types gets its first build there.
+        directiveDefinitions.forEach { definition ->
+            schemaDirectives[definition.name] =
+                createDirective(definition) { determineType(GraphQLInputType::class, it, permittedTypesForInputObject, inputObjects) as GraphQLInputType }
+        }
         val unfinishedDefinitions = directiveDefinitions.associateByTo(mutableMapOf()) { it.name }
-        // shared by all definitions, so that an input object that's still being built isn't built again for another directive
+        // shared, so that an input object that's still being built isn't built again for another directive
         val referencingInputObjects = mutableSetOf<String>()
         finishDirective = { name ->
             unfinishedDefinitions.remove(name)?.let { definition ->
-                val directive = createDirective(definition) { determineInputType(it, inputObjects, referencingInputObjects) }
-                schemaDirectives = schemaDirectives.map { if (it.name == name) directive else it }.toSet()
+                schemaDirectives[name] = createDirective(definition) { determineInputType(it, inputObjects, referencingInputObjects) }
             }
         }
         directiveDefinitions.forEach { finishDirective(it.name) }
         finishDirective = {}
         // because the arguments can have directives too, we attach them only after the directives themselves are created
-        schemaDirectives = schemaDirectives.map { d ->
+        schemaDirectives.replaceAll { _, d ->
             val arguments = d.arguments.map { a -> a.transform {
                 it.withAppliedDirectives(*buildAppliedDirectives(a.definition!!.directives))
                     .withDirectives(*buildDirectives(a.definition!!.directives, Introspection.DirectiveLocation.OBJECT))
             } }
             d.transform { it.replaceArguments(arguments) }
-        }.toSet()
+        }
     }
 
     private fun createDirective(definition: DirectiveDefinition, determineArgumentType: (Type<*>) -> GraphQLInputType): GraphQLDirective {
@@ -373,7 +373,7 @@ class SchemaParser internal constructor(
 
     private fun findDirective(name: String): GraphQLDirective? {
         finishDirective(name)
-        return schemaDirectives.find { it.name == name }
+        return schemaDirectives[name]
     }
 
     private fun createDirectiveArgument(definition: InputValueDefinition, determineArgumentType: (Type<*>) -> GraphQLInputType): GraphQLArgument {

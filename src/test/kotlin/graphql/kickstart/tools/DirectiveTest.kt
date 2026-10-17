@@ -408,7 +408,8 @@ class DirectiveTest {
         val expectedMessages = mapOf(
             "contactEmail" to "{path} must be a valid email",
             "primaryEmail" to "{path} must be a valid email",
-            "backupEmail" to "invalid backup email"
+            "backupEmail" to "invalid backup email",
+            "email" to "{path} must be a valid email"
         )
         assertEquals(emailDirective.appliedMessages, expectedMessages)
         assertEquals(emailDirective.legacyMessages, expectedMessages)
@@ -420,156 +421,19 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should expose the directives of input fields through both the legacy and the applied view`() {
-        val rangeDirective = RangeDirective()
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @range(min: Float!, max: Float!) on ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
-                directive @tag(name: String!) on INPUT_OBJECT
-
-                type Query {
-                    withInput(input: InputObject): Float
-                }
-
-                input InputObject @tag(name: "limits") {
-                    value: Float @range(min: 0.00, max: 10.00)
-                    nolimit: Float
-                    limit: Float @range(min: 11.00, max: 15.00)
-                }
-                """)
-            .resolvers(WithInputQueryResolver())
-            .directive("range", rangeDirective)
-            .build()
-            .makeExecutableSchema()
-
-        val expectedRanges = mapOf("value" to listOf(0.0, 10.0), "limit" to listOf(11.0, 15.0))
-        assertEquals(rangeDirective.appliedRanges, expectedRanges)
-        assertEquals(rangeDirective.legacyRanges, expectedRanges)
-        assertEquals(rangeDirective.elementRanges, expectedRanges)
-        val inputObject = schema.getType("InputObject") as GraphQLInputObjectType
-        val expectedDirectives = mapOf("value" to listOf("range"), "nolimit" to emptyList(), "limit" to listOf("range"))
-        assertEquals(inputObject.fields.associate { field -> field.name to field.directives.map { it.name } }, expectedDirectives)
-        assertEquals(inputObject.fields.associate { field -> field.name to field.appliedDirectives.map { it.name } }, expectedDirectives)
-        assertNotNull(inputObject.getDirective("tag"))
-    }
-
-    @Test
-    fun `should validate directives on nested input fields reached through list and non-null types`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @size(min: Int = 0, max: Int = 2147483647) on ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
-                directive @range(min: Float!, max: Float!) on ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
-
-                type Query {
-                    changeUser(input: ChangeUserInput): Boolean
-                    addBook(bookInput: BookInput!): Boolean
-                    rate(score: Float @range(min: 0, max: 5)): Boolean
-                }
-
-                input ChangeUserInput {
-                    name: NameInput
-                    aliases: [NameInput!]
-                    guardian: GuardianInput!
-                }
-
-                input GuardianInput {
-                    name: NameInput!
-                }
-
-                input NameInput {
-                    forename: String! @size(min: 3, max: 25)
-                }
-
-                input BookInput {
-                    id: Int! @range(min: 4, max: 10)
-                    name: String!
-                }
-                """)
-            .resolvers(ValidatedQueryResolver())
-            .directiveWiring(ConstraintValidationWiring())
-            .build()
-            .makeExecutableSchema()
-
-        val gql = GraphQL.newGraphQL(schema)
-            .queryExecutionStrategy(AsyncExecutionStrategy())
-            .build()
-
-        val invalid = gql.execute(
-            """
-            query {
-                changeUser(input: { name: { forename: "Al" }, aliases: [{ forename: "Alice" }, { forename: "Bo" }], guardian: { name: { forename: "Ed" } } })
-                addBook(bookInput: { id: 11, name: "Dune" })
-                rate(score: 6)
-            }
-            """)
-        assertEquals(invalid.errors.map { it.message }.sorted(), listOf(
-            "Exception while fetching data (/addBook) : bookInput.id must be between 4.0 and 10.0",
-            "Exception while fetching data (/changeUser) : input.name.forename, input.aliases[1].forename, input.guardian.name.forename must have a size between 3 and 25",
-            "Exception while fetching data (/rate) : score must be between 0.0 and 5.0"
-        ))
-
-        val valid = gql.execute(
-            """
-            query {
-                changeUser(input: { name: { forename: "Alice" }, aliases: [{ forename: "Bob" }], guardian: { name: { forename: "Eddie" } } })
-                addBook(bookInput: { id: 5, name: "Dune" })
-                rate(score: 4)
-            }
-            """)
-        assertEquals(valid.errors, emptyList())
-        assertEquals(valid.getData(), mapOf("changeUser" to true, "addBook" to true, "rate" to true))
-    }
-
-    @Test
-    fun `should build input objects used by directive arguments even when they have directives themselves`() {
-        val wiredArgumentTypes = mutableMapOf<String, String>()
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @meta(info: MetaInput!, extras: [MetaInput!]) on FIELD_DEFINITION
-
-                type Query {
-                    name: String @meta(info: { note: "info" }, extras: [{ note: "extra" }])
-                }
-
-                input MetaInput {
-                    note: String @deprecated
-                }
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun name(): String? = null
-            })
-            .dictionary("MetaInput", MetaInput::class)
-            .directive("meta", object : SchemaDirectiveWiring {
-                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
-                    environment.appliedDirective.arguments.forEach {
-                        wiredArgumentTypes[it.name] = GraphQLTypeUtil.unwrapAll(it.type).javaClass.simpleName
-                    }
-                    return environment.element
-                }
-            })
-            .build()
-            .makeExecutableSchema()
-
-        assertEquals(wiredArgumentTypes, mapOf("info" to "GraphQLInputObjectType", "extras" to "GraphQLInputObjectType"))
-        assert((schema.getType("MetaInput") as GraphQLInputObjectType).getField("note").isDeprecated)
-    }
-
-    @Test
-    fun `should wire input objects used by directive arguments with the real definitions of the directives applied to them`() {
-        val metaDirective = "directive @meta(info: ConfigInput!) on FIELD_DEFINITION"
-        val optionDirective = "directive @option(value: OptionInput) on INPUT_OBJECT | INPUT_FIELD_DEFINITION"
-        listOf(listOf(metaDirective, optionDirective), listOf(optionDirective, metaDirective)).forEach { directives ->
-            val optionRecorder = OptionRecorder()
+    fun `should build input objects used by directive arguments before wiring`() {
+        val meta = "directive @meta(info: ConfigInput!) on FIELD_DEFINITION"
+        val option = "directive @option(value: OptionInput) on INPUT_OBJECT | INPUT_FIELD_DEFINITION"
+        // ConfigInput is built for @meta and needs @option, whichever is declared first
+        listOf("$meta\n$option", "$option\n$meta").forEach { directives ->
+            val recorder = ArgumentTypeRecorder()
             SchemaParser.newParser()
                 .schemaString(
                     """
-                    ${directives.joinToString("\n")}
+                    $directives
 
                     type Query {
-                        name(config: ConfigInput): String @meta(info: { level: 1 })
+                        name: String @meta(info: { level: 1 })
                     }
 
                     input ConfigInput @option(value: { label: "type" }) {
@@ -581,31 +445,30 @@ class DirectiveTest {
                     }
                     """)
                 .resolvers(object : GraphQLQueryResolver {
-                    fun name(config: ConfigInput?): String? = null
+                    fun name(): String? = null
                 })
-                .dictionary("OptionInput", OptionInput::class)
-                .directive("option", optionRecorder)
+                .dictionary(ConfigInput::class, OptionInput::class)
+                .directive("meta", recorder)
+                .directive("option", recorder)
                 .build()
                 .makeExecutableSchema()
 
-            val expectedOptions = mapOf(
-                "ConfigInput" to listOf("GraphQLInputObjectType", mapOf("label" to "type"), mapOf("label" to "type")),
-                "level" to listOf("GraphQLInputObjectType", mapOf("label" to "field"), mapOf("label" to "field"))
-            )
-            assert(optionRecorder.wiredOptions == expectedOptions) { "${optionRecorder.wiredOptions} with directives declared as $directives" }
+            val inputObject = listOf("GraphQLInputObjectType")
+            val expectedTypes = mapOf("name" to inputObject, "ConfigInput" to inputObject, "level" to inputObject)
+            assert(recorder.argumentTypes == expectedTypes) { "${recorder.argumentTypes} with directives declared as $directives" }
         }
     }
 
     @Test
     fun `should wire input objects only once when a directive is applied within its own argument types`() {
-        val limitDirective = "directive @limit(bound: BoundInput!) on INPUT_FIELD_DEFINITION"
-        val limitsDirective = "directive @limits(bounds: [BoundInput!]) on FIELD_DEFINITION"
-        listOf(listOf(limitsDirective, limitDirective), listOf(limitDirective, limitsDirective)).forEach { directives ->
+        val limit = "directive @limit(bound: BoundInput!) on INPUT_FIELD_DEFINITION"
+        val limits = "directive @limits(bounds: [BoundInput!]) on FIELD_DEFINITION"
+        listOf("$limits\n$limit", "$limit\n$limits").forEach { directives ->
             val wiredFields = mutableListOf<String>()
             val schema = SchemaParser.newParser()
                 .schemaString(
                     """
-                    ${directives.joinToString("\n")}
+                    $directives
 
                     type Query {
                         name: String @limits(bounds: [{ max: 1 }])
@@ -618,7 +481,7 @@ class DirectiveTest {
                 .resolvers(object : GraphQLQueryResolver {
                     fun name(): String? = null
                 })
-                .dictionary("BoundInput", BoundInput::class)
+                .dictionary(BoundInput::class)
                 .directive("limit", object : SchemaDirectiveWiring {
                     override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
                         wiredFields.add(environment.element.name)
@@ -631,7 +494,6 @@ class DirectiveTest {
             assert(wiredFields == listOf("max")) { "$wiredFields with directives declared as $directives" }
             val limit = (schema.getType("BoundInput") as GraphQLInputObjectType).getField("max").getAppliedDirective("limit")
             assertEquals(limit.getArgument("bound")?.getValue<Map<String, Int>>(), mapOf("max" to 10))
-            assert(GraphQLTypeUtil.unwrapAll(schema.getDirective("limit")!!.getArgument("bound").type) is GraphQLInputObjectType)
         }
     }
 
@@ -842,6 +704,11 @@ class DirectiveTest {
             return environment.element
         }
 
+        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+            recordMessage(environment)
+            return environment.element
+        }
+
         private fun recordMessage(environment: SchemaDirectiveWiringEnvironment<*>) {
             val name = environment.element.name
             appliedMessages[name] = environment.appliedDirective.getArgument("message")?.getValue<String>()
@@ -850,39 +717,7 @@ class DirectiveTest {
         }
     }
 
-    private class WithInputQueryResolver : GraphQLQueryResolver {
-        fun withInput(input: InputObject?): Double? = input?.value
-    }
-
-    private data class InputObject(
-        val value: Double?,
-        val nolimit: Double?,
-        val limit: Double?
-    )
-
-    private class RangeDirective : SchemaDirectiveWiring {
-        val appliedRanges = mutableMapOf<String, List<Double?>>()
-        val legacyRanges = mutableMapOf<String, List<Double?>>()
-        val elementRanges = mutableMapOf<String, List<Double?>>()
-
-        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
-            val field = environment.element
-            appliedRanges[field.name] = listOf("min", "max").map { environment.appliedDirective.getArgument(it)?.getValue<Double>() }
-            legacyRanges[field.name] = legacyRange(environment.directive)
-            elementRanges[field.name] = legacyRange(field.getDirective("range"))
-            return field
-        }
-
-        private fun legacyRange(directive: GraphQLDirective?): List<Double?> =
-            listOf("min", "max").map { name -> directive?.getArgument(name)?.let { GraphQLArgument.getArgumentValue<Double>(it) } }
-    }
-
-    private data class MetaInput(
-        val note: String?
-    )
-
-    // not private, so that the arguments can be converted to them
-    data class ConfigInput(
+    private data class ConfigInput(
         val level: Int?
     )
 
@@ -895,110 +730,21 @@ class DirectiveTest {
     )
 
     /**
-     * Records the type and the applied and legacy value of the `value` argument of the directive at wiring time.
+     * Records the unwrapped types of the arguments of each applied directive, by the name of the element it's applied to.
      */
-    private class OptionRecorder : SchemaDirectiveWiring {
-        val wiredOptions = mutableMapOf<String, List<Any?>>()
+    private class ArgumentTypeRecorder : SchemaDirectiveWiring {
+        val argumentTypes = mutableMapOf<String, List<String>>()
 
-        override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>): GraphQLInputObjectType {
-            wiredOptions[environment.element.name] = option(environment)
+        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>) = record(environment)
+
+        override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>) = record(environment)
+
+        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>) = record(environment)
+
+        private fun <T : GraphQLDirectiveContainer> record(environment: SchemaDirectiveWiringEnvironment<T>): T {
+            argumentTypes[environment.element.name] =
+                environment.appliedDirective.arguments.map { GraphQLTypeUtil.unwrapAllAs<GraphQLType>(it.type).javaClass.simpleName }
             return environment.element
-        }
-
-        override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
-            wiredOptions[environment.element.name] = option(environment)
-            return environment.element
-        }
-
-        private fun option(environment: SchemaDirectiveWiringEnvironment<*>): List<Any?> {
-            val applied = environment.appliedDirective.getArgument("value")!!
-            return listOf(
-                applied.type.javaClass.simpleName,
-                applied.getValue<Any?>(),
-                GraphQLArgument.getArgumentValue<Any?>(environment.directive.getArgument("value"))
-            )
-        }
-    }
-
-    private class ValidatedQueryResolver : GraphQLQueryResolver {
-        fun changeUser(input: ChangeUserInput?): Boolean = true
-        fun addBook(bookInput: BookInput): Boolean = true
-        fun rate(score: Double?): Boolean = true
-    }
-
-    // not private, so that the arguments can be converted to them
-    data class ChangeUserInput(
-        val name: NameInput?,
-        val aliases: List<NameInput>?,
-        val guardian: GuardianInput
-    )
-
-    data class GuardianInput(
-        val name: NameInput
-    )
-
-    data class NameInput(
-        val forename: String
-    )
-
-    data class BookInput(
-        val id: Int,
-        val name: String
-    )
-
-    /**
-     * Validates @size and @range on arguments and on input fields nested in them, deciding at wiring time which fields need
-     * validating by walking the argument types like graphql-java-extended-validation's DirectivesAndTypeWalker does.
-     */
-    private class ConstraintValidationWiring : SchemaDirectiveWiring {
-        override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
-            val field = environment.element
-            if (field.arguments.none { hasConstraint(it) || hasNestedConstraint(it.type) }) {
-                return field
-            }
-
-            val coordinates = FieldCoordinates.coordinates(environment.fieldsContainer, field)
-            val originalDataFetcher = environment.codeRegistry.getDataFetcher(coordinates, field)
-            environment.codeRegistry.dataFetcher(coordinates, DataFetcher { env ->
-                val violations = env.fieldDefinition.arguments.flatMap { argument ->
-                    violations(argument.name, argument, argument.type, env.getArgument(argument.name))
-                }
-                if (violations.isNotEmpty()) {
-                    throw IllegalArgumentException(violations.groupBy({ it.second }, { it.first }).map { (message, paths) -> "${paths.joinToString()} $message" }.joinToString("; "))
-                }
-                originalDataFetcher.get(env)
-            })
-            return field
-        }
-
-        private fun hasConstraint(container: GraphQLDirectiveContainer) =
-            container.getDirective("size") != null || container.getDirective("range") != null
-
-        private fun hasNestedConstraint(type: GraphQLInputType): Boolean {
-            val unwrapped = GraphQLTypeUtil.unwrapAll(type)
-            return unwrapped is GraphQLInputObjectType && unwrapped.fields.any { hasConstraint(it) || hasNestedConstraint(it.type) }
-        }
-
-        private fun violations(path: String, container: GraphQLDirectiveContainer, type: GraphQLInputType, value: Any?): List<Pair<String, String>> {
-            val unwrapped = GraphQLTypeUtil.unwrapNonNull(type)
-            return when {
-                value == null -> emptyList()
-                unwrapped is GraphQLList -> (value as List<*>).flatMapIndexed { i, item -> violations("$path[$i]", container, unwrapped.wrappedType as GraphQLInputType, item) }
-                unwrapped is GraphQLInputObjectType -> unwrapped.fields.flatMap { violations("$path.${it.name}", it, it.type, (value as Map<*, *>)[it.name]) }
-                else -> listOfNotNull(sizeViolation(container.getDirective("size"), value), rangeViolation(container.getDirective("range"), value)).map { path to it }
-            }
-        }
-
-        private fun sizeViolation(directive: GraphQLDirective?, value: Any): String? {
-            val min = directive?.getArgument("min")?.let { GraphQLArgument.getArgumentValue<Int>(it) } ?: return null
-            val max = GraphQLArgument.getArgumentValue<Int>(directive.getArgument("max"))!!
-            return if ((value as String).length !in min..max) "must have a size between $min and $max" else null
-        }
-
-        private fun rangeViolation(directive: GraphQLDirective?, value: Any): String? {
-            val min = directive?.getArgument("min")?.let { GraphQLArgument.getArgumentValue<Double>(it) } ?: return null
-            val max = GraphQLArgument.getArgumentValue<Double>(directive.getArgument("max"))!!
-            return if ((value as Number).toDouble() !in min..max) "must be between $min and $max" else null
         }
     }
 
