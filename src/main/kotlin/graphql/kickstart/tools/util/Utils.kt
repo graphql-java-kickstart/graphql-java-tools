@@ -35,15 +35,13 @@ internal fun Type<*>.unwrap(): Type<*> = when (this) {
     else -> this
 }
 
-internal fun ObjectTypeDefinition.getExtendedFieldDefinitions(extensions: List<ObjectTypeExtensionDefinition>): List<FieldDefinition> {
-    return this.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }
-}
-
-internal fun ImplementingTypeDefinition<*>.getExtendedImplements(extensions: List<ImplementingTypeDefinition<*>>): List<Type<*>> =
-    implements + extensions.flatMap { it.implements }
-
 internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =
     this[name].orEmpty().filterIsInstance<T>()
+
+// The type followed by its extensions, e.g. `union.withExtensions(typeExtensions).flatMap { it.memberTypes }`. Every extension class
+// is a subclass of its type's class, e.g. UnionTypeExtensionDefinition of UnionTypeDefinition.
+internal inline fun <reified T : TypeDefinition<*>> T.withExtensions(typeExtensions: TypeExtensions): List<T> =
+    listOf(this) + typeExtensions.extensionsOf<T>(name)
 
 internal fun JavaType.unwrap(): Class<out Any> =
     if (this is ParameterizedType) {

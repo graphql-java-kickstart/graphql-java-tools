@@ -7,9 +7,8 @@ import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINIT
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
 import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
-import graphql.kickstart.tools.util.getExtendedFieldDefinitions
-import graphql.kickstart.tools.util.getExtendedImplements
 import graphql.kickstart.tools.util.unwrap
+import graphql.kickstart.tools.util.withExtensions
 import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
@@ -138,14 +137,14 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.OBJECT))
             .apply {
-                objectDefinition.getExtendedImplements(extensions).forEach { implementsDefinition ->
+                objectDefinition.withExtensions(typeExtensions).flatMap { it.implements }.forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(interfaces.find { it.name == interfaceName }
                         ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
                 }
             }
             .apply {
-                objectDefinition.getExtendedFieldDefinitions(extensions).forEach { fieldDefinition ->
+                objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { fieldDefinition ->
                     field { field ->
                         createField(field, fieldDefinition, inputObjects)
                         codeRegistryBuilder.dataFetcher(
@@ -211,7 +210,7 @@ class SchemaParser internal constructor(
 
         val extensions = typeExtensions.extensionsOf<EnumTypeExtensionDefinition>(name)
         val directives = directivesOf(definition, extensions)
-        val values = definition.enumValueDefinitions + extensions.flatMap { it.enumValueDefinitions }
+        val values = definition.withExtensions(typeExtensions).flatMap { it.enumValueDefinitions }
         warnRepeated(name, "value", values.map { it.name })
         val builder = GraphQLEnumType.newEnum()
             .name(name)
@@ -250,7 +249,7 @@ class SchemaParser internal constructor(
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
         val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
         val directives = directivesOf(interfaceDefinition, extensions)
-        val fieldDefinitions = interfaceDefinition.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }
+        val fieldDefinitions = interfaceDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
         warnRepeated(interfaceDefinition.name, "field", fieldDefinitions.map { it.name })
         val builder = GraphQLInterfaceType.newInterface()
             .name(interfaceDefinition.name)
@@ -265,7 +264,7 @@ class SchemaParser internal constructor(
                 }
             }
             .apply {
-                interfaceDefinition.getExtendedImplements(extensions).forEach { implementsDefinition ->
+                interfaceDefinition.withExtensions(typeExtensions).flatMap { it.implements }.forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(GraphQLTypeReference(interfaceName))
                 }
@@ -277,7 +276,7 @@ class SchemaParser internal constructor(
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
         val extensions = typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name)
         val directives = directivesOf(definition, extensions)
-        warnRepeated(definition.name, "member", (definition.memberTypes + extensions.flatMap { it.memberTypes }).map { (it as TypeName).name })
+        warnRepeated(definition.name, "member", definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.map { (it as TypeName).name })
         val builder = GraphQLUnionType.newUnionType()
             .name(definition.name)
             .definition(definition)
@@ -296,7 +295,7 @@ class SchemaParser internal constructor(
         val name = definition.name
         val leafObjects = mutableListOf<GraphQLObjectType>()
 
-        (definition.memberTypes + typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(name).flatMap { it.memberTypes }).forEach {
+        definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.forEach {
             val typeName = (it as TypeName).name
 
             // Is this a nested union? If so, expand
