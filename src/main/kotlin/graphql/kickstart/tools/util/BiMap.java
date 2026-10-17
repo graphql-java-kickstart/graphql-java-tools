@@ -1,6 +1,7 @@
 package graphql.kickstart.tools.util;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -19,6 +20,17 @@ public class BiMap<K, V> implements Map<K, V> {
 
     public static <K, V> BiMap<K, V> unmodifiableBiMap(BiMap<K, V> biMap) {
         return new BiMap<>(unmodifiableMap(biMap.delegate), unmodifiableMap(biMap.inverse));
+    }
+
+    /**
+     * Returns an unmodifiable bimap with the entries of the given map. Unlike {@link #put(Object, Object)}, several keys may
+     * have the same value. The inverse only maps such a value back to the first of its keys, so the inverse and
+     * {@link #values()} can have fewer entries than the bimap.
+     */
+    public static <K, V> BiMap<K, V> unmodifiableCopyOf(Map<K, V> map) {
+        Map<V, K> inverse = new HashMap<>();
+        map.forEach((key, value) -> inverse.putIfAbsent(value, key));
+        return new BiMap<>(unmodifiableMap(new LinkedHashMap<>(map)), unmodifiableMap(inverse));
     }
 
     private BiMap(Map<K, V> delegate, Map<V, K> inverse) {

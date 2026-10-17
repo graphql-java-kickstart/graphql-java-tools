@@ -67,4 +67,19 @@ class BiMapTest {
         val expected = setOf(1, 2, 3)
         assertEquals(expected, values)
     }
+
+    @Test
+    fun `unmodifiable copy should keep keys with the same value`() {
+        val copy = BiMap.unmodifiableCopyOf(linkedMapOf("foo" to 1, "bar" to 2, "baz" to 1))
+
+        assertEquals(mapOf("foo" to 1, "bar" to 2, "baz" to 1), copy.toMap())
+        assertEquals(listOf("foo", "bar", "baz"), copy.keys.toList())
+        assertEquals(setOf(1, 2), copy.values)
+        assertEquals(mapOf(1 to "foo", 2 to "bar"), copy.inverse().toMap())
+    }
+
+    @Test(expected = UnsupportedOperationException::class)
+    fun `unmodifiable copy should not permit changes`() {
+        BiMap.unmodifiableCopyOf(mapOf("foo" to 1))["bar"] = 2
+    }
 }
