@@ -326,7 +326,7 @@ class TypeExtensionTest {
 
     @Test
     fun `repeats and extensions without a type keep building`() {
-        // how schemas worked around extensions that weren't merged
+        // these built before extensions were merged, so the repeats only log a warning
         val schema = parser(
             """
             type Query {

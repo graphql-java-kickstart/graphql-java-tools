@@ -211,6 +211,8 @@ class SchemaParser internal constructor(
 
         val extensions = typeExtensions.extensionsOf<EnumTypeExtensionDefinition>(name)
         val directives = directivesOf(definition, extensions)
+        val values = definition.enumValueDefinitions + extensions.flatMap { it.enumValueDefinitions }
+        warnRepeated(name, "value", values.map { it.name })
         val builder = GraphQLEnumType.newEnum()
             .name(name)
             .definition(definition)
@@ -219,8 +221,7 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.ENUM))
             .apply {
-                // graphql-java rejects values that an extension repeats, but that was the workaround for #552, so the first one is kept
-                (definition.enumValueDefinitions + extensions.flatMap { it.enumValueDefinitions }).distinctBy { it.name }.forEach { valueDefinition ->
+                values.distinctBy { it.name }.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
                     val enumValue = if (enumClass == null) {
                         enumName
@@ -249,6 +250,8 @@ class SchemaParser internal constructor(
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
         val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
         val directives = directivesOf(interfaceDefinition, extensions)
+        val fieldDefinitions = interfaceDefinition.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }
+        warnRepeated(interfaceDefinition.name, "field", fieldDefinitions.map { it.name })
         val builder = GraphQLInterfaceType.newInterface()
             .name(interfaceDefinition.name)
             .definition(interfaceDefinition)
@@ -257,8 +260,7 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.INTERFACE))
             .apply {
-                // graphql-java rejects fields that an extension repeats, but that was the workaround for #552, so the first one is kept
-                (interfaceDefinition.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }).distinctBy { it.name }.forEach { fieldDefinition ->
+                fieldDefinitions.distinctBy { it.name }.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
                 }
             }
@@ -275,6 +277,7 @@ class SchemaParser internal constructor(
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
         val extensions = typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name)
         val directives = directivesOf(definition, extensions)
+        warnRepeated(definition.name, "member", (definition.memberTypes + extensions.flatMap { it.memberTypes }).map { (it as TypeName).name })
         val builder = GraphQLUnionType.newUnionType()
             .name(definition.name)
             .definition(definition)
@@ -307,6 +310,14 @@ class SchemaParser internal constructor(
             }
         }
         return leafObjects
+    }
+
+    // graphql-java rejects a type that declares an enum value, interface field or union member twice, e.g. in the type and again in
+    // an extension. Those schemas built before #552, so the first one is kept and a warning is logged.
+    private fun warnRepeated(typeName: String, kind: String, names: List<String?>) {
+        names.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.forEach {
+            log.warn("Type '$typeName' declares $kind '$it' more than once, only the first one is kept.")
+        }
     }
 
     // The directives of the extensions follow those of the type, like in graphql-java. A non-repeatable directive that an extension
