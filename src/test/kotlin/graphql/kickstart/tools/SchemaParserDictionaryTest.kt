@@ -125,9 +125,9 @@ class SchemaParserDictionaryTest {
                 }
                 """)
             .resolvers(object : GraphQLQueryResolver {
-                fun dog(): Dog = LabradorRetriever("a", "black", 1, 1f)
+                fun dog(): Dog = LabradorRetriever(name = "a", color = "black", fluffiness = 1, speed = 1f)
             })
-            .dictionary(LabradorRetriever::class)
+            .dictionary("LabradorRetriever", LabradorRetriever::class)
             .dictionary("DogInput", LabradorRetriever::class)
             .build()
             .makeExecutableSchema()
