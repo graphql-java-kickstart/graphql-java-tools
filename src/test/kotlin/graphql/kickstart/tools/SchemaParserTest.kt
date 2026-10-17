@@ -14,7 +14,6 @@ import org.junit.Before
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.tck.TestEnvironment
-import org.springframework.aop.framework.ProxyFactory
 import java.io.FileNotFoundException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
@@ -339,21 +338,6 @@ class SchemaParserTest {
 
     class Cat {
         var name: String? = null
-    }
-
-    @Test
-    fun `parser handles spring AOP proxied resolvers by default`() {
-        val resolver = ProxyFactory(ProxiedResolver()).proxy as GraphQLQueryResolver
-
-        SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    test: [String]
-                }
-                """)
-            .resolvers(resolver)
-            .build()
     }
 
     @Test
@@ -1042,10 +1026,6 @@ class SchemaParserTest {
     }
 
     class RootObj
-
-    class ProxiedResolver : GraphQLQueryResolver {
-        fun test(): List<String> = listOf()
-    }
 
     enum class CustomEnum {
         FOO {

@@ -34,7 +34,12 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         val searches = resolverInfo.getFieldSearches()
 
         val scanProperties = field.inputValueDefinitions.isEmpty()
-        val found = searches.mapNotNull { search -> findFieldResolver(field, search, scanProperties) }
+        // root fields must match a single resolver. Other fields use the first match, so the resolvers it shadows, e.g. for a
+        // supertype, are never called and aren't checked
+        val found = searches.asSequence()
+            .mapNotNull { search -> findFieldResolver(field, search, scanProperties) }
+            .let { if (resolverInfo is RootResolverInfo) it else it.take(1) }
+            .toList()
 
         if (resolverInfo is RootResolverInfo && found.size > 1) {
             throw FieldResolverError("Found more than one matching resolver for field '$field': $found")
@@ -46,7 +51,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if (method != null) {
-            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)))
+            val invocableMethod = findInvocableMethod(field, search, method)
+            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)), invocableMethod)
         }
 
         if (scanProperties) {
@@ -61,6 +67,54 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
 
         return null
+    }
+
+    /**
+     * A resolver behind a JDK dynamic proxy, e.g. Spring AOP without proxyTargetClass, is scanned as its target class, but the
+     * proxy only implements the target's interfaces. So its methods are called through the interface method they implement,
+     * which also runs the proxy's interceptors.
+     */
+    private fun findInvocableMethod(field: FieldDefinition, search: Search, method: Method): Method {
+        val source = search.source
+        if (source == null || Modifier.isStatic(method.modifiers) || method.declaringClass.isInstance(source)) {
+            return method
+        }
+
+        val targetClass = search.type.unwrap()
+        return ClassUtils.getAllInterfaces(targetClass)
+            .filter { it.isInstance(source) }
+            .flatMap { it.methods.toList() }
+            // the proxy calls whichever method of the target class implements the interface method, so that has to be this method
+            // and not an overload, e.g. test(int) next to test(Integer) for Api<Int>.test(T)
+            .find { interfaceMethod ->
+                !Modifier.isStatic(interfaceMethod.modifiers)
+                    && targetClass.methods.filter { !it.isBridge && it.implements(interfaceMethod, targetClass) } == listOf(method)
+            }
+            ?.apply(trySetAccessible(field, search.type))
+            ?: throw FieldResolverError(
+                "Resolver method '${method.declaringClass.name}.${method.name}' for field '${field.name}' as defined in schema ${getSourceLocation(field)} " +
+                    "can't be called on ${source.javaClass.name}, which is not an instance of ${method.declaringClass.name}. " +
+                    "This happens with JDK dynamic proxies, which only implement interfaces. " +
+                    "Declare the method on an interface the resolver implements, or use class-based proxies (e.g. proxyTargetClass = true in Spring)."
+            )
+    }
+
+    // the implementation of a generic interface method takes the type arguments, e.g. echo(String) for echo(T) of Api<String>,
+    // and the compiler bridges the erased echo(Object) to it. A method inherited from a generic superclass is erased itself,
+    // e.g. getValue(Object) for getValue(T), so both sides are resolved against the target class
+    private fun Method.implements(interfaceMethod: Method, targetClass: Class<*>): Boolean {
+        if (name != interfaceMethod.name || parameterCount != interfaceMethod.parameterCount) {
+            return false
+        }
+
+        return parameterTypes.indices.all { i ->
+            val interfaceParameterType = interfaceMethod.genericParameterTypes[i]
+            val resolvedInterfaceType = TypeUtils.getRawType(interfaceParameterType, targetClass) ?: interfaceMethod.parameterTypes[i]
+            val resolvedType = (TypeUtils.getRawType(genericParameterTypes[i], targetClass) ?: parameterTypes[i])
+                // Kotlin unboxes type arguments, e.g. increment(int) for Api<Int>.increment(T)
+                .let { if (interfaceParameterType is TypeVariable<*>) ClassUtils.primitiveToWrapper(it) else it }
+            resolvedType == resolvedInterfaceType
+        }
     }
 
     private fun trySetAccessible(field: FieldDefinition, type: JavaType): AccessibleObject.() -> Unit = {
@@ -200,13 +254,13 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             isSubscription = isSubscription || search.isSubscription
         }
 
-        val sourceName = field.sourceLocation?.sourceName ?: "<unknown>"
-        val sourceLocation = field.sourceLocation?.let { "$sourceName:${it.line}" } ?: "<unknown>"
-
-        return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures " +
+        return "No method${if (scannedProperties) " or field" else ""} found as defined in schema ${getSourceLocation(field)} with any of the following signatures " +
             "(with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}" +
             if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""
     }
+
+    private fun getSourceLocation(field: FieldDefinition): String =
+        field.sourceLocation?.let { "${it.sourceName ?: "<unknown>"}:${it.line}" } ?: "<unknown>"
 
     private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
         val baseType = search.type.unwrap()
