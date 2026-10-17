@@ -283,7 +283,7 @@ class SchemaParserTest {
                 .makeExecutableSchema()
         }
 
-        assertEquals(error.message, "Type 'Cat' used by field 'Pet.friend' at line 6, column 11 of UnreachedType.graphqls is defined in the schema, " +
+        assertEquals(error.message, "Type 'Cat' used by field 'Pet.friend' at line 6, column 11 in UnreachedType.graphqls is defined in the schema, " +
             "but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
             "Return it from a resolver method or one of those classes, or set SchemaParserOptions.includeUnusedTypes and pass a class for it in the parser's dictionary.")
     }
@@ -572,60 +572,42 @@ class SchemaParserTest {
 
     @Test
     fun `parser should throw descriptive exception when enum is only used in input Map without a class`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
+        val schema = """
+            type Query {
+                save(input: SaveInput!): Boolean
+            }
+
+            input SaveInput {
+                type: EnumType!
+            }
+
+            enum EnumType {
+                TEST
+            }
+            """
+        val mapError = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        save(input: SaveInput!): Boolean
-                    }
-
-                    input SaveInput {
-                        type: EnumType!
-                    }
-
-                    enum EnumType {
-                        TEST
-                    }
-                    """)
+                .schemaString(schema)
                 .resolvers(object : GraphQLQueryResolver {
                     fun save(input: Map<*, *>): Boolean = false
                 })
                 .build()
         }
-
-        assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
-            "because 'SaveInput' is bound to java.util.Map, which has no type information for its fields. Pass the enum class for type " +
-            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
-    }
-
-    @Test
-    fun `parser should throw descriptive exception when enum is only used in input Map subclass without a getter for it`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
+        val subclassError = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        save(input: SaveInput!): Boolean
-                    }
-
-                    input SaveInput {
-                        type: EnumType!
-                    }
-
-                    enum EnumType {
-                        TEST
-                    }
-                    """)
+                .schemaString(schema)
                 .resolvers(object : GraphQLQueryResolver {
                     fun save(input: SaveInputMap): Boolean = false
                 })
                 .build()
         }
 
-        assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
-            "because ${SaveInputMap::class.java.name} has no public getter or field named 'type'. Add a public getter or field 'type' to the class " +
-            "used for 'SaveInput', or pass the enum class for type 'EnumType' in the parser's dictionary.")
+        assertEquals(mapError.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
+            "because 'SaveInput' is bound to java.util.Map, which has no type information for its fields. Pass the enum class for type " +
+            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
+        assertEquals(subclassError.message, "Enum type 'EnumType' is used by field 'type' of input type 'SaveInput', but its Java enum can't be determined " +
+            "because ${SaveInputMap::class.java.name} has no public getter or field named 'type'. Pass the enum class for type " +
+            "'EnumType' in the parser's dictionary, or use a class for 'SaveInput' with a public getter or field 'type'.")
     }
 
     @Test
@@ -658,7 +640,7 @@ class SchemaParserTest {
 
         assertEquals(error.message, "Enum type 'EnumType' is used by field 'type' of input type 'NestedInput', but its Java enum can't be determined " +
             "because no class was found for input type 'NestedInput'. Pass the enum class for type 'EnumType' in the parser's dictionary, " +
-            "or a class for 'NestedInput' with a public getter or field 'type'.")
+            "or use a class for 'NestedInput' with a public getter or field 'type'.")
     }
 
     @Test

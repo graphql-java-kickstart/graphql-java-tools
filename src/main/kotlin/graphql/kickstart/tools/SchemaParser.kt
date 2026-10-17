@@ -574,32 +574,33 @@ class SchemaParser internal constructor(
         }
 
     private fun unexpectedTypeError(typeName: TypeName, expectedType: KClass<*>): SchemaError {
-        val name = typeName.name
-        val subject = "Type '$name'" +
-            (findUsage(typeName)?.let { " used by $it" } ?: "") +
-            (typeName.sourceLocation?.let { " at line ${it.line}, column ${it.column}" + (it.sourceName?.let { source -> " of $source" } ?: "") } ?: "")
-        // unused ones first, since the extensions of an unused type are still among the definitions
-        val definition = unusedDefinitions.find { it.name == name }
-            ?: definitions.filterIsInstance<TypeDefinition<*>>().find { it.name == name }
         val isInput = expectedType == GraphQLInputType::class
-        val kind = when (definition) {
-            is InputObjectTypeDefinition -> "an input object type"
+        // unused ones first, since the extensions of an unused type are still among the definitions
+        val definition = unusedDefinitions.find { it.name == typeName.name }
+            ?: definitions.filterIsInstance<TypeDefinition<*>>().find { it.name == typeName.name }
+        val outputOnlyKind = when (definition) {
+            is ObjectTypeDefinition -> "an object type"
             is InterfaceTypeDefinition -> "an interface"
             is UnionTypeDefinition -> "a union"
-            else -> "an object type"
+            else -> null
         }
 
-        return SchemaError(when {
-            definition == null -> "$subject is not defined in the schema."
-            isInput && definition !is InputObjectTypeDefinition && definition !is EnumTypeDefinition && definition !is ScalarTypeDefinition ->
-                "$subject is $kind, which can't be used as an input type. Input types are input objects, enums and scalars."
+        val problem = when {
+            definition == null -> "is not defined in the schema."
+            isInput && outputOnlyKind != null ->
+                "is $outputOnlyKind, which can't be used as an input type. Input types are input objects, enums and scalars."
             !isInput && definition is InputObjectTypeDefinition ->
-                "$subject is $kind, which can't be used as an output type. Output types are object types, interfaces, unions, enums and scalars."
+                "is an input object type, which can't be used as an output type. Output types are object types, interfaces, unions, enums and scalars."
             definition in unusedDefinitions ->
-                "$subject is defined in the schema, but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
+                "is defined in the schema, but was not reached while scanning the resolvers and the classes they use, so it wasn't built. " +
                     unreachedTypeHint(definition)
-            else -> "$subject can't be used as ${if (isInput) "an input" else "an output"} type."
-        })
+            else -> "can't be used as ${if (isInput) "an input" else "an output"} type."
+        }
+        val usage = findUsage(typeName)?.let { " used by $it" }.orEmpty()
+        val location = typeName.sourceLocation
+            ?.let { " at line ${it.line}, column ${it.column}" + it.sourceName?.let { name -> " in $name" }.orEmpty() }
+            .orEmpty()
+        return SchemaError("Type '${typeName.name}'$usage$location $problem")
     }
 
     // what makes the scanner reach the type depends on its kind, see SchemaClassScanner.canIncludeUnusedType
