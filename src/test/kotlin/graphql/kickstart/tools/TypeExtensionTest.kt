@@ -2,6 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.Scalars
+import graphql.kickstart.tools.NestedInputTypesTest.Color
 import graphql.language.EnumTypeDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
@@ -14,647 +15,446 @@ import graphql.schema.idl.SchemaPrinter
 import graphql.schema.validation.InvalidSchemaException
 import org.junit.Assert.assertThrows
 import org.junit.Test
-import kotlin.reflect.KClass
 
 class TypeExtensionTest {
 
     @Test
-    fun `union extensions add members to the union`() {
-        val schema = buildUnionSchema(
+    fun `extensions add to the types they extend`() {
+        val schema = parser(
             """
-            union FooBar = Foo | Bar
+            directive @format(pattern: String!) on SCALAR
 
+            type Query {
+                fooBar: FooBar
+                color: Color
+                node: Node
+                today: Date
+            }
+
+            union FooBar = Foo | Bar
             extend union FooBar = Baz
-            """)
+
+            # the order doesn't matter
+            extend enum Color { GREEN }
+            enum Color { RED }
+
+            interface Entity { id: ID! }
+            interface Node { id: ID! }
+            extend interface Node implements Entity { name: String }
+
+            type Item implements Node { id: ID! name: String }
+            extend type Item implements Entity
+
+            "A date"
+            scalar Date
+            extend scalar Date @format(pattern: "yyyy-MM-dd")
+
+            $fooBarBaz
+            """) {
+            dictionary(Foo::class, Bar::class, Baz::class, Item::class)
+            scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+        }.makeExecutableSchema()
 
         val fooBar = schema.getType("FooBar") as GraphQLUnionType
+        val color = schema.getType("Color") as GraphQLEnumType
+        val node = schema.getType("Node") as GraphQLInterfaceType
+        val item = schema.getType("Item") as GraphQLObjectType
+        val date = schema.getType("Date") as GraphQLScalarType
         assertEquals(fooBar.types.map { it.name }, listOf("Foo", "Bar", "Baz"))
-        assertEquals(definitionClass(fooBar), UnionTypeDefinition::class.java)
-        assertEquals(fooBar.extensionDefinitions.size, 1)
+        assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
+        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id", "name"))
+        assertEquals(node.interfaces.map { it.name }, listOf("Entity"))
+        assertEquals(item.interfaces.map { it.name }, listOf("Node", "Entity"))
+        assertEquals(schema.getImplementations(schema.getType("Entity") as GraphQLInterfaceType)?.map { it.name }, listOf("Item"))
+        assertEquals(date.description, "A date")
+
+        // through GraphQLNamedSchemaElement, since graphql-java 25 and 26 disagree on which types have a nullable definition
+        assertEquals(listOf<GraphQLNamedSchemaElement>(fooBar, color, node, item, date).map { it.definition?.javaClass }, listOf(
+            UnionTypeDefinition::class.java,
+            EnumTypeDefinition::class.java,
+            InterfaceTypeDefinition::class.java,
+            ObjectTypeDefinition::class.java,
+            ScalarTypeDefinition::class.java
+        ))
+        val extensionDefinitions = listOf(fooBar.extensionDefinitions, color.extensionDefinitions, node.extensionDefinitions, item.extensionDefinitions, date.extensionDefinitions)
+        assertEquals(extensionDefinitions.map { it.size }, listOf(1, 1, 1, 1, 1))
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
             query {
-                fooBar {
-                    __typename
-                }
+                fooBar { __typename }
+                color
+                node { id name }
             }
             """
         }
 
-        assertEquals(data["fooBar"], mapOf("__typename" to "Baz"))
+        assertEquals(data, mapOf("fooBar" to mapOf("__typename" to "Baz"), "color" to "GREEN", "node" to mapOf("id" to "1", "name" to "item")))
     }
 
     @Test
-    fun `union extensions declared before the union add members to it`() {
-        val schema = buildUnionSchema(
+    fun `union extensions can add nested unions`() {
+        // BarBaz has a field of its own, since the scanner only expands nested unions it finds some other way
+        val schema = parser(
             """
-            extend union FooBar = Baz
+            type Query {
+                fooBar: FooBar
+                barBaz: BarBaz
+            }
 
-            union FooBar = Foo | Bar
-            """)
+            union FooBar = Foo
+            extend union FooBar = BarBaz
+            union BarBaz = Bar | Baz
+
+            $fooBarBaz
+            """) {
+            dictionary(Foo::class, Bar::class, Baz::class)
+        }.makeExecutableSchema()
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
 
     @Test
-    fun `scanner requires classes for members of the union and its extensions`() {
-        val baseMemberError = assertThrows(SchemaClassScannerError::class.java) {
-            buildUnionSchema(
-                """
-                union FooBar = Foo | Bar
+    fun `scanner finds unions used only by fields of interface extensions`() {
+        val schema = parser(
+            """
+            type Query {
+                node: Node
+            }
 
+            interface Node { id: ID! }
+            extend interface Node { fooBar: FooBar }
+
+            type Item implements Node { id: ID! fooBar: Foo }
+
+            union FooBar = Foo | Bar
+
+            $fooBarBaz
+            """) {
+            dictionary(Item::class, Bar::class)
+        }.makeExecutableSchema()
+
+        assertEquals((schema.getType("Node") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "fooBar"))
+        assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Foo", "Bar"))
+    }
+
+    @Test
+    fun `scanner requires classes for the members and implementations from the type and its extensions`() {
+        val baseMemberError = assertThrows(SchemaClassScannerError::class.java) {
+            parser(
+                """
+                type Query { fooBar: FooBar }
+                union FooBar = Foo | Bar
                 extend union FooBar = Baz
-                """,
-                UnionQuery.Bar::class, UnionQuery.Baz::class)
+                $fooBarBaz
+                """) {
+                dictionary(Bar::class, Baz::class)
+            }
         }
 
         assertEquals(baseMemberError.message, "Object type 'Foo' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'Foo' in the parser's dictionary.")
 
         val extensionMemberError = assertThrows(SchemaClassScannerError::class.java) {
-            buildUnionSchema(
+            parser(
                 """
+                type Query { fooBar: FooBar }
                 extend union FooBar = Baz
-
                 union FooBar = Foo | Bar
-                """,
-                UnionQuery.Foo::class, UnionQuery.Bar::class)
+                $fooBarBaz
+                """) {
+                dictionary(Foo::class, Bar::class)
+            }
         }
 
         assertEquals(extensionMemberError.message, "Object type 'Baz' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'Baz' in the parser's dictionary.")
-    }
 
-    private fun buildUnionSchema(union: String, vararg dictionary: KClass<*> = arrayOf(UnionQuery.Foo::class, UnionQuery.Bar::class, UnionQuery.Baz::class)) =
-        SchemaParser.newParser()
-            .schemaString(
+        val implementationError = assertThrows(SchemaClassScannerError::class.java) {
+            parser(
                 """
-                type Query {
-                    fooBar: FooBar
-                }
-
-                $union
-
-                type Foo {
-                    foo: String
-                }
-
-                type Bar {
-                    bar: String
-                }
-
-                type Baz {
-                    baz: String
-                }
-                """)
-            .resolvers(UnionQuery())
-            .dictionary(*dictionary)
-            .build()
-            .makeExecutableSchema()
-
-    class UnionQuery : GraphQLQueryResolver {
-        fun fooBar(): FooBar = Baz("baz")
-
-        interface FooBar
-
-        class Foo(val foo: String?) : FooBar
-
-        class Bar(val bar: String?) : FooBar
-
-        class Baz(val baz: String?) : FooBar
-    }
-
-    @Test
-    fun `union extensions can add nested unions`() {
-        // Audio is also returned by a field, since the scanner only expands nested unions it found some other way. That's the
-        // same for the members of the union itself.
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    media: Media
-                    audio: Audio
-                }
-
-                union Media = Book
-
-                extend union Media = Audio
-
-                union Audio = Song | Podcast
-
-                type Book {
-                    title: String
-                }
-
-                type Song {
-                    title: String
-                }
-
-                type Podcast {
-                    title: String
-                }
-                """)
-            .resolvers(MediaQuery())
-            .dictionary(MediaQuery.Book::class, MediaQuery.Song::class, MediaQuery.Podcast::class)
-            .build()
-            .makeExecutableSchema()
-
-        assertEquals((schema.getType("Media") as GraphQLUnionType).types.map { it.name }, listOf("Book", "Song", "Podcast"))
-    }
-
-    class MediaQuery : GraphQLQueryResolver {
-        fun media(): Media? = null
-        fun audio(): Audio? = null
-
-        interface Media
-
-        interface Audio
-
-        class Book(val title: String?) : Media
-
-        class Song(val title: String?) : Audio
-
-        class Podcast(val title: String?) : Audio
-    }
-
-    private val colorSchema = """
-        type Query {
-            color: Color
-        }
-
-        enum Color {
-            RED
-        }
-
-        extend enum Color {
-            GREEN
-        }
-        """
-
-    @Test
-    fun `enum extensions add values to the enum`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(colorSchema)
-            .resolvers(ColorQuery())
-            .build()
-            .makeExecutableSchema()
-
-        val color = schema.getType("Color") as GraphQLEnumType
-        assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
-        assertEquals(definitionClass(color), EnumTypeDefinition::class.java)
-        assertEquals(color.extensionDefinitions.size, 1)
-
-        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
-            """
-            query {
-                color
+                type Query { node: Node }
+                interface Node { id: ID! }
+                type Item implements Node { id: ID! }
+                type Other { id: ID! }
+                extend type Other implements Node
+                """) {
+                dictionary(Item::class)
             }
-            """
         }
 
-        assertEquals(data["color"], "GREEN")
+        assertEquals(implementationError.message, "Object type 'Other' implements a known interface, but no class could be found for that type name.  Please pass a class for type 'Other' in the parser's dictionary.")
     }
 
     @Test
-    fun `parser requires enum constants for the values of the enum and its extensions`() {
-        val baseValueError = assertThrows(SchemaError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(colorSchema)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun color(): GreenOnly? = null
-                })
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assertEquals(baseValueError.message, "Expected value for name 'RED' in enum 'GreenOnly' but found none!")
-
-        val extensionValueError = assertThrows(SchemaError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(colorSchema)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun color(): RedOnly? = null
-                })
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assertEquals(extensionValueError.message, "Expected value for name 'GREEN' in enum 'RedOnly' but found none!")
-    }
-
-    class ColorQuery : GraphQLQueryResolver {
-        fun color(): Color = Color.GREEN
-
-        enum class Color { RED, GREEN }
-    }
-
-    enum class GreenOnly { GREEN }
-
-    enum class RedOnly { RED }
-
-    @Test
-    fun `interface extensions add fields and interfaces to the interface`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    node: Node
-                }
-
-                interface Entity {
-                    id: ID!
-                }
-
-                interface Node {
-                    id: ID!
-                }
-
-                extend interface Node implements Entity {
-                    name: String
-                }
-
-                type Item implements Node & Entity {
-                    id: ID!
-                    name: String
-                }
-                """)
-            .resolvers(NodeQuery())
-            .dictionary(NodeQuery.Item::class)
-            .build()
-            .makeExecutableSchema()
-
-        val node = schema.getType("Node") as GraphQLInterfaceType
-        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id", "name"))
-        assertEquals(node.interfaces.map { it.name }, listOf("Entity"))
-        assertEquals(definitionClass(node), InterfaceTypeDefinition::class.java)
-        assertEquals(node.extensionDefinitions.size, 1)
-
-        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
-            """
-            query {
-                node {
-                    id
-                    name
-                }
+    fun `parser requires the enum values and interface fields of the type and its extensions`() {
+        listOf("enum Color { BLUE } extend enum Color { RED }", "enum Color { RED } extend enum Color { BLUE }").forEach { color ->
+            val error = assertThrows(SchemaError::class.java) {
+                parser("type Query { color: Color } $color").makeExecutableSchema()
             }
-            """
+
+            assertEquals(error.message, "Expected value for name 'BLUE' in enum 'Color' but found none!")
         }
 
-        assertEquals(data["node"], mapOf("id" to "1", "name" to "item"))
-    }
-
-    @Test
-    fun `implementations need the fields of the interface and not only those of its extensions`() {
-        val error = assertThrows(InvalidSchemaException::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        node: Node
-                    }
-
-                    interface Node {
-                        id: ID!
-                    }
-
-                    extend interface Node {
-                        name: String
-                    }
-
-                    type Item implements Node {
-                        name: String
-                    }
-                    """)
-                .resolvers(NodeQuery())
-                .dictionary(NodeQuery.Item::class)
-                .build()
-                .makeExecutableSchema()
+        val fieldError = assertThrows(InvalidSchemaException::class.java) {
+            parser(
+                """
+                type Query { node: Node }
+                interface Node { id: ID! }
+                extend interface Node { name: String }
+                type Item implements Node { name: String }
+                """) {
+                dictionary(Item::class)
+            }.makeExecutableSchema()
         }
 
-        assert(error.message!!.contains("object type 'Item' does not implement interface 'Node' because field 'id' is missing")) { error.message!! }
-    }
-
-    class NodeQuery : GraphQLQueryResolver {
-        fun node(): Node = Item("1", "item")
-
-        interface Node
-
-        class Item(val id: String, val name: String?) : Node
+        val message = fieldError.message.orEmpty()
+        assert(message.contains("object type 'Item' does not implement interface 'Node' because field 'id' is missing")) { message }
     }
 
     @Test
-    fun `scanner handles unions used only by fields of interface extensions`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    item: Item
-                }
-
-                interface Item {
-                    id: ID!
-                }
-
-                extend interface Item {
-                    content: Content
-                }
-
-                type Book implements Item {
-                    id: ID!
-                    content: Text
-                }
-
-                type Text {
-                    text: String
-                }
-
-                type Image {
-                    url: String
-                }
-
-                union Content = Text | Image
-                """)
-            .resolvers(InterfaceExtensionUnion())
-            .dictionary(InterfaceExtensionUnion.Book::class, InterfaceExtensionUnion.Image::class)
-            .build()
-            .makeExecutableSchema()
-
-        assertEquals((schema.getType("Item") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "content"))
-        assertEquals((schema.getType("Content") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Text", "Image"))
-    }
-
-    class InterfaceExtensionUnion : GraphQLQueryResolver {
-        fun item(): Item? = null
-
-        interface Item
-
-        class Book(val id: String, val content: Text?) : Item
-
-        class Text(val text: String?)
-
-        class Image(val url: String?)
-    }
-
-    @Test
-    fun `scalar extensions keep the description of the scalar`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @format(pattern: String!) on SCALAR
-
-                type Query {
-                    today: Date
-                }
-
-                "A date"
-                scalar Date
-
-                extend scalar Date @format(pattern: "yyyy-MM-dd")
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun today(): String = "2026-10-12"
-            })
-            .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
-            .build()
-            .makeExecutableSchema()
-
-        val date = schema.getType("Date") as GraphQLScalarType
-        assertEquals(date.description, "A date")
-        assertEquals(definitionClass(date), ScalarTypeDefinition::class.java)
-        assertEquals(date.extensionDefinitions.size, 1)
-    }
-
-    @Test
-    fun `object extensions apply their directives`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @key(fields: String!) repeatable on OBJECT | INTERFACE
-
-                type Query {
-                    product: Product
-                }
-
-                type Product @key(fields: "upc") {
-                    upc: String
-                }
-
-                extend type Product @key(fields: "name") {
-                    name: String
-                }
-                """)
-            .resolvers(ProductQuery())
-            .build()
-            .makeExecutableSchema()
-
-        val product = schema.getObjectType("Product")!!
-        assertEquals(product.appliedDirectives.map { it.getArgument("fields")?.getValue<String>() }, listOf("upc", "name"))
-        assertEquals(product.directives.map { it.name }, listOf("key", "key"))
-        assertEquals(product.fieldDefinitions.map { it.name }, listOf("upc", "name"))
-        assertEquals(definitionClass(product), ObjectTypeDefinition::class.java)
-        assertEquals(product.extensionDefinitions.size, 1)
-
-        val printed = SchemaPrinter().print(schema)
-        assert(printed.contains("""type Product @key(fields : "upc") @key(fields : "name") {""")) { printed }
-    }
-
-    @Test
-    fun `non-repeatable directives that an extension applies again keep the first one`() {
+    fun `directives of extensions follow those of the type and are wired`() {
         val tagDirective = TagDirective()
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @tag(name: String!) on OBJECT
+        val schema = parser(
+            """
+            directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
+            directive @once(name: String!) on OBJECT
 
-                type Query {
-                    product: Product
-                }
+            type Query @once(name: "Query") {
+                node: Node
+                fooBar: FooBar
+                color: Color
+                search(filter: Filter): String
+            }
 
-                type Product @tag(name: "catalog") {
-                    upc: String
-                }
+            # graphql-java rejects the schema for this, here the extension's @once is dropped
+            extend type Query @once(name: "Query extension")
 
-                extend type Product @tag(name: "pricing")
-                """)
-            .resolvers(ProductQuery())
-            .directive("tag", tagDirective)
-            .build()
-            .makeExecutableSchema()
+            interface Node @tag(name: "Node") { id: ID! }
+            extend interface Node @tag(name: "Node extension")
 
-        // graphql-java's SchemaGenerator rejects this schema
-        val product = schema.getObjectType("Product")!!
-        assertEquals(product.appliedDirectives.map { it.getArgument("name")?.getValue<String>() }, listOf("catalog"))
-        assertEquals(product.directives.map { it.name }, listOf("tag"))
-        assertEquals(tagDirective.tagged, listOf("Product=catalog"))
+            type Item implements Node @tag(name: "Item") { id: ID! }
+            extend type Item @tag(name: "Item extension") { name: String }
+
+            union FooBar @tag(name: "FooBar") = Foo
+            extend union FooBar @tag(name: "FooBar extension")
+
+            enum Color @tag(name: "Color") { RED GREEN }
+            extend enum Color @tag(name: "Color extension")
+
+            input Filter @tag(name: "Filter") { id: ID }
+            extend input Filter @tag(name: "Filter extension")
+
+            type Foo { foo: String }
+            """) {
+            dictionary(Item::class, Foo::class)
+            directive("tag", tagDirective)
+            directive("once", tagDirective)
+        }.makeExecutableSchema()
+
+        val extended = listOf("Node", "Item", "FooBar", "Color", "Filter")
+        extended.forEach { name ->
+            assertEquals(nameArguments(schema.getType(name) as GraphQLDirectiveContainer), listOf(name, "$name extension"))
+        }
+        assertEquals(nameArguments(schema.queryType), listOf("Query"))
+        assertEquals(tagDirective.tagged.toSet(), extended.flatMap { listOf("$it=$it", "$it=$it extension") }.toSet() + "Query=Query")
+
+        val item = schema.getType("Item") as GraphQLObjectType
+        val filter = schema.getType("Filter") as GraphQLInputObjectType
+        assertEquals(item.directives.map { it.name }, listOf("tag", "tag"))
+        assertEquals(filter.directives.map { it.name }, listOf("tag", "tag"))
+        assertEquals(schema.queryType.directives.map { it.name }, listOf("once"))
+        assertEquals(item.fieldDefinitions.map { it.name }, listOf("id", "name"))
+        assertEquals(filter.extensionDefinitions.size, 1)
 
         val printed = SchemaPrinter().print(schema)
-        assert(printed.contains("""type Product @tag(name : "catalog") {""")) { printed }
+        assert(printed.contains("""type Item implements Node @tag(name : "Item") @tag(name : "Item extension") {""")) { printed }
+        assert(printed.contains("""type Query @once(name : "Query") {""")) { printed }
     }
 
     @Test
-    fun `input object extensions apply their directives`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @a on INPUT_OBJECT
-                directive @b on INPUT_OBJECT
-
-                type Query {
-                    search(filter: Filter): String
-                }
-
-                input Filter @a {
-                    id: ID
-                }
-
-                extend input Filter @b
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun search(filter: TaggedQuery.Filter?): String? = null
-            })
-            .build()
-            .makeExecutableSchema()
-
-        val filter = schema.getType("Filter") as GraphQLInputObjectType
-        assertEquals(filter.appliedDirectives.map { it.name }, listOf("a", "b"))
-        assertEquals(filter.directives.map { it.name }, listOf("a", "b"))
-        assertEquals(filter.extensionDefinitions.size, 1)
-    }
-
-    @Test
-    fun `undeclared directives on type extensions are rejected unless allowed`() {
-        val schemaString = """
-            type Query {
-                product: Product
-            }
-
-            type Product {
-                upc: String
-            }
-
-            extend type Product @key(fields: "upc")
-            """
-
+    fun `undeclared directives on extensions need allowUndeclaredDirectives and are all kept`() {
         val error = assertThrows(SchemaError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(schemaString)
-                .resolvers(ProductQuery())
-                .build()
-                .makeExecutableSchema()
+            parser(
+                """
+                type Query { today: String }
+                extend type Query @key(fields: "upc")
+                """).makeExecutableSchema()
         }
 
         assertEquals(error.message, "Found applied directive key without corresponding directive definition.")
 
-        val schema = SchemaParser.newParser()
-            .schemaString(schemaString)
-            .resolvers(ProductQuery())
-            .options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
-            .build()
-            .makeExecutableSchema()
+        // they may be repeatable, like federation's @key
+        val schema = parser(
+            """
+            type Query @key(fields: "upc") { today: String }
+            extend type Query @key(fields: "name")
+            """) {
+            options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
+        }.makeExecutableSchema()
 
-        assertEquals(schema.getObjectType("Product")!!.getAppliedDirective("key")?.getArgument("fields")?.getValue<String>(), "upc")
+        assertEquals(schema.queryType.appliedDirectives.map { it.getArgument("fields")?.getValue<String>() }, listOf("upc", "name"))
     }
 
     @Test
-    fun `undeclared directives that an extension applies again are all kept`() {
-        // e.g. federation's @key, which is repeatable
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    product: Product
-                }
+    fun `unused unions are reported by their definition and get the members of their extensions when included`() {
+        val unusedUnion = """
+            type Query { today: String }
+            union FooBar = Foo | Bar
+            extend union FooBar = Baz
+            $fooBarBaz
+            """
 
-                type Product @key(fields: "upc") {
-                    upc: String
-                }
+        assertEquals(parser(unusedUnion).getUnusedDefinitions().map { it.javaClass.simpleName to it.name }.toSet(), setOf(
+            "UnionTypeDefinition" to "FooBar",
+            "ObjectTypeDefinition" to "Foo",
+            "ObjectTypeDefinition" to "Bar",
+            "ObjectTypeDefinition" to "Baz"
+        ))
 
-                extend type Product @key(fields: "name") {
-                    name: String
-                }
-                """)
-            .resolvers(ProductQuery())
-            .options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
-            .build()
-            .makeExecutableSchema()
+        val schema = parser(unusedUnion) {
+            dictionary(Foo::class, Bar::class, Baz::class)
+            options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+        }.makeExecutableSchema()
 
-        assertEquals(schema.getObjectType("Product")!!.appliedDirectives.map { it.getArgument("fields")?.getValue<String>() }, listOf("upc", "name"))
-    }
-
-    class ProductQuery : GraphQLQueryResolver {
-        fun product(): Product? = null
-
-        class Product(val upc: String?, val name: String?)
+        assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
 
     @Test
-    fun `directives on extensions of every kind of type are wired`() {
-        val tagDirective = TagDirective()
-        val schema = SchemaParser.newParser()
-            .schemaString(
+    fun `repeats and extensions without a type keep building`() {
+        // how schemas worked around extensions that weren't merged
+        val schema = parser(
+            """
+            type Query {
+                color: Color
+                node: Node
+                fooBar: FooBar
+            }
+
+            extend enum Color {
+                "The first red"
+                RED
+            }
+            extend enum Color { RED GREEN }
+
+            interface Node {
+                "The base id"
+                id: ID!
+            }
+            extend interface Node { id: ID! name: String }
+
+            type Item implements Node { id: ID! name: String }
+
+            extend union FooBar = Foo | Bar
+            extend union FooBar = Bar | Baz
+
+            $fooBarBaz
+            """) {
+            dictionary(Item::class, Foo::class, Bar::class, Baz::class)
+        }.makeExecutableSchema()
+
+        val color = schema.getType("Color") as GraphQLEnumType
+        assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
+        assertEquals(color.getValue("RED")?.description, "The first red")
+
+        val node = schema.getType("Node") as GraphQLInterfaceType
+        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id", "name"))
+        assertEquals(node.getFieldDefinition("id").description, "The base id")
+
+        assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
+    }
+
+    @Test
+    fun `extensions of a different kind than the type are rejected`() {
+        val error = assertThrows(SchemaClassScannerError::class.java) {
+            parser(
                 """
-                directive @tag(name: String!) on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
-
-                type Query {
-                    node(filter: Filter): Node
-                    result: Result
-                    color: Color
-                }
-
-                interface Node {
-                    id: ID!
-                }
-
-                extend interface Node @tag(name: "node")
-
-                type Item implements Node {
-                    id: ID!
-                }
-
-                extend type Item @tag(name: "item")
-
-                union Result = Item
-
-                extend union Result @tag(name: "result")
-
-                enum Color {
-                    RED
-                }
-
-                extend enum Color @tag(name: "color")
-
-                input Filter {
-                    id: ID
-                }
-
-                extend input Filter @tag(name: "filter")
+                type Query { today: String }
+                extend union Foo = Bar
+                $fooBarBaz
                 """)
-            .resolvers(TaggedQuery())
-            .dictionary(TaggedQuery.Item::class)
-            .directive("tag", tagDirective)
-            .build()
-            .makeExecutableSchema()
-
-        listOf("Node", "Item", "Result", "Color", "Filter").forEach { name ->
-            assertEquals((schema.getType(name) as GraphQLDirectiveContainer).appliedDirectives.map { it.name }, listOf("tag"))
         }
-        assertEquals(tagDirective.tagged.toSet(), setOf("Node=node", "Item=item", "Result=result", "Color=color", "Filter=filter"))
+
+        assertEquals(error.message, "Type 'Foo' is defined as an object type, but extended as a union.")
     }
 
-    class TaggedQuery : GraphQLQueryResolver {
-        fun node(filter: Filter?): Node? = null
-        fun result(): Result? = null
-        fun color(): Color? = null
+    @Test
+    fun `type errors name the fields of interface extensions that use the type`() {
+        val error = assertThrows(SchemaError::class.java) {
+            parser(
+                """
+                |type Query {
+                |    today: String
+                |}
+                |
+                |interface Node {
+                |    id: ID!
+                |}
+                |
+                |extend interface Node {
+                |    search(filter: Filter): String
+                |}
+                |
+                |input Filter {
+                |    id: ID
+                |}
+                """.trimMargin()) {
+                options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+            }.makeExecutableSchema()
+        }
 
-        interface Node
-
-        interface Result
-
-        enum class Color { RED }
-
-        class Filter(val id: String?)
-
-        class Item(val id: String) : Node, Result
+        val message = error.message.orEmpty()
+        assert(message.startsWith("Type 'Filter' used by argument 'filter' of field 'Node.search' at line 10, column 20 is defined")) { message }
     }
+
+    @Test
+    fun `enums used only by directives get the values of their extensions`() {
+        val schema = parser(
+            """
+            directive @link(for: Purpose) repeatable on SCHEMA
+            extend schema @link(for: EXECUTION)
+
+            type Query { today: String }
+
+            enum Purpose { SECURITY }
+            extend enum Purpose { EXECUTION }
+            """).makeExecutableSchema()
+
+        assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, listOf<Any>("SECURITY", "EXECUTION"))
+        assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))
+    }
+
+    private val fooBarBaz = """
+        type Foo { foo: String }
+        type Bar { bar: String }
+        type Baz { baz: String }
+        """
+
+    private fun parser(schema: String, configure: SchemaParserBuilder.() -> Unit = {}) =
+        SchemaParser.newParser().schemaString(schema).resolvers(Query()).apply(configure).build()
+
+    private fun nameArguments(type: GraphQLDirectiveContainer) = type.appliedDirectives.map { it.getArgument("name")?.getValue<String>() }
+
+    class Query : GraphQLQueryResolver {
+        fun fooBar(): FooBar = Baz("baz")
+        fun barBaz(): FooBar? = null
+        fun color(): Color = Color.GREEN
+        fun node(): Node = Item("1", "item")
+        fun search(filter: Filter?): String? = null
+        fun today(): String = "2026-10-12"
+    }
+
+    interface FooBar
+
+    class Foo(val foo: String?) : FooBar
+
+    class Bar(val bar: String?) : FooBar
+
+    class Baz(val baz: String?) : FooBar
+
+    interface Node
+
+    class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
+
+    class Filter(val id: String?)
 
     private class TagDirective : SchemaDirectiveWiring {
         val tagged = mutableListOf<String>()
@@ -674,309 +474,4 @@ class TypeExtensionTest {
             return environment.element
         }
     }
-
-    @Test
-    fun `object extensions add interfaces to the object`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    item: Item
-                }
-
-                interface Node {
-                    id: ID!
-                }
-
-                interface Named {
-                    name: String
-                }
-
-                type Item implements Node {
-                    id: ID!
-                    name: String
-                }
-
-                extend type Item implements Named
-                """)
-            .resolvers(object : GraphQLQueryResolver {
-                fun item(): NodeQuery.Item? = null
-            })
-            .build()
-            .makeExecutableSchema()
-
-        assertEquals(schema.getObjectType("Item")!!.interfaces.map { it.name }, listOf("Node", "Named"))
-        assertEquals(schema.getImplementations(schema.getType("Named") as GraphQLInterfaceType)!!.map { it.name }, listOf("Item"))
-    }
-
-    @Test
-    fun `scanner requires classes for objects that implement an interface through an extension`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        node: Node
-                    }
-
-                    interface Node {
-                        id: ID!
-                    }
-
-                    type Item implements Node {
-                        id: ID!
-                    }
-
-                    type Other {
-                        id: ID!
-                    }
-
-                    extend type Other implements Node
-                    """)
-                .resolvers(NodeQuery())
-                .dictionary(NodeQuery.Item::class)
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assertEquals(error.message, "Object type 'Other' implements a known interface, but no class could be found for that type name.  Please pass a class for type 'Other' in the parser's dictionary.")
-    }
-
-    private val unusedUnionSchema = """
-        type Query {
-            name: String
-        }
-
-        union Unused = A | B
-
-        extend union Unused = C
-
-        type A {
-            a: String
-        }
-
-        type B {
-            b: String
-        }
-
-        type C {
-            c: String
-        }
-        """
-
-    @Test
-    fun `unused unions get the members of their extensions when including unused types`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(unusedUnionSchema)
-            .resolvers(UnusedUnion())
-            .dictionary(UnusedUnion.A::class, UnusedUnion.B::class, UnusedUnion.C::class)
-            .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
-            .build()
-            .makeExecutableSchema()
-
-        assertEquals((schema.getType("Unused") as GraphQLUnionType).types.map { it.name }, listOf("A", "B", "C"))
-    }
-
-    @Test
-    fun `unused definitions hold the definition of an extended type`() {
-        val parser = SchemaParser.newParser()
-            .schemaString(unusedUnionSchema)
-            .resolvers(UnusedUnion())
-            .build()
-
-        assertEquals(parser.getUnusedDefinitions().map { it.javaClass.simpleName to it.name }.toSet(), setOf(
-            "UnionTypeDefinition" to "Unused",
-            "ObjectTypeDefinition" to "A",
-            "ObjectTypeDefinition" to "B",
-            "ObjectTypeDefinition" to "C"
-        ))
-    }
-
-    class UnusedUnion : GraphQLQueryResolver {
-        fun name(): String? = null
-
-        class A(val a: String?)
-
-        class B(val b: String?)
-
-        class C(val c: String?)
-    }
-
-    @Test
-    fun `values, fields and members repeated in an extension keep their first definition`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    color: Color
-                    node: Node
-                    fooBar: FooBar
-                }
-
-                enum Color {
-                    "The base red"
-                    RED
-                }
-
-                extend enum Color {
-                    RED
-                    GREEN
-                }
-
-                interface Node {
-                    "The base id"
-                    id: ID!
-                }
-
-                extend interface Node {
-                    id: ID!
-                    name: String
-                }
-
-                type Item implements Node {
-                    id: ID!
-                    name: String
-                }
-
-                union FooBar = Foo | Bar
-
-                extend union FooBar = Foo | Bar | Baz
-
-                type Foo {
-                    foo: String
-                }
-
-                type Bar {
-                    bar: String
-                }
-
-                type Baz {
-                    baz: String
-                }
-                """)
-            .resolvers(ColorQuery(), NodeQuery(), UnionQuery())
-            .dictionary(NodeQuery.Item::class, UnionQuery.Foo::class, UnionQuery.Bar::class, UnionQuery.Baz::class)
-            .build()
-            .makeExecutableSchema()
-
-        val color = schema.getType("Color") as GraphQLEnumType
-        assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
-        assertEquals(color.getValue("RED")?.description, "The base red")
-
-        val node = schema.getType("Node") as GraphQLInterfaceType
-        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id", "name"))
-        assertEquals(node.getFieldDefinition("id").description, "The base id")
-
-        assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
-    }
-
-    @Test
-    fun `enums and unions defined only by extensions are built from all of them`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    color: Color
-                    fooBar: FooBar
-                }
-
-                extend enum Color {
-                    RED
-                }
-
-                extend enum Color {
-                    GREEN
-                }
-
-                extend union FooBar = Foo | Bar
-
-                extend union FooBar = Baz
-
-                type Foo {
-                    foo: String
-                }
-
-                type Bar {
-                    bar: String
-                }
-
-                type Baz {
-                    baz: String
-                }
-                """)
-            .resolvers(ColorQuery(), UnionQuery())
-            .dictionary(UnionQuery.Foo::class, UnionQuery.Bar::class, UnionQuery.Baz::class)
-            .build()
-            .makeExecutableSchema()
-
-        assertEquals((schema.getType("Color") as GraphQLEnumType).values.map { it.name }, listOf("RED", "GREEN"))
-        assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
-    }
-
-    @Test
-    fun `extensions of a different kind than the type are rejected`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        foo: Foo
-                    }
-
-                    type Foo {
-                        foo: String
-                    }
-
-                    type Bar {
-                        bar: String
-                    }
-
-                    extend union Foo = Bar
-                    """)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun foo(): UnionQuery.Foo? = null
-                })
-                .build()
-        }
-
-        assertEquals(error.message, "Type 'Foo' is defined as an object type, but extended as a union.")
-    }
-
-    @Test
-    fun `type errors name the fields of interface extensions that use the type`() {
-        val error = assertThrows(SchemaError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    |type Query {
-                    |    today: String
-                    |}
-                    |
-                    |interface Searchable {
-                    |    id: ID!
-                    |}
-                    |
-                    |extend interface Searchable {
-                    |    search(criteria: Criteria): String
-                    |}
-                    |
-                    |input Criteria {
-                    |    text: String
-                    |}
-                    """.trimMargin())
-                .resolvers(object : GraphQLQueryResolver {
-                    fun today(): String? = null
-                })
-                .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assert(error.message.orEmpty().startsWith("Type 'Criteria' used by argument 'criteria' of field 'Searchable.search' at line 10, column 22 is defined")) {
-            error.message.orEmpty()
-        }
-    }
-
-    // through the interface, since graphql-java 25 and 26 disagree on which types have a nullable definition
-    private fun definitionClass(type: GraphQLNamedSchemaElement) = type.definition?.javaClass
 }
