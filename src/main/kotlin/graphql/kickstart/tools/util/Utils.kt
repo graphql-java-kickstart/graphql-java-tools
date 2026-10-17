@@ -36,7 +36,7 @@ internal fun Type<*>.unwrap(): Type<*> = when (this) {
 }
 
 internal fun ObjectTypeDefinition.getExtendedFieldDefinitions(extensions: List<ObjectTypeExtensionDefinition>): List<FieldDefinition> {
-    return this.fieldDefinitions + extensions.filter { it.name == this.name }.flatMap { it.fieldDefinitions }
+    return this.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }
 }
 
 internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =

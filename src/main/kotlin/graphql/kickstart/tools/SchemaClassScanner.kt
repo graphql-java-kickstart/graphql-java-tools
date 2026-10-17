@@ -33,8 +33,6 @@ internal class SchemaClassScanner(
     private val resolverInfos = resolvers.asSequence().minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }.toList()
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
-    private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
-    private val inputExtensionDefinitions = allDefinitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
     private val directiveDefinitions = allDefinitions.filterIsInstance<DirectiveDefinition>()
     private val scalarDefinitions = allDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
@@ -50,7 +48,7 @@ internal class SchemaClassScanner(
 
     private val definitionsByName = typeDefinitions.filter { it !is SDLExtensionDefinition || it in loneExtensions }.associateBy { it.name }
     private val typeExtensions: TypeExtensions = typeDefinitions.filter { it is SDLExtensionDefinition && it !in loneExtensions }.groupBy { it.name }
-    private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
+    private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>().filter { it !is ObjectTypeExtensionDefinition }
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = definitionsByName.values.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
@@ -221,9 +219,8 @@ internal class SchemaClassScanner(
      * The names of the types used by the fields, arguments and input fields of [definitions], including fields added by extensions.
      */
     private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
-        val names = definitions.map { it.name }.toSet()
-        return (definitions + extensionDefinitions + inputExtensionDefinitions)
-            .filter { it.name in names }
+        return definitions
+            .flatMap { listOf(it) + typeExtensions[it.name].orEmpty() }
             .flatMap { definition ->
                 when (definition) {
                     is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
@@ -306,7 +303,7 @@ internal class SchemaClassScanner(
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
+        val definitions = observedDefinitions + directiveDefinitions
 
         // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
         // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
@@ -423,7 +420,7 @@ internal class SchemaClassScanner(
         resolverInfo.dataClassType != Any::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
-        type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
+        type.getExtendedFieldDefinitions(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(type.name)).forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
@@ -493,7 +490,7 @@ internal class SchemaClassScanner(
      */
     private fun handleInputObjectFields(graphQLType: InputObjectTypeDefinition, javaType: JavaType?) {
         val clazz = javaType?.unwrap()
-        val inputObjectTypes = listOf(graphQLType) + inputExtensionDefinitions.filter { it.name == graphQLType.name }
+        val inputObjectTypes = listOf(graphQLType) + typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(graphQLType.name)
         inputObjectTypes
             .flatMap { it.inputValueDefinitions }
             .forEach { inputValueDefinition ->

@@ -43,11 +43,8 @@ class SchemaParser internal constructor(
     private val unusedDefinitions = scanResult.unusedDefinitions
     private val directiveOnlyEnums = scanResult.directiveOnlyEnums
 
-    private val extensionDefinitions = definitions.filterIsInstance<ObjectTypeExtensionDefinition>()
-    private val inputExtensionDefinitions = definitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
-
-    private val objectDefinitions = (definitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
-    private val inputObjectDefinitions = (definitions.filterIsInstance<InputObjectTypeDefinition>() - inputExtensionDefinitions)
+    private val objectDefinitions = definitions.filterIsInstance<ObjectTypeDefinition>()
+    private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
     private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
     private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
     private val directiveDefinitions = definitions.filterIsInstance<DirectiveDefinition>()
@@ -641,9 +638,10 @@ class SchemaParser internal constructor(
 
     private fun unexpectedTypeError(typeName: TypeName, expectedType: KClass<*>): SchemaError {
         val isInput = expectedType == GraphQLInputType::class
-        // unused ones first, since the extensions of an unused type are still among the definitions
         val definition = unusedDefinitions.find { it.name == typeName.name }
             ?: definitions.filterIsInstance<TypeDefinition<*>>().find { it.name == typeName.name }
+            // an object or input extension without a definition, which isn't built
+            ?: typeExtensions[typeName.name]?.first()
         val outputOnlyKind = when (definition) {
             is ObjectTypeDefinition -> "an object type"
             is InterfaceTypeDefinition -> "an interface"
