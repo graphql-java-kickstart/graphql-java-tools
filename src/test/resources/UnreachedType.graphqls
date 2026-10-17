@@ -1,0 +1,11 @@
+type Query {
+  pet: Pet
+}
+
+interface Pet {
+  friend: Cat
+}
+
+type Cat {
+  name: String
+}
