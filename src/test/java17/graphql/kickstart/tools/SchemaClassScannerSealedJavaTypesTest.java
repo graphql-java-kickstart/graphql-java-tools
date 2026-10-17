@@ -16,11 +16,12 @@ import static org.junit.Assert.assertTrue;
 public class SchemaClassScannerSealedJavaTypesTest {
 
     @Test
-    public void scannerFindsMembersOfUnionsAmongThePermittedSubclassesOfSealedInterfaces() {
+    public void scannerFindsUnionMembersAndInterfaceImplementorsAmongThePermittedSubclassesOfSealedTypes() {
         GraphQLSchema schema = SchemaParser.newParser()
             .schemaString("""
                 type Query {
                     pets: [Pet]
+                    animals: [Animal]
                 }
 
                 union Pet = Dog | Fish
@@ -32,14 +33,37 @@ public class SchemaClassScannerSealedJavaTypesTest {
                 type Fish {
                     fins: Int
                 }
+
+                interface Animal {
+                    name: String
+                }
+
+                type Cat implements Animal {
+                    name: String
+                    lives: Int
+                }
+
+                type Bird implements Animal {
+                    name: String
+                    wings: Int
+                }
                 """)
-            .resolvers(new PetQuery())
+            .resolvers(new PetQuery(), new AnimalQuery())
             .build()
             .makeExecutableSchema();
 
-        Map<String, Object> data = execute(schema, "query { pets { __typename ... on Dog { name } ... on Fish { fins } } }");
+        ExecutionResult result = GraphQL.newGraphQL(schema).build().execute(ExecutionInput.newExecutionInput().query("""
+            query {
+                pets { __typename ... on Dog { name } ... on Fish { fins } }
+                animals { __typename name ... on Cat { lives } ... on Bird { wings } }
+            }
+            """));
 
-        assertEquals(List.of(Map.of("__typename", "Dog", "name", "Rex"), Map.of("__typename", "Fish", "fins", 2)), data.get("pets"));
+        assertTrue(result.getErrors().toString(), result.getErrors().isEmpty());
+        assertEquals(Map.of(
+            "pets", List.of(Map.of("__typename", "Dog", "name", "Rex"), Map.of("__typename", "Fish", "fins", 2)),
+            "animals", List.of(Map.of("__typename", "Cat", "name", "Tom", "lives", 9), Map.of("__typename", "Bird", "name", "Tweety", "wings", 2))
+        ), result.getData());
     }
 
     public static class PetQuery implements GraphQLQueryResolver {
@@ -60,37 +84,6 @@ public class SchemaClassScannerSealedJavaTypesTest {
     public record Fish(Integer fins) implements Pet {
     }
 
-    @Test
-    public void scannerFindsImplementorsOfInterfacesAmongThePermittedSubclassesOfSealedClasses() {
-        GraphQLSchema schema = SchemaParser.newParser()
-            .schemaString("""
-                type Query {
-                    animals: [Animal]
-                }
-
-                interface Animal {
-                    name: String
-                }
-
-                type Cat implements Animal {
-                    name: String
-                    lives: Int
-                }
-
-                type Bird implements Animal {
-                    name: String
-                    wings: Int
-                }
-                """)
-            .resolvers(new AnimalQuery())
-            .build()
-            .makeExecutableSchema();
-
-        Map<String, Object> data = execute(schema, "query { animals { __typename name ... on Cat { lives } ... on Bird { wings } } }");
-
-        assertEquals(List.of(Map.of("__typename", "Cat", "name", "Tom", "lives", 9), Map.of("__typename", "Bird", "name", "Tweety", "wings", 2)), data.get("animals"));
-    }
-
     public static class AnimalQuery implements GraphQLQueryResolver {
         public List<Animal> animals() {
             return List.of(new Cat("Tom", 9), new Bird("Tweety", 2));
@@ -98,47 +91,28 @@ public class SchemaClassScannerSealedJavaTypesTest {
     }
 
     public abstract static sealed class Animal permits Cat, Bird {
-        private final String name;
+        final String name;
 
         Animal(String name) {
             this.name = name;
         }
-
-        public String getName() {
-            return name;
-        }
     }
 
     public static final class Cat extends Animal {
-        private final Integer lives;
+        final Integer lives;
 
         Cat(String name, Integer lives) {
             super(name);
             this.lives = lives;
         }
-
-        public Integer getLives() {
-            return lives;
-        }
     }
 
     public static final class Bird extends Animal {
-        private final Integer wings;
+        final Integer wings;
 
         Bird(String name, Integer wings) {
             super(name);
             this.wings = wings;
         }
-
-        public Integer getWings() {
-            return wings;
-        }
-    }
-
-    private static Map<String, Object> execute(GraphQLSchema schema, String query) {
-        ExecutionResult result = GraphQL.newGraphQL(schema).build().execute(ExecutionInput.newExecutionInput().query(query));
-
-        assertTrue(result.getErrors().toString(), result.getErrors().isEmpty());
-        return result.getData();
     }
 }

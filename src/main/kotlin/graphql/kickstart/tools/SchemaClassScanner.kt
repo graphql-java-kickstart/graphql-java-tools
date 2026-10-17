@@ -363,14 +363,14 @@ internal class SchemaClassScanner(
             }
         }
 
-        // Scanning a sealed subclass can find the classes of the other types, so only fail when none of them has one. The types
-        // still without a class fail on the next pass.
+        // Scanning a sealed subclass can find the classes of the other types, so only fail when no type has a sealed subclass.
+        // Types still without a class fail on the next pass.
         val sealedSubclasses = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassesNamedAfter(it).singleOrNull() }
         if (sealedSubclasses.isEmpty()) {
             typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassHint(it)) }
         }
 
-        sealedSubclasses.forEach { handleFoundType(it.type, it.subclass, SealedSubclassReference(it.sealedType)) }
+        sealedSubclasses.forEach { handleFoundType(it) }
     }
 
     /**
@@ -391,7 +391,7 @@ internal class SchemaClassScanner(
         return if (subclasses.isEmpty()) {
             "  No subclass of sealed type $sealedTypeNames is named '${type.name}'."
         } else {
-            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${subclasses.joinToString { it.subclass.unwrap().name }}."
+            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${subclasses.joinToString { it.javaType.unwrap().name }}."
         }
     }
 
@@ -400,14 +400,14 @@ internal class SchemaClassScanner(
      * `pets(): List<Pet>` returns `union Pet`. If the class found for the union or interface is sealed, its subclass named
      * after the object type can be used instead.
      */
-    private fun sealedSubclassesNamedAfter(type: ObjectTypeDefinition): List<SealedSubclass> =
+    private fun sealedSubclassesNamedAfter(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
         sealedTypesOf(type)
             .flatMap { sealedType ->
                 sealedSubclasses(sealedType.unwrap())
                     .filter { it.simpleName == type.name }
-                    .map { SealedSubclass(type, sealedType, parameterize(it, sealedType)) }
+                    .map { TypeClassMatcher.ValidMatch(type, parameterize(it, sealedType), SealedSubclassReference(sealedType)) }
             }
-            .distinctBy { it.subclass.unwrap() }
+            .distinctBy { it.javaType.unwrap() }
 
     /**
      * The sealed classes found for the unions the type is a member of and the interfaces it implements.
@@ -416,8 +416,8 @@ internal class SchemaClassScanner(
         dictionary
             .filterKeys { definition ->
                 when (definition) {
-                    is UnionTypeDefinition -> definition.memberTypes.any { it is TypeName && it.name == type.name }
-                    is InterfaceTypeDefinition -> type.implements.any { it is TypeName && it.name == definition.name }
+                    is UnionTypeDefinition -> definition.memberTypes.filterIsInstance<TypeName>().any { it.name == type.name }
+                    is InterfaceTypeDefinition -> type.implements.filterIsInstance<TypeName>().any { it.name == definition.name }
                     else -> false
                 }
             }
@@ -430,7 +430,7 @@ internal class SchemaClassScanner(
      * subclasses of Java sealed classes.
      */
     private fun sealedSubclasses(clazz: Class<*>): List<Class<*>> =
-        clazz.kotlin.sealedSubclasses.flatMap { listOf(it.java) + sealedSubclasses(it.java) }.distinct()
+        clazz.kotlin.sealedSubclasses.flatMap { listOf(it.java) + sealedSubclasses(it.java) }
 
     /**
      * Passes the type arguments of a parameterized sealed class on to its generic subclass, e.g. `Success<Pet>` for
@@ -662,8 +662,6 @@ internal class SchemaClassScanner(
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
-
-    private class SealedSubclass(val type: ObjectTypeDefinition, val sealedType: JavaType, val subclass: JavaType)
 
     private class DictionaryEntry {
         private val references = mutableListOf<Reference>()

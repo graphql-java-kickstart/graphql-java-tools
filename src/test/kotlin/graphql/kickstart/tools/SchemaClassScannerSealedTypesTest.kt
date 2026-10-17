@@ -1,7 +1,6 @@
 package graphql.kickstart.tools
 
 import graphql.GraphQL
-import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLUnionType
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -34,6 +33,11 @@ class SchemaClassScannerSealedTypesTest {
         }
         """
 
+    private val pets = listOf(
+        mapOf("__typename" to "NormalPet", "name" to "Rex"),
+        mapOf("__typename" to "WeirdPet", "classification" to "axolotl")
+    )
+
     @Test
     fun `scanner finds members of unions among the subclasses of sealed classes`() {
         val schema = SchemaParser.newParser()
@@ -42,23 +46,20 @@ class SchemaClassScannerSealedTypesTest {
             .build()
             .makeExecutableSchema()
 
-        assertEquals((schema.getType("Pet") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("NormalPet", "WeirdPet"))
-
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { petsQuery }
 
-        assertEquals(data["pets"], listOf(
-            mapOf("__typename" to "NormalPet", "name" to "Rex"),
-            mapOf("__typename" to "WeirdPet", "classification" to "axolotl")
-        ))
+        assertEquals(data["pets"], pets)
     }
 
     class SealedClassUnion : GraphQLQueryResolver {
-        fun pets(): List<Pet> = listOf(Pet.NormalPet("Rex"), Pet.WeirdPet("axolotl"))
+        fun pets(): List<Pet> = listOf(Pet.NormalPet("Rex"), Pet.Exotic.WeirdPet("axolotl"))
 
         sealed class Pet {
             class NormalPet(val name: String?) : Pet()
 
-            class WeirdPet(val classification: String?) : Pet()
+            sealed class Exotic : Pet() {
+                class WeirdPet(val classification: String?) : Exotic()
+            }
         }
     }
 
@@ -89,8 +90,6 @@ class SchemaClassScannerSealedTypesTest {
             .build()
             .makeExecutableSchema()
 
-        assertEquals(schema.getImplementations(schema.getType("Animal") as GraphQLInterfaceType)?.map { it.name }?.toSet(), setOf("Dog", "Cat"))
-
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
             query {
@@ -120,59 +119,6 @@ class SchemaClassScannerSealedTypesTest {
         class Dog(override val name: String?, val barks: Boolean?) : Animal
 
         class Cat(override val name: String?, val lives: Int?) : Animal
-    }
-
-    @Test
-    fun `scanner finds members of unions among the subclasses of nested sealed classes`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    pets: [Pet]
-                }
-
-                union Pet = Dog | Fish
-
-                type Dog {
-                    name: String
-                }
-
-                type Fish {
-                    fins: Int
-                }
-                """)
-            .resolvers(NestedSealedClasses())
-            .build()
-            .makeExecutableSchema()
-
-        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
-            """
-            query {
-                pets {
-                    __typename
-                    ... on Dog { name }
-                    ... on Fish { fins }
-                }
-            }
-            """
-        }
-
-        assertEquals(data["pets"], listOf(
-            mapOf("__typename" to "Dog", "name" to "Rex"),
-            mapOf("__typename" to "Fish", "fins" to 2)
-        ))
-    }
-
-    class NestedSealedClasses : GraphQLQueryResolver {
-        fun pets(): List<Pet> = listOf(Pet.Mammal.Dog("Rex"), Pet.Fish(2))
-
-        sealed class Pet {
-            sealed class Mammal : Pet() {
-                class Dog(val name: String?) : Mammal()
-            }
-
-            class Fish(val fins: Int?) : Pet()
-        }
     }
 
     @Test
@@ -233,40 +179,67 @@ class SchemaClassScannerSealedTypesTest {
     }
 
     @Test
-    fun `scanner finds the other members of unions by scanning the subclasses of sealed classes`() {
+    fun `scanner scans the subclasses of sealed classes like any other class`() {
+        val searchSchema = """
+            type Query {
+                results: [SearchResult]
+            }
+
+            union SearchResult = Book | Author
+
+            type Book {
+                title: String
+                author: Author
+            }
+
+            type Author {
+                name: String
+            }
+            """
+
         val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    results: [SearchResult]
-                }
-
-                union SearchResult = Book | Review
-
-                type Book {
-                    title: String
-                    review: Review
-                }
-
-                type Review {
-                    text: String
-                }
-                """)
+            .schemaString(searchSchema)
             .resolvers(MemberReachableThroughSealedSubclass())
             .build()
             .makeExecutableSchema()
 
-        assertEquals((schema.getType("SearchResult") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Book", "Review"))
+        assertEquals((schema.getType("SearchResult") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Book", "Author"))
+
+        val error = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(searchSchema)
+                .resolvers(ConflictingSealedSubclass())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        val message = error.message.orEmpty()
+        assert(message.startsWith("Two different classes used for type Author:\n- ${ConflictingSealedSubclass.SearchResult.Author::class.java.name}:\n|   subclass of sealed type ${ConflictingSealedSubclass.SearchResult::class.java.name}")) { message }
+        assert(message.contains("- ${ConflictingSealedSubclass.AuthorDto::class.java.name}:")) { message }
     }
 
+    // Author isn't a subclass of SearchResult, so it's only found by scanning Book
     class MemberReachableThroughSealedSubclass : GraphQLQueryResolver {
         fun results(): List<SearchResult> = listOf()
 
         sealed class SearchResult {
-            class Book(val title: String?, val review: Review?) : SearchResult()
+            class Book(val title: String?, val author: Author?) : SearchResult()
         }
 
-        class Review(val text: String?)
+        class Author(val name: String?)
+    }
+
+    // scanning Book finds another class for Author than its sealed subclass
+    class ConflictingSealedSubclass : GraphQLQueryResolver {
+        fun results(): List<SearchResult> = listOf()
+
+        sealed class SearchResult {
+            class Book(val title: String?, val author: AuthorDto?) : SearchResult()
+
+            class Author(val name: String?) : SearchResult()
+        }
+
+        class AuthorDto(val name: String?)
     }
 
     @Test
@@ -280,10 +253,7 @@ class SchemaClassScannerSealedTypesTest {
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { petsQuery }
 
-        assertEquals(data["pets"], listOf(
-            mapOf("__typename" to "NormalPet", "name" to "Rex"),
-            mapOf("__typename" to "WeirdPet", "classification" to "axolotl")
-        ))
+        assertEquals(data["pets"], pets)
     }
 
     class DictionaryOverridesSealedSubclass : GraphQLQueryResolver {
@@ -300,59 +270,23 @@ class SchemaClassScannerSealedTypesTest {
     }
 
     @Test
-    fun `scanner reports a class found for a member that differs from its sealed subclass`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        results: [SearchResult]
-                    }
-
-                    union SearchResult = Book | Author
-
-                    type Book {
-                        title: String
-                        author: Author
-                    }
-
-                    type Author {
-                        name: String
-                    }
-                    """)
-                .resolvers(ConflictingSealedSubclass())
-                .build()
-                .makeExecutableSchema()
-        }
-
-        val message = error.message.orEmpty()
-        assert(message.startsWith("Two different classes used for type Author:\n- ${ConflictingSealedSubclass.SearchResult.Author::class.java.name}:\n|   subclass of sealed type ${ConflictingSealedSubclass.SearchResult::class.java.name}")) { message }
-        assert(message.contains("- ${ConflictingSealedSubclass.AuthorDto::class.java.name}:")) { message }
-    }
-
-    class ConflictingSealedSubclass : GraphQLQueryResolver {
-        fun results(): List<SearchResult> = listOf()
-
-        sealed class SearchResult {
-            class Book(val title: String?, val author: AuthorDto?) : SearchResult()
-
-            class Author(val name: String?) : SearchResult()
-        }
-
-        class AuthorDto(val name: String?)
-    }
-
-    @Test
-    fun `scanner still requires classes for members of unions whose class isn't sealed`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
+    fun `scanner still requires classes for members of unions without a single sealed subclass named after them`() {
+        fun buildError(resolver: GraphQLQueryResolver) = assertThrows(SchemaClassScannerError::class.java) {
             SchemaParser.newParser()
                 .schemaString(petSchema)
-                .resolvers(NonSealedInterfaceUnion())
+                .resolvers(resolver)
                 .build()
                 .makeExecutableSchema()
-        }
+        }.message
 
-        assertEquals(error.message, "Object type 'NormalPet' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'NormalPet' in the parser's dictionary.")
+        assertEquals(buildError(NonSealedInterfaceUnion()), "Object type 'NormalPet' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'NormalPet' in the parser's dictionary.")
+
+        assertEquals(buildError(PartlySealedUnion()), "Object type 'WeirdPet' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'WeirdPet' in the parser's dictionary." +
+            "  No subclass of sealed type ${PartlySealedUnion.Pet::class.java.name} is named 'WeirdPet'.")
+
+        assertEquals(buildError(AmbiguousSealedSubclassNames()), "Object type 'NormalPet' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'NormalPet' in the parser's dictionary." +
+            "  More than one subclass of sealed type ${AmbiguousSealedSubclassNames.Pet::class.java.name} is named 'NormalPet': " +
+            "${AmbiguousSealedSubclassNames.Pet.Cat.NormalPet::class.java.name}, ${AmbiguousSealedSubclassNames.Pet.Dog.NormalPet::class.java.name}.")
     }
 
     class NonSealedInterfaceUnion : GraphQLQueryResolver {
@@ -365,20 +299,6 @@ class SchemaClassScannerSealedTypesTest {
         class WeirdPet(val classification: String?) : Pet
     }
 
-    @Test
-    fun `scanner still requires classes for members of unions that no subclass of the sealed class is named after`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(petSchema)
-                .resolvers(PartlySealedUnion())
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assertEquals(error.message, "Object type 'WeirdPet' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'WeirdPet' in the parser's dictionary." +
-            "  No subclass of sealed type ${PartlySealedUnion.Pet::class.java.name} is named 'WeirdPet'.")
-    }
-
     class PartlySealedUnion : GraphQLQueryResolver {
         fun pets(): List<Pet> = listOf()
 
@@ -387,42 +307,16 @@ class SchemaClassScannerSealedTypesTest {
         }
     }
 
-    @Test
-    fun `scanner explains that more than one subclass of the sealed class is named after a member`() {
-        val error = assertThrows(SchemaClassScannerError::class.java) {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        pets: [Pet]
-                    }
-
-                    union Pet = Baby
-
-                    type Baby {
-                        name: String
-                    }
-                    """)
-                .resolvers(AmbiguousSealedSubclassNames())
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assertEquals(error.message, "Object type 'Baby' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'Baby' in the parser's dictionary." +
-            "  More than one subclass of sealed type ${AmbiguousSealedSubclassNames.Pet::class.java.name} is named 'Baby': " +
-            "${AmbiguousSealedSubclassNames.Pet.Cat.Baby::class.java.name}, ${AmbiguousSealedSubclassNames.Pet.Dog.Baby::class.java.name}.")
-    }
-
     class AmbiguousSealedSubclassNames : GraphQLQueryResolver {
         fun pets(): List<Pet> = listOf()
 
         sealed class Pet {
             sealed class Cat : Pet() {
-                class Baby(val name: String?) : Cat()
+                class NormalPet(val name: String?) : Cat()
             }
 
             sealed class Dog : Pet() {
-                class Baby(val name: String?) : Dog()
+                class NormalPet(val name: String?) : Dog()
             }
         }
     }
