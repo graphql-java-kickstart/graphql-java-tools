@@ -18,7 +18,7 @@ import java.lang.reflect.ParameterizedType
  * @author Andrew Potter
  */
 internal class SchemaClassScanner(
-    initialDictionary: BiMap<String, Class<*>>,
+    initialDictionary: Map<String, Class<*>>,
     allDefinitions: List<Definition<*>>,
     resolvers: List<GraphQLResolver<*>>,
     private val scalars: CustomScalarMap,
@@ -60,6 +60,17 @@ internal class SchemaClassScanner(
                 throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
             }
         }
+
+        // Input object types never go into the type => class bimap that interface and union type resolution use, so several of
+        // them can share a class, e.g. ObjectNode
+        initialDictionary
+            .filterKeys { definitionsByName[it] !is InputObjectTypeDefinition }
+            .entries.groupBy({ it.value }, { it.key })
+            .forEach { (clazz, names) ->
+                if (names.size > 1) {
+                    throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type names ${names.joinToString { "'$it'" }}, but only input object types can share a class!")
+                }
+            }
 
         if (options.allowUnimplementedResolvers) {
             log.warn("Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved to query time instead of schema creation time.  Make sure this is turned off in production.")
