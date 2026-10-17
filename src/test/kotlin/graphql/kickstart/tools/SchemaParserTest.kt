@@ -592,6 +592,52 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `input objects behind list and non-null input fields should resolve to GraphQLInputObjectType during directive wiring`() {
+        val wiredFieldTypes = mutableMapOf<String, String>()
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    test(filter: NestedFilter): Boolean
+                }
+
+                input NestedFilter {
+                    subs: [SubFilter!]
+                    other: OtherFilter!
+                }
+
+                input SubFilter {
+                    parent: NestedFilter
+                }
+
+                input OtherFilter {
+                    name: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(filter: NestedFilter?): Boolean = false
+            })
+            .directiveWiring(object : SchemaDirectiveWiring {
+                override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
+                    val type = GraphQLTypeUtil.unwrapAllAs<GraphQLType>(environment.element.type)
+                    if (type !is GraphQLScalarType) {
+                        wiredFieldTypes[environment.element.name] = type.javaClass.simpleName
+                    }
+                    return environment.element
+                }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        // parent points back at NestedFilter while it's still being built, so it stays a type reference until the schema is built
+        assertEquals(wiredFieldTypes, mapOf(
+            "subs" to "GraphQLInputObjectType",
+            "other" to "GraphQLInputObjectType",
+            "parent" to "GraphQLTypeReference"
+        ))
+    }
+
+    @Test
     fun `parser should use comments for descriptions`() {
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -755,6 +801,12 @@ class SchemaParserTest {
     class Filter {
         fun filter(): String? = null
     }
+
+    data class NestedFilter(val subs: List<SubFilter>?, val other: OtherFilter)
+
+    data class SubFilter(val parent: NestedFilter?)
+
+    data class OtherFilter(val name: String?)
 
     class CustomGenericWrapper<T, V>
 
