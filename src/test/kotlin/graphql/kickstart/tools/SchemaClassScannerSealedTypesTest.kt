@@ -12,7 +12,9 @@ class SchemaClassScannerSealedTypesTest {
             pets: [Pet]
         }
 
-        union Pet = NormalPet | WeirdPet
+        union Pet = NormalPet
+
+        extend union Pet = WeirdPet
 
         type NormalPet {
             name: String
@@ -81,10 +83,12 @@ class SchemaClassScannerSealedTypesTest {
                     barks: Boolean
                 }
 
-                type Cat implements Animal {
+                type Cat {
                     name: String
                     lives: Int
                 }
+
+                extend type Cat implements Animal
                 """)
             .resolvers(SealedInterfaceImplementors())
             .build()

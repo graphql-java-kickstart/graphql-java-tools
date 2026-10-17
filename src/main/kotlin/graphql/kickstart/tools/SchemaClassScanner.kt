@@ -452,8 +452,10 @@ internal class SchemaClassScanner(
         dictionary
             .filterKeys { definition ->
                 when (definition) {
-                    is UnionTypeDefinition -> definition.memberTypes.filterIsInstance<TypeName>().any { it.name == type.name }
-                    is InterfaceTypeDefinition -> type.implements.filterIsInstance<TypeName>().any { it.name == definition.name }
+                    is UnionTypeDefinition -> (listOf(definition) + typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name))
+                        .flatMap { it.memberTypes }.filterIsInstance<TypeName>().any { it.name == type.name }
+                    is InterfaceTypeDefinition -> type.getExtendedImplements(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(type.name))
+                        .filterIsInstance<TypeName>().any { it.name == definition.name }
                     else -> false
                 }
             }
