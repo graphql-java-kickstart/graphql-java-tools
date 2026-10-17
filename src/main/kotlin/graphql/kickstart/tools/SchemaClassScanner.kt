@@ -35,15 +35,27 @@ internal class SchemaClassScanner(
     private val resolverInfos = resolvers.asSequence().minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }.toList()
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
-    private val extensionDefinitions = allDefinitions.filterIsInstance<ObjectTypeExtensionDefinition>()
-    private val inputExtensionDefinitions = allDefinitions.filterIsInstance<InputObjectTypeExtensionDefinition>()
     private val directiveDefinitions = allDefinitions.filterIsInstance<DirectiveDefinition>()
     private val scalarDefinitions = allDefinitions.filterIsInstance<ScalarTypeDefinition>()
 
-    private val definitionsByName = (allDefinitions.filterIsInstance<TypeDefinition<*>>() - extensionDefinitions - inputExtensionDefinitions).associateBy { it.name }
-    private val objectDefinitions = (allDefinitions.filterIsInstance<ObjectTypeDefinition>() - extensionDefinitions)
+    private val typeDefinitions = allDefinitions.filterIsInstance<TypeDefinition<*>>()
+    private val baseTypeNames = typeDefinitions.filter { it !is SDLExtensionDefinition }.map { it.name }.toSet()
+
+    // Extending a type that isn't defined isn't valid, but union, enum, interface and scalar extensions are subclasses of their
+    // definitions, so one without a definition was built as the type before #552. To keep those schemas building, the first one
+    // is the definition and the others extend it. Object and input extensions without a definition are ignored.
+    private val loneExtensions = typeDefinitions
+        .filter { it is SDLExtensionDefinition && it !is ObjectTypeDefinition && it !is InputObjectTypeDefinition && it.name !in baseTypeNames }
+        .distinctBy { it.name }
+
+    private val definitionsByName = typeDefinitions.filter { it !is SDLExtensionDefinition || it in loneExtensions }.associateBy { it.name }
+    // without extensions of a different kind than their type, which are ignored with a warning, see init
+    private val typeExtensions: TypeExtensions = typeDefinitions
+        .filter { it is SDLExtensionDefinition && it !in loneExtensions && !extendsOtherKind(it) }
+        .groupBy { it.name }
+    private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>().filter { it !is ObjectTypeExtensionDefinition }
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
-    private val interfaceDefinitionsByName = allDefinitions.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
+    private val interfaceDefinitionsByName = definitionsByName.values.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
     private val fieldResolverScanner = FieldResolverScanner(options)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
@@ -59,6 +71,11 @@ internal class SchemaClassScanner(
             if (!definitionsByName.containsKey(name)) {
                 throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
             }
+        }
+
+        typeDefinitions.filter { extendsOtherKind(it) }.forEach { extension ->
+            val definition = definitionsByName.getValue(extension.name)
+            log.warn("Type '${extension.name}' is defined as ${definition.kind()}, but extended as ${extension.kind()}. The extension is ignored.")
         }
 
         // Input object types never go into the type => class bimap that interface and union type resolution use, so several of
@@ -216,9 +233,8 @@ internal class SchemaClassScanner(
      * The names of the types used by the fields, arguments and input fields of [definitions], including fields added by extensions.
      */
     private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
-        val names = definitions.map { it.name }.toSet()
-        return (definitions + extensionDefinitions + inputExtensionDefinitions)
-            .filter { it.name in names }
+        return definitions
+            .flatMap { listOf(it) + typeExtensions[it.name].orEmpty() }
             .flatMap { definition ->
                 when (definition) {
                     is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
@@ -278,6 +294,7 @@ internal class SchemaClassScanner(
                     .description(getDocumentation(definition, options) ?: provided.description)
                     .coercing(provided.coercing)
                     .definition(definition)
+                    .extensionDefinitions(typeExtensions.extensionsOf<ScalarTypeExtensionDefinition>(definition.name))
                     .build()
             }.associateBy { it.name }
 
@@ -300,7 +317,7 @@ internal class SchemaClassScanner(
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        val definitions = observedDefinitions + extensionDefinitions + inputExtensionDefinitions + directiveDefinitions
+        val definitions = observedDefinitions + directiveDefinitions
 
         // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
         // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
@@ -308,7 +325,7 @@ internal class SchemaClassScanner(
         val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
         val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<EnumTypeDefinition>().filter { it.name !in typeNamesUsedByFields }.toSet()
 
-        return ScannedSchemaObjects(dictionary, definitions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
+        return ScannedSchemaObjects(dictionary, definitions, typeExtensions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -326,16 +343,21 @@ internal class SchemaClassScanner(
 
     private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
         return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
-            objectDefinitions.filter { obj -> obj.implements.filterIsInstance<TypeName>().any { it.name == iface.name } }
+            objectDefinitions.filter { obj ->
+                obj.getExtendedImplements(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(obj.name))
+                    .filterIsInstance<TypeName>().any { it.name == iface.name }
+            }
         }.flatten().distinctBy { it.name }
     }
 
     private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
         val unionTypeNames = dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union -> union.name }.toSet()
         return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
-            union.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
-                objectDefinitionsByName[it.name]
-                    ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $union")
+            (listOf(union) + typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(union.name)).flatMap { definition ->
+                definition.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
+                    objectDefinitionsByName[it.name]
+                        ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $definition")
+                }
             }
         }.flatten().distinct()
     }
@@ -346,7 +368,8 @@ internal class SchemaClassScanner(
      */
     private fun handleInterfaceFieldTypes(): Boolean {
         val newTypes = dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().flatMap { iface ->
-            iface.fieldDefinitions.mapNotNull { field ->
+            val fieldDefinitions = iface.fieldDefinitions + typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(iface.name).flatMap { it.fieldDefinitions }
+            fieldDefinitions.mapNotNull { field ->
                 val type = definitionsByName[(field.type.unwrap() as TypeName).name]
                 if ((type is UnionTypeDefinition || type is InterfaceTypeDefinition) && !dictionary.containsKey(type)) {
                     type to FieldTypeReference("${iface.name}.${field.name}")
@@ -429,8 +452,10 @@ internal class SchemaClassScanner(
         dictionary
             .filterKeys { definition ->
                 when (definition) {
-                    is UnionTypeDefinition -> definition.memberTypes.filterIsInstance<TypeName>().any { it.name == type.name }
-                    is InterfaceTypeDefinition -> type.implements.filterIsInstance<TypeName>().any { it.name == definition.name }
+                    is UnionTypeDefinition -> (listOf(definition) + typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name))
+                        .flatMap { it.memberTypes }.filterIsInstance<TypeName>().any { it.name == type.name }
+                    is InterfaceTypeDefinition -> type.getExtendedImplements(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(type.name))
+                        .filterIsInstance<TypeName>().any { it.name == definition.name }
                     else -> false
                 }
             }
@@ -503,7 +528,7 @@ internal class SchemaClassScanner(
         resolverInfo.dataClassType != Any::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
-        type.getExtendedFieldDefinitions(extensionDefinitions).forEach { field ->
+        type.getExtendedFieldDefinitions(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(type.name)).forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
@@ -573,7 +598,7 @@ internal class SchemaClassScanner(
      */
     private fun handleInputObjectFields(graphQLType: InputObjectTypeDefinition, javaType: JavaType?) {
         val clazz = javaType?.unwrap()
-        val inputObjectTypes = listOf(graphQLType) + inputExtensionDefinitions.filter { it.name == graphQLType.name }
+        val inputObjectTypes = listOf(graphQLType) + typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(graphQLType.name)
         inputObjectTypes
             .flatMap { it.inputValueDefinitions }
             .forEach { inputValueDefinition ->
@@ -645,12 +670,28 @@ internal class SchemaClassScanner(
     }
 
     private fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {
-        graphQLType.implements.forEach {
+        graphQLType.getExtendedImplements(typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(graphQLType.name)).forEach {
             if (it is TypeName) {
                 handleFoundType(interfaceDefinitionsByName[it.name]
                     ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
             }
         }
+    }
+
+    // e.g. `extend union Foo` of `type Foo`
+    private fun extendsOtherKind(definition: TypeDefinition<*>): Boolean {
+        val type = definitionsByName[definition.name]
+        return definition is SDLExtensionDefinition && type != null && type.kind() != definition.kind()
+    }
+
+    private fun TypeDefinition<*>.kind(): String = when (this) {
+        is ObjectTypeDefinition -> "an object type"
+        is InterfaceTypeDefinition -> "an interface"
+        is UnionTypeDefinition -> "a union"
+        is EnumTypeDefinition -> "an enum"
+        is InputObjectTypeDefinition -> "an input object type"
+        is ScalarTypeDefinition -> "a scalar"
+        else -> javaClass.simpleName
     }
 
     private fun enqueue(graphQLType: ObjectTypeDefinition, javaType: JavaType) {

@@ -2,6 +2,7 @@ package graphql.kickstart.tools.util
 
 import graphql.kickstart.tools.GraphQLResolver
 import graphql.kickstart.tools.SchemaParserOptions
+import graphql.kickstart.tools.TypeExtensions
 import graphql.language.*
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.CoroutineScope
@@ -35,8 +36,14 @@ internal fun Type<*>.unwrap(): Type<*> = when (this) {
 }
 
 internal fun ObjectTypeDefinition.getExtendedFieldDefinitions(extensions: List<ObjectTypeExtensionDefinition>): List<FieldDefinition> {
-    return this.fieldDefinitions + extensions.filter { it.name == this.name }.flatMap { it.fieldDefinitions }
+    return this.fieldDefinitions + extensions.flatMap { it.fieldDefinitions }
 }
+
+internal fun ImplementingTypeDefinition<*>.getExtendedImplements(extensions: List<ImplementingTypeDefinition<*>>): List<Type<*>> =
+    implements + extensions.flatMap { it.implements }
+
+internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =
+    this[name].orEmpty().filterIsInstance<T>()
 
 internal fun JavaType.unwrap(): Class<out Any> =
     if (this is ParameterizedType) {
