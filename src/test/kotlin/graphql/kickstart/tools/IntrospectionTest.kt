@@ -23,6 +23,7 @@ class IntrospectionTest {
             .options(SchemaParserOptions.newOptions().introspectionEnabled(introspectionEnabled).build())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         return GraphQL.newGraphQL(schema).build()
     }
 

@@ -32,6 +32,7 @@ class GenericObjectTypesTest {
             .resolvers(EntityMatchQueryResolver())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -89,6 +90,7 @@ class GenericObjectTypesTest {
             .dictionary(Human::class, Droid::class)
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {

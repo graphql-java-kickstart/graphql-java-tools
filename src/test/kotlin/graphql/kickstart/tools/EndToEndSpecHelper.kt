@@ -292,7 +292,7 @@ class Query : GraphQLQueryResolver, ListListResolver<String>() {
     fun itemsWithOptionalInput(input: ItemSearchInput?) = if (input == null) items else items(input)
     fun itemsWithOptionalInputExplicit(input: Optional<ItemSearchInput>?) = if (input?.isPresent == true) items(input.get()) else items
     fun enumInputType(type: Type) = type
-    fun customScalarMapInputType(customScalarMap: Map<String, Any>) = customScalarMap
+    fun customScalarMapInputType(customScalarMap: Map<String, Any>?) = customScalarMap
     fun itemWithGenericProperties() = ItemWithGenericProperties(listOf("A", "B"))
 
     fun defaultArgument(arg: Boolean) = arg

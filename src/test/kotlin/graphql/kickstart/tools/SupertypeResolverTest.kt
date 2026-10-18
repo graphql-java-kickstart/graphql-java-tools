@@ -42,6 +42,11 @@ class SupertypeResolverTest {
         .build()
 
     @Test
+    fun `every field resolves`() {
+        assertEveryFieldResolves(schema)
+    }
+
+    @Test
     fun `resolvers for a superclass or interface should resolve fields of subclasses`() {
         val data = assertNoGraphQlErrors(gql) {
             """

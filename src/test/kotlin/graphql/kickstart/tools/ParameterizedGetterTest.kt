@@ -31,6 +31,11 @@ class ParameterizedGetterTest {
         .build()
 
     @Test
+    fun `every field resolves`() {
+        assertEveryFieldResolves(schema)
+    }
+
+    @Test
     fun `parameterized query is resolved on data type instead of on its resolver`() {
         val data = assertNoGraphQlErrors(gql, mapOf("limit" to 10)) {
             """
