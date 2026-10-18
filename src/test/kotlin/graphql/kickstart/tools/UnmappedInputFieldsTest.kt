@@ -577,6 +577,7 @@ class UnmappedInputFieldsTest {
 
                 input PropertyIgnoralsInput {
                     inner: InnerInput
+                    optionalInner: InnerInput
                 }
 
                 input InnerInput {
@@ -609,7 +610,7 @@ class UnmappedInputFieldsTest {
                 fun anySetter(input: KotlinAnySetterInput): String = input.values.toString()
                 fun snakeCase(input: SnakeCaseInput): String? = input.firstName
                 fun caseInsensitive(input: CaseInsensitiveInput): String? = input.name
-                fun propertyIgnorals(input: PropertyIgnoralsInput): String? = input.inner?.name
+                fun propertyIgnorals(input: PropertyIgnoralsInput): String = "${input.inner?.name}, ${input.optionalInner?.get()?.name}"
                 fun filter(input: RequestFilter): String? = input.and?.single()?.or?.single()?.name
                 fun map(input: Map<String, Any?>): String = input.toString()
                 // the fields are the map's keys, not properties of its values
@@ -627,7 +628,7 @@ class UnmappedInputFieldsTest {
                 anySetter(input: { a: 1, b: "c" })
                 snakeCase(input: { first_name: "d" })
                 caseInsensitive(input: { NAME: "e" })
-                propertyIgnorals(input: { inner: { name: "f", legacy: "x" } })
+                propertyIgnorals(input: { inner: { name: "f", legacy: "x" }, optionalInner: { name: "m", legacy: "y" } })
                 filter(input: { and: [{ or: [{ name: "g" }] }] })
                 map(input: { anything: "h", filter: { name: "i" } })
                 beanMap(input: { first: { name: "k" }, second: { name: "l" } })
@@ -641,7 +642,7 @@ class UnmappedInputFieldsTest {
             "anySetter" to "{a=1, b=c}",
             "snakeCase" to "d",
             "caseInsensitive" to "e",
-            "propertyIgnorals" to "f",
+            "propertyIgnorals" to "f, m",
             "filter" to "g",
             "map" to "{anything=h, filter={name=i}}",
             "beanMap" to "{first=k, second=l}",
@@ -992,6 +993,9 @@ class UnmappedInputFieldsTest {
     class PropertyIgnoralsInput {
         @field:JsonIgnoreProperties("legacy")
         var inner: InnerInput? = null
+
+        @field:JsonIgnoreProperties("legacy")
+        var optionalInner: Optional<InnerInput>? = null
     }
 
     class InnerInput {

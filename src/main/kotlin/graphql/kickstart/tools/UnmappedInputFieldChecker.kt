@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import com.fasterxml.jackson.databind.BeanProperty
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES
 import com.fasterxml.jackson.databind.JavaType
@@ -51,7 +52,7 @@ internal class UnmappedInputFieldChecker(
                     ?.createDummyInstance(mapper.deserializationConfig) ?: return@forEachIndexed
                 // the same lookup as convertValue's when it converts the argument
                 val deserializer = context.findRootValueDeserializer(mapper.typeFactory.constructType(parameterType))
-                checkFields(mapper, context, deserializer, inputObject, usage)
+                checkFields(mapper, context, deserializer, null, inputObject, usage)
             } catch (e: VirtualMachineError) {
                 throw e
             } catch (e: Throwable) {
@@ -77,10 +78,11 @@ internal class UnmappedInputFieldChecker(
         mapper: ObjectMapper,
         context: DefaultDeserializationContext,
         deserializer: JsonDeserializer<*>?,
+        property: BeanProperty?,
         inputObject: GraphQLInputObjectType,
         usage: String
     ) {
-        val beanDeserializer = beanDeserializer(context, deserializer) ?: return
+        val beanDeserializer = beanDeserializer(context, deserializer, property) ?: return
         if (!checked.add(beanDeserializer to inputObject.name)) {
             return
         }
@@ -94,24 +96,25 @@ internal class UnmappedInputFieldChecker(
                 }
             } else if (property.valueTypeDeserializer == null) {
                 // a polymorphic property's class is only known once its type id is read
-                inputObjectOf(field.type)?.let { checkFields(mapper, context, property.valueDeserializer, it, usage) }
+                inputObjectOf(field.type)?.let { checkFields(mapper, context, property.valueDeserializer, property, it, usage) }
             }
         }
     }
 
     // the deserializer of the class an input object is converted to, past the lists, arrays and Optionals around it
-    private tailrec fun beanDeserializer(context: DeserializationContext, deserializer: JsonDeserializer<*>?): BeanDeserializerBase? =
+    private tailrec fun beanDeserializer(context: DeserializationContext, deserializer: JsonDeserializer<*>?, property: BeanProperty?): BeanDeserializerBase? =
         when (deserializer) {
             // a delegating creator gets the whole input object, e.g. as a Map
             is BeanDeserializerBase -> deserializer.takeUnless { it.valueInstantiator.canCreateUsingDelegate() }
             // a Map gets the fields as its keys
             is ContainerDeserializerBase<*> ->
                 if (deserializer.valueType.isMapLikeType || isPolymorphic(context, deserializer.contentType)) null
-                else beanDeserializer(context, deserializer.contentDeserializer)
+                else beanDeserializer(context, deserializer.contentDeserializer, property)
             is ReferenceTypeDeserializer<*> -> {
                 val referencedType = deserializer.valueType.referencedType
+                // looked up with the property, like Jackson does, so that its annotations apply, e.g. @JsonIgnoreProperties
                 if (isPolymorphic(context, referencedType)) null
-                else beanDeserializer(context, context.findContextualValueDeserializer(referencedType, null))
+                else beanDeserializer(context, context.findContextualValueDeserializer(referencedType, property), property)
             }
             else -> null
         }
