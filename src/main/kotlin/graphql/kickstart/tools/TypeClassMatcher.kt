@@ -6,6 +6,7 @@ import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.isSubtypeOf
 import graphql.language.*
 import graphql.schema.idl.ScalarInfo
+import graphql.schema.idl.TypeUtil
 import java.lang.reflect.ParameterizedType
 import java.util.*
 
@@ -14,7 +15,7 @@ import java.util.*
  */
 internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition<*>>) {
 
-    private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${potentialMatch.graphQLType}) for reference ${potentialMatch.reference} with java type (${potentialMatch.javaType}): $msg")
+    private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${TypeUtil.simplePrint(potentialMatch.graphQLType)}) for reference ${potentialMatch.reference} with java type (${potentialMatch.javaType}): $msg")
 
     fun match(potentialMatch: PotentialMatch): Match {
         return match(potentialMatch, potentialMatch.graphQLType, potentialMatch.javaType, true)

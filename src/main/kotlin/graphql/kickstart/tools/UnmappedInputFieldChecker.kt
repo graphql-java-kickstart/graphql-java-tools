@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.deser.std.ReferenceTypeDeserializer
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.util.unwrap
-import graphql.language.TypeName
 import graphql.schema.GraphQLInputObjectField
 import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLNamedType
@@ -33,7 +32,7 @@ internal class UnmappedInputFieldChecker(
 
     fun check(objectType: String, resolver: MethodFieldResolver) {
         resolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
-            val inputObject = (argument.type.unwrap() as? TypeName)?.let { inputObjects[it.name] } ?: return@forEachIndexed
+            val inputObject = inputObjects[argument.type.unwrap().name] ?: return@forEachIndexed
             val usage = "argument '${argument.name}' of field '$objectType.${resolver.field.name}'"
 
             try {
@@ -138,7 +137,7 @@ internal class UnmappedInputFieldChecker(
     }
 
     private fun inputObjectOf(type: GraphQLType): GraphQLInputObjectType? =
-        (GraphQLTypeUtil.unwrapAllAs<GraphQLType>(type) as? GraphQLNamedType)?.let { inputObjects[it.name] }
+        inputObjects[GraphQLTypeUtil.unwrapAllAs<GraphQLNamedType>(type).name]
 
     private fun consequence(mapper: ObjectMapper, inputObject: GraphQLInputObjectType, field: GraphQLInputObjectField): String =
         when {

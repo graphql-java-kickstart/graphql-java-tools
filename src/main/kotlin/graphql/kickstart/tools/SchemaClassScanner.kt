@@ -196,7 +196,7 @@ internal class SchemaClassScanner(
     }
 
     private fun handleDirectiveInput(inputType: Type<*>) {
-        val inputTypeName = (inputType.unwrap() as TypeName).name
+        val inputTypeName = inputType.unwrap().name
         val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[inputTypeName]
             ?: definitionsByName[inputTypeName]
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
@@ -242,7 +242,7 @@ internal class SchemaClassScanner(
                     else -> emptyList()
                 }
             }
-            .mapNotNull { (it.unwrap() as TypeName).name }
+            .mapNotNull { it.unwrap().name }
             .toSet()
     }
 
@@ -366,7 +366,7 @@ internal class SchemaClassScanner(
     private fun handleInterfaceFieldTypes(): Boolean {
         val newTypes = dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().flatMap { iface ->
             iface.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.mapNotNull { field ->
-                val type = definitionsByName[(field.type.unwrap() as TypeName).name]
+                val type = definitionsByName[field.type.unwrap().name]
                 if ((type is UnionTypeDefinition || type is InterfaceTypeDefinition) && !dictionary.containsKey(type)) {
                     type to FieldTypeReference("${iface.name}.${field.name}")
                 } else {
@@ -596,7 +596,7 @@ internal class SchemaClassScanner(
             .flatMap { it.inputValueDefinitions }
             .forEach { inputValueDefinition ->
                 val inputGraphQLType = inputValueDefinition.type.unwrap()
-                if (inputGraphQLType !is TypeName || ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
+                if (ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
                     return@forEach
                 }
 
