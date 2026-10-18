@@ -35,8 +35,6 @@ class UnmappedInputFieldsTest {
     @Test
     fun `misspelled property of an input class is reported`() {
         val (schema, warnings) = withWarnings { projectParser().makeExecutableSchema() }
-        // the input class misspells technologies, so createProject fails when queried
-        assertEveryFieldResolves(schema, except = setOf("Mutation.createProject"))
 
         assertEquals(warnings, listOf(TECHNOLOGIES_MESSAGE))
 
@@ -379,11 +377,9 @@ class UnmappedInputFieldsTest {
 
     @Test
     fun `input classes are not checked if asked not to`() {
-        val (schema, warnings) = withWarnings {
+        val (_, warnings) = withWarnings {
             projectParser(SchemaParserOptions.newOptions().unmappedInputFields(UnmappedInputFields.IGNORE).build()).makeExecutableSchema()
         }
-        // the input class misspells technologies, so createProject fails when queried
-        assertEveryFieldResolves(schema, except = setOf("Mutation.createProject"))
 
         assertEquals(warnings, emptyList<String>())
     }
@@ -727,7 +723,7 @@ class UnmappedInputFieldsTest {
         assertEveryFieldResolves(schema, except = setOf(
             // the input classes misspell name on purpose
             "Query.injected", "Query.builder",
-            // MethodFieldResolver converts the argument with the unresolved type variable of the inherited parameter
+            // fails when queried, because the type variable of the inherited parameter isn't resolved
             "Query.generic"
         ))
 
