@@ -52,6 +52,7 @@ class TypeExtensionTest {
             dictionary(Foo::class, Bar::class, Baz::class, Item::class)
             scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
         }.makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         val fooBar = schema.getType("FooBar") as GraphQLUnionType
         val color = schema.getType("Color") as GraphQLEnumType
@@ -107,6 +108,7 @@ class TypeExtensionTest {
             """) {
             dictionary(Foo::class, Bar::class, Baz::class)
         }.makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
@@ -130,6 +132,7 @@ class TypeExtensionTest {
             """) {
             dictionary(Item::class, Bar::class)
         }.makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         assertEquals((schema.getType("Node") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "fooBar"))
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Foo", "Bar"))
@@ -231,7 +234,7 @@ class TypeExtensionTest {
                 type Item implements Node @tag(name: "Item") { id: ID! }
                 extend type Item @tag(name: "Item extension") { name: String }
 
-                union FooBar @tag(name: "FooBar") = Foo
+                union FooBar @tag(name: "FooBar") = Baz
                 extend union FooBar @tag(name: "FooBar extension")
 
                 enum Color @tag(name: "Color") { RED GREEN }
@@ -240,13 +243,14 @@ class TypeExtensionTest {
                 input Filter @tag(name: "Filter") { id: ID }
                 extend input Filter @tag(name: "Filter extension") @once(name: "Filter extension")
 
-                type Foo { foo: String }
+                type Baz { baz: String }
                 """) {
-                dictionary(Item::class, Foo::class)
+                dictionary(Item::class, Baz::class)
                 directive("tag", wiring)
                 directive("once", wiring)
             }.makeExecutableSchema()
         }
+        assertEveryFieldResolves(schema)
 
         assertEquals(warnings, listOf("Directive @once isn't repeatable but an extension of type 'Query' applies it again, only the first one is kept."))
 
@@ -295,6 +299,7 @@ class TypeExtensionTest {
             """) {
             options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
         }.makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         assertEquals(schema.queryType.appliedDirectives.map { it.getArgument("fields")?.getValue<String>() }, listOf("upc", "name"))
     }
@@ -322,6 +327,7 @@ class TypeExtensionTest {
             dictionary(Foo::class, Bar::class, Baz::class)
             options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
         }.makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
@@ -359,6 +365,7 @@ class TypeExtensionTest {
                 dictionary(Item::class, Foo::class, Bar::class, Baz::class)
             }.makeExecutableSchema()
         }
+        assertEveryFieldResolves(schema)
 
         assertEquals(warnings, listOf(
             "Type 'Node' declares field 'id' more than once, only the first one is kept.",
@@ -395,6 +402,7 @@ class TypeExtensionTest {
                 dictionary(Item::class)
             }.makeExecutableSchema()
         }
+        assertEveryFieldResolves(schema)
 
         assertEquals(warnings, listOf(
             "Type 'Node' is defined as an interface, but extended as an object type. The extension is ignored.",
@@ -450,6 +458,7 @@ class TypeExtensionTest {
             enum Purpose { SECURITY }
             extend enum Purpose { EXECUTION }
             """).makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, listOf<Any>("SECURITY", "EXECUTION"))
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))

@@ -33,6 +33,7 @@ class InheritedTypeVariablesTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -72,6 +73,7 @@ class InheritedTypeVariablesTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -119,6 +121,7 @@ class InheritedTypeVariablesTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -171,6 +174,7 @@ class InheritedTypeVariablesTest {
             .resolvers(RawGenericFixtures.QueryResolver())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
