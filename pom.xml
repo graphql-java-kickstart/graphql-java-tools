@@ -294,6 +294,18 @@
                     <release>11</release>
                     <failOnWarning>true</failOnWarning>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!-- With release, javac before Java 16 ignores the module descriptors of multi-release jars, so Java tests
+                        compiled into the module can't see Jackson's annotations or java.beans. They compile on the class path
+                        like the Kotlin tests instead -->
+                        <!-- TODO compile the Java tests on the module path again in 15.0.0 -->
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <useModulePath>false</useModulePath>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

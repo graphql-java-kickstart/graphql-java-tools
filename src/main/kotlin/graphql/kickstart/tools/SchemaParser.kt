@@ -5,6 +5,7 @@ import graphql.Scalars
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
+import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.unwrap
@@ -86,6 +87,13 @@ class SchemaParser internal constructor(
         }
         val interfaces = interfaceDefinitions.map { createInterfaceObject(it, inputObjects) }
         val objects = objectDefinitions.map { createObject(it, interfaces, inputObjects) }
+        if (options.unmappedInputFields != UnmappedInputFields.IGNORE) {
+            val checker = UnmappedInputFieldChecker(inputObjects.associateBy { it.name }, options.unmappedInputFields)
+            objectDefinitions.forEach { type ->
+                fieldResolversByType[type].orEmpty().values.filterIsInstance<MethodFieldResolver>().forEach { checker.check(type.name, it) }
+            }
+            checker.report()
+        }
         val unions = unionDefinitions.map { createUnionObject(it, objects) }
         val enums = enumDefinitions.map { createEnumObject(it) }
 
