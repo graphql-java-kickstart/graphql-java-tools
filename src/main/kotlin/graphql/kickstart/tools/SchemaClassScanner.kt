@@ -649,13 +649,6 @@ internal class SchemaClassScanner(
      * At runtime the value is whatever the input object's class (or the Map) deserializes it into.
      */
     private fun handleInputValueWithoutJavaType(graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, inputGraphQLType: TypeName, clazz: Class<*>?) {
-        if (clazz != null && !isPropertyMap(clazz)) {
-            // not a warning, since Jackson may map the field some other way, e.g. through a setter. The SchemaParser checks that with
-            // Jackson itself, see UnmappedInputFields
-            log.debug("Cannot find a public getter or field for field '${inputValueDefinition.name}: ${inputGraphQLType.name}' of input type '${graphQLType.name}' on ${clazz.name}, " +
-                "so its type is taken from the schema.")
-        }
-
         when (val definition = definitionsByName[inputGraphQLType.name]) {
             is ScalarTypeDefinition -> handleFoundScalarType(definition)
             is InputObjectTypeDefinition -> {
