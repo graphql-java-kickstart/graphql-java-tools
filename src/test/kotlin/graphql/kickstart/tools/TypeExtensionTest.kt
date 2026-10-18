@@ -210,41 +210,45 @@ class TypeExtensionTest {
     @Test
     fun `directives of extensions follow those of the type and are wired`() {
         val wiring = RecordingWiring()
-        val schema = parser(
-            """
-            directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
-            directive @once(name: String!) on OBJECT | INPUT_OBJECT
+        val (schema, warnings) = withWarnings {
+            parser(
+                """
+                directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
+                directive @once(name: String!) on OBJECT | INPUT_OBJECT
 
-            type Query @once(name: "Query") {
-                node: Node
-                fooBar: FooBar
-                color: Color
-                search(filter: Filter): String
-            }
+                type Query @once(name: "Query") {
+                    node: Node
+                    fooBar: FooBar
+                    color: Color
+                    search(filter: Filter): String
+                }
 
-            extend type Query @once(name: "Query extension")
+                extend type Query @once(name: "Query extension")
 
-            interface Node @tag(name: "Node") { id: ID! }
-            extend interface Node @tag(name: "Node extension")
+                interface Node @tag(name: "Node") { id: ID! }
+                extend interface Node @tag(name: "Node extension")
 
-            type Item implements Node @tag(name: "Item") { id: ID! }
-            extend type Item @tag(name: "Item extension") { name: String }
+                type Item implements Node @tag(name: "Item") { id: ID! }
+                extend type Item @tag(name: "Item extension") { name: String }
 
-            union FooBar @tag(name: "FooBar") = Foo
-            extend union FooBar @tag(name: "FooBar extension")
+                union FooBar @tag(name: "FooBar") = Foo
+                extend union FooBar @tag(name: "FooBar extension")
 
-            enum Color @tag(name: "Color") { RED GREEN }
-            extend enum Color @tag(name: "Color extension")
+                enum Color @tag(name: "Color") { RED GREEN }
+                extend enum Color @tag(name: "Color extension")
 
-            input Filter @tag(name: "Filter") { id: ID }
-            extend input Filter @tag(name: "Filter extension") @once(name: "Filter extension")
+                input Filter @tag(name: "Filter") { id: ID }
+                extend input Filter @tag(name: "Filter extension") @once(name: "Filter extension")
 
-            type Foo { foo: String }
-            """) {
-            dictionary(Item::class, Foo::class)
-            directive("tag", wiring)
-            directive("once", wiring)
-        }.makeExecutableSchema()
+                type Foo { foo: String }
+                """) {
+                dictionary(Item::class, Foo::class)
+                directive("tag", wiring)
+                directive("once", wiring)
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf("Directive @once isn't repeatable but an extension of type 'Query' applies it again, only the first one is kept."))
 
         val applied = listOf("Query", "Node", "Item", "FooBar", "Color", "Filter").associateWith { name ->
             (schema.getType(name) as GraphQLDirectiveContainer).appliedDirectives.map { it.describe() }
@@ -304,12 +308,15 @@ class TypeExtensionTest {
             $fooBarBaz
             """
 
-        assertEquals(parser(unusedUnion).getUnusedDefinitions().map { it.javaClass.simpleName to it.name }.toSet(), setOf(
+        val (unused, warnings) = withWarnings { parser(unusedUnion).getUnusedDefinitions() }
+
+        assertEquals(unused.map { it.javaClass.simpleName to it.name }.toSet(), setOf(
             "UnionTypeDefinition" to "FooBar",
             "ObjectTypeDefinition" to "Foo",
             "ObjectTypeDefinition" to "Bar",
             "ObjectTypeDefinition" to "Baz"
         ))
+        assertEquals(warnings, listOf("FooBar", "Foo", "Bar", "Baz").map { "Schema type was defined but can never be accessed, and can be safely deleted: $it" })
 
         val schema = parser(unusedUnion) {
             dictionary(Foo::class, Bar::class, Baz::class)
@@ -321,35 +328,43 @@ class TypeExtensionTest {
 
     @Test
     fun `repeats and extensions without a type keep building`() {
-        val schema = parser(
-            """
-            type Query {
-                color: Color
-                node: Node
-                fooBar: FooBar
-            }
+        val (schema, warnings) = withWarnings {
+            parser(
+                """
+                type Query {
+                    color: Color
+                    node: Node
+                    fooBar: FooBar
+                }
 
-            extend enum Color {
-                "The first red"
-                RED
-            }
-            extend enum Color { RED GREEN }
+                extend enum Color {
+                    "The first red"
+                    RED
+                }
+                extend enum Color { RED GREEN }
 
-            interface Node {
-                "The base id"
-                id: ID!
-            }
-            extend interface Node { id: ID! name: String }
+                interface Node {
+                    "The base id"
+                    id: ID!
+                }
+                extend interface Node { id: ID! name: String }
 
-            type Item implements Node { id: ID! name: String }
+                type Item implements Node { id: ID! name: String }
 
-            extend union FooBar = Foo | Bar
-            extend union FooBar = Bar | Baz
+                extend union FooBar = Foo | Bar
+                extend union FooBar = Bar | Baz
 
-            $fooBarBaz
-            """) {
-            dictionary(Item::class, Foo::class, Bar::class, Baz::class)
-        }.makeExecutableSchema()
+                $fooBarBaz
+                """) {
+                dictionary(Item::class, Foo::class, Bar::class, Baz::class)
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf(
+            "Type 'Node' declares field 'id' more than once, only the first one is kept.",
+            "Type 'FooBar' declares member 'Bar' more than once, only the first one is kept.",
+            "Type 'Color' declares value 'RED' more than once, only the first one is kept."
+        ))
 
         val color = schema.getType("Color") as GraphQLEnumType
         assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
@@ -364,20 +379,28 @@ class TypeExtensionTest {
 
     @Test
     fun `extensions of a different kind than the type are ignored`() {
-        val schema = parser(
-            """
-            type Query { node: Node }
+        val (schema, warnings) = withWarnings {
+            parser(
+                """
+                type Query { node: Node }
 
-            interface Node { id: ID! }
-            extend type Node { name: String }
+                interface Node { id: ID! }
+                extend type Node { name: String }
 
-            type Item implements Node { id: ID! }
-            extend union Item = Foo
+                type Item implements Node { id: ID! }
+                extend union Item = Foo
 
-            type Foo { foo: String }
-            """) {
-            dictionary(Item::class)
-        }.makeExecutableSchema()
+                type Foo { foo: String }
+                """) {
+                dictionary(Item::class)
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf(
+            "Type 'Node' is defined as an interface, but extended as an object type. The extension is ignored.",
+            "Type 'Item' is defined as an object type, but extended as a union. The extension is ignored.",
+            "Schema type was defined but can never be accessed, and can be safely deleted: Foo"
+        ))
 
         val node = schema.getType("Node") as GraphQLInterfaceType
         val item = schema.getType("Item") as GraphQLObjectType

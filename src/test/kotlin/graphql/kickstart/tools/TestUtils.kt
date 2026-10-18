@@ -1,8 +1,13 @@
 package graphql.kickstart.tools
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.ExecutionInput
 import graphql.GraphQL
+import org.slf4j.LoggerFactory
 
 private val mapper = ObjectMapper()
 
@@ -36,4 +41,20 @@ fun <T> assertNull(actual: T) {
 
 fun <T> assertNotNull(actual: T) {
     assert(actual != null)
+}
+
+fun <T> withWarnings(block: () -> T): Pair<T, List<String>> {
+    // the tests run in the library's module, which doesn't read logback's
+    listOf("ch.qos.logback.classic", "ch.qos.logback.core").forEach { name ->
+        ModuleLayer.boot().findModule(name).ifPresent { SchemaParser::class.java.module.addReads(it) }
+    }
+    val logger = LoggerFactory.getLogger("graphql.kickstart.tools") as Logger
+    val appender = ListAppender<ILoggingEvent>().apply { start() }
+    logger.addAppender(appender)
+    try {
+        val result = block()
+        return result to appender.list.filter { it.level.isGreaterOrEqual(Level.WARN) }.map { it.formattedMessage }
+    } finally {
+        logger.detachAppender(appender)
+    }
 }
