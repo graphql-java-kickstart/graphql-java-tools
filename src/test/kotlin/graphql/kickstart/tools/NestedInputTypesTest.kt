@@ -39,6 +39,7 @@ class NestedInputTypesTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
@@ -89,6 +90,7 @@ class NestedInputTypesTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
@@ -132,12 +134,13 @@ class NestedInputTypesTest {
             .resolvers(object : GraphQLQueryResolver {
                 fun discountName(filter: Map<String, Any?>): String? {
                     val requestFilter = filter["requestFilter"] as Map<*, *>
-                    val discountTypeFilter = (requestFilter["and"] as List<*>).single() as Map<*, *>
-                    return (discountTypeFilter["discountTypeFilter"] as Map<*, *>)["name"] as String?
+                    val discountTypeFilter = (requestFilter["and"] as List<*>?)?.single() as Map<*, *>?
+                    return (discountTypeFilter?.get("discountTypeFilter") as Map<*, *>?)?.get("name") as String?
                 }
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -190,6 +193,7 @@ class NestedInputTypesTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -239,6 +243,7 @@ class NestedInputTypesTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -281,6 +286,7 @@ class NestedInputTypesTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -325,6 +331,7 @@ class NestedInputTypesTest {
             .dictionary("ShipmentLineInput", ShipmentLineInput::class.java)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -373,6 +380,7 @@ class NestedInputTypesTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {

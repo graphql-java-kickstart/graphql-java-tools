@@ -191,6 +191,7 @@ class CustomScalarInputTest {
             .options(options)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         return GraphQL.newGraphQL(graphQLSchema).build()
     }
 
@@ -265,7 +266,7 @@ class CustomScalarInputTest {
         fun optionalEvent(input: Optional<EventInput>): String = input.map { event(it) }.orElse("empty")
         fun message(input: MessageInput): String = "${input.name}: ${(listOfNotNull(input.file) + input.files).joinToString(" ") { it.content() }}"
         fun label(input: LabelInput): String = "${input.date} ${input.opaque}"
-        fun dateNode(input: ObjectNode): String = (input["date"] as POJONode).pojo.let { "${it.javaClass.simpleName} $it" }
+        fun dateNode(input: ObjectNode): String = (input["date"] as POJONode?)?.pojo?.let { "${it.javaClass.simpleName} $it" }.orEmpty()
         fun priceNode(input: ObjectNode): String = input.toString()
         fun payment(input: PaymentInput): String = listOfNotNull(input.price, input.reference, input.date, input.box).joinToString(" ")
         fun price(price: MoneyDto): String = price.toString()

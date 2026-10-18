@@ -22,6 +22,15 @@ class EndToEndTest {
         .build()
 
     @Test
+    fun `every field resolves`() {
+        val newItem = Item(1, "item", Type.TYPE_1, UUID.randomUUID(), listOf())
+        // throws on purpose to test that the original exception is passed on
+        schema.assertEveryFieldResolves(except = setOf("Query.throwsIllegalArgumentException")) {
+            graphQLContext(mapOf("newItem" to newItem))
+        }
+    }
+
+    @Test
     fun `schema comments are used as descriptions`() {
         val type = schema.allTypesAsList.find { it.name == "Type" } as GraphQLEnumType
         assert(type.values[0].description == "Item type 1")

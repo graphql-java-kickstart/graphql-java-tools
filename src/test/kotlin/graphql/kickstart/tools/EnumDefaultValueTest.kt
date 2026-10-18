@@ -29,6 +29,7 @@ class EnumDefaultValueTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val ggl = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -64,6 +65,7 @@ class EnumDefaultValueTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val ggl = GraphQL.newGraphQL(schema).build()
 

@@ -41,6 +41,7 @@ class DirectiveTest {
             .directive("uppercase", UppercaseDirective())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -93,6 +94,7 @@ class DirectiveTest {
             .directive("uppercase", UppercaseDirective())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -137,6 +139,7 @@ class DirectiveTest {
             .directive("uppercase", UppercaseDirective())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -179,6 +182,7 @@ class DirectiveTest {
             .directive("double", DoubleDirective())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -215,11 +219,14 @@ class DirectiveTest {
                     name: String @auth @log
                 }
                 """)
-            .resolvers(NameResolver())
+            .resolvers(object : GraphQLQueryResolver {
+                fun name(): String? = null
+            })
             .directive("auth", DescriptionDirective("auth"))
             .directive("log", DescriptionDirective("log"))
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.queryType.getField("name").description, "Name +auth +log")
     }
@@ -236,11 +243,14 @@ class DirectiveTest {
                     name: String @auth
                 }
                 """)
-            .resolvers(NameResolver())
+            .resolvers(object : GraphQLQueryResolver {
+                fun name(): String? = null
+            })
             .directive("auth", DescriptionDirective("auth"))
             .directiveWiring(DescriptionDirective("static"))
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.queryType.getField("name").description, "Name +auth +static")
     }
@@ -285,6 +295,7 @@ class DirectiveTest {
             .directive("uppercase", UppercaseDirective())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -337,6 +348,7 @@ class DirectiveTest {
             .dictionary(AllowedState::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -365,6 +377,7 @@ class DirectiveTest {
             .resolvers(BookQueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val filter = schema.getType("BookFilter") as GraphQLInputObjectType
         assert(filter.isOneOf)
@@ -404,6 +417,7 @@ class DirectiveTest {
             .directive("email", emailDirective)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val expectedMessages = mapOf(
             "contactEmail" to "{path} must be a valid email",
@@ -452,6 +466,7 @@ class DirectiveTest {
                 .directive("option", recorder)
                 .build()
                 .makeExecutableSchema()
+                .assertEveryFieldResolves()
 
             val inputObject = listOf("GraphQLInputObjectType")
             val expectedTypes = mapOf("name" to inputObject, "ConfigInput" to inputObject, "level" to inputObject)
@@ -490,6 +505,7 @@ class DirectiveTest {
                 })
                 .build()
                 .makeExecutableSchema()
+                .assertEveryFieldResolves()
 
             assert(wiredFields == listOf("max")) { "$wiredFields with directives declared as $directives" }
             val limit = (schema.getType("BoundInput") as GraphQLInputObjectType).getField("max").getAppliedDirective("limit")
@@ -531,6 +547,7 @@ class DirectiveTest {
             .dictionary(LinkPurpose::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.schemaAppliedDirectives.map { it.name }, listOf("contact", "link", "link"))
         assertEquals(
@@ -594,6 +611,7 @@ class DirectiveTest {
             .options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val link = schema.getSchemaAppliedDirective("link")
         assertEquals(link.getArgument("import")?.getValue<List<String>>(), listOf("@key", "@shareable"))
@@ -644,7 +662,7 @@ class DirectiveTest {
         fun book(filter: BookFilter): Book? = null
     }
 
-    private data class BookFilter(
+    data class BookFilter(
         val id: Int?,
         val name: String?
     )
@@ -655,7 +673,7 @@ class DirectiveTest {
         fun updatePerson(person: PersonInput?, state: AllowedState?): String? = null
     }
 
-    private data class PersonInput(
+    data class PersonInput(
         val email: String?
     )
 

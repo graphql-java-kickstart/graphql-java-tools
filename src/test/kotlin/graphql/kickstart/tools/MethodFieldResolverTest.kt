@@ -38,6 +38,7 @@ class MethodFieldResolverTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -80,6 +81,7 @@ class MethodFieldResolverTest {
                 .build())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -112,10 +114,11 @@ class MethodFieldResolverTest {
                 """)
             .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
-                fun test(scalar: CustomScalar) = scalar.value.length
+                fun test(scalar: CustomScalar?) = scalar?.value?.length
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -143,10 +146,11 @@ class MethodFieldResolverTest {
                 """)
             .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
-                fun test(scalars: List<CustomScalar>) = scalars.map { it.value.length }.sum()
+                fun test(scalars: List<CustomScalar>?) = scalars?.map { it.value.length }?.sum()
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -165,12 +169,12 @@ class MethodFieldResolverTest {
     @Test
     fun `should handle proxies`() {
         val invocationHandler = object : InvocationHandler {
-            override fun invoke(proxy: Any, method: Method, args: Array<out Any>): Any {
+            override fun invoke(proxy: Any, method: Method, args: Array<out Any>): Any? {
                 return when (method.name) {
                     "toString" -> "Proxy$" + System.identityHashCode(this)
                     "hashCode" -> System.identityHashCode(this)
                     "equals" -> Proxy.isProxyClass(args[0].javaClass)
-                    "test" -> (args[0] as List<*>).map { (it as CustomScalar).value.length }.sum()
+                    "test" -> (args[0] as List<*>?)?.map { (it as CustomScalar).value.length }?.sum()
                     else -> UnsupportedOperationException()
                 }
             }
@@ -194,6 +198,7 @@ class MethodFieldResolverTest {
             .resolvers(resolver)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -258,6 +263,7 @@ class MethodFieldResolverTest {
                 .build())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
         val result = gql.execute(ExecutionInput.newExecutionInput().query(
@@ -297,7 +303,7 @@ class MethodFieldResolverTest {
     }
 
     interface Resolver {
-        fun test(scalars: List<CustomScalar>): Int
+        fun test(scalars: List<CustomScalar>?): Int?
     }
 
     private val customScalarType: GraphQLScalarType = GraphQLScalarType.newScalar()

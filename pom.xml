@@ -276,8 +276,9 @@
                         </goals>
                     </execution>
                     <execution>
+                        <!-- before javac, so the Java tests can use the Kotlin test helpers -->
                         <id>test-compile</id>
-                        <phase>test-compile</phase>
+                        <phase>process-test-sources</phase>
                         <goals>
                             <goal>test-compile</goal>
                         </goals>

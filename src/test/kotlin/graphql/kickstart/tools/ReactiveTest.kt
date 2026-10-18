@@ -31,6 +31,7 @@ class ReactiveTest {
             .options(options)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -91,7 +92,10 @@ class ReactiveTest {
         val options = newOptions()
             .genericWrappers(GenericWrapper.withTransformer(FutureTask::class, 0, { task -> task.get() }))
             .build()
-        val gql = GraphQL.newGraphQL(itemSchema(PlainFutureQuery(), options)).build()
+        val schema = itemSchema(PlainFutureQuery(), options)
+            // suspendCompletableItem is a suspend function that returns a future, which is rejected
+            .assertEveryFieldResolves(except = setOf("Query.suspendCompletableItem"))
+        val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
             """
@@ -179,6 +183,7 @@ class ReactiveTest {
             })
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 

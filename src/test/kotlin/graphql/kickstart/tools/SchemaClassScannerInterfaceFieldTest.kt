@@ -41,6 +41,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .dictionary(InterfaceOnlyUnion.TestInterfaceImpl::class, InterfaceOnlyUnion.TestUnion2::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val testUnion = schema.getType("TestUnion") as GraphQLUnionType
         assertEquals(testUnion.types.map { it.name }.toSet(), setOf("TestUnion1", "TestUnion2"))
@@ -124,6 +125,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .resolvers(SingleMemberUnions())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Result") as GraphQLUnionType).types.map { it.name }, listOf("Node"))
         assertEquals((schema.getType("SortResponse") as GraphQLUnionType).types.map { it.name }, listOf("NodeSortResponse"))
@@ -182,6 +184,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .dictionary(ChainedInterfaceUnion.Box::class, ChainedInterfaceUnion.Image::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Content") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Text", "Image"))
     }
@@ -246,6 +249,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .dictionary(NestedInterfaceOnlyUnion.Book::class, NestedInterfaceOnlyUnion.Image::class, NestedInterfaceOnlyUnion.RichCaption::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Caption") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("PlainCaption", "RichCaption"))
     }
@@ -295,6 +299,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .dictionary(InterfaceOnlyInterface.Box::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assert(schema.getType("Entry") is GraphQLInterfaceType)
     }
@@ -348,6 +353,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .dictionary(DictionaryReachableUnion.Book::class, DictionaryReachableUnion.Holder::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Content") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Text", "Image"))
     }
@@ -409,6 +415,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .dictionary(DictionaryReachableInterface.Shelf::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.getImplementations(schema.getType("Item") as GraphQLInterfaceType)!!.map { it.name }.toSet(), setOf("Book", "Magazine"))
     }
@@ -467,6 +474,7 @@ class SchemaClassScannerInterfaceFieldTest {
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Content") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Text", "Image", "Caption"))
     }

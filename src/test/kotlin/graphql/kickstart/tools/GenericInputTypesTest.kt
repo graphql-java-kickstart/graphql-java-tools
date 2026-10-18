@@ -32,6 +32,7 @@ class GenericInputTypesTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -68,6 +69,7 @@ class GenericInputTypesTest {
             .resolvers(InheritedQueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -112,6 +114,7 @@ class GenericInputTypesTest {
             .resolvers(MultipleParameterizationsQueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -153,6 +156,7 @@ class GenericInputTypesTest {
             .resolvers(NestedQueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -186,6 +190,7 @@ class GenericInputTypesTest {
             .resolvers(InheritedListQueryResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {

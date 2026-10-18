@@ -31,6 +31,11 @@ class SuspendFunctionDataLoaderTest {
     private val gql = GraphQL.newGraphQL(schema).build()
 
     @Test
+    fun `every field resolves`() {
+        schema.assertEveryFieldResolves() { dataLoaderRegistry(registry()) }
+    }
+
+    @Test
     fun `root suspend function can await a data loader`() {
         repeat(20) {
             val data = execute("{ users(ids: [1, 2, 3]) { id } }")
@@ -52,17 +57,19 @@ class SuspendFunctionDataLoaderTest {
     }
 
     private fun execute(query: String): Any? {
-        val userLoader = DataLoaderFactory.newDataLoader<Int, User> { ids ->
-            CompletableFuture.supplyAsync { ids.map { User(it) } }
-        }
-        val registry = DataLoaderRegistry.newRegistry().register("user", userLoader).build()
-
         // a resolver that awaits a load before it is dispatched hangs, so don't wait forever
-        val result = gql.executeAsync(ExecutionInput.newExecutionInput(query).dataLoaderRegistry(registry))
+        val result = gql.executeAsync(ExecutionInput.newExecutionInput(query).dataLoaderRegistry(registry()))
             .get(5, TimeUnit.SECONDS)
 
         assert(result.errors.isEmpty()) { result.errors.joinToString { it.message } }
         return result.getData<Any>()
+    }
+
+    private fun registry(): DataLoaderRegistry {
+        val userLoader = DataLoaderFactory.newDataLoader<Int, User> { ids ->
+            CompletableFuture.supplyAsync { ids.map { User(it) } }
+        }
+        return DataLoaderRegistry.newRegistry().register("user", userLoader).build()
     }
 
     class Query : GraphQLQueryResolver {

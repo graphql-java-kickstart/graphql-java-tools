@@ -25,6 +25,7 @@ class SuperclassResolverTest {
             .resolvers(QueryResolver(), BarResolver())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
     }
 
     class QueryResolver : GraphQLQueryResolver {

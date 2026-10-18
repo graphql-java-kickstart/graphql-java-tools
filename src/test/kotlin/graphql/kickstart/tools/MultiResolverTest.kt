@@ -31,6 +31,11 @@ class MultiResolverTest {
         .build()
 
     @Test
+    fun `every field resolves`() {
+        schema.assertEveryFieldResolves()
+    }
+
+    @Test
     fun `multiple resolvers for one data class should resolve methods with arguments`() {
         val data = assertNoGraphQlErrors(gql, mapOf("friendName" to "name")) {
             """

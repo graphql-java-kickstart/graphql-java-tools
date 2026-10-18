@@ -52,6 +52,8 @@ class RelayConnectionTest {
             .resolvers(QueryResolver())
             .build()
             .makeExecutableSchema()
+            // the made-up cursor "a" isn't a valid cursor
+            .assertEveryFieldResolves(except = setOf("Query.users(after:)"))
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
@@ -106,6 +108,8 @@ class RelayConnectionTest {
             .dictionary(User::class.java)
             .build()
             .makeExecutableSchema()
+            // the made-up cursor "a" isn't a valid cursor
+            .assertEveryFieldResolves(except = setOf("Query.users(after:)"))
 
         val gql = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())

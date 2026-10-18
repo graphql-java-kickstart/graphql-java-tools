@@ -34,6 +34,12 @@ class BuiltInIdTest {
         .build()
 
     @Test
+    fun `every field resolves`() {
+        // the made-up ID "1" isn't a UUID
+        schema.assertEveryFieldResolves(except = setOf("Query.itemByUuidId(id:)", "Query.itemsByUuidIds(ids:)"))
+    }
+
+    @Test
     fun `supports Long as ID as input`() {
         val data = assertNoGraphQlErrors(gql) {
             """

@@ -50,6 +50,7 @@ public class SchemaClassScannerSealedJavaTypesTest {
             .resolvers(new PetQuery(), new AnimalQuery())
             .build()
             .makeExecutableSchema();
+        EveryFieldResolvesKt.assertEveryFieldResolves(schema);
 
         ExecutionResult result = GraphQL.newGraphQL(schema).build().execute(ExecutionInput.newExecutionInput().query("""
             query {

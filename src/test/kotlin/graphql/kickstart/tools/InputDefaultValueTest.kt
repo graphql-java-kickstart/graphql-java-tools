@@ -49,6 +49,11 @@ class InputDefaultValueTest {
         assertEquals(data["listWithEmptyDefault"], "size: 10, after: null")
     }
 
+    @Test
+    fun `every field resolves`() {
+        schema.assertEveryFieldResolves()
+    }
+
     class QueryResolver : GraphQLQueryResolver {
         fun list(listing: Listing): String = describe(listing)
         fun listWithEmptyDefault(listing: Listing): String = describe(listing)

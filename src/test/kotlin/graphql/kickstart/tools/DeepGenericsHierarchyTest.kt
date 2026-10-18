@@ -12,6 +12,7 @@ class PlaceTest {
             .file("Place.graphqls")
             .resolvers(PlaceQuery())
             .build().makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val graphql = GraphQL.newGraphQL(schema).build()
         val query = "query { places1 { id } places2 { id } }"

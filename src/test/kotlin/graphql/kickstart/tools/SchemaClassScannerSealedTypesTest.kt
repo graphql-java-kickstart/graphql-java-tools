@@ -47,6 +47,7 @@ class SchemaClassScannerSealedTypesTest {
             .resolvers(SealedClassUnion())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { petsQuery }
 
@@ -93,6 +94,7 @@ class SchemaClassScannerSealedTypesTest {
             .resolvers(SealedInterfaceImplementors())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -153,6 +155,7 @@ class SchemaClassScannerSealedTypesTest {
             .resolvers(GenericSealedClass())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -208,6 +211,7 @@ class SchemaClassScannerSealedTypesTest {
             .resolvers(MemberReachableThroughSealedSubclass())
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("SearchResult") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Book", "Author"))
 
@@ -254,6 +258,7 @@ class SchemaClassScannerSealedTypesTest {
             .dictionary("WeirdPet", DictionaryOverridesSealedSubclass.ClassifiedWeirdPet::class)
             .build()
             .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { petsQuery }
 
