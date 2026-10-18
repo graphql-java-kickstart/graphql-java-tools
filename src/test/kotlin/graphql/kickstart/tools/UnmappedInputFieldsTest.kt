@@ -1,9 +1,5 @@
 package graphql.kickstart.tools
 
-import ch.qos.logback.classic.Level
-import ch.qos.logback.classic.Logger
-import ch.qos.logback.classic.spi.ILoggingEvent
-import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.annotation.JacksonInject
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonFormat
@@ -32,7 +28,6 @@ import graphql.kickstart.tools.UnmappedInputFieldsFixtures.*
 import graphql.schema.DataFetchingEnvironment
 import org.junit.Assert.assertThrows
 import org.junit.Test
-import org.slf4j.LoggerFactory
 import java.util.*
 
 class UnmappedInputFieldsTest {
@@ -808,22 +803,6 @@ class UnmappedInputFieldsTest {
     private fun unmapped(field: String, clazz: Class<*>, usage: String, knownProperties: String, consequence: String = "fails whenever the field is sent") =
         "Input field '$field' has no matching property in ${clazz.name}. Converting $usage $consequence. Known properties: $knownProperties. " +
             "Rename the property or map it with @JsonProperty(\"${field.substringAfter('.')}\"). If it's left unmapped on purpose, list it in @JsonIgnoreProperties on the class."
-
-    private fun <T> withWarnings(build: () -> T): Pair<T, List<String>> {
-        // the tests run in the library's module, which doesn't read logback's
-        listOf("ch.qos.logback.classic", "ch.qos.logback.core").forEach { name ->
-            ModuleLayer.boot().findModule(name).ifPresent { javaClass.module.addReads(it) }
-        }
-        val logger = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
-        val appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        try {
-            val result = build()
-            return result to appender.list.filter { it.level.isGreaterOrEqual(Level.WARN) }.map { it.formattedMessage }
-        } finally {
-            logger.detachAppender(appender)
-        }
-    }
 
     class GreetingInput {
         var nmae: String? = null

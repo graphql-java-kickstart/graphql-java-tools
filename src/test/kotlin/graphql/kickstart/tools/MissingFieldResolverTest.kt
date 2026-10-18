@@ -30,6 +30,33 @@ class MissingFieldResolverTest {
     }
 
     @Test
+    fun `should warn about each missing field when unimplemented resolvers are allowed`() {
+        val (schema, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        implementedField(input: String): String
+                        missingField(input: Int): Int
+                    }
+                    """
+                )
+                .resolvers(object : GraphQLQueryResolver {
+                    fun implementedField(input: Optional<String>) = input.toString()
+                })
+                .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf(
+            "Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved " +
+                "to query time instead of schema creation time.  Make sure this is turned off in production.",
+            "Missing resolver for field: ${schema.queryType.getFieldDefinition("missingField").definition}"
+        ))
+    }
+
+    @Test
     @Suppress("DEPRECATION")
     fun `should call missing resolver data fetcher if provided`() {
         val schema = SchemaParser.newParser()
