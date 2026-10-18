@@ -16,7 +16,7 @@
         <java.version>11</java.version>
         <kotlin.version>2.3.10</kotlin.version>
         <kotlin-coroutines.version>1.11.0</kotlin-coroutines.version>
-        <jackson.version>2.22.3</jackson.version>
+        <jackson.version>2.22.4</jackson.version>
         <graphql-java.version>26.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
@@ -63,7 +63,7 @@
             <dependency>
                 <groupId>com.fasterxml</groupId>
                 <artifactId>classmate</artifactId>
-                <version>1.7.3</version>
+                <version>1.8.0</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
@@ -361,7 +361,7 @@
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.11.0</version>
+                <version>0.12.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>central</publishingServerId>
