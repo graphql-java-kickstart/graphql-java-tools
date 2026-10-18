@@ -60,5 +60,3 @@ jobs:
           title: Version Release
           body: |
             Bumping project version after release.
-
-            The checks only run once someone selects **Approve workflows to run** in the merge box.
