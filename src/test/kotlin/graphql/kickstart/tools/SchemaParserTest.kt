@@ -43,13 +43,13 @@ class SchemaParserTest {
 
     @Test
     fun `builder doesn't throw FileNotFound exception when file is present`() {
-        val schema = SchemaParser.newParser().file("Test.graphqls")
+        SchemaParser.newParser().file("Test.graphqls")
             .resolvers(object : GraphQLQueryResolver {
                 fun getId(): String = "1"
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test(expected = SchemaClassScannerError::class)
@@ -73,7 +73,7 @@ class SchemaParserTest {
 
     @Test
     fun `parser should parse correctly when Query resolver is given`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
@@ -85,12 +85,12 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
     fun `parser should parse correctly when multiple query resolvers are given`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Obj {
@@ -113,12 +113,12 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
     fun `parser should parse correctly when multiple resolvers for the same data type are given`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type RootObj {
@@ -153,12 +153,12 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
     fun `parser should allow setting custom generic wrappers`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
@@ -177,7 +177,7 @@ class SchemaParserTest {
             .options(SchemaParserOptions.newOptions().genericWrappers(SchemaParserOptions.GenericWrapper.withTransformer(CustomGenericWrapper::class, 1, { wrapper: CustomGenericWrapper<*, *> -> wrapper.value })).build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test(expected = SchemaClassScannerError::class)
@@ -296,7 +296,7 @@ class SchemaParserTest {
 
     @Test
     fun `parser should build type that was never reached by the scanner when including unused types`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .file("UnreachedType.graphqls")
             .resolvers(object : GraphQLQueryResolver {
                 fun pet(): Pet? = null
@@ -305,7 +305,7 @@ class SchemaParserTest {
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
@@ -365,7 +365,7 @@ class SchemaParserTest {
 
     @Test
     fun `parser handles enums with overridden toString method`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 enum CustomEnum {
@@ -381,7 +381,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
@@ -396,7 +396,7 @@ class SchemaParserTest {
             .resolvers(QueryWithIdResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
@@ -414,7 +414,7 @@ class SchemaParserTest {
             .resolvers(QueryWithIdResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
@@ -482,7 +482,7 @@ class SchemaParserTest {
             .resolvers(QueryWithIdResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
@@ -495,7 +495,7 @@ class SchemaParserTest {
 
     @Test
     fun `support enum types if only used as input type`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query { test: Boolean }
@@ -520,12 +520,12 @@ class SchemaParserTest {
             .dictionary(EnumType::class)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
     fun `support enum types if only used in input Map`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query { test: Boolean }
@@ -551,12 +551,12 @@ class SchemaParserTest {
             .dictionary(EnumType::class)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
     fun `support enum types used in input Map if their class is found elsewhere`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
@@ -578,7 +578,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     @Test
@@ -656,7 +656,7 @@ class SchemaParserTest {
 
     @Test
     fun `allow circular relations in input objects`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 input A {
@@ -690,7 +690,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     class A {
@@ -741,7 +741,7 @@ class SchemaParserTest {
             .resolvers(MultiLevelInterfaceResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val traitInterface = schema.getType("Trait") as GraphQLInterfaceType
         val animalInterface = schema.getType("Animal") as GraphQLInterfaceType
         val mammalTraitInterface = schema.getType("MammalTrait") as GraphQLInterfaceType
@@ -813,7 +813,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val testNonNullableArgument = schema.getObjectType("Query")!!
             .getFieldDefinition("testNonNullable")
@@ -863,7 +863,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         // parent points back at NestedFilter while it's still being built, so it stays a type reference until the schema is built
         assertEquals(wiredFieldTypes, mapOf(
@@ -1020,7 +1020,7 @@ class SchemaParserTest {
                 })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.queryType.name, "SubstituteQuery")
         assertEquals(schema.mutationType?.name, "SubstituteMutation")
@@ -1184,7 +1184,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) { """mutation { addItem(name: "item") }""" }
@@ -1215,7 +1215,7 @@ class SchemaParserTest {
             .resolvers(QueryAndSubscription())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) { "{ item }" }
@@ -1327,7 +1327,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         listOf("onCustomPublisher", "onConcretePublisher", "onOverriddenPublisher").forEach { field ->
@@ -1371,7 +1371,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         listOf("onCompletableFuture", "onCompletionStage", "onFuture", "onConcretePublisherFuture", "onWildcardPublisherFuture").forEach { field ->
@@ -1410,7 +1410,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         assertEquals(gql.firstSubscriptionEvent("subscription { onChannel }"), mapOf("onChannel" to "onChannel"))

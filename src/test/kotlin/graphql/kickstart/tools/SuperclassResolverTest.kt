@@ -6,7 +6,7 @@ class SuperclassResolverTest {
 
     @Test
     fun `methods from generic resolvers are resolved`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
@@ -25,7 +25,7 @@ class SuperclassResolverTest {
             .resolvers(QueryResolver(), BarResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     class QueryResolver : GraphQLQueryResolver {

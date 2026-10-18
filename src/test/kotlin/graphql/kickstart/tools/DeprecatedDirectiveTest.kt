@@ -35,7 +35,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val userType = schema.getType("User") as GraphQLObjectType
         val nameDefinition = userType.getField("name")
@@ -69,7 +69,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val userType = schema.getType("User") as GraphQLObjectType
         val nameDefinition = userType.getField("name")
@@ -110,7 +110,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val userTypeEnum = schema.getType("UserType") as GraphQLEnumType
         val droidValue = userTypeEnum.getValue("DROID")
@@ -151,7 +151,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val userTypeEnum = schema.getType("UserType") as GraphQLEnumType
         val droidValue = userTypeEnum.getValue("DROID")
@@ -185,7 +185,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersWithFirstQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val usersQuery = schema.queryType.getField("users")
         val firstArgument = usersQuery.getArgument("first")
@@ -219,7 +219,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersWithFirstQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val usersQuery = schema.queryType.getField("users")
         val firstArgument = usersQuery.getArgument("first")
@@ -255,7 +255,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val directive = schema.getDirective("uppercase")
         val argument = directive!!.getArgument("firstCharacterOnly")
@@ -291,7 +291,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val directive = schema.getDirective("uppercase")
         val argument = directive!!.getArgument("firstCharacterOnly")
@@ -329,7 +329,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersWithConnectionInputQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val connectionInputType = schema.getType("ConnectionInput") as GraphQLInputObjectType
         val firstField = connectionInputType.getField("first")
@@ -367,7 +367,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersWithConnectionInputQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val connectionInputType = schema.getType("ConnectionInput") as GraphQLInputObjectType
         val firstField = connectionInputType.getField("first")
@@ -408,7 +408,7 @@ class DeprecatedDirectiveTest {
             .resolvers(UsersWithFirstQueryResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val name = (schema.getType("User") as GraphQLObjectType).getField("name")
         assertEquals("No longer supported", name.getAppliedDirective("deprecated").getArgument("reason")!!.getValue<String>())

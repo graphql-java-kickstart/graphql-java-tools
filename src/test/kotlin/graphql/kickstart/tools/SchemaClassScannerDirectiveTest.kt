@@ -33,7 +33,7 @@ class SchemaClassScannerDirectiveTest {
             .scalars(customValueScalar)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val value = schema.queryType.getFieldDefinition("string")
             .getAppliedDirective("doSomething")
@@ -75,7 +75,7 @@ class SchemaClassScannerDirectiveTest {
             .scalars(customValueScalar)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val value = schema.queryType.getFieldDefinition("string")
             .getAppliedDirective("doSomething")
@@ -107,7 +107,7 @@ class SchemaClassScannerDirectiveTest {
             .scalars(customValueScalar)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val value = schema.queryType.getFieldDefinition("string")
             .getAppliedDirective("doSomething")
@@ -137,7 +137,7 @@ class SchemaClassScannerDirectiveTest {
             .scalars(customValueScalar)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertNotNull(schema.directivesByName["doSomething"]?.getArgument("one")?.directivesByName?.get("somethingElse"))
         assertNotNull(schema.directivesByName["somethingElse"]?.getArgument("two")?.directivesByName?.get("doSomething"))
@@ -151,7 +151,7 @@ class SchemaClassScannerDirectiveTest {
             .resolvers(helloResolver)
             .build()
         val schema = parser.makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val purpose = schema.getType("Purpose") as GraphQLEnumType
         assertEquals(purpose.values.map { it.value }, listOf<Any>("SECURITY", "EXECUTION"))
@@ -177,7 +177,7 @@ class SchemaClassScannerDirectiveTest {
             .resolvers(helloResolver)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION", "SECURITY"))
         assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { IntrospectionQuery.INTROSPECTION_QUERY }
@@ -196,7 +196,7 @@ class SchemaClassScannerDirectiveTest {
             .dictionary(Purpose::class)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, Purpose.entries)
     }
@@ -216,7 +216,7 @@ class SchemaClassScannerDirectiveTest {
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, Purpose.entries)
     }

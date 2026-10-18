@@ -38,7 +38,7 @@ class MethodFieldResolverTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -81,7 +81,7 @@ class MethodFieldResolverTest {
                 .build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -118,7 +118,7 @@ class MethodFieldResolverTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -150,7 +150,7 @@ class MethodFieldResolverTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -198,7 +198,7 @@ class MethodFieldResolverTest {
             .resolvers(resolver)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -263,7 +263,7 @@ class MethodFieldResolverTest {
                 .build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
         val result = gql.execute(ExecutionInput.newExecutionInput().query(

@@ -24,7 +24,7 @@ import java.util.concurrent.TimeoutException
  * value to make up. [input] adds to every operation, e.g. a context or a data loader registry.
  */
 @JvmOverloads
-fun GraphQLSchema.assertEveryFieldResolves(except: Set<String> = setOf(), input: ExecutionInput.Builder.() -> Unit = {}) {
+fun GraphQLSchema.assertEveryFieldResolves(except: Set<String> = setOf(), input: ExecutionInput.Builder.() -> Unit = {}): GraphQLSchema {
     val gql = GraphQL.newGraphQL(this).build()
     val query = EveryFieldQuery(this, except)
     val roots = mapOf("query" to queryType, "mutation" to mutationType, "subscription" to subscriptionType)
@@ -38,6 +38,7 @@ fun GraphQLSchema.assertEveryFieldResolves(except: Set<String> = setOf(), input:
     if (errors.isNotEmpty()) {
         throw AssertionError("Querying every field returned errors:\n${errors.joinToString("\n")}")
     }
+    return this
 }
 
 private const val MAX_DEPTH = 6

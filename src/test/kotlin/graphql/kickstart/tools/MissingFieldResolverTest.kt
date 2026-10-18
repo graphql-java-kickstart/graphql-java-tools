@@ -78,7 +78,7 @@ class MissingFieldResolverTest {
                 .build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -119,7 +119,7 @@ class MissingFieldResolverTest {
             .options(options)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 

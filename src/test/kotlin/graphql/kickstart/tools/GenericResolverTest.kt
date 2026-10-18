@@ -9,7 +9,7 @@ class GenericResolverTest {
 
     @Test
     fun `methods from generic resolvers are resolved`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
@@ -23,7 +23,7 @@ class GenericResolverTest {
             .resolvers(QueryResolver1(), BarResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     class QueryResolver1 : GraphQLQueryResolver {
@@ -42,7 +42,7 @@ class GenericResolverTest {
 
     @Test
     fun `methods from generic inherited resolvers are resolved`() {
-        val schema = SchemaParser.newParser()
+        SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
@@ -55,7 +55,7 @@ class GenericResolverTest {
             .resolvers(QueryResolver2(), CarResolver())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
     }
 
     class QueryResolver2 : GraphQLQueryResolver {
@@ -134,7 +134,7 @@ class GenericResolverTest {
         .resolvers(QueryResolver3(), resolver)
         .build()
         .makeExecutableSchema()
-        .also { it.assertEveryFieldResolves() }
+        .assertEveryFieldResolves()
 
     class QueryResolver3 : GraphQLQueryResolver {
         fun getPage(): Page<Item> = Page(listOf(Item("item")))

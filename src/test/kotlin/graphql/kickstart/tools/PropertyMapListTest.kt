@@ -40,7 +40,7 @@ class PropertyMapListTest {
             .dictionary("Key", HashMap::class)
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -84,7 +84,7 @@ class PropertyMapListTest {
             })
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {

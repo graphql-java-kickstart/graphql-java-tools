@@ -52,7 +52,7 @@ class TypeExtensionTest {
             dictionary(Foo::class, Bar::class, Baz::class, Item::class)
             scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
         }.makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val fooBar = schema.getType("FooBar") as GraphQLUnionType
         val color = schema.getType("Color") as GraphQLEnumType
@@ -108,7 +108,7 @@ class TypeExtensionTest {
             """) {
             dictionary(Foo::class, Bar::class, Baz::class)
         }.makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
@@ -132,7 +132,7 @@ class TypeExtensionTest {
             """) {
             dictionary(Item::class, Bar::class)
         }.makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Node") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "fooBar"))
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Foo", "Bar"))
@@ -299,7 +299,7 @@ class TypeExtensionTest {
             """) {
             options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
         }.makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals(schema.queryType.appliedDirectives.map { it.getArgument("fields")?.getValue<String>() }, listOf("upc", "name"))
     }
@@ -327,7 +327,7 @@ class TypeExtensionTest {
             dictionary(Foo::class, Bar::class, Baz::class)
             options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
         }.makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
@@ -458,7 +458,7 @@ class TypeExtensionTest {
             enum Purpose { SECURITY }
             extend enum Purpose { EXECUTION }
             """).makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, listOf<Any>("SECURITY", "EXECUTION"))
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))

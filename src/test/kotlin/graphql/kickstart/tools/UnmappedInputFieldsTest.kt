@@ -251,8 +251,8 @@ class UnmappedInputFieldsTest {
         assertEquals(error.message, unmapped("NameInput.firstName", NameInput::class.java, "argument 'input' of field 'Query.snake'", "first_name"))
 
         val schema = parser(SchemaParserOptions.newOptions()).makeExecutableSchema()
-        // the snake case ObjectMapper doesn't know firstName, so snake fails when queried
-        schema.assertEveryFieldResolves(except = setOf("Query.snake"))
+            // the snake case ObjectMapper doesn't know firstName, so snake fails when queried
+            .assertEveryFieldResolves(except = setOf("Query.snake"))
         val gql = GraphQL.newGraphQL(schema).build()
         val result = gql.execute("query { snake(input: { firstName: \"Ada\" }) camel(input: { firstName: \"Ada\" }) }")
         assertContains(result.errors.single().message, "Unrecognized field \"firstName\"")
@@ -555,7 +555,7 @@ class UnmappedInputFieldsTest {
             .options(failOptions().build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves()
+            .assertEveryFieldResolves()
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -649,8 +649,8 @@ class UnmappedInputFieldsTest {
                 .build())
             .build()
             .makeExecutableSchema()
-        // the made-up kind isn't one of the type ids Jackson knows
-        schema.assertEveryFieldResolves(except = setOf("Query.shape(input:)", "Query.animals(input:)", "Query.animal(input:)", "Query.zoo(input:)"))
+            // the made-up kind isn't one of the type ids Jackson knows
+            .assertEveryFieldResolves(except = setOf("Query.shape(input:)", "Query.animals(input:)", "Query.animal(input:)", "Query.zoo(input:)"))
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -720,12 +720,12 @@ class UnmappedInputFieldsTest {
                 .build())
             .build()
             .makeExecutableSchema()
-        schema.assertEveryFieldResolves(except = setOf(
-            // the input classes misspell name on purpose
-            "Query.injected", "Query.builder",
-            // TODO query generic once the type variable of its inherited parameter is resolved (#880)
-            "Query.generic"
-        ))
+            .assertEveryFieldResolves(except = setOf(
+                // the input classes misspell name on purpose
+                "Query.injected", "Query.builder",
+                // TODO query generic once the type variable of its inherited parameter is resolved (#880)
+                "Query.generic"
+            ))
 
         val result = GraphQL.newGraphQL(schema).build().execute(
             """
