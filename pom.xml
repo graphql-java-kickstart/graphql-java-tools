@@ -294,6 +294,16 @@
                     <release>11</release>
                     <failOnWarning>true</failOnWarning>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!-- Java tests compile on the class path like the Kotlin tests, since Java 11's javac doesn't let tests
+                        compiled into the module use Jackson's annotations or java.beans -->
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <useModulePath>false</useModulePath>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>
