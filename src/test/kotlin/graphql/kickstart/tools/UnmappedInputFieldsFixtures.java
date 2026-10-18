@@ -16,7 +16,6 @@ import java.util.TreeMap;
 // Input classes as they're written in Java, by hand or with Lombok, so their properties aren't named by the Kotlin module.
 public class UnmappedInputFieldsFixtures {
 
-    // the class from https://github.com/graphql-java-kickstart/graphql-java-tools/issues/77#issuecomment-662855626
     public static class ProjectInput {
         private Integer id;
         private String name;

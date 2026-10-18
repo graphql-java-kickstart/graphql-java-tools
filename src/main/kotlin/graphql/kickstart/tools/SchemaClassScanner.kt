@@ -45,13 +45,11 @@ internal class SchemaClassScanner(
     private val typeDefinitions = allDefinitions.filterIsInstance<TypeDefinition<*>>()
     private val baseTypeNames = typeDefinitions.filter { it !is SDLExtensionDefinition }.map { it.name }.toSet()
 
-    // the first extension of an undefined union, enum, interface or scalar stands in for its definition
     private val loneExtensions = typeDefinitions
         .filter { it is SDLExtensionDefinition && it !is ObjectTypeDefinition && it !is InputObjectTypeDefinition && it.name !in baseTypeNames }
         .distinctBy { it.name }
 
     private val definitionsByName = typeDefinitions.filter { it !is SDLExtensionDefinition || it in loneExtensions }.associateBy { it.name }
-    // without extensions of a different kind than their type, which are ignored with a warning, see init
     private val typeExtensions: TypeExtensions = typeDefinitions
         .filter { it is SDLExtensionDefinition && it !in loneExtensions && !extendsOtherKind(it) }
         .groupBy { it.name }
@@ -80,8 +78,6 @@ internal class SchemaClassScanner(
             log.warn("Type '${extension.name}' is defined as ${definition.kind()}, but extended as ${extension.kind()}. The extension is ignored.")
         }
 
-        // Input object types never go into the type => class bimap that interface and union type resolution use, so several of
-        // them can share a class, e.g. ObjectNode
         initialDictionary
             .filterKeys { definitionsByName[it] !is InputObjectTypeDefinition }
             .entries.groupBy({ it.value }, { it.key })
@@ -397,8 +393,6 @@ internal class SchemaClassScanner(
             }
         }
 
-        // Scanning a sealed subclass can find the classes of the other types, so only fail when no type has exactly one sealed
-        // subclass named after it. Types still without a class fail on the next pass.
         val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatches(it).singleOrNull() }
         if (sealedMatches.isEmpty()) {
             typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassHint(it)) }
@@ -407,9 +401,6 @@ internal class SchemaClassScanner(
         sealedMatches.forEach { handleFoundType(it) }
     }
 
-    /**
-     * Explains why no sealed subclass was used for the type, if any of its unions or interfaces has a sealed class.
-     */
     private fun sealedSubclassHint(type: TypeDefinition<*>): String {
         if (type !is ObjectTypeDefinition) {
             return ""
@@ -429,25 +420,15 @@ internal class SchemaClassScanner(
         }
     }
 
-    /**
-     * A member of a union or an implementor of an interface may never be returned directly, e.g. `NormalPet` when only
-     * `pets(): List<Pet>` returns `union Pet`. If the class found for the union or interface is sealed, its subclass named
-     * after the object type can be used instead.
-     */
     private fun sealedSubclassMatches(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
         sealedTypesOf(type)
             .flatMap { sealedType ->
                 sealedSubclasses(sealedType.unwrap())
                     .filter { it.simpleName == type.name }
-                    .map { TypeClassMatcher.ValidMatch(type, parameterize(it, sealedType), SealedSubclassReference(sealedType)) }
+                    .map { TypeClassMatcher.ValidMatch(type, withSealedTypeArguments(it, sealedType), SealedSubclassReference(sealedType)) }
             }
-            // a subclass is found twice when it's under two of these sealed types, or extends both a sealed type and one of its
-            // sealed subclasses
             .distinctBy { it.javaType.unwrap() }
 
-    /**
-     * The sealed classes found for the unions the type is a member of and the interfaces it implements.
-     */
     private fun sealedTypesOf(type: ObjectTypeDefinition): List<JavaType> =
         dictionary
             .filterKeys { definition ->
@@ -461,18 +442,11 @@ internal class SchemaClassScanner(
             .distinct()
             .filter { it.unwrap().kotlin.isSealed }
 
-    /**
-     * All subclasses of a sealed class, including those of its sealed subclasses. kotlin-reflect also returns the permitted
-     * subclasses of Java sealed classes.
-     */
+    // kotlin-reflect also returns the permitted subclasses of Java sealed classes
     private fun sealedSubclasses(clazz: Class<*>): List<Class<*>> =
         clazz.kotlin.sealedSubclasses.flatMap { listOf(it.java) + sealedSubclasses(it.java) }
 
-    /**
-     * Passes the type arguments of a parameterized sealed class on to its generic subclass, e.g. `Success<Pet>` for
-     * `Result<Pet>`, so the types of the subclass's fields can be resolved.
-     */
-    private fun parameterize(subclass: Class<*>, sealedType: JavaType): JavaType {
+    private fun withSealedTypeArguments(subclass: Class<*>, sealedType: JavaType): JavaType {
         if (sealedType !is ParameterizedType || subclass.typeParameters.isEmpty()) {
             return subclass
         }
@@ -538,7 +512,6 @@ internal class SchemaClassScanner(
         }
     }
 
-    // a JDK dynamic proxy only implements its target's interfaces, so the target's own methods and fields can't be called on it
     // TODO throw a FieldResolverError instead in 15.0.0 (#868)
     private fun warnIfNotCallableOnResolver(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
         val source = fieldResolver.search.source ?: return
@@ -693,7 +666,6 @@ internal class SchemaClassScanner(
         }
     }
 
-    // e.g. `extend union Foo` of `type Foo`
     private fun extendsOtherKind(definition: TypeDefinition<*>): Boolean {
         val type = definitionsByName[definition.name]
         return definition is SDLExtensionDefinition && type != null && type.kind() != definition.kind()

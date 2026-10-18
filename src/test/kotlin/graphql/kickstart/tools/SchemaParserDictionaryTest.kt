@@ -41,7 +41,6 @@ class SchemaParserDictionaryTest {
             })
             .dictionary("EntityCreateInput", ObjectNode::class.java)
             .dictionary("EntityUpdateInput", ObjectNode::class.java)
-            // ObjectNode has no properties, so the classes of the nested inputs come from the dictionary
             .dictionary("NestedA", ObjectNode::class.java)
             .dictionary("NestedB", ObjectNode::class.java)
             .build()
@@ -69,7 +68,6 @@ class SchemaParserDictionaryTest {
 
         assertEquals(dictionary.getDictionary().toMap(), mapOf("AInput" to Map::class.java, "BInput" to Map::class.java))
 
-        // graphql-spring-boot reads a SchemaParserDictionary bean this way
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -102,7 +100,6 @@ class SchemaParserDictionaryTest {
 
     @Test
     fun `input type and object type can share a dictionary class`() {
-        // DogInput is only used by a directive, so its class can only come from the dictionary
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -183,7 +180,6 @@ class SchemaParserDictionaryTest {
                 .build()
         }
 
-        // the input type sharing the class isn't part of the conflict
         assertEquals(error.message, "Class in supplied dictionary '${ThirdItem::class.java.name}' specified type names 'A', 'B', " +
             "but only input object types can share a class!")
     }

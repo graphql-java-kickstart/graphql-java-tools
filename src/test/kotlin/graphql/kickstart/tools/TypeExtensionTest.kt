@@ -33,7 +33,6 @@ class TypeExtensionTest {
             union FooBar = Foo | Bar
             extend union FooBar = Baz
 
-            # the order doesn't matter
             extend enum Color { GREEN }
             enum Color { RED }
 
@@ -93,7 +92,6 @@ class TypeExtensionTest {
 
     @Test
     fun `union extensions can add nested unions`() {
-        // BarBaz has a field of its own, since the scanner only expands nested unions it finds some other way
         val schema = parser(
             """
             type Query {
@@ -224,7 +222,6 @@ class TypeExtensionTest {
                 search(filter: Filter): String
             }
 
-            # graphql-java rejects the schema for this, here the extension's @once is dropped
             extend type Query @once(name: "Query extension")
 
             interface Node @tag(name: "Node") { id: ID! }
@@ -260,7 +257,6 @@ class TypeExtensionTest {
             "Color" to listOf("@tag(Color)", "@tag(Color extension)"),
             "Filter" to listOf("@tag(Filter)", "@tag(Filter extension)", "@once(Filter extension)")
         ))
-        // each applied directive is wired once
         assertEquals(wiring.wired.sorted(), applied.values.flatten().sorted())
 
         val item = schema.getType("Item") as GraphQLObjectType
@@ -288,7 +284,6 @@ class TypeExtensionTest {
 
         assertEquals(error.message, "Found applied directive key without corresponding directive definition.")
 
-        // they may be repeatable, like federation's @key
         val schema = parser(
             """
             type Query @key(fields: "upc") { today: String }
@@ -326,7 +321,6 @@ class TypeExtensionTest {
 
     @Test
     fun `repeats and extensions without a type keep building`() {
-        // these built before extensions were merged, so the repeats only log a warning
         val schema = parser(
             """
             type Query {

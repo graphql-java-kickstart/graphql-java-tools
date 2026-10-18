@@ -38,8 +38,7 @@ internal fun Type<*>.unwrap(): Type<*> = when (this) {
 internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =
     this[name].orEmpty().filterIsInstance<T>()
 
-// The type followed by its extensions, e.g. `union.withExtensions(typeExtensions).flatMap { it.memberTypes }`. Every extension class
-// is a subclass of its type's class, e.g. UnionTypeExtensionDefinition of UnionTypeDefinition.
+// Every extension class is a subclass of its type's class, e.g. UnionTypeExtensionDefinition of UnionTypeDefinition.
 internal inline fun <reified T : TypeDefinition<*>> T.withExtensions(typeExtensions: TypeExtensions): List<T> =
     listOf(this) + typeExtensions.extensionsOf<T>(name)
 

@@ -12,7 +12,6 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-// Sealed classes need Java 17, so the java17-tests profile only compiles and runs this on Java 17 and later.
 public class SchemaClassScannerSealedJavaTypesTest {
 
     @Test

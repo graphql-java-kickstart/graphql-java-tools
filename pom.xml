@@ -373,7 +373,6 @@
 
     <profiles>
         <profile>
-            <!-- Tests of Java sealed classes, which need Java 17 to compile -->
             <id>java17-tests</id>
             <activation>
                 <jdk>[17,)</jdk>

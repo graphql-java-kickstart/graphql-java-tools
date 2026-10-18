@@ -43,7 +43,6 @@ class UnmappedInputFieldsTest {
 
         assertEquals(warnings, listOf(TECHNOLOGIES_MESSAGE))
 
-        // the warning predicts what happens when a client sends the field
         val result = GraphQL.newGraphQL(schema).build().execute(
             """
             mutation {
@@ -466,7 +465,6 @@ class UnmappedInputFieldsTest {
                 .makeExecutableSchema()
         }
 
-        // the scanner can't find a getter for SetterOnlyInput.nested either, but that's no reason to warn
         assertEquals(warnings, emptyList<String>())
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
@@ -552,7 +550,6 @@ class UnmappedInputFieldsTest {
                 fun caseInsensitive(input: CaseInsensitiveInput): String? = input.name
                 fun propertyIgnorals(input: PropertyIgnoralsInput): String = "${input.inner?.name}, ${input.optionalInner?.get()?.name}"
                 fun filter(input: RequestFilter): String? = input.and?.single()?.or?.single()?.name
-                // the fields are the map's keys, not properties of its values
                 fun beanMap(input: Map<String, RequestFilter>): String = input.mapValues { it.value.name }.toString()
             })
             .options(failOptions().build())
@@ -640,7 +637,6 @@ class UnmappedInputFieldsTest {
                     is Circle -> "circle ${input.radius}"
                     is Square -> "square ${input.side}"
                 }
-                // the base classes are concrete, so their properties are found, but not their subclasses'
                 fun animals(input: List<Animal>): String = input.joinToString { it.describe() }
                 fun animal(input: Optional<Animal>): String = input.map { it.describe() }.orElse("none")
                 fun zoo(input: Zoo): String =
@@ -720,7 +716,6 @@ class UnmappedInputFieldsTest {
                 .objectMapperConfigurer { mapper, _ -> mapper.setInjectableValues(InjectableValues.Std().addValue("tenant", "acme")) }
                 .build())
             .build()
-            // the parameter of 'generic' is a type variable, which isn't resolved to its class here, nor when the argument is converted
             .makeExecutableSchema()
 
         val result = GraphQL.newGraphQL(schema).build().execute(
@@ -732,7 +727,6 @@ class UnmappedInputFieldsTest {
             }
             """)
 
-        // neither injecting values nor a builder works with the placeholder object, so the fields are never read
         assertEquals(result.errors.map { it.path }, listOf(listOf("injected"), listOf("builder")))
         result.errors.forEach { assertContains(it.message, "Unrecognized field \"name\"") }
         // Jackson drops what none of the unwrapped properties know
@@ -771,7 +765,6 @@ class UnmappedInputFieldsTest {
             .build()
             .makeExecutableSchema()
 
-        // the lookups only fail once the arguments are converted, as they did before the check
         val result = GraphQL.newGraphQL(schema).build().execute("query { broken(input: { name: \"a\" }) }")
         assertContains(result.errors.single().message, "Conflicting property-based creators")
     }
@@ -816,7 +809,6 @@ class UnmappedInputFieldsTest {
         "Input field '$field' has no matching property in ${clazz.name}. Converting $usage $consequence. Known properties: $knownProperties. " +
             "Rename the property or map it with @JsonProperty(\"${field.substringAfter('.')}\"). If it's left unmapped on purpose, list it in @JsonIgnoreProperties on the class."
 
-    // the warnings logged by any logger while building
     private fun <T> withWarnings(build: () -> T): Pair<T, List<String>> {
         // the tests run in the library's module, which doesn't read logback's
         listOf("ch.qos.logback.classic", "ch.qos.logback.core").forEach { name ->
@@ -959,7 +951,6 @@ class UnmappedInputFieldsTest {
         override fun describe() = "dog $name barks=$barks"
     }
 
-    // only polymorphic where a property says so
     open class Pet {
         var name: String? = null
 
@@ -981,7 +972,6 @@ class UnmappedInputFieldsTest {
         var pets: List<Pet>? = null
     }
 
-    // the property doesn't match the schema, only the deserializer does
     class Money(val amount: Int)
 
     class MoneyDeserializer : StdDeserializer<Money>(Money::class.java) {
@@ -1017,7 +1007,6 @@ class UnmappedInputFieldsTest {
         var stret: String? = null
     }
 
-    // like a class that refers to one missing from the classpath
     class MissingClassDeserializers : SimpleDeserializers() {
         override fun findBeanDeserializer(type: JavaType, config: DeserializationConfig, beanDesc: BeanDescription): JsonDeserializer<*> =
             throw NoClassDefFoundError("com/example/Missing")
