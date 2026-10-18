@@ -112,6 +112,9 @@ private fun execute(gql: GraphQL, input: ExecutionInput): List<String> {
         gql.executeAsync(input).get(5, TimeUnit.SECONDS)
     } catch (e: TimeoutException) {
         return listOf("Timed out")
+    } catch (e: ExecutionException) {
+        // graphql-java turns exceptions into GraphQL errors, but not an Error such as a failed assert
+        return listOf("Failed: ${e.cause}")
     }
     val events = result.getData<Any>() as? Publisher<*> ?: return result.errors.map { it.message }
     return result.errors.map { it.message } + firstEventErrors(events)
