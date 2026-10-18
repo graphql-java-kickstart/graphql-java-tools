@@ -13,8 +13,16 @@ requireSnapshot() {
   fi
 }
 
-removeSnapshots() {
-  sed -i 's/-SNAPSHOT//' pom.xml
+setReleaseVersion() {
+  if [[ ! ${RELEASE_VERSION} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Release version must look like 14.3.0: '${RELEASE_VERSION}'"
+    exit 1
+  fi
+  sed -i "0,/<version>.*<\/version>/s//<version>${RELEASE_VERSION}<\/version>/" pom.xml
+  local PREVIOUS_VERSION=${PREVIOUS_TAG#v}
+  sed -i -e "s/graphql-java-tools:${PREVIOUS_VERSION}'/graphql-java-tools:${RELEASE_VERSION}'/" \
+    -e "s/<version>${PREVIOUS_VERSION}<\/version>/<version>${RELEASE_VERSION}<\/version>/" README.md
+  grep -q "<version>${RELEASE_VERSION}</version>" README.md || echo "::warning::README.md still shows another version, update it manually"
 }
 
 commitRelease() {
@@ -27,7 +35,6 @@ publishTag() {
   local APP_VERSION=$(getVersion)
   git push origin "v${APP_VERSION}"
   # Release tags aren't on master's first-parent history, so GitHub can't find the previous one on its own
-  local PREVIOUS_TAG=$(gh release view --json tagName --jq .tagName)
   gh release create "v${APP_VERSION}" --verify-tag --draft --generate-notes --notes-start-tag "${PREVIOUS_TAG}" --title "v${APP_VERSION}" \
     || echo "::warning::Draft release for v${APP_VERSION} was not created, create it manually"
 }
@@ -61,9 +68,10 @@ git config --global user.email "actions@github.com"
 git config --global user.name "GitHub Actions"
 
 requireSnapshot
+PREVIOUS_TAG=$(gh release view --json tagName --jq .tagName)
 
 echo "Deploying release to Maven Central"
-removeSnapshots
+setReleaseVersion
 
 mvn --batch-mode -Prelease deploy
 
