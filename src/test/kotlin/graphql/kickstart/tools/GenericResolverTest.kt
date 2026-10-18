@@ -23,7 +23,7 @@ class GenericResolverTest {
             .resolvers(QueryResolver1(), BarResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     class QueryResolver1 : GraphQLQueryResolver {
@@ -55,7 +55,7 @@ class GenericResolverTest {
             .resolvers(QueryResolver2(), CarResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     class QueryResolver2 : GraphQLQueryResolver {
@@ -134,7 +134,7 @@ class GenericResolverTest {
         .resolvers(QueryResolver3(), resolver)
         .build()
         .makeExecutableSchema()
-        .also { assertEveryFieldResolves(it) }
+        .also { it.assertEveryFieldResolves() }
 
     class QueryResolver3 : GraphQLQueryResolver {
         fun getPage(): Page<Item> = Page(listOf(Item("item")))

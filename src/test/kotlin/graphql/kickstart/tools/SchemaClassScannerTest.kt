@@ -26,7 +26,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     private class FutureImmediateQuery : GraphQLQueryResolver {
@@ -49,7 +49,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     private class PrimitiveBoxedQuery : GraphQLQueryResolver {
@@ -71,7 +71,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     private class ScalarDuplicateQuery : GraphQLQueryResolver {
@@ -95,7 +95,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val interfaceType = schema.additionalTypes.find { it is GraphQLInterfaceType }
         assertNotNull(interfaceType)
@@ -129,7 +129,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val inputTypeCount = schema.additionalTypes.count { it is GraphQLInputType }
         assertEquals(inputTypeCount, 3)
@@ -188,7 +188,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     private class FluentSetterMutation : GraphQLMutationResolver {
@@ -255,7 +255,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     private class GetterWithArgumentsQuery : GraphQLQueryResolver {
@@ -305,7 +305,7 @@ class SchemaClassScannerTest {
             )
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val inputTypeExtensionCount = schema.additionalTypes
             .filterIsInstance<GraphQLInputObjectType>()
@@ -337,7 +337,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assert(schema.typeMap.containsKey("UUID"))
     }
@@ -376,7 +376,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val interfaceTypeCount = schema.additionalTypes.count { it is GraphQLInterfaceType }
         assertEquals(interfaceTypeCount, 2)
@@ -425,7 +425,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val interfaceTypeCount = schema.additionalTypes.count { it is GraphQLInterfaceType }
         assertEquals(interfaceTypeCount, 1)
@@ -472,7 +472,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assert(schema.typeMap.containsKey("customMap"))
     }
@@ -515,7 +515,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -551,7 +551,7 @@ class SchemaClassScannerTest {
                 """)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val typeCount = schema.additionalTypes.count()
         assertEquals(typeCount, 2)
@@ -590,7 +590,7 @@ class SchemaClassScannerTest {
             .dictionary(NestedInterfaceTypeQuery.Dog::class)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val typeCount = schema.additionalTypes.count()
         assertEquals(typeCount, 3)
@@ -653,7 +653,7 @@ class SchemaClassScannerTest {
             .scalars(fieldSetScalar, linkImportScalar)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val objectTypes = schema.additionalTypes.filterIsInstance<GraphQLObjectType>()
         assert(objectTypes.any { it.name == "User" })
@@ -746,7 +746,7 @@ class SchemaClassScannerTest {
             .dictionary(Unused::class, Implementation::class, SomeEnum::class)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val objectTypes = schema.additionalTypes.filterIsInstance<GraphQLObjectType>()
         val interfaceTypes = schema.additionalTypes.filterIsInstance<GraphQLInterfaceType>()
@@ -788,7 +788,7 @@ class SchemaClassScannerTest {
             .dictionary(SomeEnum::class)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assert(schema.queryType.getFieldDefinition("preview").getArgument("value").type is GraphQLEnumType)
     }

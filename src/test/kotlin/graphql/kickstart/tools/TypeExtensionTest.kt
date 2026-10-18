@@ -52,7 +52,7 @@ class TypeExtensionTest {
             dictionary(Foo::class, Bar::class, Baz::class, Item::class)
             scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
         }.makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val fooBar = schema.getType("FooBar") as GraphQLUnionType
         val color = schema.getType("Color") as GraphQLEnumType
@@ -108,7 +108,7 @@ class TypeExtensionTest {
             """) {
             dictionary(Foo::class, Bar::class, Baz::class)
         }.makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
@@ -132,7 +132,7 @@ class TypeExtensionTest {
             """) {
             dictionary(Item::class, Bar::class)
         }.makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals((schema.getType("Node") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "fooBar"))
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }.toSet(), setOf("Foo", "Bar"))
@@ -250,7 +250,7 @@ class TypeExtensionTest {
                 directive("once", wiring)
             }.makeExecutableSchema()
         }
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals(warnings, listOf("Directive @once isn't repeatable but an extension of type 'Query' applies it again, only the first one is kept."))
 
@@ -299,7 +299,7 @@ class TypeExtensionTest {
             """) {
             options(SchemaParserOptions.newOptions().allowUndeclaredDirectives(true).build())
         }.makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals(schema.queryType.appliedDirectives.map { it.getArgument("fields")?.getValue<String>() }, listOf("upc", "name"))
     }
@@ -327,7 +327,7 @@ class TypeExtensionTest {
             dictionary(Foo::class, Bar::class, Baz::class)
             options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
         }.makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
     }
@@ -365,7 +365,7 @@ class TypeExtensionTest {
                 dictionary(Item::class, Foo::class, Bar::class, Baz::class)
             }.makeExecutableSchema()
         }
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals(warnings, listOf(
             "Type 'Node' declares field 'id' more than once, only the first one is kept.",
@@ -402,7 +402,7 @@ class TypeExtensionTest {
                 dictionary(Item::class)
             }.makeExecutableSchema()
         }
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals(warnings, listOf(
             "Type 'Node' is defined as an interface, but extended as an object type. The extension is ignored.",
@@ -458,7 +458,7 @@ class TypeExtensionTest {
             enum Purpose { SECURITY }
             extend enum Purpose { EXECUTION }
             """).makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, listOf<Any>("SECURITY", "EXECUTION"))
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))

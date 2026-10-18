@@ -32,7 +32,7 @@ class SuspendFunctionDataLoaderTest {
 
     @Test
     fun `every field resolves`() {
-        assertEveryFieldResolves(schema) { dataLoaderRegistry(registry()) }
+        schema.assertEveryFieldResolves() { dataLoaderRegistry(registry()) }
     }
 
     @Test

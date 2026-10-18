@@ -32,7 +32,7 @@ class MultiResolverTest {
 
     @Test
     fun `every field resolves`() {
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test

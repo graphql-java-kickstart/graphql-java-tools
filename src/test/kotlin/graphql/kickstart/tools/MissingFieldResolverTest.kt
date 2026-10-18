@@ -49,7 +49,7 @@ class MissingFieldResolverTest {
                 .makeExecutableSchema()
         }
         // missingField has no resolver, so querying it throws
-        assertEveryFieldResolves(schema, except = setOf("Query.missingField"))
+        schema.assertEveryFieldResolves(except = setOf("Query.missingField"))
 
         assertEquals(warnings, listOf(
             "Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved " +
@@ -78,7 +78,7 @@ class MissingFieldResolverTest {
                 .build())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 
@@ -119,7 +119,7 @@ class MissingFieldResolverTest {
             .options(options)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val gql = GraphQL.newGraphQL(schema).build()
 

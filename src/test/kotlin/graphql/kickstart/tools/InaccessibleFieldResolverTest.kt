@@ -32,7 +32,7 @@ class InaccessibleFieldResolverTest {
             .build()
             .makeExecutableSchema()
         // without LocaleResolver, languageTag reads the private field of Locale, which the module system blocks
-        assertEveryFieldResolves(schema, except = setOf("Locale.languageTag"))
+        schema.assertEveryFieldResolves(except = setOf("Locale.languageTag"))
         val gql: GraphQL = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()
@@ -70,7 +70,7 @@ class InaccessibleFieldResolverTest {
             .resolvers(Query(), LocaleResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql: GraphQL = GraphQL.newGraphQL(schema)
             .queryExecutionStrategy(AsyncExecutionStrategy())
             .build()

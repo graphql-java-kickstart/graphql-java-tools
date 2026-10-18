@@ -191,7 +191,7 @@ class CustomScalarInputTest {
             .options(options)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(graphQLSchema)
+        graphQLSchema.assertEveryFieldResolves()
         return GraphQL.newGraphQL(graphQLSchema).build()
     }
 

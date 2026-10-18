@@ -36,7 +36,7 @@ class BuiltInIdTest {
     @Test
     fun `every field resolves`() {
         // the made-up ID "1" isn't a UUID
-        assertEveryFieldResolves(schema, except = setOf("Query.itemByUuidId(id:)", "Query.itemsByUuidIds(ids:)"))
+        schema.assertEveryFieldResolves(except = setOf("Query.itemByUuidId(id:)", "Query.itemsByUuidIds(ids:)"))
     }
 
     @Test

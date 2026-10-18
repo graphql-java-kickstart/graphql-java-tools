@@ -49,7 +49,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test(expected = SchemaClassScannerError::class)
@@ -85,7 +85,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -113,7 +113,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -153,7 +153,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -177,7 +177,7 @@ class SchemaParserTest {
             .options(SchemaParserOptions.newOptions().genericWrappers(SchemaParserOptions.GenericWrapper.withTransformer(CustomGenericWrapper::class, 1, { wrapper: CustomGenericWrapper<*, *> -> wrapper.value })).build())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test(expected = SchemaClassScannerError::class)
@@ -305,7 +305,7 @@ class SchemaParserTest {
             .options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -381,7 +381,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -396,7 +396,7 @@ class SchemaParserTest {
             .resolvers(QueryWithIdResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
@@ -414,7 +414,7 @@ class SchemaParserTest {
             .resolvers(QueryWithIdResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
@@ -482,7 +482,7 @@ class SchemaParserTest {
             .resolvers(QueryWithIdResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val sourceLocation = schema.getObjectType("Query")!!
             .getFieldDefinition("id")
@@ -520,7 +520,7 @@ class SchemaParserTest {
             .dictionary(EnumType::class)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -551,7 +551,7 @@ class SchemaParserTest {
             .dictionary(EnumType::class)
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -578,7 +578,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     @Test
@@ -690,7 +690,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
     }
 
     class A {
@@ -741,7 +741,7 @@ class SchemaParserTest {
             .resolvers(MultiLevelInterfaceResolver())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val traitInterface = schema.getType("Trait") as GraphQLInterfaceType
         val animalInterface = schema.getType("Animal") as GraphQLInterfaceType
         val mammalTraitInterface = schema.getType("MammalTrait") as GraphQLInterfaceType
@@ -813,7 +813,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         val testNonNullableArgument = schema.getObjectType("Query")!!
             .getFieldDefinition("testNonNullable")
@@ -863,7 +863,7 @@ class SchemaParserTest {
             })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         // parent points back at NestedFilter while it's still being built, so it stays a type reference until the schema is built
         assertEquals(wiredFieldTypes, mapOf(
@@ -1020,7 +1020,7 @@ class SchemaParserTest {
                 })
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
 
         assertEquals(schema.queryType.name, "SubstituteQuery")
         assertEquals(schema.mutationType?.name, "SubstituteMutation")
@@ -1184,7 +1184,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) { """mutation { addItem(name: "item") }""" }
@@ -1215,7 +1215,7 @@ class SchemaParserTest {
             .resolvers(QueryAndSubscription())
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) { "{ item }" }
@@ -1327,7 +1327,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         listOf("onCustomPublisher", "onConcretePublisher", "onOverriddenPublisher").forEach { field ->
@@ -1371,7 +1371,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         listOf("onCompletableFuture", "onCompletionStage", "onFuture", "onConcretePublisherFuture", "onWildcardPublisherFuture").forEach { field ->
@@ -1410,7 +1410,7 @@ class SchemaParserTest {
             )
             .build()
             .makeExecutableSchema()
-        assertEveryFieldResolves(schema)
+        schema.assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
         assertEquals(gql.firstSubscriptionEvent("subscription { onChannel }"), mapOf("onChannel" to "onChannel"))

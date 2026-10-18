@@ -24,10 +24,10 @@ import java.util.concurrent.TimeoutException
  * value to make up. [input] adds to every operation, e.g. a context or a data loader registry.
  */
 @JvmOverloads
-fun assertEveryFieldResolves(schema: GraphQLSchema, except: Set<String> = setOf(), input: ExecutionInput.Builder.() -> Unit = {}) {
-    val gql = GraphQL.newGraphQL(schema).build()
-    val query = EveryFieldQuery(schema, except)
-    val roots = mapOf("query" to schema.queryType, "mutation" to schema.mutationType, "subscription" to schema.subscriptionType)
+fun GraphQLSchema.assertEveryFieldResolves(except: Set<String> = setOf(), input: ExecutionInput.Builder.() -> Unit = {}) {
+    val gql = GraphQL.newGraphQL(this).build()
+    val query = EveryFieldQuery(this, except)
+    val roots = mapOf("query" to queryType, "mutation" to mutationType, "subscription" to subscriptionType)
     val errors = roots.flatMap { (operation, root) ->
         if (root == null) return@flatMap listOf()
         query.fields(root).flatMap { field ->

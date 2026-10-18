@@ -25,7 +25,7 @@ class EndToEndTest {
     fun `every field resolves`() {
         val newItem = Item(1, "item", Type.TYPE_1, UUID.randomUUID(), listOf())
         // throws on purpose to test that the original exception is passed on
-        assertEveryFieldResolves(schema, except = setOf("Query.throwsIllegalArgumentException")) {
+        schema.assertEveryFieldResolves(except = setOf("Query.throwsIllegalArgumentException")) {
             graphQLContext(mapOf("newItem" to newItem))
         }
     }
