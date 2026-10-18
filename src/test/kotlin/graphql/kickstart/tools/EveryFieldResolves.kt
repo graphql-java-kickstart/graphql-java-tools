@@ -16,7 +16,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 /**
- * Runs one operation per root field that selects every field reachable from it, and fails on any error.
+ * Runs one operation per root field that selects every field reachable from it, and fails on any error. A
+ * subscription has to send an event, and that event's errors count too.
  *
  * Arguments without a default get a made-up value. Fields ("Type.field") and arguments ("Type.field(arg:)") named in
  * [except] are left out. So is a field with a required argument that's left out or is a custom scalar, which has no
@@ -52,7 +53,7 @@ private class EveryFieldQuery(private val schema: GraphQLSchema, private val exc
     private fun field(parent: GraphQLFieldsContainer, field: GraphQLFieldDefinition, path: List<String>): String? {
         val type = unwrapAll(field.type)
         // a type can repeat once on a path, so a field that refers back to its own type still runs
-        if (type !is GraphQLScalarType && type !is GraphQLEnumType && (path.size >= MAX_DEPTH || path.count { it == type.name } >= 2)) {
+        if (type is GraphQLCompositeType && (path.size >= MAX_DEPTH || repeated(type, path))) {
             return null
         }
         val arguments = field.arguments.filter { !it.hasSetDefaultValue() }.mapNotNull { argument ->
@@ -76,7 +77,9 @@ private class EveryFieldQuery(private val schema: GraphQLSchema, private val exc
     }
 
     private fun fragments(types: List<GraphQLNamedType>, path: List<String>) =
-        "{ __typename ${types.joinToString(" ") { "... on ${it.name} ${selection(it, path)}" }} }"
+        "{ __typename ${types.filter { !repeated(it, path) }.joinToString(" ") { "... on ${it.name} ${selection(it, path)}" }} }"
+
+    private fun repeated(type: GraphQLNamedType, path: List<String>) = path.count { it == type.name } >= 2
 
     private fun value(type: GraphQLInputType, path: Set<String>): String? = when (type) {
         is GraphQLNonNull -> value(type.wrappedType as GraphQLInputType, path)
@@ -102,7 +105,8 @@ private class EveryFieldQuery(private val schema: GraphQLSchema, private val exc
             }
         }
         // a @oneOf input takes exactly one field
-        return (if (type.isOneOf) fields.take(1) else fields).joinToString(", ", "{ ", " }")
+        if (type.isOneOf) return fields.firstOrNull()?.let { "{ $it }" }
+        return fields.joinToString(", ", "{ ", " }")
     }
 }
 
@@ -121,7 +125,7 @@ private fun execute(gql: GraphQL, input: ExecutionInput): List<String> {
 }
 
 private fun firstEventErrors(events: Publisher<*>): List<String> {
-    val first = CompletableFuture<ExecutionResult?>()
+    val first = CompletableFuture<ExecutionResult>()
     var subscription: Subscription? = null
     events.subscribe(object : Subscriber<Any?> {
         override fun onSubscribe(s: Subscription) {
@@ -138,13 +142,13 @@ private fun firstEventErrors(events: Publisher<*>): List<String> {
         }
 
         override fun onComplete() {
-            first.complete(null)
+            first.completeExceptionally(IllegalStateException("completed without an event"))
         }
     })
     return try {
-        first.get(1, TimeUnit.SECONDS)?.errors?.map { it.message } ?: listOf()
+        first.get(5, TimeUnit.SECONDS).errors.map { it.message }
     } catch (e: TimeoutException) {
-        listOf()
+        listOf("Subscription sent no event")
     } catch (e: ExecutionException) {
         listOf("Subscription failed: ${e.cause}")
     } finally {
