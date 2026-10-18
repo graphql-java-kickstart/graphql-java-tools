@@ -3,6 +3,8 @@ package graphql.kickstart.tools
 import com.fasterxml.jackson.databind.JsonNode
 import graphql.kickstart.tools.resolver.FieldResolver
 import graphql.kickstart.tools.resolver.FieldResolverScanner
+import graphql.kickstart.tools.resolver.MethodFieldResolver
+import graphql.kickstart.tools.resolver.PropertyFieldResolver
 import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
@@ -10,8 +12,10 @@ import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
 
 /**
@@ -524,6 +528,7 @@ internal class SchemaClassScanner(
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
+            warnIfNotCallableOnResolver(type, fieldResolver)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
 
@@ -531,6 +536,28 @@ internal class SchemaClassScanner(
                 handleFoundType(typeClassMatcher.match(potentialMatch))
             }
         }
+    }
+
+    // a JDK dynamic proxy only implements its target's interfaces, so the target's own methods and fields can't be called on it
+    // TODO throw a FieldResolverError instead in 15.0.0 (#868)
+    private fun warnIfNotCallableOnResolver(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+        val source = fieldResolver.search.source ?: return
+        val member: Member = when (fieldResolver) {
+            is MethodFieldResolver -> fieldResolver.method
+            is PropertyFieldResolver -> fieldResolver.property
+            else -> return
+        }
+        if (Modifier.isStatic(member.modifiers) || member.declaringClass.isInstance(source)) {
+            return
+        }
+
+        // class-based proxies don't delegate field reads to the target, so a field needs a getter too
+        val fix = if (member is Field) "Add a getter for the field and use class-based proxies" else "Use class-based proxies instead"
+        log.warn(
+            "Field '${type.name}.${fieldResolver.field.name}' resolves to ${member.declaringClass.name}.${member.name}, but the resolver is a " +
+                "${source.javaClass.name}, which isn't a ${member.declaringClass.name}, so every query of the field will fail. This happens " +
+                "with JDK dynamic proxies, which only implement interfaces. $fix, e.g. proxyTargetClass = true in Spring."
+        )
     }
 
     private fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {

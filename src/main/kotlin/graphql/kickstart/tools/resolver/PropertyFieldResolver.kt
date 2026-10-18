@@ -18,7 +18,7 @@ internal class PropertyFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    private val property: Field
+    val property: Field
 ) : FieldResolver(field, search, options) {
 
     override fun createDataFetcher(): DataFetcher<*> {
