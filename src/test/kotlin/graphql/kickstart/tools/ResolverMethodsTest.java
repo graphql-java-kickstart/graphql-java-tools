@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.util.List;
 import java.util.Map;
 
+import static graphql.kickstart.tools.EveryFieldResolvesKt.assertEveryFieldResolves;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -26,6 +27,7 @@ public class ResolverMethodsTest {
             .resolvers(new Resolver())
             .build()
             .makeExecutableSchema();
+        assertEveryFieldResolves(schema);
 
         GraphQL gql = GraphQL.newGraphQL(schema).build();
 
@@ -63,6 +65,7 @@ public class ResolverMethodsTest {
                 })
             .build()
             .makeExecutableSchema();
+        assertEveryFieldResolves(schema);
 
         GraphQL gql = GraphQL.newGraphQL(schema).build();
 
@@ -85,6 +88,7 @@ public class ResolverMethodsTest {
             .resolvers(new PageQueryResolver(), new RawPageResolver())
             .build()
             .makeExecutableSchema();
+        assertEveryFieldResolves(schema);
 
         GraphQL gql = GraphQL.newGraphQL(schema).build();
 
