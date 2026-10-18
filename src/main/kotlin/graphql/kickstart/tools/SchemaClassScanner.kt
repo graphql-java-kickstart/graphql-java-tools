@@ -12,6 +12,7 @@ import graphql.schema.idl.ScalarInfo
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -550,10 +551,12 @@ internal class SchemaClassScanner(
             return
         }
 
+        // class-based proxies don't delegate field reads to the target, so a field needs a getter too
+        val fix = if (member is Field) "Add a getter for the field and use class-based proxies" else "Use class-based proxies instead"
         log.warn(
             "Field '${type.name}.${fieldResolver.field.name}' resolves to ${member.declaringClass.name}.${member.name}, but the resolver is a " +
                 "${source.javaClass.name}, which isn't a ${member.declaringClass.name}, so every query of the field will fail. This happens " +
-                "with JDK dynamic proxies, which only implement interfaces. Use class-based proxies instead, e.g. proxyTargetClass = true in Spring."
+                "with JDK dynamic proxies, which only implement interfaces. $fix, e.g. proxyTargetClass = true in Spring."
         )
     }
 
