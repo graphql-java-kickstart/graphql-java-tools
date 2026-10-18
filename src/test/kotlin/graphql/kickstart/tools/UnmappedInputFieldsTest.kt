@@ -723,7 +723,7 @@ class UnmappedInputFieldsTest {
         assertEveryFieldResolves(schema, except = setOf(
             // the input classes misspell name on purpose
             "Query.injected", "Query.builder",
-            // fails when queried, because the type variable of the inherited parameter isn't resolved
+            // TODO query generic once the type variable of its inherited parameter is resolved (#880)
             "Query.generic"
         ))
 
