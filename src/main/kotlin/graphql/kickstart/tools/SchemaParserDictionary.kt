@@ -5,7 +5,6 @@ import kotlin.reflect.KClass
 
 class SchemaParserDictionary {
 
-    // Not a BiMap, since several input types can share a class, e.g. ObjectNode. The scanner checks that other types don't.
     private val dictionary = linkedMapOf<String, Class<*>>()
 
     /**

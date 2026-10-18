@@ -187,7 +187,6 @@ class SchemaParser internal constructor(
             .withAppliedDirectives(*buildAppliedDirectives(directives))
             .withDirectives(*buildDirectives(directives, Introspection.DirectiveLocation.INPUT_OBJECT))
             .apply {
-                // unlike graphql-java the fields of the extensions come first, which is kept so the order of the fields doesn't change
                 (extensionDefinitions + definition).forEach { typeDefinition ->
                     typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
                         field(
@@ -326,9 +325,6 @@ class SchemaParser internal constructor(
         }
     }
 
-    // The directives of the extensions follow those of the type, like in graphql-java. A non-repeatable directive that an extension
-    // applies again is dropped, where graphql-java rejects the schema, so those schemas keep building and the applied directives
-    // match the legacy ones (see buildDirectives). Undeclared directives may be repeatable, so they're all kept.
     private fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> {
         val applied = definition.directives.mapTo(mutableSetOf()) { it.name }
         return definition.directives + extensions.flatMap { extension ->

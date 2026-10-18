@@ -67,7 +67,6 @@ class CustomScalarInputTest {
             "dateNode" to "LocalDate 2020-01-02",
             "dateLabel" to "2020-01-02 null"
         ))
-        // a String gets toString(), which is meaningless for a class that doesn't override it
         assert((data["opaqueLabel"] as String).startsWith("null ${Opaque::class.java.name}@")) { data["opaqueLabel"].toString() }
     }
 
@@ -113,7 +112,6 @@ class CustomScalarInputTest {
             """
         }
 
-        // including those the ObjectMapper has a serializer for, e.g. UUID
         assertEquals(resolver.received, mapOf(
             "map" to mapOf(
                 "name" to null,
@@ -135,7 +133,6 @@ class CustomScalarInputTest {
             """
         }
 
-        // the configured (de)serializers aren't used, but the inclusion setting is
         assertEquals(resolver.received["map"], mapOf("date" to LocalDate.of(2020, 1, 2)))
     }
 
@@ -161,8 +158,6 @@ class CustomScalarInputTest {
             """
         }
 
-        // a box of a date can't be converted, so the deserializer gets it embedded and has no serialized form to read.
-        // That doesn't change how a later box of text is read
         assertEquals(data, mapOf(
             "payment" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) text",
             "withDate" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) 2020-01-02 text",
@@ -279,7 +274,6 @@ class CustomScalarInputTest {
         fun mapList(inputs: List<Map<String, Any?>>) = receive("mapList", inputs)
         fun optionalMap(input: Optional<Map<String, Any?>>) = receive("optionalMap", input)
 
-        // the signature from https://github.com/graphql-java-kickstart/graphql-java-tools/issues/424
         fun rawMap(input: LinkedHashMap<*, *>) = receive("rawMap", input)
 
         private fun receive(field: String, input: Any): Boolean {
@@ -309,7 +303,6 @@ class CustomScalarInputTest {
         var box: String? = null
     }
 
-    // serialized as {"value": ...}, which Jackson can't create it from, like the coerced values of many custom scalars
     class Opaque(text: String) {
         val value = text
     }
@@ -320,10 +313,8 @@ class CustomScalarInputTest {
 
     data class MoneyDto(val amount: Int, val currency: String)
 
-    // only converts if its content does
     data class Box(val content: Any)
 
-    // reads the serialized form, and an embedded Box wouldn't fail it
     class BoxContentDeserializer : StdDeserializer<String>(String::class.java) {
         override fun deserialize(p: JsonParser, context: DeserializationContext): String =
             p.codec.readTree<JsonNode>(p).path("content").textValue() ?: "<missing>"
@@ -333,7 +324,6 @@ class CustomScalarInputTest {
         override fun deserialize(p: JsonParser, context: DeserializationContext): LocalDate = LocalDate.parse(p.text).plusDays(1)
     }
 
-    // the workaround from https://github.com/graphql-java-kickstart/graphql-java-tools/issues/466
     class PartSerializer : StdSerializer<Part>(Part::class.java) {
         override fun serialize(value: Part, gen: JsonGenerator, provider: SerializerProvider) {
             gen.writeStartObject()

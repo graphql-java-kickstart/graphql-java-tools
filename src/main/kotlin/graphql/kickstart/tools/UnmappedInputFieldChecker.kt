@@ -21,23 +21,14 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeUtil
 import org.slf4j.LoggerFactory
 
-/**
- * Checks that the classes of resolver arguments have a property for each field of their input objects, see [UnmappedInputFields].
- *
- * The fields are looked up in the deserializer that the resolver's ObjectMapper converts the argument with, not in the class
- * itself, so that a field counts as mapped whenever Jackson maps it. An input type can be used by fields whose mappers are
- * configured differently, so it's checked once for each mapper.
- */
 internal class UnmappedInputFieldChecker(
     private val inputObjects: Map<String, GraphQLInputObjectType>,
     private val unmappedInputFields: UnmappedInputFields
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    // a deserializer is cached by its mapper, so this is per mapper, class and input type, and ends recursive input types
     private val checked = mutableSetOf<Pair<JsonDeserializer<*>, String>>()
 
-    // reported once for each consequence, with the first argument found using it, since mappers differ in ignoring unknown properties
     private val messages = linkedMapOf<Unmapped, String>()
 
     fun check(objectType: String, resolver: MethodFieldResolver) {
@@ -50,14 +41,11 @@ internal class UnmappedInputFieldChecker(
                 val mapper = resolver.objectMapper
                 val context = (mapper.deserializationContext as? DefaultDeserializationContext)
                     ?.createDummyInstance(mapper.deserializationConfig) ?: return@forEachIndexed
-                // the same lookup as convertValue's when it converts the argument
                 val deserializer = context.findRootValueDeserializer(mapper.typeFactory.constructType(parameterType))
                 checkFields(mapper, context, deserializer, null, inputObject, usage)
             } catch (e: VirtualMachineError) {
                 throw e
             } catch (e: Throwable) {
-                // e.g. a class Jackson can't deserialize, or one that refers to a missing class, which only fails once the argument is
-                // converted, as it did before this check. Errors are caught too, since the lookup used to run on the first query
                 log.debug("Can't check the input fields of $usage with Jackson", e)
             }
         }
@@ -101,12 +89,9 @@ internal class UnmappedInputFieldChecker(
         }
     }
 
-    // the deserializer of the class an input object is converted to, past the lists, arrays and Optionals around it
     private tailrec fun beanDeserializer(context: DeserializationContext, deserializer: JsonDeserializer<*>?, property: BeanProperty?): BeanDeserializerBase? =
         when (deserializer) {
-            // a delegating creator gets the whole input object, e.g. as a Map
             is BeanDeserializerBase -> deserializer.takeUnless { it.valueInstantiator.canCreateUsingDelegate() }
-            // a Map gets the fields as its keys
             is ContainerDeserializerBase<*> ->
                 if (deserializer.valueType.isMapLikeType || isPolymorphic(context, deserializer.contentType)) null
                 else beanDeserializer(context, deserializer.contentDeserializer, property)
@@ -120,20 +105,17 @@ internal class UnmappedInputFieldChecker(
         }
 
     /**
-     * Whether the elements of a list, an array or an Optional are read with type info, so that their class is only known once their
-     * type id is read. Their deserializer is the base class's, which doesn't know the subclasses' properties. The same lookup as
-     * Jackson's when it creates the deserializer: type info from a property's annotation, or else from the class or default typing.
+     * The deserializer of elements read with type info is the base class's, which doesn't know the subclasses' properties. The
+     * same lookup as Jackson's when it creates the deserializer: type info from a property's annotation, or else from the class
+     * or default typing.
      */
     private fun isPolymorphic(context: DeserializationContext, contentType: JavaType): Boolean =
         contentType.getTypeHandler<Any?>() != null || context.factory.findTypeDeserializer(context.config, contentType) != null
 
     /**
-     * Returns the properties Jackson knows if it fails on the field, or null if it maps or ignores it.
-     *
      * `{"<field>": null}` is read into a placeholder object rather than an instance of the class, so neither its constructors nor
      * its setters are called, but the field still goes through Jackson's handling of a property the class doesn't have: ignored
-     * names, any setters, ignoreUnknown and problem handlers. Unknown properties are made to fail even if the mapper ignores them.
-     * Any other exception, e.g. from a deserializer that can't read into an existing object, means the field can't be checked.
+     * names, any setters, ignoreUnknown and problem handlers.
      */
     private fun knownPropertiesIfUnmapped(
         mapper: ObjectMapper,

@@ -18,15 +18,10 @@ import java.io.IOException
 import java.lang.reflect.Type
 
 /**
- * Converts an argument value that graphql-java already coerced to the type of the resolver method's parameter.
- *
  * ObjectMapper.convertValue serializes a value and reads it back, which the coerced values of many custom scalars don't
  * survive, e.g. an upload, or a LocalDate without the jsr310 module. Those values are written as embedded objects
  * instead, which Jackson's deserializers return as they are if they have the type being read, and convert with
  * toString() if a String is read.
- *
- * An untyped parameter, e.g. a Map<String, Any?>, gets every coerced value as it is, apart from strings, numbers,
- * booleans and enums, which are converted as before.
  */
 internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
@@ -39,16 +34,12 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         }
 
         if (isUntyped) {
-            // nothing reads an untyped value through its serialized form, so every coerced value is kept
             return read(embed(value) { true } ?: value)
         }
 
-        // a deserializer may read the serialized form, so values are only embedded if converting fails
         return try {
             mapper.convertValue<Any?>(value, javaType)
         } catch (e: IllegalArgumentException) {
-            // a class whose value failed to convert isn't tried again in this value, since that can be expensive, e.g. for
-            // a list of uploads. It isn't remembered across calls, so the same input always gives the same result
             val nonConvertingClasses = HashSet<Class<*>>()
             val embedded = embed(value) { scalar ->
                 when {
@@ -63,16 +54,11 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
             try {
                 read(embedded)
             } catch (retryError: IllegalArgumentException) {
-                // the values that failed to convert likely hid the actual problem
                 throw retryError.apply { addSuppressed(e) }
             }
         }
     }
 
-    /**
-     * Returns a copy of the value in which the scalar values that [shouldEmbed] accepts are wrapped in [EmbeddedValue],
-     * or null if it accepts none.
-     */
     private fun embed(value: Any, shouldEmbed: (Any) -> Boolean): Any? {
         var embedsAny = false
         fun copy(value: Any?): Any? = when (value) {
@@ -131,7 +117,6 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
             .withHandler(embeddedValueHandler)
     }
 
-    // written to the buffer as an embedded object, which it keeps as it is
     private class EmbeddedValue(private val value: Any) : JsonSerializable {
         override fun serialize(gen: JsonGenerator, serializers: SerializerProvider) = gen.writeEmbeddedObject(value)
 

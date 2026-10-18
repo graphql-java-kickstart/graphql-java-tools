@@ -122,7 +122,6 @@ class SchemaClassScannerSealedTypesTest {
 
         sealed class Mammal : Animal
 
-        // a subclass of both Animal and Mammal, so it's found twice among the subclasses of Animal
         class Dog(override val name: String?, val barks: Boolean?) : Mammal(), Animal
 
         class Cat(override val name: String?, val lives: Int?) : Animal
@@ -225,7 +224,6 @@ class SchemaClassScannerSealedTypesTest {
         assert(message.contains("- ${ConflictingSealedSubclass.AuthorDto::class.java.name}:")) { message }
     }
 
-    // Author isn't a subclass of SearchResult, so it's only found by scanning Book
     class MemberReachableThroughSealedSubclass : GraphQLQueryResolver {
         fun results(): List<SearchResult> = listOf()
 
@@ -236,7 +234,6 @@ class SchemaClassScannerSealedTypesTest {
         class Author(val name: String?)
     }
 
-    // scanning Book finds another class for Author than its sealed subclass
     class ConflictingSealedSubclass : GraphQLQueryResolver {
         fun results(): List<SearchResult> = listOf()
 
@@ -269,7 +266,6 @@ class SchemaClassScannerSealedTypesTest {
         sealed class Pet {
             class NormalPet(val name: String?) : Pet()
 
-            // no classification, so the build fails if this is scanned instead of the class in the dictionary
             open class WeirdPet : Pet()
         }
 
