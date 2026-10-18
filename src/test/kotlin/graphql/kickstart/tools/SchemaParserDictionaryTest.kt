@@ -45,6 +45,7 @@ class SchemaParserDictionaryTest {
             .dictionary("NestedB", ObjectNode::class.java)
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -92,6 +93,7 @@ class SchemaParserDictionaryTest {
             .dictionary(dictionary.getDictionary())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         val field = schema.queryType.getFieldDefinition("test")
         assertEquals(field.getAppliedDirective("a").getArgument("arg")?.getValue<Map<*, *>>(), mapOf("x" to 1))
@@ -128,6 +130,7 @@ class SchemaParserDictionaryTest {
             .dictionary("DogInput", LabradorRetriever::class)
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         val field = schema.queryType.getFieldDefinition("dog")
         assertEquals(field.getAppliedDirective("d").getArgument("arg")?.getValue<Map<*, *>>(), mapOf("name" to "z"))
