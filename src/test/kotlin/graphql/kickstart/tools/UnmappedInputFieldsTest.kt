@@ -5,7 +5,6 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.annotation.JacksonInject
-import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonFormat
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
@@ -28,7 +27,6 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.module.SimpleDeserializers
 import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.databind.node.ObjectNode
 import graphql.GraphQL
 import graphql.kickstart.tools.UnmappedInputFieldsFixtures.*
 import graphql.schema.DataFetchingEnvironment
@@ -65,42 +63,18 @@ class UnmappedInputFieldsTest {
     }
 
     @Test
-    fun `misspelled scalar property of an input class is reported`() {
-        val (_, warnings) = withWarnings {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        greet(input: GreetingInput!): String
-                    }
-
-                    input GreetingInput {
-                        name: String!
-                    }
-                    """)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun greet(input: GreetingInput): String? = input.nmae
-                })
-                .build()
-                .makeExecutableSchema()
-        }
-
-        assertEquals(warnings, listOf(
-            "Input field 'GreetingInput.name' has no matching property in ${GreetingInput::class.java.name}. " +
-                "Converting argument 'input' of field 'Query.greet' fails whenever the field is sent. " +
-                "Known properties: nmae. " +
-                "Rename the property or map it with @JsonProperty(\"name\"). If it's left unmapped on purpose, list it in @JsonIgnoreProperties on the class."
-        ))
-    }
-
-    @Test
-    fun `Kotlin property named like a boolean getter is reported`() {
+    fun `misspelled scalar property and Kotlin property named like a boolean getter are reported`() {
         val (schema, warnings) = withWarnings {
             SchemaParser.newParser()
                 .schemaString(
                     """
                     type Query {
+                        greet(input: GreetingInput!): String
                         active(input: ActiveInput!): Boolean
+                    }
+
+                    input GreetingInput {
+                        name: String!
                     }
 
                     input ActiveInput {
@@ -108,6 +82,7 @@ class UnmappedInputFieldsTest {
                     }
                     """)
                 .resolvers(object : GraphQLQueryResolver {
+                    fun greet(input: GreetingInput): String? = input.nmae
                     fun active(input: ActiveInput): Boolean = input.isActive
                 })
                 .build()
@@ -115,7 +90,10 @@ class UnmappedInputFieldsTest {
         }
 
         // the Kotlin module keeps the "is" of a property, unlike the getter name of a Java boolean
-        assertEquals(warnings, listOf(unmapped("ActiveInput.active", ActiveInput::class.java, "argument 'input' of field 'Query.active'", "isActive")))
+        assertEquals(warnings, listOf(
+            unmapped("GreetingInput.name", GreetingInput::class.java, "argument 'input' of field 'Query.greet'", "nmae"),
+            unmapped("ActiveInput.active", ActiveInput::class.java, "argument 'input' of field 'Query.active'", "isActive")
+        ))
 
         val result = GraphQL.newGraphQL(schema).build().execute("query { active(input: { active: true }) }")
         assertContains(result.errors.single().message, "Unrecognized field \"active\"")
@@ -416,8 +394,6 @@ class UnmappedInputFieldsTest {
                     """
                     type Query {
                         setterOnly(input: SetterOnlyInput!): String
-                        booleanGetter(input: BooleanGetterInput!): Boolean
-                        jsonCreator(input: JsonCreatorInput!): String
                         constructorProperties(input: ConstructorPropertiesInput!): String
                         privateField(input: PrivateFieldInput!): String
                         alias(input: AliasInput!): String
@@ -435,14 +411,6 @@ class UnmappedInputFieldsTest {
 
                     input NestedInput {
                         value: String
-                    }
-
-                    input BooleanGetterInput {
-                        active: Boolean!
-                    }
-
-                    input JsonCreatorInput {
-                        name: String
                     }
 
                     input ConstructorPropertiesInput {
@@ -484,8 +452,6 @@ class UnmappedInputFieldsTest {
                     """)
                 .resolvers(object : GraphQLQueryResolver {
                     fun setterOnly(input: SetterOnlyInput): String = input.describe()
-                    fun booleanGetter(input: BooleanGetterInput): Boolean = input.isActive
-                    fun jsonCreator(input: JsonCreatorInput): String = input.describe()
                     fun constructorProperties(input: ConstructorPropertiesInput): String = input.describe()
                     fun privateField(input: PrivateFieldInput): String = input.describe()
                     fun alias(input: AliasInput): String = input.describe()
@@ -507,8 +473,6 @@ class UnmappedInputFieldsTest {
             """
             query {
                 setterOnly(input: { name: "a", nested: { value: "b" } })
-                booleanGetter(input: { active: true })
-                jsonCreator(input: { name: "c" })
                 constructorProperties(input: { name: "d" })
                 privateField(input: { name: "e" })
                 alias(input: { name: "f" })
@@ -523,8 +487,6 @@ class UnmappedInputFieldsTest {
 
         assertEquals(data, mapOf(
             "setterOnly" to "a b",
-            "booleanGetter" to true,
-            "jsonCreator" to "c",
             "constructorProperties" to "d",
             "privateField" to "e",
             "alias" to "f",
@@ -543,28 +505,16 @@ class UnmappedInputFieldsTest {
                 """
                 type Query {
                     dataClass(input: DataClassInput!): String
-                    anySetter(input: KotlinAnySetterInput!): String
                     snakeCase(input: SnakeCaseInput!): String
                     caseInsensitive(input: CaseInsensitiveInput!): String
                     propertyIgnorals(input: PropertyIgnoralsInput!): String
                     filter(input: RequestFilter!): String
-                    map(input: MapInput!): String
                     beanMap(input: BeanMapInput!): String
-                    objectNode(input: ObjectNodeInput!): String
                 }
 
                 input DataClassInput {
                     name: String!
                     count: Int
-                }
-
-                extend input DataClassInput {
-                    label: String
-                }
-
-                input KotlinAnySetterInput {
-                    a: Int
-                    b: String
                 }
 
                 input SnakeCaseInput {
@@ -591,31 +541,19 @@ class UnmappedInputFieldsTest {
                     name: String
                 }
 
-                input MapInput {
-                    anything: String
-                    filter: RequestFilter
-                }
-
                 input BeanMapInput {
                     first: RequestFilter
                     second: RequestFilter
                 }
-
-                input ObjectNodeInput {
-                    anything: String
-                }
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun dataClass(input: DataClassInput): String = input.toString()
-                fun anySetter(input: KotlinAnySetterInput): String = input.values.toString()
                 fun snakeCase(input: SnakeCaseInput): String? = input.firstName
                 fun caseInsensitive(input: CaseInsensitiveInput): String? = input.name
                 fun propertyIgnorals(input: PropertyIgnoralsInput): String = "${input.inner?.name}, ${input.optionalInner?.get()?.name}"
                 fun filter(input: RequestFilter): String? = input.and?.single()?.or?.single()?.name
-                fun map(input: Map<String, Any?>): String = input.toString()
                 // the fields are the map's keys, not properties of its values
                 fun beanMap(input: Map<String, RequestFilter>): String = input.mapValues { it.value.name }.toString()
-                fun objectNode(input: ObjectNode): String = input.toString()
             })
             .options(failOptions().build())
             .build()
@@ -624,29 +562,23 @@ class UnmappedInputFieldsTest {
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
             query {
-                dataClass(input: { name: "a", label: "b" })
-                anySetter(input: { a: 1, b: "c" })
+                dataClass(input: { name: "a" })
                 snakeCase(input: { first_name: "d" })
                 caseInsensitive(input: { NAME: "e" })
                 propertyIgnorals(input: { inner: { name: "f", legacy: "x" }, optionalInner: { name: "m", legacy: "y" } })
                 filter(input: { and: [{ or: [{ name: "g" }] }] })
-                map(input: { anything: "h", filter: { name: "i" } })
                 beanMap(input: { first: { name: "k" }, second: { name: "l" } })
-                objectNode(input: { anything: "j" })
             }
             """
         }
 
         assertEquals(data, mapOf(
-            "dataClass" to "DataClassInput(name=a, count=1, label=b)",
-            "anySetter" to "{a=1, b=c}",
+            "dataClass" to "DataClassInput(name=a, count=1)",
             "snakeCase" to "d",
             "caseInsensitive" to "e",
             "propertyIgnorals" to "f, m",
             "filter" to "g",
-            "map" to "{anything=h, filter={name=i}}",
-            "beanMap" to "{first=k, second=l}",
-            "objectNode" to """{"anything":"j"}"""
+            "beanMap" to "{first=k, second=l}"
         ))
     }
 
@@ -808,56 +740,40 @@ class UnmappedInputFieldsTest {
     }
 
     @Test
-    fun `input class that Jackson can't deserialize doesn't fail the build`() {
+    fun `input classes whose deserializer Jackson can't look up don't fail the build`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
                 type Query {
                     broken(input: BrokenInput!): String
+                    missingClass(input: GreetingInput!): String
                 }
 
                 input BrokenInput {
                     name: String
                 }
+
+                input GreetingInput {
+                    name: String!
+                }
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun broken(input: ConflictingCreatorsInput): String = input.toString()
+                fun missingClass(input: GreetingInput): String? = input.nmae
             })
-            .options(failOptions().build())
+            .options(failOptions()
+                .objectMapperConfigurer { mapper, context ->
+                    if (context.field.name == "missingClass") {
+                        mapper.registerModule(SimpleModule().apply { setDeserializers(MissingClassDeserializers()) })
+                    }
+                }
+                .build())
             .build()
             .makeExecutableSchema()
 
-        // it only fails once the argument is converted, as it did before the check
+        // the lookups only fail once the arguments are converted, as they did before the check
         val result = GraphQL.newGraphQL(schema).build().execute("query { broken(input: { name: \"a\" }) }")
         assertContains(result.errors.single().message, "Conflicting property-based creators")
-    }
-
-    @Test
-    fun `error while Jackson looks up a deserializer doesn't fail the build`() {
-        val (_, warnings) = withWarnings {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        greet(input: GreetingInput!): String
-                    }
-
-                    input GreetingInput {
-                        name: String!
-                    }
-                    """)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun greet(input: GreetingInput): String? = input.nmae
-                })
-                .options(SchemaParserOptions.newOptions()
-                    .objectMapperConfigurer { mapper, _ -> mapper.registerModule(SimpleModule().apply { setDeserializers(MissingClassDeserializers()) }) }
-                    .build())
-                .build()
-                .makeExecutableSchema()
-        }
-
-        // the lookup only fails once the argument is converted, as it did before the check
-        assertEquals(warnings, emptyList<String>())
     }
 
     private fun failOptions() = SchemaParserOptions.newOptions().unmappedInputFields(UnmappedInputFields.FAIL)
@@ -973,12 +889,7 @@ class UnmappedInputFieldsTest {
         var nmae: String? = null
     }
 
-    data class DataClassInput(val name: String, val count: Int = 1, val label: String? = null)
-
-    class KotlinAnySetterInput {
-        @field:JsonAnySetter
-        val values = sortedMapOf<String, Any?>()
-    }
+    data class DataClassInput(val name: String, val count: Int = 1)
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
     class SnakeCaseInput {

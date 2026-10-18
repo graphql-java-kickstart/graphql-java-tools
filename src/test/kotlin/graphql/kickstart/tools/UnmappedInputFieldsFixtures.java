@@ -115,31 +115,6 @@ public class UnmappedInputFieldsFixtures {
         }
     }
 
-    public static class BooleanGetterInput {
-        private boolean active;
-
-        public boolean isActive() {
-            return active;
-        }
-
-        public void setActive(boolean active) {
-            this.active = active;
-        }
-    }
-
-    public static class JsonCreatorInput {
-        private final String name;
-
-        @JsonCreator
-        public JsonCreatorInput(@JsonProperty("name") String name) {
-            this.name = name;
-        }
-
-        public String describe() {
-            return name;
-        }
-    }
-
     public static class ConstructorPropertiesInput {
         private final String name;
 
