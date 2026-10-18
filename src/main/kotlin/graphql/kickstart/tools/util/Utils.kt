@@ -5,6 +5,7 @@ import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.TypeExtensions
 import graphql.language.*
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.idl.TypeUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.apache.commons.lang3.reflect.TypeUtils
@@ -29,11 +30,7 @@ internal typealias JavaType = java.lang.reflect.Type
 internal typealias JavaMethod = Method
 internal typealias GraphQLLangType = Type<*>
 
-internal fun Type<*>.unwrap(): Type<*> = when (this) {
-    is NonNullType -> this.type.unwrap()
-    is ListType -> this.type.unwrap()
-    else -> this
-}
+internal fun Type<*>.unwrap(): TypeName = TypeUtil.unwrapAll(this)
 
 internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =
     this[name].orEmpty().filterIsInstance<T>()

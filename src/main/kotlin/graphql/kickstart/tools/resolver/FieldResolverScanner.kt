@@ -7,7 +7,6 @@ import graphql.kickstart.tools.RootResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.*
 import graphql.language.FieldDefinition
-import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.apache.commons.lang3.ClassUtils
@@ -159,7 +158,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
             isReceiveChannelWrapper && hasPublisherTransformer
         }
 
-    private fun isBoolean(type: GraphQLLangType) = type.unwrap().let { it is TypeName && it.name == Scalars.GraphQLBoolean.name }
+    private fun isBoolean(type: GraphQLLangType) = type.unwrap().name == Scalars.GraphQLBoolean.name
 
     private fun verifyMethodArguments(method: Method, requiredCount: Int, search: Search): Boolean {
         val appropriateFirstParameter = if (search.requiredFirstParameterType != null) {
