@@ -35,6 +35,8 @@ class UnmappedInputFieldsTest {
     @Test
     fun `misspelled property of an input class is reported`() {
         val (schema, warnings) = withWarnings { projectParser().makeExecutableSchema() }
+        // the input class misspells technologies, so createProject fails when queried
+        assertEveryFieldResolves(schema, except = setOf("Mutation.createProject"))
 
         assertEquals(warnings, listOf(TECHNOLOGIES_MESSAGE))
 
@@ -201,6 +203,7 @@ class UnmappedInputFieldsTest {
                 .build()
                 .makeExecutableSchema()
         }
+        assertEveryFieldResolves(schema)
 
         assertEquals(warnings, listOf(unmapped("GreetingInput.name", GreetingInput::class.java, "argument 'input' of field 'Query.greet'", "nmae",
             "drops the field's value, since the ObjectMapper ignores unknown properties")))
@@ -249,7 +252,10 @@ class UnmappedInputFieldsTest {
         }
         assertEquals(error.message, unmapped("NameInput.firstName", NameInput::class.java, "argument 'input' of field 'Query.snake'", "first_name"))
 
-        val gql = GraphQL.newGraphQL(parser(SchemaParserOptions.newOptions()).makeExecutableSchema()).build()
+        val schema = parser(SchemaParserOptions.newOptions()).makeExecutableSchema()
+        // the snake case ObjectMapper doesn't know firstName, so snake fails when queried
+        assertEveryFieldResolves(schema, except = setOf("Query.snake"))
+        val gql = GraphQL.newGraphQL(schema).build()
         val result = gql.execute("query { snake(input: { firstName: \"Ada\" }) camel(input: { firstName: \"Ada\" }) }")
         assertContains(result.errors.single().message, "Unrecognized field \"firstName\"")
         assertEquals(result.getData<Map<String, Any?>>()!!["camel"], "Ada")
@@ -373,9 +379,11 @@ class UnmappedInputFieldsTest {
 
     @Test
     fun `input classes are not checked if asked not to`() {
-        val (_, warnings) = withWarnings {
+        val (schema, warnings) = withWarnings {
             projectParser(SchemaParserOptions.newOptions().unmappedInputFields(UnmappedInputFields.IGNORE).build()).makeExecutableSchema()
         }
+        // the input class misspells technologies, so createProject fails when queried
+        assertEveryFieldResolves(schema, except = setOf("Mutation.createProject"))
 
         assertEquals(warnings, emptyList<String>())
     }
@@ -459,6 +467,7 @@ class UnmappedInputFieldsTest {
                 .build()
                 .makeExecutableSchema()
         }
+        assertEveryFieldResolves(schema)
 
         assertEquals(warnings, emptyList<String>())
 
@@ -550,6 +559,7 @@ class UnmappedInputFieldsTest {
             .options(failOptions().build())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema)
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -643,6 +653,8 @@ class UnmappedInputFieldsTest {
                 .build())
             .build()
             .makeExecutableSchema()
+        // the made-up kind isn't one of the type ids Jackson knows
+        assertEveryFieldResolves(schema, except = setOf("Query.shape(input:)", "Query.animals(input:)", "Query.animal(input:)", "Query.zoo(input:)"))
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -712,6 +724,12 @@ class UnmappedInputFieldsTest {
                 .build())
             .build()
             .makeExecutableSchema()
+        assertEveryFieldResolves(schema, except = setOf(
+            // the input classes misspell name on purpose
+            "Query.injected", "Query.builder",
+            // MethodFieldResolver converts the argument with the unresolved type variable of the inherited parameter
+            "Query.generic"
+        ))
 
         val result = GraphQL.newGraphQL(schema).build().execute(
             """
