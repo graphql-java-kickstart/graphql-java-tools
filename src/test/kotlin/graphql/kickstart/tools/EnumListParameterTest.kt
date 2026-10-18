@@ -48,6 +48,11 @@ class EnumListParameterTest {
         assertEquals((data["countries"]), emptyList<Any>())
     }
 
+    @Test
+    fun `every field resolves`() {
+        assertEveryFieldResolves(schema)
+    }
+
     class QueryResolver : GraphQLQueryResolver {
         fun getCountries(regions: Set<Region>): Set<Country> {
             return setOf()
