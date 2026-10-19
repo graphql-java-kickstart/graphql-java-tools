@@ -25,7 +25,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val allowedLastArgumentTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
+    private val allowedTrailingParameterTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
 
     private val methodsByNameCache = mutableMapOf<Pair<Class<out Any>, Boolean>, Map<String, List<Method>>>()
 
@@ -171,10 +171,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         }
 
         val methodParameterCount = method.parameterCountWithoutContinuation()
-        val methodLastParameter = method.parameterTypes.getOrNull(methodParameterCount - 1)
 
-        val correctParameterCount = methodParameterCount == requiredCount ||
-            (methodParameterCount == (requiredCount + 1) && allowedLastArgumentTypes.contains(methodLastParameter))
+        val correctParameterCount = methodParameterCount >= requiredCount &&
+            method.parameterTypes.slice(requiredCount until methodParameterCount).all { it in allowedTrailingParameterTypes }
         return correctParameterCount && appropriateFirstParameter
     }
 
@@ -203,7 +202,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
         val sourceLocation = field.sourceLocation?.let { "$sourceName:${it.line}" } ?: "<unknown>"
 
         return "No method${if (scannedProperties) " or field" else ""} found as defined in schema $sourceLocation with any of the following signatures " +
-            "(with or without one of $allowedLastArgumentTypes as the last argument), in priority order:\n${signatures.joinToString("\n  ")}" +
+            "(optionally followed by any of $allowedTrailingParameterTypes), in priority order:\n${signatures.joinToString("\n  ")}" +
             if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""
     }
 
