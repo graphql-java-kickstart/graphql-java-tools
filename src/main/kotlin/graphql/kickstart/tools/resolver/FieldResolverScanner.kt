@@ -21,7 +21,7 @@ import kotlin.reflect.jvm.kotlinFunction
 /**
  * @author Andrew Potter
  */
-internal class FieldResolverScanner(val options: SchemaParserOptions) {
+internal class FieldResolverScanner(val options: SchemaParserOptions, private val scalarNames: Set<String>) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -45,7 +45,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
         val method = findResolverMethod(field, search)
         if (method != null) {
-            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)))
+            return MethodFieldResolver(field, search, options, method.apply(trySetAccessible(field, search.type)), scalarNames)
         }
 
         if (scanProperties) {

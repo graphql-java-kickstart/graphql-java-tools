@@ -18,7 +18,7 @@ import java.util.*
 class FieldResolverScannerTest {
 
     private val options = defaultOptions()
-    private val scanner = FieldResolverScanner(options)
+    private val scanner = FieldResolverScanner(options, GRAPHQL_SCALARS.keys)
 
     @Test
     fun `scanner finds fields on multiple root types`() {

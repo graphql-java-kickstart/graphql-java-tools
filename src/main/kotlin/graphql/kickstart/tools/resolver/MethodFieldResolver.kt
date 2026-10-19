@@ -15,7 +15,6 @@ import graphql.language.*
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLFieldDefinition
-import graphql.schema.GraphQLTypeUtil.isScalar
 import graphql.schema.LightDataFetcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ensureActive
@@ -40,7 +39,8 @@ internal class MethodFieldResolver(
     field: FieldDefinition,
     search: FieldResolverScanner.Search,
     options: SchemaParserOptions,
-    val method: Method
+    val method: Method,
+    private val scalarNames: Set<String>
 ) : FieldResolver(field, search, options) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -78,6 +78,8 @@ internal class MethodFieldResolver(
             val isNonNull = definition.type is NonNullType
             val isOptional = this.typeResolver.getRawClass(parameterType) == Optional::class.java
             val argumentConverter = ArgumentConverter(mapper, parameterType)
+            val parameterClass = parameterType.unwrap()
+            val isConcreteScalar = isConcreteScalarType(definition.type, parameterType)
 
             args.add { environment ->
                 val argumentPresent = environment.arguments.containsKey(definition.name)
@@ -94,7 +96,7 @@ internal class MethodFieldResolver(
                     return@add Optional.empty<Any>()
                 }
 
-                if (value == null || shouldValueBeConverted(value, definition, parameterType, environment)) {
+                if (value == null || !isConcreteScalar || !parameterClass.isInstance(value)) {
                     return@add argumentConverter.convert(value)
                 }
 
@@ -141,24 +143,18 @@ internal class MethodFieldResolver(
         }
     }
 
-    private fun shouldValueBeConverted(value: Any, definition: InputValueDefinition, parameterType: JavaType, environment: DataFetchingEnvironment): Boolean {
-        return !parameterType.unwrap().isAssignableFrom(value.javaClass) || !isConcreteScalarType(environment, definition.type, parameterType)
-    }
-
     /**
      * A concrete scalar type is a scalar type where values always coerce to the same Java type. The ID scalar type is not concrete
      * because values can be coerced to multiple different Java types (eg. String, Long, UUID). All values of a non-concrete scalar
      * type must be converted to the target method parameter type.
      */
-    private fun isConcreteScalarType(environment: DataFetchingEnvironment, type: Type<*>, genericParameterType: JavaType): Boolean {
+    private fun isConcreteScalarType(type: Type<*>, genericParameterType: JavaType): Boolean {
         return when (type) {
             is ListType -> List::class.java.isAssignableFrom(this.typeResolver.getRawClass(genericParameterType))
-                && isConcreteScalarType(environment, type.type, this.typeResolver.resolve(genericParameterType))
+                && isConcreteScalarType(type.type, this.typeResolver.resolve(genericParameterType))
 
-            is TypeName -> environment.graphQLSchema.getType(type.name!!)?.let { isScalar(it) && type.name != "ID" }
-                ?: false
-
-            is NonNullType -> isConcreteScalarType(environment, type.type, genericParameterType)
+            is TypeName -> type.name in scalarNames && type.name != "ID"
+            is NonNullType -> isConcreteScalarType(type.type, genericParameterType)
             else -> false
         }
     }

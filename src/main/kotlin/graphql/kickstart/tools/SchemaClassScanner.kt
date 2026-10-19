@@ -58,7 +58,8 @@ internal class SchemaClassScanner(
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
     private val interfaceDefinitionsByName = definitionsByName.values.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
-    private val fieldResolverScanner = FieldResolverScanner(options)
+    private val scalarNames = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.keys + scalarDefinitions.map { it.name }
+    private val fieldResolverScanner = FieldResolverScanner(options, scalarNames)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
     private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
     private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
