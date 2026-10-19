@@ -47,7 +47,7 @@ class TypeClassMatcherTest {
             ) { x -> x }
         ).build()
 
-        private val scanner: FieldResolverScanner = FieldResolverScanner(options)
+        private val scanner: FieldResolverScanner = FieldResolverScanner(options, GRAPHQL_SCALARS.keys)
         private val resolver = RootResolverInfo(listOf(QueryMethods()), options)
 
         private fun createPotentialMatch(methodName: String, graphQLType: Type<*>): TypeClassMatcher.PotentialMatch {

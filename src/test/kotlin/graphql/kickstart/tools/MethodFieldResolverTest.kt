@@ -4,6 +4,7 @@ import graphql.ExceptionWhileDataFetching
 import graphql.ExecutionInput
 import graphql.GraphQL
 import graphql.GraphQLContext
+import graphql.GraphQLError
 import graphql.execution.CoercedVariables
 import graphql.language.StringValue
 import graphql.language.Value
@@ -165,6 +166,31 @@ class MethodFieldResolverTest {
             .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
+    }
+
+    @Test
+    fun `should handle nested lists of scalar types`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                scalar CustomScalar
+                type Query {
+                    count(tags: [[String]]): Int
+                    test(input: [[CustomScalar]]): Int
+                }
+                """)
+            .scalars(customScalarType)
+            .resolvers(object : GraphQLQueryResolver {
+                fun count(tags: List<Set<String>>) = tags.sumOf { it.size }
+                fun test(scalars: List<Set<CustomScalar>>) = scalars.sumOf { set -> set.sumOf { it.value.length } }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val result = GraphQL.newGraphQL(schema).build().execute("""{ count(tags: [["a", "a", "b"]]) test(input: [["Foo"], ["Bar"]]) }""")
+
+        assertEquals(result.errors, emptyList<GraphQLError>())
+        assertEquals(result.getData(), mapOf("count" to 2, "test" to 6))
     }
 
     @Test
