@@ -92,17 +92,17 @@ class TypeExtensionTest {
     }
 
     @Test
-    fun `union extensions can add nested unions`() {
+    fun `union extensions can add nested unions that no field returns`() {
         val schema = parser(
             """
             type Query {
                 fooBar: FooBar
-                barBaz: BarBaz
             }
 
             union FooBar = Foo
             extend union FooBar = BarBaz
-            union BarBaz = Bar | Baz
+            union BarBaz = Bar | BazUnion
+            union BazUnion = Baz
 
             $fooBarBaz
             """) {
@@ -111,6 +111,7 @@ class TypeExtensionTest {
             .assertEveryFieldResolves()
 
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
+        assertEquals((schema.getType("BarBaz") as GraphQLUnionType).types.map { it.name }, listOf("Bar", "Baz"))
     }
 
     @Test
@@ -475,7 +476,6 @@ class TypeExtensionTest {
 
     class Query : GraphQLQueryResolver {
         fun fooBar(): FooBar = Baz("baz")
-        fun barBaz(): FooBar? = null
         fun color(): Color = Color.GREEN
         fun node(): Node = Item("1", "item")
         fun search(filter: Filter?): String? = null

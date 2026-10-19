@@ -113,6 +113,9 @@ internal class SchemaClassScanner(
             handleDictionaryTypes(getAllObjectTypesImplementingDiscoveredInterfaces()) { "Object type '${it.name}' implements a known interface, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
             if (scanQueue()) continue
 
+            // Discover unions listed as members of discovered unions, even when no field returns them.
+            if (handleNestedUnions()) continue
+
             // Require all members of discovered unions to be discovered.
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
             if (scanQueue()) continue
@@ -357,6 +360,22 @@ internal class SchemaClassScanner(
                 }
             }
         }.flatten().distinct()
+    }
+
+    /**
+     * Unions can list other unions as members. Returns whether any new unions were found.
+     */
+    private fun handleNestedUnions(): Boolean {
+        val newUnions = dictionary.keys.filterIsInstance<UnionTypeDefinition>().flatMap { union ->
+            union.withExtensions(typeExtensions).flatMap { it.memberTypes }.filterIsInstance<TypeName>()
+                .map { definitionsByName[it.name] }
+                .filterIsInstance<UnionTypeDefinition>()
+                .filter { !dictionary.containsKey(it) }
+                .map { it to UnionMemberReference(union) }
+        }
+
+        newUnions.forEach { (type, reference) -> handleFoundType(type, null, reference) }
+        return newUnions.isNotEmpty()
     }
 
     /**
@@ -753,6 +772,10 @@ internal class SchemaClassScanner(
 
     private class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
         override fun getDescription() = "interface declarations of ${type.name}"
+    }
+
+    private class UnionMemberReference(private val union: UnionTypeDefinition) : Reference() {
+        override fun getDescription() = "member of union ${union.name}"
     }
 
     private class SealedSubclassReference(private val sealedType: JavaType) : Reference() {
