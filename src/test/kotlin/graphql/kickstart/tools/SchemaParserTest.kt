@@ -1297,7 +1297,7 @@ class SchemaParserTest {
 
     @Test
     fun `parser should accept subscription resolvers returning publisher subtypes`() {
-        class Subscription : OverriddenPublisherSubscription {
+        class Subscription : InheritedPublisherSubscription<SingleEventPublisher>(SingleEventPublisher("onInheritedPublisher")), OverriddenPublisherSubscription {
             fun onCustomPublisher(): EventPublisher<Event> = SingleEventPublisher("onCustomPublisher")
             fun onConcretePublisher() = SingleEventPublisher("onConcretePublisher")
             override fun onOverriddenPublisher() = SingleEventPublisher("onOverriddenPublisher")
@@ -1314,6 +1314,7 @@ class SchemaParserTest {
                     onCustomPublisher: Event!
                     onConcretePublisher: Event!
                     onOverriddenPublisher: Event!
+                    onInheritedPublisher: Event!
                 }
 
                 type Event {
@@ -1330,7 +1331,7 @@ class SchemaParserTest {
             .assertEveryFieldResolves()
         val gql = GraphQL.newGraphQL(schema).build()
 
-        listOf("onCustomPublisher", "onConcretePublisher", "onOverriddenPublisher").forEach { field ->
+        listOf("onCustomPublisher", "onConcretePublisher", "onOverriddenPublisher", "onInheritedPublisher").forEach { field ->
             assertEquals(gql.firstSubscriptionEvent("subscription { $field { name } }"), mapOf(field to mapOf("name" to field)))
         }
     }
@@ -1434,5 +1435,9 @@ class SchemaParserTest {
 
     interface OverriddenPublisherSubscription : GraphQLSubscriptionResolver {
         fun onOverriddenPublisher(): Publisher<Event>
+    }
+
+    open class InheritedPublisherSubscription<P>(private val publisher: P) {
+        fun onInheritedPublisher(): P = publisher
     }
 }
