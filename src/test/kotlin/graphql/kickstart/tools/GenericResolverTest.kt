@@ -71,6 +71,48 @@ class GenericResolverTest {
     class CarResolver : FooGraphQLResolver<Car>()
 
     @Test
+    fun `inherited methods taking a type variable of their resolver are resolved`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    generic(input: GreetingInput!): String!
+                    plain(input: GreetingInput!): String!
+                }
+
+                input GreetingInput {
+                    name: String!
+                }
+                """)
+            .resolvers(GreetingQuery())
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(gql) {
+            """
+            query {
+                generic(input: { name: "a" })
+                plain(input: { name: "b" })
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("generic" to "generic got GreetingInput(name=a)", "plain" to "plain got GreetingInput(name=b)"))
+    }
+
+    data class GreetingInput(val name: String)
+
+    abstract class InputResolver<I> : GraphQLQueryResolver {
+        fun generic(input: I): String = "generic got $input"
+    }
+
+    class GreetingQuery : InputResolver<GreetingInput>() {
+        fun plain(input: GreetingInput): String = "plain got $input"
+    }
+
+    @Test
     fun `star projected resolvers are applied to parameterized data classes`() {
         val gql = GraphQL.newGraphQL(pageSchema(PageResolver())).build()
 
