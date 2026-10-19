@@ -25,7 +25,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val allowedTrailingParameterTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
+    val allowedTrailingParameterTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
 
     private val methodsByNameCache = mutableMapOf<Pair<Class<out Any>, Boolean>, Map<String, List<Method>>>()
 

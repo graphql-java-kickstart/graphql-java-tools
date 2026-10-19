@@ -10,6 +10,7 @@ import graphql.language.Value
 import graphql.schema.Coercing
 import graphql.schema.CoercingParseLiteralException
 import graphql.schema.CoercingSerializeException
+import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
@@ -281,6 +282,61 @@ class MethodFieldResolverTest {
             "names" to null,
             "nameWithArgument" to null
         ))
+    }
+
+    @Test
+    fun `should warn when an argument is passed to a context parameter`() {
+        val (_, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        context(id: ID!, persist: Boolean!): String
+                        graphQLContext(persist: Boolean, id: ID): String
+                        image: Image
+                        input(input: Input): String
+                        extra(persist: Boolean): String
+                    }
+
+                    type Image {
+                        thumbnail(size: Int): String
+                    }
+
+                    input Input {
+                        value: String
+                    }
+                    """)
+                .resolvers(ContextParameterQuery(), ImageResolver())
+                .options(SchemaParserOptions.newOptions().contextClass(Map::class).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        val query = ContextParameterQuery::class.java.name
+        assertEquals(warnings, listOf(
+            "Field 'Query.context' passes its argument 'persist: Boolean!' to the java.util.Map parameter of $query.context, so the field " +
+                "fails or gets null for that parameter. Declare one parameter per argument, in order, before the Map parameter.",
+            "Field 'Query.graphQLContext' passes its argument 'persist: Boolean' to the graphql.GraphQLContext parameter of " +
+                "$query.graphQLContext, so the field fails or gets null for that parameter. Declare one parameter per argument, in order, " +
+                "before the GraphQLContext parameter.",
+            "Field 'Image.thumbnail' passes its argument 'size: Int' to the graphql.schema.DataFetchingEnvironment parameter of " +
+                "${ImageResolver::class.java.name}.thumbnail, so the field fails or gets null for that parameter. Declare one parameter per " +
+                "argument, in order, before the DataFetchingEnvironment parameter."
+        ))
+    }
+
+    class ContextParameterQuery : GraphQLQueryResolver {
+        fun context(id: String, context: Map<String, Any>) = "$id $context"
+        fun graphQLContext(context: GraphQLContext?, id: String?) = "$context $id"
+        fun image() = Image()
+        fun input(input: Map<String, Any>?) = input.toString()
+        fun extra(persist: Boolean?, context: Map<String, Any>) = "$persist $context"
+    }
+
+    class Image
+
+    class ImageResolver : GraphQLResolver<Image> {
+        fun thumbnail(image: Image, env: DataFetchingEnvironment?) = env.toString()
     }
 
     sealed class Maybe<out T> {

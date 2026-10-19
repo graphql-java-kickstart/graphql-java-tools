@@ -9,6 +9,7 @@ import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
+import graphql.schema.idl.TypeUtil
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
@@ -528,6 +529,7 @@ internal class SchemaClassScanner(
             fieldResolver.scanForMatches().forEach { potentialMatch ->
                 handleFoundType(typeClassMatcher.match(potentialMatch))
             }
+            warnIfArgumentPassedToContext(type, fieldResolver)
         }
     }
 
@@ -551,6 +553,32 @@ internal class SchemaClassScanner(
                 "with JDK dynamic proxies, which only implement interfaces. $fix, e.g. proxyTargetClass = true in Spring."
         )
     }
+
+    // TODO throw a FieldResolverError instead in 15.0.0 (#889)
+    private fun warnIfArgumentPassedToContext(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+        if (fieldResolver !is MethodFieldResolver) {
+            return
+        }
+
+        fieldResolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
+            val parameter = fieldResolver.getMethodParameterType(index)?.let(fieldResolver.typeResolver::getRawClass) ?: return@forEachIndexed
+            if (!isContextParameter(parameter, argument)) {
+                return@forEachIndexed
+            }
+
+            val method = fieldResolver.method
+            log.warn(
+                "Field '${type.name}.${fieldResolver.field.name}' passes its argument '${argument.name}: ${TypeUtil.simplePrint(argument.type)}' " +
+                    "to the ${parameter.name} parameter of ${method.declaringClass.name}.${method.name}, so the field fails or gets null for " +
+                    "that parameter. Declare one parameter per argument, in order, before the ${parameter.simpleName} parameter."
+            )
+        }
+    }
+
+    // the context class can also be an argument's type (e.g. a Map for an input object), so only spec scalars count for it
+    private fun isContextParameter(parameter: Class<*>, argument: InputValueDefinition): Boolean =
+        parameter in fieldResolverScanner.allowedTrailingParameterTypes &&
+            (parameter != options.contextClass || argument.type.unwrap().name in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS)
 
     private fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {
         is TypeClassMatcher.ScalarMatch -> handleFoundScalarType(match.type)
