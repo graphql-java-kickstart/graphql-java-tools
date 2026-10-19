@@ -47,7 +47,6 @@ internal class MethodFieldResolver(
 
     private val isSuspendFunction = method.isSuspendFunction()
     private val numberOfParameters = method.parameterCountWithoutContinuation()
-    private val hasAdditionalParameter = numberOfParameters == (field.inputValueDefinitions.size + getIndexOffset() + 1)
 
     internal val objectMapper: ObjectMapper by lazy { options.objectMapperProvider.provide(field) }
 
@@ -103,11 +102,10 @@ internal class MethodFieldResolver(
             }
         }
 
-        // Add DataFetchingEnvironment/Context argument
-        if (this.hasAdditionalParameter) {
-            // suspend functions have a trailing Continuation parameter
-            when (this.method.parameterTypes[numberOfParameters - 1]) {
-                null -> throw ResolverError("Expected at least one argument but got none, this is most likely a bug with graphql-java-tools")
+        // Add DataFetchingEnvironment/Context arguments, stopping before the Continuation parameter of a suspend function
+        val firstTrailingParameter = field.inputValueDefinitions.size + getIndexOffset()
+        method.parameterTypes.slice(firstTrailingParameter until numberOfParameters).forEach { parameterType ->
+            when (parameterType) {
                 options.contextClass -> args.add { environment ->
                     val context: Any? = environment.graphQlContext[options.contextClass]
                     if (context != null) {
