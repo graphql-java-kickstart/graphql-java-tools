@@ -4,6 +4,7 @@ import graphql.ExceptionWhileDataFetching
 import graphql.ExecutionInput
 import graphql.GraphQL
 import graphql.GraphQLContext
+import graphql.GraphQLError
 import graphql.execution.CoercedVariables
 import graphql.language.StringValue
 import graphql.language.Value
@@ -165,6 +166,27 @@ class MethodFieldResolverTest {
             .root(Any()))
 
         assertEquals(result.getData(), mapOf("test" to 6))
+    }
+
+    @Test
+    fun `should convert nested lists of scalars to the parameter's collection type`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    count(tags: [[String]]): Int
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun count(tags: List<Set<String>>) = tags.sumOf { it.size }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val result = GraphQL.newGraphQL(schema).build().execute("""{ count(tags: [["a", "a", "b"]]) }""")
+
+        assertEquals(result.errors, emptyList<GraphQLError>())
+        assertEquals(result.getData(), mapOf("count" to 2))
     }
 
     @Test

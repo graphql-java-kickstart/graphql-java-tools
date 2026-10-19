@@ -150,8 +150,8 @@ internal class MethodFieldResolver(
      */
     private fun isConcreteScalarType(type: Type<*>, genericParameterType: JavaType): Boolean {
         return when (type) {
-            is ListType -> List::class.java.isAssignableFrom(this.typeResolver.getRawClass(genericParameterType))
-                && isConcreteScalarType(type.type, this.typeResolver.resolve(genericParameterType))
+            is ListType -> genericParameterType.typeArgument(List::class.java)
+                ?.let { isConcreteScalarType(type.type, it) } ?: false
 
             is TypeName -> type.name in scalarNames && type.name != "ID"
             is NonNullType -> isConcreteScalarType(type.type, genericParameterType)
