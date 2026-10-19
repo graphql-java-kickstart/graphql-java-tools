@@ -10,6 +10,7 @@ import graphql.language.Value
 import graphql.schema.Coercing
 import graphql.schema.CoercingParseLiteralException
 import graphql.schema.CoercingSerializeException
+import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
@@ -281,6 +282,60 @@ class MethodFieldResolverTest {
             "names" to null,
             "nameWithArgument" to null
         ))
+    }
+
+    @Test
+    fun `should warn when a resolver method is missing a parameter for an argument`() {
+        val (_, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        user(id: ID!, active: Boolean!): String
+                        users(active: Boolean, first: Int): String
+                        image: Image
+                        search(filter: Filter): String
+                        count(active: Boolean): String
+                    }
+
+                    type Image {
+                        thumbnail(size: Int): String
+                    }
+
+                    input Filter {
+                        name: String
+                    }
+                    """)
+                .resolvers(MissingParameterQuery(), ImageResolver())
+                .options(SchemaParserOptions.newOptions().contextClass(Map::class).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        val query = MissingParameterQuery::class.java.name
+        assertEquals(warnings, listOf(
+            "Field 'Query.user' has no parameter for its argument 'active: Boolean!' in $query.user, so the Map parameter gets the " +
+                "argument instead. Add a parameter for each argument, in order, before the Map parameter.",
+            "Field 'Query.users' has no parameter for its argument 'active: Boolean' in $query.users, so the GraphQLContext parameter " +
+                "gets the argument instead. Add a parameter for each argument, in order, before the GraphQLContext parameter.",
+            "Field 'Image.thumbnail' has no parameter for its argument 'size: Int' in ${ImageResolver::class.java.name}.thumbnail, so the " +
+                "DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the " +
+                "DataFetchingEnvironment parameter."
+        ))
+    }
+
+    class MissingParameterQuery : GraphQLQueryResolver {
+        fun user(id: String, context: Map<String, Any>) = "$id $context"
+        fun users(context: GraphQLContext?, first: Int?) = "$context $first"
+        fun image() = Image()
+        fun search(filter: Map<String, Any>?) = filter.toString()
+        fun count(active: Boolean?, context: Map<String, Any>) = "$active $context"
+    }
+
+    class Image
+
+    class ImageResolver : GraphQLResolver<Image> {
+        fun thumbnail(image: Image, env: DataFetchingEnvironment?) = env.toString()
     }
 
     sealed class Maybe<out T> {
