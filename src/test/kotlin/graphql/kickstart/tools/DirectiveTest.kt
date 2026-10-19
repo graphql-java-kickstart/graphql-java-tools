@@ -461,7 +461,7 @@ class DirectiveTest {
                         id: Int!
                         name: String! @limit @limit(max: 10)
                     }
-                    """)
+                    """, "directives.graphqls")
                 .resolvers(QueryResolver())
                 .build()
                 .makeExecutableSchema()
@@ -469,12 +469,12 @@ class DirectiveTest {
         }
 
         assertEquals(warnings, listOf(
-            "Directive @meta is applied to argument 'max' of directive '@limit' without its required argument 'info'.",
-            "Directive @deprecated is applied to type 'Book', but it's declared on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION, not OBJECT.",
-            "Directive @limit isn't repeatable but is applied more than once to field 'Book.name'.",
-            "Directive @entity is applied to field 'Query.books', but it's declared on OBJECT, not FIELD_DEFINITION.",
-            "Directive @meta is applied to field 'Query.books' without its required argument 'info'.",
-            "Directive @meta isn't repeatable but is applied more than once to the schema."
+            "Directive @meta at line 4, column 47 in directives.graphqls is missing its required argument 'info'.",
+            "Directive @deprecated at line 16, column 31 in directives.graphqls is applied to OBJECT, but it's declared on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION.",
+            "Directive @limit at line 18, column 46 in directives.graphqls isn't repeatable but is applied more than once.",
+            "Directive @entity at line 13, column 40 in directives.graphqls is applied to FIELD_DEFINITION, but it's declared on OBJECT.",
+            "Directive @meta at line 13, column 48 in directives.graphqls is missing its required argument 'info'.",
+            "Directive @meta at line 10, column 35 in directives.graphqls isn't repeatable but is applied more than once."
         ))
         assertEquals(schema.getObjectType("Book")!!.getField("name").getAppliedDirectives("limit").size, 2)
         assertEquals(schema.getSchemaAppliedDirectives("meta").size, 2)
