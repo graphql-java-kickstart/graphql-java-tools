@@ -127,6 +127,7 @@ class ReactiveTest {
                     item: Item
                     boxedItem: Item
                     search: SearchResult
+                    inheritedSearch: SearchResult
                 }
 
                 union SearchResult = Item
@@ -151,16 +152,21 @@ class ReactiveTest {
                 search {
                     ... on Item { id }
                 }
+                inheritedSearch {
+                    ... on Item { id }
+                }
             }
             """)
 
-        assertEquals(result.getData(), mapOf("item" to null, "boxedItem" to null, "search" to null))
+        assertEquals(result.getData(), mapOf("item" to null, "boxedItem" to null, "search" to null, "inheritedSearch" to null))
         assertEquals(result.errorMessagesByPath(), mapOf(
             "item" to "Resolver method '${ItemQuery::class.java.name}.item' resolved to a java.util.concurrent.FutureTask, " +
                 "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
             "boxedItem" to "Resolver method '${FutureItemQuery::class.java.name}.boxedItem' resolved to a java.util.concurrent.FutureTask, " +
                 "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
             "search" to "Resolver method '${FutureItemQuery::class.java.name}.search' resolved to a java.util.concurrent.FutureTask, " +
+                "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
+            "inheritedSearch" to "Resolver method '${ItemQuery::class.java.name}.inheritedSearch' resolved to a java.util.concurrent.FutureTask, " +
                 "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
         ))
     }
@@ -232,11 +238,15 @@ class ReactiveTest {
         fun nullItem(): Future<Item?> = FutureTask<Item?> { null }.also { it.run() }
     }
 
-    open class ItemQuery<R>(private val item: () -> R) {
+    open class ItemQuery<R, S>(private val item: () -> R, private val search: () -> S) {
         fun item(): R = item.invoke()
+        fun inheritedSearch(): S = search.invoke()
     }
 
-    private class FutureItemQuery : ItemQuery<Future<Item>>({ FutureTask { Item(1) }.also { it.run() } }), GraphQLQueryResolver {
+    private class FutureItemQuery : ItemQuery<Future<Item>, Future<Any>>(
+        { FutureTask { Item(1) }.also { it.run() } },
+        { FutureTask<Any> { Item(4) }.also { it.run() } }
+    ), GraphQLQueryResolver {
         fun boxedItem(): Box<Item> = Box(Item(2))
         fun search(): Future<Any> = FutureTask<Any> { Item(3) }.also { it.run() }
     }

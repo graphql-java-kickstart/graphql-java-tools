@@ -279,6 +279,20 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @Test
+    fun `data fetcher passes custom context and environment if method has both as extra arguments`() {
+        val customContext = ContextClass()
+        val context = GraphQLContext.of(mapOf(ContextClass::class.java to customContext))
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: ContextClass, env: DataFetchingEnvironment): Boolean {
+                return ctx == customContext && env.graphQlContext == context
+            }
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
+    }
+
+    @Test
     fun `data fetcher passes context to suspend function if method has extra argument and context is specified`() {
         val context = GraphQLContext.newContext().build()
         val resolver = createFetcher("active", resolver = object : GraphQLResolver<DataClass> {
