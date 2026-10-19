@@ -169,24 +169,28 @@ class MethodFieldResolverTest {
     }
 
     @Test
-    fun `should convert nested lists of scalars to the parameter's collection type`() {
+    fun `should handle nested lists of scalar types`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
+                scalar CustomScalar
                 type Query {
                     count(tags: [[String]]): Int
+                    test(input: [[CustomScalar]]): Int
                 }
                 """)
+            .scalars(customScalarType)
             .resolvers(object : GraphQLQueryResolver {
                 fun count(tags: List<Set<String>>) = tags.sumOf { it.size }
+                fun test(scalars: List<Set<CustomScalar>>) = scalars.sumOf { set -> set.sumOf { it.value.length } }
             })
             .build()
             .makeExecutableSchema()
 
-        val result = GraphQL.newGraphQL(schema).build().execute("""{ count(tags: [["a", "a", "b"]]) }""")
+        val result = GraphQL.newGraphQL(schema).build().execute("""{ count(tags: [["a", "a", "b"]]) test(input: [["Foo"], ["Bar"]]) }""")
 
         assertEquals(result.errors, emptyList<GraphQLError>())
-        assertEquals(result.getData(), mapOf("count" to 2))
+        assertEquals(result.getData(), mapOf("count" to 2, "test" to 6))
     }
 
     @Test
