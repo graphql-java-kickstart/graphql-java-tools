@@ -285,52 +285,51 @@ class MethodFieldResolverTest {
     }
 
     @Test
-    fun `should warn when an argument is passed to a context parameter`() {
+    fun `should warn when a resolver method is missing a parameter for an argument`() {
         val (_, warnings) = withWarnings {
             SchemaParser.newParser()
                 .schemaString(
                     """
                     type Query {
-                        context(id: ID!, persist: Boolean!): String
-                        graphQLContext(persist: Boolean, id: ID): String
+                        user(id: ID!, active: Boolean!): String
+                        users(active: Boolean, first: Int): String
                         image: Image
-                        input(input: Input): String
-                        extra(persist: Boolean): String
+                        search(filter: Filter): String
+                        count(active: Boolean): String
                     }
 
                     type Image {
                         thumbnail(size: Int): String
                     }
 
-                    input Input {
-                        value: String
+                    input Filter {
+                        name: String
                     }
                     """)
-                .resolvers(ContextParameterQuery(), ImageResolver())
+                .resolvers(MissingParameterQuery(), ImageResolver())
                 .options(SchemaParserOptions.newOptions().contextClass(Map::class).build())
                 .build()
                 .makeExecutableSchema()
         }
 
-        val query = ContextParameterQuery::class.java.name
+        val query = MissingParameterQuery::class.java.name
         assertEquals(warnings, listOf(
-            "Field 'Query.context' passes its argument 'persist: Boolean!' to the java.util.Map parameter of $query.context, so the field " +
-                "fails or gets null for that parameter. Declare one parameter per argument, in order, before the Map parameter.",
-            "Field 'Query.graphQLContext' passes its argument 'persist: Boolean' to the graphql.GraphQLContext parameter of " +
-                "$query.graphQLContext, so the field fails or gets null for that parameter. Declare one parameter per argument, in order, " +
-                "before the GraphQLContext parameter.",
-            "Field 'Image.thumbnail' passes its argument 'size: Int' to the graphql.schema.DataFetchingEnvironment parameter of " +
-                "${ImageResolver::class.java.name}.thumbnail, so the field fails or gets null for that parameter. Declare one parameter per " +
-                "argument, in order, before the DataFetchingEnvironment parameter."
+            "Field 'Query.user' has no parameter for its argument 'active: Boolean!' in $query.user, so the Map parameter gets the " +
+                "argument instead. Add a parameter for each argument, in order, before the Map parameter.",
+            "Field 'Query.users' has no parameter for its argument 'active: Boolean' in $query.users, so the GraphQLContext parameter " +
+                "gets the argument instead. Add a parameter for each argument, in order, before the GraphQLContext parameter.",
+            "Field 'Image.thumbnail' has no parameter for its argument 'size: Int' in ${ImageResolver::class.java.name}.thumbnail, so the " +
+                "DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the " +
+                "DataFetchingEnvironment parameter."
         ))
     }
 
-    class ContextParameterQuery : GraphQLQueryResolver {
-        fun context(id: String, context: Map<String, Any>) = "$id $context"
-        fun graphQLContext(context: GraphQLContext?, id: String?) = "$context $id"
+    class MissingParameterQuery : GraphQLQueryResolver {
+        fun user(id: String, context: Map<String, Any>) = "$id $context"
+        fun users(context: GraphQLContext?, first: Int?) = "$context $first"
         fun image() = Image()
-        fun input(input: Map<String, Any>?) = input.toString()
-        fun extra(persist: Boolean?, context: Map<String, Any>) = "$persist $context"
+        fun search(filter: Map<String, Any>?) = filter.toString()
+        fun count(active: Boolean?, context: Map<String, Any>) = "$active $context"
     }
 
     class Image

@@ -529,7 +529,7 @@ internal class SchemaClassScanner(
             fieldResolver.scanForMatches().forEach { potentialMatch ->
                 handleFoundType(typeClassMatcher.match(potentialMatch))
             }
-            warnIfArgumentPassedToContext(type, fieldResolver)
+            warnIfParameterMissing(type, fieldResolver)
         }
     }
 
@@ -555,7 +555,7 @@ internal class SchemaClassScanner(
     }
 
     // TODO throw a FieldResolverError instead in 15.0.0 (#889)
-    private fun warnIfArgumentPassedToContext(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+    private fun warnIfParameterMissing(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
         if (fieldResolver !is MethodFieldResolver) {
             return
         }
@@ -568,9 +568,9 @@ internal class SchemaClassScanner(
 
             val method = fieldResolver.method
             log.warn(
-                "Field '${type.name}.${fieldResolver.field.name}' passes its argument '${argument.name}: ${TypeUtil.simplePrint(argument.type)}' " +
-                    "to the ${parameter.name} parameter of ${method.declaringClass.name}.${method.name}, so the field fails or gets null for " +
-                    "that parameter. Declare one parameter per argument, in order, before the ${parameter.simpleName} parameter."
+                "Field '${type.name}.${fieldResolver.field.name}' has no parameter for its argument '${argument.name}: " +
+                    "${TypeUtil.simplePrint(argument.type)}' in ${method.declaringClass.name}.${method.name}, so the ${parameter.simpleName} " +
+                    "parameter gets the argument instead. Add a parameter for each argument, in order, before the ${parameter.simpleName} parameter."
             )
         }
     }
