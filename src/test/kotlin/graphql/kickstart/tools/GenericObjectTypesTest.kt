@@ -148,11 +148,50 @@ class GenericObjectTypesTest {
         assertEquals(data["topHit"], mapOf("score" to 0.5, "source" to mapOf("name" to "Luke")))
     }
 
+    @Test
+    fun `a raw class keeps its own type when a parameterized entry shares it`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    single: StringEntityMatch!
+                    anyMatch: Match!
+                }
+
+                union Match = StringEntityMatch | AnyEntityMatch
+
+                type StringEntityMatch {
+                    text: String!
+                    value: String
+                }
+
+                type AnyEntityMatch {
+                    text: String!
+                }
+                """)
+            .resolvers(RawEntityMatchQueryResolver())
+            .dictionary("AnyEntityMatch", EntityMatch::class.java)
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(gql) { "query { anyMatch { __typename } }" }
+
+        assertEquals(data["anyMatch"], mapOf("__typename" to "AnyEntityMatch"))
+    }
+
     class EntityMatchQueryResolver : GraphQLQueryResolver {
         fun test(): TestClass = TestClass(
             match = EntityMatch("x y", listOf("x", "y")),
             single = EntityMatch("z", "z")
         )
+
+        fun anyMatch(): Any = EntityMatch("z", "z")
+    }
+
+    class RawEntityMatchQueryResolver : GraphQLQueryResolver {
+        fun single(): EntityMatch<String> = EntityMatch("z", "z")
 
         fun anyMatch(): Any = EntityMatch("z", "z")
     }
