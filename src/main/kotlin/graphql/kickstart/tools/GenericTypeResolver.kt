@@ -52,7 +52,7 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
         }
     }
 
-    private fun resolveTypeVariables(type: JavaType, resolving: Set<TypeVariable<*>> = emptySet()): JavaType {
+    fun resolveTypeVariables(type: JavaType, resolving: Set<TypeVariable<*>> = emptySet()): JavaType {
         return when (type) {
             is ParameterizedType -> {
                 val actualTypeArguments = type.actualTypeArguments.map { resolveTypeVariables(it, resolving) }.toTypedArray()

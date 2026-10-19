@@ -74,7 +74,6 @@ internal class MethodFieldResolver(
         this.field.inputValueDefinitions.forEachIndexed { index, definition ->
 
             val parameterType = this.getMethodParameterType(index)
-                ?.apply { typeResolver.getRawClass(this) }
                 ?: throw ResolverError("Missing method type at position ${this.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
             val isNonNull = definition.type is NonNullType
@@ -206,7 +205,7 @@ internal class MethodFieldResolver(
         val parameters = method.parameterTypes
 
         return if (parameters.size > methodIndex) {
-            method.genericParameterTypes[methodIndex]
+            typeResolver.resolveTypeVariables(method.genericParameterTypes[methodIndex])
         } else {
             null
         }

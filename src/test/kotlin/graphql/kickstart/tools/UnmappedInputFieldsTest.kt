@@ -328,7 +328,7 @@ class UnmappedInputFieldsTest {
     }
 
     @Test
-    fun `arguments are matched to their parameters past sources, environments and continuations`() {
+    fun `arguments are matched to their parameters past sources, environments and continuations, and through type variables`() {
         val error = assertThrows(SchemaError::class.java) {
             SchemaParser.newParser()
                 .schemaString(
@@ -337,6 +337,7 @@ class UnmappedInputFieldsTest {
                         owner: Owner
                         withEnvironment(input: EnvironmentInput!): String
                         suspending(input: SuspendInput!): String
+                        generic(input: GenericInput!): String
                     }
 
                     type Owner {
@@ -354,6 +355,10 @@ class UnmappedInputFieldsTest {
                     input ChildInput {
                         name: String
                     }
+
+                    input GenericInput {
+                        name: String
+                    }
                     """)
                 .resolvers(object : GraphQLQueryResolver {
                     fun owner(): Owner = Owner()
@@ -362,7 +367,7 @@ class UnmappedInputFieldsTest {
                     suspend fun suspending(input: SuspendInput): String? = input.nmae
                 }, object : GraphQLResolver<Owner> {
                     fun child(owner: Owner, id: String, input: ChildInput): String? = input.nmae
-                })
+                }, GenericInputResolver())
                 .options(failOptions().build())
                 .build()
                 .makeExecutableSchema()
@@ -371,7 +376,8 @@ class UnmappedInputFieldsTest {
         assertEquals(error.message, listOf(
             unmapped("ChildInput.name", ChildInput::class.java, "argument 'input' of field 'Owner.child'", "nmae"),
             unmapped("EnvironmentInput.name", EnvironmentInput::class.java, "argument 'input' of field 'Query.withEnvironment'", "nmae"),
-            unmapped("SuspendInput.name", SuspendInput::class.java, "argument 'input' of field 'Query.suspending'", "nmae")
+            unmapped("SuspendInput.name", SuspendInput::class.java, "argument 'input' of field 'Query.suspending'", "nmae"),
+            unmapped("GenericInput.name", GenericInput::class.java, "argument 'input' of field 'Query.generic'", "nmae")
         ).joinToString("\n"))
     }
 
@@ -690,7 +696,6 @@ class UnmappedInputFieldsTest {
                     injected(input: InjectedInput!): String
                     builder(input: BuilderTypoInput!): String
                     unwrapped(input: KotlinUnwrappedInput!): String
-                    generic(input: GenericInput!): String
                 }
 
                 input InjectedInput {
@@ -705,27 +710,19 @@ class UnmappedInputFieldsTest {
                     name: String
                     street: String
                 }
-
-                input GenericInput {
-                    name: String
-                }
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun injected(input: InjectedInput): String? = input.nmae
                 fun builder(input: BuilderTypoInput): String? = input.name
                 fun unwrapped(input: KotlinUnwrappedInput): String = "${input.name} ${input.address?.stret}"
-            }, GenericInputResolver())
+            })
             .options(failOptions()
                 .objectMapperConfigurer { mapper, _ -> mapper.setInjectableValues(InjectableValues.Std().addValue("tenant", "acme")) }
                 .build())
             .build()
             .makeExecutableSchema()
-            .assertEveryFieldResolves(except = setOf(
-                // the input classes misspell name on purpose
-                "Query.injected", "Query.builder",
-                // TODO query generic once the type variable of its inherited parameter is resolved (#880)
-                "Query.generic"
-            ))
+            // the input classes misspell name on purpose
+            .assertEveryFieldResolves(except = setOf("Query.injected", "Query.builder"))
 
         val result = GraphQL.newGraphQL(schema).build().execute(
             """
