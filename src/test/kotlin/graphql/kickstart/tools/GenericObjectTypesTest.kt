@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.GraphQL
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class GenericObjectTypesTest {
@@ -12,7 +13,10 @@ class GenericObjectTypesTest {
                 """
                 type Query {
                     test: TestClass!
+                    anyMatch: Match!
                 }
+
+                union Match = StringListEntityMatch | StringEntityMatch
 
                 type TestClass {
                     match: StringListEntityMatch!
@@ -32,7 +36,7 @@ class GenericObjectTypesTest {
             .resolvers(EntityMatchQueryResolver())
             .build()
             .makeExecutableSchema()
-            .assertEveryFieldResolves()
+            .assertEveryFieldResolves(except = setOf("Query.anyMatch"))
         val gql = GraphQL.newGraphQL(schema).build()
 
         val data = assertNoGraphQlErrors(gql) {
@@ -50,6 +54,9 @@ class GenericObjectTypesTest {
             "match" to mapOf("text" to "x y", "value" to listOf("x", "y")),
             "single" to mapOf("text" to "z", "value" to "z")
         ))
+
+        val error = assertThrows(TypeResolverError::class.java) { gql.execute("query { anyMatch { __typename } }") }
+        assertEquals(error.message, "Expected object type with name 'EntityMatch' to exist for union 'Match', but it doesn't!")
     }
 
     @Test
@@ -60,6 +67,14 @@ class GenericObjectTypesTest {
                 type Query {
                     characterHit: CharacterHit!
                     characterHitPage: CharacterHitPage!
+                    lastPage: Result!
+                    topHit: Scored!
+                }
+
+                union Result = CharacterHitPage | Human
+
+                interface Scored {
+                    score: Float!
                 }
 
                 type CharacterHitPage {
@@ -67,7 +82,7 @@ class GenericObjectTypesTest {
                     totalElements: Int!
                 }
 
-                type CharacterHit {
+                type CharacterHit implements Scored {
                     score: Float!
                     source: Character!
                 }
@@ -110,6 +125,13 @@ class GenericObjectTypesTest {
                         }
                     }
                 }
+                lastPage {
+                    ... on CharacterHitPage { totalElements }
+                }
+                topHit {
+                    score
+                    ... on CharacterHit { source { name } }
+                }
             }
             """
         }
@@ -122,6 +144,41 @@ class GenericObjectTypesTest {
                 mapOf("source" to mapOf("name" to "R2-D2", "primaryFunction" to "Astromech"))
             )
         ))
+        assertEquals(data["lastPage"], mapOf("totalElements" to 1))
+        assertEquals(data["topHit"], mapOf("score" to 0.5, "source" to mapOf("name" to "Luke")))
+    }
+
+    @Test
+    fun `a raw class keeps its own type when a parameterized entry shares it`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    single: StringEntityMatch!
+                    anyMatch: Match!
+                }
+
+                union Match = StringEntityMatch | AnyEntityMatch
+
+                type StringEntityMatch {
+                    text: String!
+                    value: String
+                }
+
+                type AnyEntityMatch {
+                    text: String!
+                }
+                """)
+            .resolvers(RawEntityMatchQueryResolver())
+            .dictionary("AnyEntityMatch", EntityMatch::class.java)
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+        val gql = GraphQL.newGraphQL(schema).build()
+
+        val data = assertNoGraphQlErrors(gql) { "query { anyMatch { __typename } }" }
+
+        assertEquals(data["anyMatch"], mapOf("__typename" to "AnyEntityMatch"))
     }
 
     class EntityMatchQueryResolver : GraphQLQueryResolver {
@@ -129,6 +186,14 @@ class GenericObjectTypesTest {
             match = EntityMatch("x y", listOf("x", "y")),
             single = EntityMatch("z", "z")
         )
+
+        fun anyMatch(): Any = EntityMatch("z", "z")
+    }
+
+    class RawEntityMatchQueryResolver : GraphQLQueryResolver {
+        fun single(): EntityMatch<String> = EntityMatch("z", "z")
+
+        fun anyMatch(): Any = EntityMatch("z", "z")
     }
 
     data class TestClass(val match: EntityMatch<List<String>>, val single: EntityMatch<String>)
@@ -141,11 +206,19 @@ class GenericObjectTypesTest {
             listOf(Hit(Human("Luke", "Tatooine"), 1.0), Hit(Droid("R2-D2", "Astromech"), 1.0)),
             2
         )
+
+        fun lastPage(): Any = Page(listOf(Hit(Droid("R2-D2", "Astromech"), 1.0)), 1)
+
+        fun topHit(): Scored = Hit(Human("Luke", "Tatooine"), 0.5)
     }
 
     class Page<T>(val content: List<T>, val totalElements: Int)
 
-    class Hit<T>(val source: T, val score: Double)
+    interface Scored {
+        val score: Double
+    }
+
+    class Hit<T>(val source: T, override val score: Double) : Scored
 
     interface Character {
         val name: String
