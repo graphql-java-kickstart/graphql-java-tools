@@ -283,7 +283,7 @@ class DirectiveTest {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
-                directive @uppercase on OBJECT
+                directive @uppercase on FIELD_DEFINITION
                 
                 type Query {
                     name: String @uppercase
@@ -388,37 +388,40 @@ class DirectiveTest {
     @Test
     fun `should fill in default values of directive arguments that weren't supplied`() {
         val emailDirective = EmailDirective()
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                directive @email(message: String = "{path} must be a valid email") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
-                directive @owner(team: String = "books-team") on SCHEMA | ENUM_VALUE
+        val (schema, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    directive @email(message: String = "{path} must be a valid email") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
+                    directive @owner(team: String = "books-team") on SCHEMA | ENUM_VALUE
 
-                schema @owner {
-                    query: Query
-                }
+                    schema @owner {
+                        query: Query
+                    }
 
-                enum AllowedState {
-                    ALLOWED @owner
-                    DISALLOWED
-                }
+                    enum AllowedState {
+                        ALLOWED @owner
+                        DISALLOWED
+                    }
 
-                input PersonInput {
-                    email: String @email
-                }
+                    input PersonInput {
+                        email: String @email
+                    }
 
-                type Query {
-                    contactEmail: String @email
-                    updatePersonEmail(primaryEmail: String @email, backupEmail: String @email(message: "invalid backup email")): String
-                    updatePerson(person: PersonInput, state: AllowedState): String
-                }
-                """)
-            .resolvers(PersonQueryResolver())
-            .directive("email", emailDirective)
-            .build()
-            .makeExecutableSchema()
-            .assertEveryFieldResolves()
+                    type Query {
+                        contactEmail: String @email
+                        updatePersonEmail(primaryEmail: String @email, backupEmail: String @email(message: "invalid backup email")): String
+                        updatePerson(person: PersonInput, state: AllowedState): String
+                    }
+                    """)
+                .resolvers(PersonQueryResolver())
+                .directive("email", emailDirective)
+                .build()
+                .makeExecutableSchema()
+                .assertEveryFieldResolves()
+        }
 
+        assertEquals(warnings, emptyList())
         val expectedMessages = mapOf(
             "contactEmail" to "{path} must be a valid email",
             "primaryEmail" to "{path} must be a valid email",
@@ -432,6 +435,49 @@ class DirectiveTest {
         assertEquals(schema.getSchemaAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
         val enumValue = (schema.getType("AllowedState") as GraphQLEnumType).getValue("ALLOWED")!!
         assertEquals(enumValue.getAppliedDirective("owner").getArgument("team")?.getValue<String>(), "books-team")
+    }
+
+    @Test
+    fun `should warn about invalid applied directives and keep them`() {
+        val (schema, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    directive @entity on OBJECT
+                    directive @meta(info: String!, level: Int! = 1) on SCHEMA | FIELD_DEFINITION | ARGUMENT_DEFINITION
+                    directive @limit(max: Int @meta) on FIELD_DEFINITION
+
+                    schema @meta(info: "a") {
+                        query: Query
+                    }
+
+                    extend schema @meta(info: "b")
+
+                    type Query {
+                        books: [Book!] @entity @meta
+                    }
+
+                    type Book @deprecated {
+                        id: Int!
+                        name: String! @limit @limit(max: 10)
+                    }
+                    """)
+                .resolvers(QueryResolver())
+                .build()
+                .makeExecutableSchema()
+                .assertEveryFieldResolves()
+        }
+
+        assertEquals(warnings, listOf(
+            "Directive @meta is applied to argument 'max' of directive '@limit' without its required argument 'info'.",
+            "Directive @deprecated is applied to type 'Book', but it's declared on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION, not OBJECT.",
+            "Directive @limit isn't repeatable but is applied more than once to field 'Book.name'.",
+            "Directive @entity is applied to field 'Query.books', but it's declared on OBJECT, not FIELD_DEFINITION.",
+            "Directive @meta is applied to field 'Query.books' without its required argument 'info'.",
+            "Directive @meta isn't repeatable but is applied more than once to the schema."
+        ))
+        assertEquals(schema.getObjectType("Book")!!.getField("name").getAppliedDirectives("limit").size, 2)
+        assertEquals(schema.getSchemaAppliedDirectives("meta").size, 2)
     }
 
     @Test
