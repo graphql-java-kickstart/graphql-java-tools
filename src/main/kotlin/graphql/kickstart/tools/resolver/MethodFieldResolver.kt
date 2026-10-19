@@ -130,9 +130,9 @@ internal class MethodFieldResolver(
         }
 
         // the class the return type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
-        // Object (e.g. for a union) can't tell them apart, so then every future of a method declared to return Future is checked
+        // Object (e.g. for a union) can't tell them apart, so then every future of a method whose return type is Future is checked
         val valueClass = (TypeUtils.getRawType(getResolvedReturnType(), null) ?: Any::class.java)
-            .takeUnless { it == Any::class.java && TypeUtils.getRawType(getReturnType(), null) == Future::class.java }
+            .takeUnless { it == Any::class.java && TypeUtils.getRawType(returnType, null) == Future::class.java }
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
@@ -180,15 +180,18 @@ internal class MethodFieldResolver(
             ?.let { TypeUtils.parameterize(Publisher::class.java, it) }
             ?: this
 
-    private fun getReturnType(): JavaType =
-        try {
+    // the declared return type with type variables resolved, e.g. Future<Item> for get(): T in a subclass of Base<Future<Item>>
+    private val returnType: JavaType by lazy {
+        val declaredType = try {
             method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
         } catch (e: InternalError) {
             method.genericReturnType
         }
+        typeResolver.resolveTypeVariables(declaredType)
+    }
 
     private fun getResolvedReturnType(): JavaType =
-        getReturnType().let { typeResolver.resolve(if (search.isSubscription) it.asPublisher() else it) }
+        typeResolver.resolve(if (search.isSubscription) returnType.asPublisher() else returnType)
 
     private fun getIndexOffset(): Int {
         return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {
