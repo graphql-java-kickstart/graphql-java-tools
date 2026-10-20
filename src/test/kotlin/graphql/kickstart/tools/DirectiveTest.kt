@@ -256,18 +256,40 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should keep types a directive wiring builds in code`() {
+    fun `should let directive wirings change the types of self-referencing fields`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
+                directive @required on FIELD_DEFINITION
+                directive @many on INPUT_FIELD_DEFINITION
                 directive @wrap on FIELD_DEFINITION
 
                 type Query {
-                    name: String @wrap
+                    person(filter: PersonFilter): Person
+                }
+
+                type Person {
+                    name: String
+                    age: Int
+                    friend: Person @required
+                    best: Person @wrap
+                }
+
+                input PersonFilter {
+                    name: String
+                    parent: PersonFilter @many
                 }
                 """)
             .resolvers(object : GraphQLQueryResolver {
-                fun name(): String? = null
+                fun person(filter: PersonFilter?): Person = Person("a")
+            })
+            .directive("required", object : SchemaDirectiveWiring {
+                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition =
+                    environment.element.transform { it.type(GraphQLNonNull.nonNull(environment.element.type)) }
+            })
+            .directive("many", object : SchemaDirectiveWiring {
+                override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField =
+                    environment.element.transform { it.type(GraphQLList.list(environment.element.type)) }
             })
             .directive("wrap", object : SchemaDirectiveWiring {
                 override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
@@ -280,9 +302,15 @@ class DirectiveTest {
             })
             .build()
             .makeExecutableSchema()
-            .assertEveryFieldResolves()
 
-        assertEquals(GraphQLTypeUtil.simplePrint(schema.queryType.getField("name").type), "Wrapper")
+        val person = schema.getObjectType("Person")!!
+        val filter = schema.getTypeAs<GraphQLInputObjectType>("PersonFilter")!!
+        val wrapper = schema.getObjectType("Wrapper")!!
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("friend").type), "Person!")
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("best").type), "Wrapper")
+        assertEquals(GraphQLTypeUtil.simplePrint(filter.getField("parent").type), "[PersonFilter]")
+        assert(GraphQLTypeUtil.unwrapAll(person.getField("friend").type) === person)
+        assert(wrapper.getField("value").type === person)
     }
 
     @Test
@@ -847,6 +875,16 @@ class DirectiveTest {
 
     private data class OptionInput(
         val label: String?
+    )
+
+    class Person(val name: String, val age: Int = 1) {
+        val friend: Person get() = this
+        val best: Person get() = this
+    }
+
+    data class PersonFilter(
+        val name: String?,
+        val parent: PersonFilter?
     )
 
     private data class BoundInput(

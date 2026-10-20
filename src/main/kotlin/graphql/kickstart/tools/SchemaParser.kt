@@ -373,7 +373,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(fieldDefinition, options))
             .definition(fieldDefinition)
             .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
-            .type(determineOutputType(fieldDefinition.type, inputObjects))
+            .type(determineOutputType(fieldDefinition.type))
             .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives, FIELD_DEFINITION))
             .withDirectives(*buildDirectives(fieldDefinition.directives, FIELD_DEFINITION))
             .apply {
@@ -431,8 +431,8 @@ class SchemaParser internal constructor(
             .name(definition.name)
             .definition(definition)
             .description(getDocumentation(definition, options))
-            // input objects are type references here, since they need the directives to be built first
-            .type(determineType(GraphQLInputType::class, definition.type, permittedTypesForInputObject, listOf()) as GraphQLInputType)
+            // type references, so that an input object used by a directive applied to it doesn't contain itself
+            .type(determineType(GraphQLInputType::class, definition.type, permittedTypesForInputObject) as GraphQLInputType)
             .apply { getDeprecated(definition.directives)?.let { deprecate(it) } }
             .apply { definition.defaultValue?.let { defaultValueLiteral(it) } }
             .build()
@@ -591,22 +591,18 @@ class SchemaParser internal constructor(
     private fun missingArgumentsWithDefault(directive: Directive, graphQLDirective: GraphQLDirective): List<GraphQLArgument> =
         graphQLDirective.arguments.filter { it.hasSetDefaultValue() && directive.getArgument(it.name) == null }
 
-    private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =
-        determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject, inputObjects) as GraphQLOutputType
+    private fun determineOutputType(typeDefinition: Type<*>) =
+        determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject) as GraphQLOutputType
 
+    // named types other than scalars are type references
     private fun <T : Any> determineType(
         expectedType: KClass<T>,
         typeDefinition: Type<*>,
-        allowedTypeReferences: Set<String>,
-        inputObjects: List<GraphQLInputObjectType>
+        allowedTypeReferences: Set<String>
     ): GraphQLType =
         when (typeDefinition) {
-            is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
-            is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences, inputObjects))
-            is InputObjectTypeDefinition -> {
-                log.info("Create input object")
-                createInputObject(typeDefinition, inputObjects, mutableSetOf())
-            }
+            is ListType -> GraphQLList(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
+            is NonNullType -> GraphQLNonNull(determineType(expectedType, typeDefinition.type, allowedTypeReferences))
             is TypeName -> {
                 val scalarType = customScalars[typeDefinition.name]
                     ?: GRAPHQL_SCALARS[typeDefinition.name]
@@ -616,7 +612,7 @@ class SchemaParser internal constructor(
                     if (!allowedTypeReferences.contains(typeDefinition.name)) {
                         throw unexpectedTypeError(typeDefinition, expectedType)
                     }
-                    inputObjects.find { it.name == typeDefinition.name } ?: GraphQLTypeReference(typeDefinition.name)
+                    GraphQLTypeReference(typeDefinition.name)
                 }
             }
             else -> throw SchemaError("Unknown type: $typeDefinition")

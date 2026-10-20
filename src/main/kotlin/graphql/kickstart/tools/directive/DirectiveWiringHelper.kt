@@ -22,6 +22,8 @@ internal class DirectiveWiringHelper(
     val isWiringRequired = runtimeWiring.registeredDirectiveWiring.isNotEmpty() || runtimeWiring.directiveWiring.isNotEmpty()
 
     fun wireSchema(schema: GraphQLSchema): GraphQLSchema = SchemaTransformer.transformSchema(schema, object : GraphQLTypeVisitorStub() {
+        private val references = TypeReferences(schema)
+
         override fun visitGraphQLObjectType(node: GraphQLObjectType, context: TraverserContext<GraphQLSchemaElement>) =
             wire(node, node.definition, context, ::wireObject)
 
@@ -41,11 +43,45 @@ internal class DirectiveWiringHelper(
         private fun <T : GraphQLNamedType> wire(node: T, definition: Node<*>?, context: TraverserContext<GraphQLSchemaElement>, wireType: (T) -> T): TraversalControl {
             if (definition != null) {
                 val wired = wireType(node)
-                if (wired !== node) changeNode(context, wired)
+                if (wired !== node) changeNode(context, references.inFields(wired))
             }
             return TraversalControl.CONTINUE
         }
     })
+
+    /**
+     * Swaps the schema's own types in the fields of a wired type for type references, like they were before the schema was built.
+     * Otherwise a type whose fields refer to itself contains itself, which the schema transformer can't rebuild.
+     */
+    private class TypeReferences(private val schema: GraphQLSchema) {
+        // the types wirings build in code, rebuilt once each
+        private val built = IdentityHashMap<GraphQLType, GraphQLType>()
+
+        @Suppress("UNCHECKED_CAST")
+        fun <T : GraphQLNamedType> inFields(type: T): T = when (type) {
+            is GraphQLObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inField)) }
+            is GraphQLInterfaceType -> type.transform { it.clearFields().fields(type.fields.map(::inField)) }
+            is GraphQLInputObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inInputField)) }
+            else -> type
+        } as T
+
+        private fun inField(field: GraphQLFieldDefinition) = field.transform {
+            it.type(of(field.type) as GraphQLOutputType)
+                .clearArguments()
+                .arguments(field.arguments.map { argument -> argument.transform { a -> a.type(of(argument.type) as GraphQLInputType) } })
+        }
+
+        private fun inInputField(field: GraphQLInputObjectField) = field.transform { it.type(of(field.type) as GraphQLInputType) }
+
+        private fun of(type: GraphQLType): GraphQLType = when (type) {
+            is GraphQLNonNull -> GraphQLNonNull.nonNull(of(type.wrappedType))
+            is GraphQLList -> GraphQLList.list(of(type.wrappedType))
+            // only these can lead back to the wired type. Scalars stay, since a reference only finds a scalar another field uses
+            is GraphQLFieldsContainer, is GraphQLInputObjectType ->
+                if (schema.typeMap[type.name] === type) GraphQLTypeReference.typeRef(type.name) else built.getOrPut(type) { inFields(type) }
+            else -> type
+        }
+    }
 
     private fun wireObject(objectType: GraphQLObjectType): GraphQLObjectType {
         return wireFields(objectType)
