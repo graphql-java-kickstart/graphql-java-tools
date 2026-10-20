@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.GraphQL
+import graphql.Scalars
 import graphql.execution.AsyncExecutionStrategy
 import graphql.relay.Connection
 import graphql.relay.SimpleListConnection
@@ -522,7 +523,7 @@ class DirectiveTest {
 
     @Test
     fun `should wire input objects only once when a directive is applied within its own argument types`() {
-        val limit = "directive @limit(bound: BoundInput!) on INPUT_FIELD_DEFINITION"
+        val limit = "directive @limit(bound: BoundInput!, since: Date) on INPUT_FIELD_DEFINITION"
         val limits = "directive @limits(bounds: [BoundInput!]) on FIELD_DEFINITION"
         listOf("$limits\n$limit", "$limit\n$limits").forEach { directives ->
             val wiredFields = mutableListOf<String>()
@@ -536,16 +537,19 @@ class DirectiveTest {
                     }
 
                     input BoundInput {
-                        max: Int @limit(bound: { max: 10 })
+                        max: Int @limit(bound: { max: 10 }, since: "2020-01-01")
                     }
+
+                    scalar Date
                     """)
                 .resolvers(object : GraphQLQueryResolver {
                     fun name(): String? = null
                 })
                 .dictionary(BoundInput::class)
+                .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
                 .directive("limit", object : SchemaDirectiveWiring {
                     override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
-                        wiredFields.add(environment.element.name)
+                        wiredFields.add("${environment.element.name} since ${environment.appliedDirective.getArgument("since")?.getValue<String>()}")
                         return environment.element
                     }
                 })
@@ -553,10 +557,135 @@ class DirectiveTest {
                 .makeExecutableSchema()
                 .assertEveryFieldResolves()
 
-            assert(wiredFields == listOf("max")) { "$wiredFields with directives declared as $directives" }
+            assert(wiredFields == listOf("max since 2020-01-01")) { "$wiredFields with directives declared as $directives" }
             val limit = (schema.getType("BoundInput") as GraphQLInputObjectType).getField("max").getAppliedDirective("limit")
             assertEquals(limit.getArgument("bound")?.getValue<Map<String, Int>>(), mapOf("max" to 10))
         }
+    }
+
+    @Test
+    fun `should apply the schema's directives and the provided specifiedBy URL to scalars`() {
+        val wired = mutableListOf<String>()
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @unit(name: String!) on SCALAR
+
+                "A calendar date"
+                scalar Date @specifiedBy(url: "https://example.com/date") @unit(name: "day")
+                scalar Time
+
+                type Query {
+                    today: Date
+                    now: Time
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun today(): String = "2026-10-19"
+                fun now(): String = "12:00"
+            })
+            .scalars(
+                GraphQLScalarType.newScalar().name("Date").description("A date").coercing(Scalars.GraphQLString.coercing)
+                    .specifiedByUrl("https://provided.example.com/date").build(),
+                GraphQLScalarType.newScalar().name("Time").description("A time").coercing(Scalars.GraphQLString.coercing)
+                    .specifiedByUrl("https://example.com/time").build()
+            )
+            .directive("unit", object : SchemaDirectiveWiring {
+                override fun onScalar(environment: SchemaDirectiveWiringEnvironment<GraphQLScalarType>): GraphQLScalarType {
+                    wired.add("${environment.element.name} ${environment.appliedDirective.getArgument("name")?.getValue<String>()}")
+                    return environment.element
+                }
+            })
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
+            """
+            query {
+                __schema { types { name description specifiedByURL } }
+            }
+            """
+        }
+        @Suppress("UNCHECKED_CAST")
+        val types = (data["__schema"] as Map<String, List<Map<String, Any?>>>).getValue("types")
+        assertEquals(types.filter { it["name"] in listOf("Date", "Time") }, listOf(
+            mapOf("name" to "Date", "description" to "A calendar date", "specifiedByURL" to "https://example.com/date"),
+            mapOf("name" to "Time", "description" to "A time", "specifiedByURL" to "https://example.com/time")
+        ))
+        assertEquals(wired, listOf("Date day"))
+        val date = schema.getType("Date") as GraphQLScalarType
+        assertEquals(date.appliedDirectives.map { it.name }, listOf("specifiedBy", "unit"))
+        val printed = SchemaPrinter().print(schema)
+        assert(printed.contains("""@specifiedBy(url : "https://example.com/date")""")) { printed }
+    }
+
+    @Test
+    fun `should build scalars used by the arguments of their own directives`() {
+        val until = "directive @until(date: Date) on FIELD_DEFINITION"
+        val since = "directive @since(date: Date) on SCALAR | FIELD_DEFINITION | INPUT_FIELD_DEFINITION"
+        // building @until builds Date, which needs @since, whichever is declared first
+        listOf("$until\n$since", "$since\n$until").forEach { directives ->
+            val recorder = ArgumentTypeRecorder()
+            val schema = SchemaParser.newParser()
+                .schemaString(
+                    """
+                    $directives
+
+                    scalar Date @since(date: "2020-01-01")
+
+                    input Range {
+                        from: Date @since(date: "2021-01-01")
+                    }
+
+                    type Query {
+                        name(after: Date, range: Range): String @since(date: "2022-01-01") @until(date: "2030-01-01")
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun name(after: String?, range: Range?): String? = null
+                })
+                .dictionary(Range::class)
+                .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+                .directive("since", recorder)
+                .directive("until", recorder)
+                .build()
+                .makeExecutableSchema()
+                .assertEveryFieldResolves()
+
+            // only Date's own @since can't hold Date yet, graphql-java replaces the reference when it builds the schema
+            val expectedTypes = mapOf("name" to listOf("GraphQLScalarType"), "from" to listOf("GraphQLScalarType"), "Date" to listOf("GraphQLTypeReference"))
+            assert(recorder.argumentTypes == expectedTypes) { "${recorder.argumentTypes} with directives declared as $directives" }
+            val since = (schema.getType("Date") as GraphQLScalarType).getAppliedDirective("since")
+            assertEquals(since.getArgument("date")?.getValue<String>(), "2020-01-01")
+        }
+    }
+
+    @Test
+    fun `should warn about undeclared directives on scalars and build them without the schema's directives`() {
+        val (schema, warnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    scalar Date @specifiedBy(url: "https://example.com/date") @format(pattern: "yyyy-MM-dd")
+
+                    type Query {
+                        today: Date
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun today(): String = "2026-10-19"
+                })
+                .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+                .build()
+                .makeExecutableSchema()
+                .assertEveryFieldResolves()
+        }
+
+        assertEquals(warnings, listOf("Scalar 'Date' is built without its directives from the schema: Found applied directive format without corresponding directive definition."))
+        val date = schema.getType("Date") as GraphQLScalarType
+        assertEquals(date.appliedDirectives, emptyList())
+        assertEquals(date.specifiedByUrl, "https://example.com/date")
     }
 
     @Test
@@ -793,6 +922,10 @@ class DirectiveTest {
         val max: Int?
     )
 
+    data class Range(
+        val from: String?
+    )
+
     /**
      * Records the unwrapped types of the arguments of each applied directive, by the name of the element it's applied to.
      */
@@ -804,6 +937,8 @@ class DirectiveTest {
         override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>) = record(environment)
 
         override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>) = record(environment)
+
+        override fun onScalar(environment: SchemaDirectiveWiringEnvironment<GraphQLScalarType>) = record(environment)
 
         private fun <T : GraphQLDirectiveContainer> record(environment: SchemaDirectiveWiringEnvironment<T>): T {
             argumentTypes[environment.element.name] =

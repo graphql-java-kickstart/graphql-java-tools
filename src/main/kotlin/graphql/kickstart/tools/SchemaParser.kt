@@ -11,6 +11,7 @@ import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINIT
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_OBJECT
 import graphql.introspection.Introspection.DirectiveLocation.INTERFACE
 import graphql.introspection.Introspection.DirectiveLocation.OBJECT
+import graphql.introspection.Introspection.DirectiveLocation.SCALAR
 import graphql.introspection.Introspection.DirectiveLocation.SCHEMA
 import graphql.introspection.Introspection.DirectiveLocation.UNION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
@@ -60,6 +61,7 @@ class SchemaParser internal constructor(
     private val directiveDefinitions = definitions.filterIsInstance<DirectiveDefinition>()
 
     private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
+    private val scalarDefinitions = definitions.filterIsInstance<ScalarTypeDefinition>().filter { it.name in customScalars }.associateBy { it.name }
 
     private val permittedTypesForObject: Set<String> = (objectDefinitions.map { it.name } +
         enumDefinitions.map { it.name } +
@@ -72,6 +74,7 @@ class SchemaParser internal constructor(
     private val directiveWiringHelper = DirectiveWiringHelper(runtimeWiring, codeRegistryBuilder)
 
     private lateinit var schemaDirectives: SchemaDirectives
+    private lateinit var scalars: MutableMap<String, GraphQLScalarType>
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -88,6 +91,7 @@ class SchemaParser internal constructor(
 
         // Create GraphQL objects
         val inputObjects: MutableList<GraphQLInputObjectType> = mutableListOf()
+        scalars = mutableMapOf()
         createDirectives(inputObjects)
         inputObjectDefinitions.forEach {
             if (inputObjects.none { io -> io.name == it.name }) {
@@ -262,6 +266,44 @@ class SchemaParser internal constructor(
         return directiveWiringHelper.wireEnum(builder.build())
     }
 
+    /**
+     * The scalar with this name, or null if there's none. A custom scalar is built the first time it's used, so that everything
+     * using it holds the same instance. The directives it applies are built first, so their definitions don't keep a type
+     * reference to it. The directives applied to scalars can still hold one to a scalar that's being built, which graphql-java
+     * replaces when it builds the schema.
+     */
+    private fun scalarType(name: String?): GraphQLScalarType? {
+        val definition = scalarDefinitions[name] ?: return GRAPHQL_SCALARS[name]
+        scalars[definition.name]?.let { return it }
+        definition.withExtensions(typeExtensions).flatMap { it.directives }.forEach { schemaDirectives.find(it.name) }
+        return scalars.getOrPut(definition.name) { createScalar(definition) }
+    }
+
+    private fun createScalar(definition: ScalarTypeDefinition): GraphQLScalarType {
+        val name = definition.name
+        val provided = customScalars.getValue(name)
+        val extensions = typeExtensions.extensionsOf<ScalarTypeExtensionDefinition>(name)
+        val directives = directivesOf(definition, extensions)
+        val (appliedDirectives, legacyDirectives) = try {
+            buildAppliedDirectives(directives, SCALAR) to buildDirectives(directives, SCALAR)
+        } catch (e: SchemaError) {
+            // TODO throw instead in 15.0.0 (#893), like for the other types
+            log.warn("Scalar '$name' is built without its directives from the schema: ${e.message}")
+            emptyArray<GraphQLAppliedDirective>() to emptyArray<GraphQLDirective>()
+        }
+        val builder = GraphQLScalarType.newScalar(provided)
+            .definition(definition)
+            .extensionDefinitions(extensions)
+            .description(getDocumentation(definition, options) ?: provided.description)
+            .specifiedByUrl(getSpecifiedByUrl(directives) ?: provided.specifiedByUrl)
+            // like graphql-java, only the schema's directives are applied
+            .clearDirectives()
+            .withAppliedDirectives(*appliedDirectives)
+            .withDirectives(*legacyDirectives)
+
+        return directiveWiringHelper.wireScalar(builder.build())
+    }
+
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
         val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
         val directives = directivesOf(interfaceDefinition, extensions)
@@ -391,13 +433,13 @@ class SchemaParser internal constructor(
 
     /**
      * The directive definitions. The input objects used by their arguments need the directives applied to them, so each directive
-     * is first built with type references to input objects, then rebuilt with the input objects the first time it's looked up.
-     * Only a directive applied within its own argument types gets its first build there.
+     * is first built with type references to the types it can't build yet, then rebuilt with the built types the first time it's
+     * looked up. Only a directive applied within its own argument types gets its first build there.
      */
     private inner class SchemaDirectives(private val inputObjects: MutableList<GraphQLInputObjectType>) {
         // by name, in the order they're declared
         private val byName = directiveDefinitions.associateTo(linkedMapOf()) { definition ->
-            definition.name to createDirective(definition) { determineType(GraphQLInputType::class, it, permittedTypesForInputObject, inputObjects) as GraphQLInputType }
+            definition.name to createDirective(definition, ::typeReferenceOf)
         }
         private val unfinished = directiveDefinitions.associateByTo(mutableMapOf()) { it.name }
         // shared, so that an input object that's still being built isn't built again for another directive
@@ -597,6 +639,20 @@ class SchemaParser internal constructor(
     private fun missingArgumentsWithDefault(directive: Directive, graphQLDirective: GraphQLDirective): List<GraphQLArgument> =
         graphQLDirective.arguments.filter { it.hasSetDefaultValue() && directive.getArgument(it.name) == null }
 
+    private fun getSpecifiedByUrl(directives: List<Directive>): String? =
+        (directives.find { it.name == Directives.SpecifiedByDirective.name }?.getArgument("url")?.value as? StringValue)?.value
+
+    // a directive's first build, see SchemaDirectives: no directive exists yet, so only scalars that apply none can be built
+    private fun typeReferenceOf(type: Type<*>): GraphQLInputType = when (type) {
+        is ListType -> GraphQLList(typeReferenceOf(type.type))
+        is NonNullType -> GraphQLNonNull(typeReferenceOf(type.type))
+        is TypeName -> {
+            val appliesDirectives = scalarDefinitions[type.name]?.withExtensions(typeExtensions)?.any { it.directives.isNotEmpty() } == true
+            (if (appliesDirectives) null else scalarType(type.name)) ?: GraphQLTypeReference(type.name)
+        }
+        else -> throw SchemaError("Unknown type: $type")
+    }
+
     private fun determineOutputType(typeDefinition: Type<*>, inputObjects: List<GraphQLInputObjectType>) =
         determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject, inputObjects) as GraphQLOutputType
 
@@ -614,8 +670,7 @@ class SchemaParser internal constructor(
                 createInputObject(typeDefinition, inputObjects, mutableSetOf())
             }
             is TypeName -> {
-                val scalarType = customScalars[typeDefinition.name]
-                    ?: GRAPHQL_SCALARS[typeDefinition.name]
+                val scalarType = scalarType(typeDefinition.name)
                 if (scalarType != null) {
                     scalarType
                 } else {
@@ -645,8 +700,7 @@ class SchemaParser internal constructor(
                 createInputObject(typeDefinition, inputObjects, referencingInputObjects)
             }
             is TypeName -> {
-                val scalarType = customScalars[typeDefinition.name]
-                    ?: GRAPHQL_SCALARS[typeDefinition.name]
+                val scalarType = scalarType(typeDefinition.name)
                 if (scalarType != null) {
                     scalarType
                 } else {

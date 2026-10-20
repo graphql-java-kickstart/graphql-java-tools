@@ -44,6 +44,10 @@ internal class DirectiveWiringHelper(
         return wireDirectives(WiringWrapper(unionType, UNION, SchemaDirectiveWiring::onUnion))
     }
 
+    fun wireScalar(scalarType: GraphQLScalarType): GraphQLScalarType {
+        return wireDirectives(WiringWrapper(scalarType, SCALAR, SchemaDirectiveWiring::onScalar))
+    }
+
     private fun wireFields(fieldsContainer: GraphQLFieldsContainer): List<GraphQLFieldDefinition> {
         return fieldsContainer.fields.map { field ->
             // wire arguments

@@ -7,7 +7,6 @@ import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.resolver.PropertyFieldResolver
 import graphql.kickstart.tools.util.*
 import graphql.language.*
-import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.TypeUtil
 import org.apache.commons.lang3.ClassUtils
@@ -282,24 +281,15 @@ internal class SchemaClassScanner(
         } catch (t: Throwable) {
             throw SchemaClassScannerError("Error creating bimap of type => class", t)
         }
-        val scalarDefinitions = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
-
-        // Ensure all scalar definitions have implementations and add the definition to those.
-        val scalars = scalarDefinitions
+        // SchemaParser builds the scalars, this only checks that each one was provided
+        val scalars = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
             .filter {
                 // Filter for any defined scalars OR scalars that aren't defined but also aren't standard
                 scalars.containsKey(it.name) || !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(it.name)
-            }.map { definition ->
-                val provided = scalars[definition.name]
-                    ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!")
-                GraphQLScalarType.newScalar()
-                    .name(provided.name)
-                    .description(getDocumentation(definition, options) ?: provided.description)
-                    .coercing(provided.coercing)
-                    .definition(definition)
-                    .extensionDefinitions(typeExtensions.extensionsOf<ScalarTypeExtensionDefinition>(definition.name))
-                    .build()
-            }.associateBy { it.name }
+            }.associate { definition ->
+                definition.name to (scalars[definition.name]
+                    ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!"))
+            }
 
         val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
         unusedDefinitions
