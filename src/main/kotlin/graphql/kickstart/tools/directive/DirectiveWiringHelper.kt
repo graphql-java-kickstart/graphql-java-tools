@@ -4,6 +4,7 @@ import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.*
 import graphql.kickstart.tools.directive.SchemaDirectiveWiringEnvironmentImpl.Parameters
 import graphql.language.NamedNode
+import graphql.language.Node
 import graphql.language.NodeParentTree
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
@@ -22,23 +23,24 @@ internal class DirectiveWiringHelper(
 
     fun wireSchema(schema: GraphQLSchema): GraphQLSchema = SchemaTransformer.transformSchema(schema, object : GraphQLTypeVisitorStub() {
         override fun visitGraphQLObjectType(node: GraphQLObjectType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, context, ::wireObject)
+            wire(node, node.definition, context, ::wireObject)
 
         override fun visitGraphQLInterfaceType(node: GraphQLInterfaceType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, context, ::wireInterFace)
+            wire(node, node.definition, context, ::wireInterFace)
 
         override fun visitGraphQLInputObjectType(node: GraphQLInputObjectType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, context, ::wireInputObject)
+            wire(node, node.definition, context, ::wireInputObject)
 
         override fun visitGraphQLEnumType(node: GraphQLEnumType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, context, ::wireEnum)
+            wire(node, node.definition, context, ::wireEnum)
 
         override fun visitGraphQLUnionType(node: GraphQLUnionType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, context, ::wireUnion)
+            wire(node, node.definition, context, ::wireUnion)
 
-        private fun <T : GraphQLNamedType> wire(node: T, context: TraverserContext<GraphQLSchemaElement>, wire: (T) -> T): TraversalControl {
-            if (!Introspection.isIntrospectionTypes(node)) {
-                val wired = wire(node)
+        // types without a definition, like the introspection types or types a wiring builds in code, aren't wired
+        private fun <T : GraphQLNamedType> wire(node: T, definition: Node<*>?, context: TraverserContext<GraphQLSchemaElement>, wireType: (T) -> T): TraversalControl {
+            if (definition != null) {
+                val wired = wireType(node)
                 if (wired !== node) changeNode(context, wired)
             }
             return TraversalControl.CONTINUE

@@ -256,6 +256,66 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should keep types a directive wiring builds in code`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @wrap on FIELD_DEFINITION
+
+                type Query {
+                    name: String @wrap
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun name(): String? = null
+            })
+            .directive("wrap", object : SchemaDirectiveWiring {
+                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+                    val wrapper = GraphQLObjectType.newObject()
+                        .name("Wrapper")
+                        .field { it.name("value").type(environment.element.type as GraphQLOutputType) }
+                        .build()
+                    return environment.element.transform { it.type(wrapper) }
+                }
+            })
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals(GraphQLTypeUtil.simplePrint(schema.queryType.getField("name").type), "Wrapper")
+    }
+
+    @Test
+    fun `should wire an input object that is the argument type of a directive applied to it`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @described on INPUT_OBJECT
+                directive @example(value: BookFilter) on INPUT_OBJECT
+
+                type Query {
+                    search(filter: BookFilter): String
+                }
+
+                input BookFilter @described @example(value: { name: "a" }) {
+                    name: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun search(filter: BookFilter?): String? = null
+            })
+            .directive("described", object : SchemaDirectiveWiring {
+                override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>): GraphQLInputObjectType =
+                    environment.element.transform { it.description("described") }
+            })
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals(schema.getTypeAs<GraphQLInputObjectType>("BookFilter")?.description, "described")
+    }
+
+    @Test
     fun `should fail when a directive wiring returns null`() {
         val error = assertThrows(IllegalStateException::class.java) {
             SchemaParser.newParser()
@@ -481,10 +541,10 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should build input objects used by directive arguments before wiring`() {
+    fun `should resolve input objects used by directive arguments before wiring`() {
         val meta = "directive @meta(info: ConfigInput!) on FIELD_DEFINITION"
         val option = "directive @option(value: OptionInput) on INPUT_OBJECT | INPUT_FIELD_DEFINITION"
-        // ConfigInput is built for @meta and needs @option, whichever is declared first
+        // ConfigInput is used by @meta and has @option applied, whichever is declared first
         listOf("$meta\n$option", "$option\n$meta").forEach { directives ->
             val recorder = ArgumentTypeRecorder()
             SchemaParser.newParser()
