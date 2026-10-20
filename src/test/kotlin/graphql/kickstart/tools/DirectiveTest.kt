@@ -273,7 +273,10 @@ class DirectiveTest {
                     age: Int
                     friend: Person @required
                     best: Person @wrap
+                    someone: Someone
                 }
+
+                union Someone = Person
 
                 input PersonFilter {
                     name: String
@@ -880,6 +883,7 @@ class DirectiveTest {
     class Person(val name: String, val age: Int = 1) {
         val friend: Person get() = this
         val best: Person get() = this
+        val someone: Person get() = this
     }
 
     data class PersonFilter(

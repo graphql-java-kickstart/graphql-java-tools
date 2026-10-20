@@ -77,7 +77,7 @@ internal class DirectiveWiringHelper(
             is GraphQLNonNull -> GraphQLNonNull.nonNull(of(type.wrappedType))
             is GraphQLList -> GraphQLList.list(of(type.wrappedType))
             // only these can lead back to the wired type. Scalars stay, since a reference only finds a scalar another field uses
-            is GraphQLFieldsContainer, is GraphQLInputObjectType ->
+            is GraphQLFieldsContainer, is GraphQLUnionType, is GraphQLInputObjectType ->
                 if (schema.typeMap[type.name] === type) GraphQLTypeReference.typeRef(type.name) else built.getOrPut(type) { inFields(type) }
             else -> type
         }
