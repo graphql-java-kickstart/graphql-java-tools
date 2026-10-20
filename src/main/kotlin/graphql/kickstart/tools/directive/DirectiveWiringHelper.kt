@@ -8,6 +8,8 @@ import graphql.language.NodeParentTree
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.util.TraversalControl
+import graphql.util.TraverserContext
 import java.util.*
 
 internal class DirectiveWiringHelper(
@@ -16,31 +18,58 @@ internal class DirectiveWiringHelper(
 ) {
     private val schemaDirectiveParameters = Parameters(runtimeWiring, codeRegistryBuilder)
 
-    fun wireObject(objectType: GraphQLObjectType): GraphQLObjectType {
+    val isWiringRequired = runtimeWiring.registeredDirectiveWiring.isNotEmpty() || runtimeWiring.directiveWiring.isNotEmpty()
+
+    fun wireSchema(schema: GraphQLSchema): GraphQLSchema = SchemaTransformer.transformSchema(schema, object : GraphQLTypeVisitorStub() {
+        override fun visitGraphQLObjectType(node: GraphQLObjectType, context: TraverserContext<GraphQLSchemaElement>) =
+            wire(node, context, ::wireObject)
+
+        override fun visitGraphQLInterfaceType(node: GraphQLInterfaceType, context: TraverserContext<GraphQLSchemaElement>) =
+            wire(node, context, ::wireInterFace)
+
+        override fun visitGraphQLInputObjectType(node: GraphQLInputObjectType, context: TraverserContext<GraphQLSchemaElement>) =
+            wire(node, context, ::wireInputObject)
+
+        override fun visitGraphQLEnumType(node: GraphQLEnumType, context: TraverserContext<GraphQLSchemaElement>) =
+            wire(node, context, ::wireEnum)
+
+        override fun visitGraphQLUnionType(node: GraphQLUnionType, context: TraverserContext<GraphQLSchemaElement>) =
+            wire(node, context, ::wireUnion)
+
+        private fun <T : GraphQLNamedType> wire(node: T, context: TraverserContext<GraphQLSchemaElement>, wire: (T) -> T): TraversalControl {
+            if (!Introspection.isIntrospectionTypes(node)) {
+                val wired = wire(node)
+                if (wired !== node) changeNode(context, wired)
+            }
+            return TraversalControl.CONTINUE
+        }
+    })
+
+    private fun wireObject(objectType: GraphQLObjectType): GraphQLObjectType {
         return wireFields(objectType)
             .let { fields -> if (objectType.fields != fields) objectType.transform { it.clearFields().fields(fields) } else objectType }
             .let { wireDirectives(WiringWrapper(it, OBJECT, SchemaDirectiveWiring::onObject)) }
     }
 
-    fun wireInterFace(interfaceType: GraphQLInterfaceType): GraphQLInterfaceType {
+    private fun wireInterFace(interfaceType: GraphQLInterfaceType): GraphQLInterfaceType {
         return wireFields(interfaceType)
             .let { fields -> if (interfaceType.fields != fields) interfaceType.transform { it.clearFields().fields(fields) } else interfaceType }
             .let { wireDirectives(WiringWrapper(it, INTERFACE, SchemaDirectiveWiring::onInterface)) }
     }
 
-    fun wireInputObject(inputObjectType: GraphQLInputObjectType): GraphQLInputObjectType {
+    private fun wireInputObject(inputObjectType: GraphQLInputObjectType): GraphQLInputObjectType {
         return wireInputFields(inputObjectType)
             .let { fields -> if (inputObjectType.fields != fields) inputObjectType.transform { it.clearFields().fields(fields) } else inputObjectType }
             .let { wireDirectives(WiringWrapper(it, INPUT_OBJECT, SchemaDirectiveWiring::onInputObjectType)) }
     }
 
-    fun wireEnum(enumType: GraphQLEnumType): GraphQLEnumType {
+    private fun wireEnum(enumType: GraphQLEnumType): GraphQLEnumType {
         return wireEnumValues(enumType)
             .let { values -> if (enumType.values != values) enumType.transform { it.clearValues().values(values) } else enumType }
             .let { wireDirectives(WiringWrapper(it, ENUM, SchemaDirectiveWiring::onEnum)) }
     }
 
-    fun wireUnion(unionType: GraphQLUnionType): GraphQLUnionType {
+    private fun wireUnion(unionType: GraphQLUnionType): GraphQLUnionType {
         return wireDirectives(WiringWrapper(unionType, UNION, SchemaDirectiveWiring::onUnion))
     }
 

@@ -128,7 +128,24 @@ class SchemaParser internal constructor(
         // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only GraphQLAppliedDirectives are built here, not
         // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
         val schemaAppliedDirectives = buildAppliedDirectives(rootInfo.getDirectives(), SCHEMA).toList()
-        return SchemaObjects(query, mutation, subscription, types, schemaDirectives.all, codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
+        val schemaObjects = SchemaObjects(query, mutation, subscription, types, schemaDirectives.all, codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
+        return if (directiveWiringHelper.isWiringRequired) wire(schemaObjects) else schemaObjects
+    }
+
+    /**
+     * Runs the directive wirings on the assembled schema, where type references are resolved, and takes the wired types from it.
+     */
+    private fun wire(schemaObjects: SchemaObjects): SchemaObjects {
+        val schema = directiveWiringHelper.wireSchema(schemaObjects.toSchema())
+        val directives = schema.directives.associateBy { it.name }
+        return schemaObjects.copy(
+            query = schema.queryType,
+            mutation = schema.mutationType,
+            subscription = schema.subscriptionType,
+            dictionary = schemaObjects.dictionary.mapTo(linkedSetOf()) { schema.typeMap.getValue((it as GraphQLNamedType).name) },
+            directives = schemaObjects.directives.mapTo(linkedSetOf()) { directives.getValue(it.name) },
+            schemaAppliedDirectives = schema.schemaAppliedDirectives
+        )
     }
 
     /**
@@ -178,7 +195,7 @@ class SchemaParser internal constructor(
                 }
             }
 
-        return directiveWiringHelper.wireObject(builder.build())
+        return builder.build()
     }
 
     private fun createInputObject(definition: InputObjectTypeDefinition, inputObjects: List<GraphQLInputObjectType>,
@@ -214,7 +231,7 @@ class SchemaParser internal constructor(
                 }
             }
 
-        return directiveWiringHelper.wireInputObject(builder.build())
+        return builder.build()
     }
 
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
@@ -259,7 +276,7 @@ class SchemaParser internal constructor(
                 }
             }
 
-        return directiveWiringHelper.wireEnum(builder.build())
+        return builder.build()
     }
 
     private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
@@ -286,7 +303,7 @@ class SchemaParser internal constructor(
                 }
             }
 
-        return directiveWiringHelper.wireInterFace(builder.build())
+        return builder.build()
     }
 
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
@@ -304,7 +321,7 @@ class SchemaParser internal constructor(
                 getLeafUnionObjects(definition, types).forEach { possibleType(it) }
             }
 
-        return directiveWiringHelper.wireUnion(builder.build())
+        return builder.build()
     }
 
     private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
