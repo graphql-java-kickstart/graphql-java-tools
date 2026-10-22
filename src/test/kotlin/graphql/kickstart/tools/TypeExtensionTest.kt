@@ -66,6 +66,7 @@ class TypeExtensionTest {
         assertEquals(item.interfaces.map { it.name }, listOf("Node", "Entity"))
         assertEquals(schema.getImplementations(schema.getType("Entity") as GraphQLInterfaceType)?.map { it.name }, listOf("Item"))
         assertEquals(date.description, "A date")
+        assertEquals(date.appliedDirectives.map { it.name }, listOf("format"))
 
         // through GraphQLNamedSchemaElement, since graphql-java 25 and 26 disagree on which types have a nullable definition
         assertEquals(listOf<GraphQLNamedSchemaElement>(fooBar, color, node, item, date).map { it.definition?.javaClass }, listOf(
@@ -217,7 +218,7 @@ class TypeExtensionTest {
         val (schema, warnings) = withWarnings {
             parser(
                 """
-                directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
+                directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
                 directive @once(name: String!) on OBJECT | INPUT_OBJECT
 
                 type Query @once(name: "Query") {
@@ -225,6 +226,7 @@ class TypeExtensionTest {
                     fooBar: FooBar
                     color: Color
                     search(filter: Filter): String
+                    today: Date
                 }
 
                 extend type Query @once(name: "Query extension")
@@ -244,9 +246,13 @@ class TypeExtensionTest {
                 input Filter @tag(name: "Filter") { id: ID }
                 extend input Filter @tag(name: "Filter extension") @once(name: "Filter extension")
 
+                scalar Date @tag(name: "Date")
+                extend scalar Date @tag(name: "Date extension")
+
                 type Baz { baz: String }
                 """) {
                 dictionary(Item::class, Baz::class)
+                scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
                 directive("tag", wiring)
                 directive("once", wiring)
             }.makeExecutableSchema()
@@ -255,7 +261,7 @@ class TypeExtensionTest {
 
         assertEquals(warnings, listOf("Directive @once isn't repeatable but an extension of type 'Query' applies it again, only the first one is kept."))
 
-        val applied = listOf("Query", "Node", "Item", "FooBar", "Color", "Filter").associateWith { name ->
+        val applied = listOf("Query", "Node", "Item", "FooBar", "Color", "Filter", "Date").associateWith { name ->
             (schema.getType(name) as GraphQLDirectiveContainer).appliedDirectives.map { it.describe() }
         }
         assertEquals(applied, mapOf(
@@ -264,7 +270,8 @@ class TypeExtensionTest {
             "Item" to listOf("@tag(Item)", "@tag(Item extension)"),
             "FooBar" to listOf("@tag(FooBar)", "@tag(FooBar extension)"),
             "Color" to listOf("@tag(Color)", "@tag(Color extension)"),
-            "Filter" to listOf("@tag(Filter)", "@tag(Filter extension)", "@once(Filter extension)")
+            "Filter" to listOf("@tag(Filter)", "@tag(Filter extension)", "@once(Filter extension)"),
+            "Date" to listOf("@tag(Date)", "@tag(Date extension)")
         ))
         assertEquals(wiring.wired.sorted(), applied.values.flatten().sorted())
 
@@ -273,6 +280,7 @@ class TypeExtensionTest {
         assertEquals(item.directives.map { it.name }, listOf("tag", "tag"))
         assertEquals(filter.directives.map { it.name }, listOf("tag", "tag", "once"))
         assertEquals(schema.queryType.directives.map { it.name }, listOf("once"))
+        assertEquals((schema.getType("Date") as GraphQLScalarType).directives.map { it.name }, listOf("tag", "tag"))
         assertEquals(item.fieldDefinitions.map { it.name }, listOf("id", "name"))
         assertEquals(filter.extensionDefinitions.size, 1)
 
@@ -510,6 +518,8 @@ class TypeExtensionTest {
         override fun onEnum(environment: SchemaDirectiveWiringEnvironment<GraphQLEnumType>) = record(environment)
 
         override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>) = record(environment)
+
+        override fun onScalar(environment: SchemaDirectiveWiringEnvironment<GraphQLScalarType>) = record(environment)
 
         private fun <T : GraphQLDirectiveContainer> record(environment: SchemaDirectiveWiringEnvironment<T>): T {
             wired.add(environment.appliedDirective.describe())
