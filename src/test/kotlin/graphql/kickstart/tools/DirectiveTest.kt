@@ -256,24 +256,35 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should let directive wirings change the types of self-referencing fields`() {
+    fun `should let directive wirings change types that refer to each other`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
                 directive @required on FIELD_DEFINITION
                 directive @many on INPUT_FIELD_DEFINITION
                 directive @wrap on FIELD_DEFINITION
+                directive @described on INTERFACE | ENUM
 
                 type Query {
                     person(filter: PersonFilter): Person
                 }
 
-                type Person {
+                interface Named @described {
+                    name: String
+                }
+
+                type Person implements Named {
                     name: String
                     age: Int
                     friend: Person @required
                     best: Person @wrap
                     someone: Someone
+                    state: AllowedState @required
+                }
+
+                enum AllowedState @described {
+                    ALLOWED
+                    DISALLOWED
                 }
 
                 union Someone = Person
@@ -303,6 +314,13 @@ class DirectiveTest {
                     return environment.element.transform { it.type(wrapper) }
                 }
             })
+            .directive("described", object : SchemaDirectiveWiring {
+                override fun onInterface(environment: SchemaDirectiveWiringEnvironment<GraphQLInterfaceType>): GraphQLInterfaceType =
+                    environment.element.transform { it.description("described") }
+
+                override fun onEnum(environment: SchemaDirectiveWiringEnvironment<GraphQLEnumType>): GraphQLEnumType =
+                    environment.element.transform { it.description("described") }
+            })
             .build()
             .makeExecutableSchema()
 
@@ -314,6 +332,9 @@ class DirectiveTest {
         assertEquals(GraphQLTypeUtil.simplePrint(filter.getField("parent").type), "[PersonFilter]")
         assert(GraphQLTypeUtil.unwrapAll(person.getField("friend").type) === person)
         assert(wrapper.getField("value").type === person)
+        assertEquals(person.interfaces.map { it.description }, listOf("described"))
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("state").type), "AllowedState!")
+        assertEquals((GraphQLTypeUtil.unwrapAll(person.getField("state").type) as GraphQLEnumType).description, "described")
     }
 
     @Test
@@ -830,7 +851,7 @@ class DirectiveTest {
         EXECUTION
     }
 
-    private enum class AllowedState {
+    enum class AllowedState {
         ALLOWED,
         DISALLOWED
     }
@@ -884,6 +905,7 @@ class DirectiveTest {
         val friend: Person get() = this
         val best: Person get() = this
         val someone: Person get() = this
+        val state: AllowedState get() = AllowedState.ALLOWED
     }
 
     data class PersonFilter(

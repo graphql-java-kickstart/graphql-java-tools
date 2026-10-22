@@ -4,13 +4,10 @@ import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.*
 import graphql.kickstart.tools.directive.SchemaDirectiveWiringEnvironmentImpl.Parameters
 import graphql.language.NamedNode
-import graphql.language.Node
 import graphql.language.NodeParentTree
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
-import graphql.util.TraversalControl
-import graphql.util.TraverserContext
 import java.util.*
 
 internal class DirectiveWiringHelper(
@@ -21,46 +18,40 @@ internal class DirectiveWiringHelper(
 
     val isWiringRequired = runtimeWiring.registeredDirectiveWiring.isNotEmpty() || runtimeWiring.directiveWiring.isNotEmpty()
 
-    fun wireSchema(schema: GraphQLSchema): GraphQLSchema = SchemaTransformer.transformSchema(schema, object : GraphQLTypeVisitorStub() {
-        private val references = TypeReferences(schema)
-
-        override fun visitGraphQLObjectType(node: GraphQLObjectType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, node.definition, context, ::wireObject)
-
-        override fun visitGraphQLInterfaceType(node: GraphQLInterfaceType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, node.definition, context, ::wireInterFace)
-
-        override fun visitGraphQLInputObjectType(node: GraphQLInputObjectType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, node.definition, context, ::wireInputObject)
-
-        override fun visitGraphQLEnumType(node: GraphQLEnumType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, node.definition, context, ::wireEnum)
-
-        override fun visitGraphQLUnionType(node: GraphQLUnionType, context: TraverserContext<GraphQLSchemaElement>) =
-            wire(node, node.definition, context, ::wireUnion)
-
-        // types without a definition, like the introspection types or types a wiring builds in code, aren't wired
-        private fun <T : GraphQLNamedType> wire(node: T, definition: Node<*>?, context: TraverserContext<GraphQLSchemaElement>, wireType: (T) -> T): TraversalControl {
-            if (definition != null) {
-                val wired = wireType(node)
-                if (wired !== node) changeNode(context, references.inFields(wired))
+    /**
+     * Runs the wirings on the given types of the assembled schema. If they change any, returns every type by name with type references to
+     * the others, so that the next build resolves them to the wired types.
+     */
+    fun wireTypes(schema: GraphQLSchema, types: List<GraphQLNamedType>): Map<String, GraphQLNamedType> {
+        val changed = linkedMapOf<String, GraphQLNamedType>()
+        types.forEach { type ->
+            val wired = when (type) {
+                is GraphQLObjectType -> wireObject(type)
+                is GraphQLInterfaceType -> wireInterFace(type)
+                is GraphQLInputObjectType -> wireInputObject(type)
+                is GraphQLEnumType -> wireEnum(type)
+                is GraphQLUnionType -> wireUnion(type)
+                else -> type
             }
-            return TraversalControl.CONTINUE
+            if (wired !== type) changed[type.name] = wired
         }
-    })
+        if (changed.isEmpty()) return changed
+        val references = TypeReferences(schema)
+        return types.associate { it.name to references.inType(changed[it.name] ?: it) }
+    }
 
     /**
-     * Swaps the schema's own types in the fields of a wired type for type references, like they were before the schema was built.
-     * Otherwise a type whose fields refer to itself contains itself, which the schema transformer can't rebuild.
+     * Swaps the schema's own types that a type refers to for type references, like they were before the schema was built.
      */
     private class TypeReferences(private val schema: GraphQLSchema) {
         // the types wirings build in code, rebuilt once each
         private val built = IdentityHashMap<GraphQLType, GraphQLType>()
 
         @Suppress("UNCHECKED_CAST")
-        fun <T : GraphQLNamedType> inFields(type: T): T = when (type) {
-            is GraphQLObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inField)) }
-            is GraphQLInterfaceType -> type.transform { it.clearFields().fields(type.fields.map(::inField)) }
+        fun <T : GraphQLNamedType> inType(type: T): T = when (type) {
+            is GraphQLObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inField)).replaceInterfaces(of(type.interfaces)) }
+            is GraphQLInterfaceType -> type.transform { it.clearFields().fields(type.fields.map(::inField)).replaceInterfacesOrReferences(of(type.interfaces)) }
+            is GraphQLUnionType -> type.transform { it.replacePossibleTypes(of(type.types)) }
             is GraphQLInputObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inInputField)) }
             else -> type
         } as T
@@ -76,11 +67,13 @@ internal class DirectiveWiringHelper(
         private fun of(type: GraphQLType): GraphQLType = when (type) {
             is GraphQLNonNull -> GraphQLNonNull.nonNull(of(type.wrappedType))
             is GraphQLList -> GraphQLList.list(of(type.wrappedType))
-            // only these can lead back to the wired type. Scalars stay, since a reference only finds a scalar another field uses
-            is GraphQLFieldsContainer, is GraphQLUnionType, is GraphQLInputObjectType ->
-                if (schema.typeMap[type.name] === type) GraphQLTypeReference.typeRef(type.name) else built.getOrPut(type) { inFields(type) }
+            // scalars aren't wired, and a reference only finds a scalar another field uses
+            is GraphQLScalarType -> type
+            is GraphQLNamedType -> if (schema.typeMap[type.name] === type) GraphQLTypeReference.typeRef(type.name) else built.getOrPut(type) { inType(type) }
             else -> type
         }
+
+        private fun of(types: List<GraphQLNamedOutputType>) = types.map { of(it) as GraphQLNamedOutputType }
     }
 
     private fun wireObject(objectType: GraphQLObjectType): GraphQLObjectType {

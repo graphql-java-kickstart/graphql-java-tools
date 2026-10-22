@@ -123,7 +123,8 @@ class SchemaParser internal constructor(
         // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
         val schemaAppliedDirectives = buildAppliedDirectives(rootInfo.getDirectives(), SCHEMA).toList()
         val schemaObjects = SchemaObjects(query, mutation, subscription, types, schemaDirectives.values.toSet(), codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
-        val wiredObjects = if (directiveWiringHelper.isWiringRequired) wire(schemaObjects) else schemaObjects
+        // in the order the types were created
+        val wiredObjects = if (directiveWiringHelper.isWiringRequired) wire(schemaObjects, inputObjects + interfaces + objects + unions + enums) else schemaObjects
         if (options.unmappedInputFields != UnmappedInputFields.IGNORE) {
             val wiredInputObjects = wiredObjects.dictionary.filterIsInstance<GraphQLInputObjectType>().associateBy { it.name }
             val checker = UnmappedInputFieldChecker(wiredInputObjects, options.unmappedInputFields)
@@ -136,18 +137,17 @@ class SchemaParser internal constructor(
     }
 
     /**
-     * Runs the directive wirings on the assembled schema, where type references are resolved, and takes the wired types from it.
+     * Runs the directive wirings on the types once the schema is assembled, so they see resolved types, and swaps in the types they change.
      */
-    private fun wire(schemaObjects: SchemaObjects): SchemaObjects {
-        val schema = directiveWiringHelper.wireSchema(schemaObjects.toSchema())
-        val directives = schema.directives.associateBy { it.name }
+    private fun wire(schemaObjects: SchemaObjects, types: List<GraphQLNamedType>): SchemaObjects {
+        // building the schema resolves the type references in these types
+        val wired = directiveWiringHelper.wireTypes(schemaObjects.toSchema(), types)
+        if (wired.isEmpty()) return schemaObjects
         return schemaObjects.copy(
-            query = schema.queryType,
-            mutation = schema.mutationType,
-            subscription = schema.subscriptionType,
-            dictionary = schemaObjects.dictionary.mapTo(linkedSetOf()) { schema.typeMap.getValue((it as GraphQLNamedType).name) },
-            directives = schemaObjects.directives.mapTo(linkedSetOf()) { directives.getValue(it.name) },
-            schemaAppliedDirectives = schema.schemaAppliedDirectives
+            query = wired[schemaObjects.query.name] as GraphQLObjectType? ?: schemaObjects.query,
+            mutation = schemaObjects.mutation?.let { wired[it.name] as GraphQLObjectType? ?: it },
+            subscription = schemaObjects.subscription?.let { wired[it.name] as GraphQLObjectType? ?: it },
+            dictionary = schemaObjects.dictionary.mapTo(linkedSetOf()) { wired[(it as GraphQLNamedType).name] ?: it }
         )
     }
 
