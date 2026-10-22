@@ -345,7 +345,11 @@ class SchemaParser internal constructor(
         return builder.build()
     }
 
-    private fun getLeafUnionObjects(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): List<GraphQLObjectType> {
+    private fun getLeafUnionObjects(
+        definition: UnionTypeDefinition,
+        types: List<GraphQLObjectType>,
+        path: List<UnionTypeDefinition> = listOf(definition),
+    ): List<GraphQLObjectType> {
         val name = definition.name
         val leafObjects = mutableListOf<GraphQLObjectType>()
 
@@ -356,7 +360,11 @@ class SchemaParser internal constructor(
             val nestedUnion: UnionTypeDefinition? = unionDefinitions.find { otherDefinition -> typeName == otherDefinition.name }
 
             if (nestedUnion != null) {
-                leafObjects.addAll(getLeafUnionObjects(nestedUnion, types))
+                if (nestedUnion in path) {
+                    val cycle = (path.dropWhile { union -> union != nestedUnion } + nestedUnion).joinToString(" -> ") { union -> union.name }
+                    throw SchemaError("Union '$typeName' contains itself through $cycle${it.sourceLocation.describe()}.")
+                }
+                leafObjects.addAll(getLeafUnionObjects(nestedUnion, types, path + nestedUnion))
             } else {
                 leafObjects.add(types.find { type -> type.name == typeName }
                     ?: throw SchemaError("Expected object type '$typeName' for union type '$name', but found none!"))
