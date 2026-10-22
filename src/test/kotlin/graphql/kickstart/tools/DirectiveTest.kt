@@ -941,6 +941,64 @@ class DirectiveTest {
         assertEquals(error.message, "Can't guess the type of argument policy#purpose of undeclared directive policy, please declare the directive.")
     }
 
+    @Test
+    @Suppress("DEPRECATION") // legacy directives
+    fun `should keep the first of repeated non-repeatable legacy directives and describe only their defaulted arguments`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @tag(
+                    "The tag's name"
+                    name: String!
+                    "How loud"
+                    level: Int = 1
+                ) on FIELD_DEFINITION
+
+                type Query {
+                    books: [Book!] @tag(name: "a") @tag(name: "b")
+                }
+
+                type Book {
+                    id: Int!
+                    name: String!
+                }
+                """)
+            .resolvers(QueryResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val books = schema.queryType.getField("books")
+        assertEquals(books.getAppliedDirectives("tag").map { it.getArgument("name")?.getValue<String>() }, listOf("a", "b"))
+        val legacy = books.directives.single()
+        assertEquals(legacy.getArgument("name")?.description, null)
+        assertEquals(legacy.getArgument("level")?.description, "How loud")
+    }
+
+    @Test
+    fun `should fail on an unexpected directive argument`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    directive @tag(name: String) on FIELD_DEFINITION
+
+                    type Query {
+                        books: [Book!] @tag(nam: "a")
+                    }
+
+                    type Book {
+                        id: Int!
+                        name: String!
+                    }
+                    """)
+                .resolvers(QueryResolver())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Found an unexpected directive argument tag#nam .")
+    }
+
     private class BookQueryResolver : GraphQLQueryResolver {
         fun book(filter: BookFilter): Book? = null
     }

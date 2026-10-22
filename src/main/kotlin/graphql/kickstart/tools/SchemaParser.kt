@@ -124,7 +124,7 @@ class SchemaParser internal constructor(
         val types = (additionalObjects.toSet() as Set<GraphQLType>) + inputObjects + enums + interfaces + unions + scalars
         // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only GraphQLAppliedDirectives are built here, not
         // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
-        val schemaAppliedDirectives = buildAppliedDirectives(rootInfo.getDirectives(), SCHEMA).toList()
+        val schemaAppliedDirectives = appliedDirectives(resolveDirectives(rootInfo.getDirectives(), SCHEMA)).toList()
         val schemaObjects = SchemaObjects(query, mutation, subscription, types, schemaDirectives.values.toSet(), codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
         // in the order the types were created
         val wiredObjects = if (directiveWiringHelper.isWiringRequired) wire(schemaObjects, scalars + inputObjects + interfaces + objects + unions + enums) else schemaObjects
@@ -174,8 +174,7 @@ class SchemaParser internal constructor(
             .definition(objectDefinition)
             .extensionDefinitions(extensions)
             .description(getDocumentation(objectDefinition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(directives, OBJECT))
-            .withDirectives(*buildDirectives(directives, OBJECT))
+            .withSdlDirectives(directives, OBJECT)
             .apply {
                 objectDefinition.withExtensions(typeExtensions).flatMap { it.implements }.forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
@@ -216,8 +215,7 @@ class SchemaParser internal constructor(
             .definition(definition)
             .extensionDefinitions(extensionDefinitions)
             .description(getDocumentation(definition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(directives, INPUT_OBJECT))
-            .withDirectives(*buildDirectives(directives, INPUT_OBJECT))
+            .withSdlDirectives(directives, INPUT_OBJECT)
             .apply {
                 (extensionDefinitions + definition).forEach { typeDefinition ->
                     typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
@@ -229,8 +227,7 @@ class SchemaParser internal constructor(
                                 .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
                                 .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
                                 .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
-                                .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION))
-                                .withDirectives(*buildDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION))
+                                .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
                                 .build()
                         )
                     }
@@ -256,8 +253,7 @@ class SchemaParser internal constructor(
             .definition(definition)
             .extensionDefinitions(extensions)
             .description(getDocumentation(definition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(directives, ENUM))
-            .withDirectives(*buildDirectives(directives, ENUM))
+            .withSdlDirectives(directives, ENUM)
             .apply {
                 values.distinctBy { it.name }.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
@@ -274,8 +270,7 @@ class SchemaParser internal constructor(
                             .description(getDocumentation(valueDefinition, options))
                             .value(enumValue)
                             .apply { getDeprecated(valueDefinition.directives)?.let { deprecationReason(it) } }
-                            .withAppliedDirectives(*buildAppliedDirectives(valueDefinition.directives, ENUM_VALUE))
-                            .withDirectives(*buildDirectives(valueDefinition.directives, ENUM_VALUE))
+                            .withSdlDirectives(valueDefinition.directives, ENUM_VALUE)
                             .definition(valueDefinition)
                             .build()
                     )
@@ -290,13 +285,6 @@ class SchemaParser internal constructor(
         val provided = customScalars.getValue(name)
         val extensions = typeExtensions.extensionsOf<ScalarTypeExtensionDefinition>(name)
         val directives = directivesOf(definition, extensions)
-        val (appliedDirectives, legacyDirectives) = try {
-            buildAppliedDirectives(directives, SCALAR) to buildDirectives(directives, SCALAR)
-        } catch (e: SchemaError) {
-            // TODO throw instead in 15.0.0 (#893), like for the other types
-            log.warn("Scalar '$name' is built without its directives from the schema: ${e.message}")
-            emptyArray<GraphQLAppliedDirective>() to emptyArray<GraphQLDirective>()
-        }
         val builder = GraphQLScalarType.newScalar(provided)
             .definition(definition)
             .extensionDefinitions(extensions)
@@ -304,8 +292,12 @@ class SchemaParser internal constructor(
             .specifiedByUrl(getSpecifiedByUrl(directives) ?: provided.specifiedByUrl)
             // like graphql-java, only the schema's directives are applied
             .clearDirectives()
-            .withAppliedDirectives(*appliedDirectives)
-            .withDirectives(*legacyDirectives)
+        try {
+            builder.withSdlDirectives(directives, SCALAR)
+        } catch (e: SchemaError) {
+            // TODO throw instead in 15.0.0 (#893), like for the other types
+            log.warn("Scalar '$name' is built without its directives from the schema: ${e.message}")
+        }
 
         return builder.build()
     }
@@ -320,8 +312,7 @@ class SchemaParser internal constructor(
             .definition(interfaceDefinition)
             .extensionDefinitions(extensions)
             .description(getDocumentation(interfaceDefinition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(directives, INTERFACE))
-            .withDirectives(*buildDirectives(directives, INTERFACE))
+            .withSdlDirectives(directives, INTERFACE)
             .apply {
                 fieldDefinitions.distinctBy { it.name }.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
@@ -346,8 +337,7 @@ class SchemaParser internal constructor(
             .definition(definition)
             .extensionDefinitions(extensions)
             .description(getDocumentation(definition, options))
-            .withAppliedDirectives(*buildAppliedDirectives(directives, UNION))
-            .withDirectives(*buildDirectives(directives, UNION))
+            .withSdlDirectives(directives, UNION)
             .apply {
                 getLeafUnionObjects(definition, types).forEach { possibleType(it) }
             }
@@ -385,14 +375,14 @@ class SchemaParser internal constructor(
     private fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> {
         val applied = definition.directives.mapTo(mutableSetOf()) { it.name }
         return definition.directives + extensions.flatMap { extension ->
-            val (repeated, kept) = extension.directives.partition { it.name in applied && isNonRepeatable(it.name) }
+            val (repeated, kept) = extension.directives.partition { it.name in applied && isNonRepeatableByFirstDeclaration(it.name) }
             repeated.forEach { log.warn("Directive @${it.name} isn't repeatable but an extension of type '${definition.name}' applies it again, only the first one is kept.") }
             applied += kept.map { it.name }
             kept
         }
     }
 
-    private fun isNonRepeatable(directiveName: String): Boolean =
+    private fun isNonRepeatableByFirstDeclaration(directiveName: String): Boolean =
         directiveDefinitions.find { it.name == directiveName }?.let { !it.isRepeatable } ?: BUILT_IN_DIRECTIVES.containsKey(directiveName)
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
@@ -402,8 +392,7 @@ class SchemaParser internal constructor(
             .definition(fieldDefinition)
             .apply { getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
             .type(determineOutputType(fieldDefinition.type))
-            .withAppliedDirectives(*buildAppliedDirectives(fieldDefinition.directives, FIELD_DEFINITION))
-            .withDirectives(*buildDirectives(fieldDefinition.directives, FIELD_DEFINITION))
+            .withSdlDirectives(fieldDefinition.directives, FIELD_DEFINITION)
             .apply {
                 fieldDefinition.inputValueDefinitions.forEach { argumentDefinition ->
                     argument(createArgument(argumentDefinition, inputObjects))
@@ -419,8 +408,7 @@ class SchemaParser internal constructor(
             .type(determineInputType(definition.type, inputObjects, mutableSetOf()))
             .apply { getDeprecated(definition.directives)?.let { deprecate(it) } }
             .apply { definition.defaultValue?.let { defaultValueLiteral(it) } }
-            .withAppliedDirectives(*buildAppliedDirectives(definition.directives, ARGUMENT_DEFINITION))
-            .withDirectives(*buildDirectives(definition.directives, ARGUMENT_DEFINITION))
+            .withSdlDirectives(definition.directives, ARGUMENT_DEFINITION)
             .build()
     }
 
@@ -429,8 +417,7 @@ class SchemaParser internal constructor(
         // because the arguments can have directives too, we attach them only after the directives themselves are created
         schemaDirectives.replaceAll { _, d ->
             val arguments = d.arguments.map { a -> a.transform {
-                it.withAppliedDirectives(*buildAppliedDirectives(a.definition!!.directives, ARGUMENT_DEFINITION))
-                    .withDirectives(*buildDirectives(a.definition!!.directives, ARGUMENT_DEFINITION))
+                it.withSdlDirectives(a.definition!!.directives, ARGUMENT_DEFINITION)
             } }
             d.transform { it.replaceArguments(arguments) }
         }
@@ -466,50 +453,45 @@ class SchemaParser internal constructor(
             .build()
     }
 
-    private fun buildAppliedDirectives(directives: List<Directive>, location: Introspection.DirectiveLocation): Array<GraphQLAppliedDirective> {
+    @Suppress("DEPRECATION")
+    private fun <B : GraphqlDirectivesContainerTypeBuilder<B, B>> B.withSdlDirectives(directives: List<Directive>, location: Introspection.DirectiveLocation): B {
+        if (directives.isEmpty()) return this
+        val resolved = resolveDirectives(directives, location)
+        val applied = appliedDirectives(resolved)
+        val legacy = legacyDirectives(resolved, location)
+        return withAppliedDirectives(*applied).withDirectives(*legacy)
+    }
+
+    private fun resolveDirectives(directives: List<Directive>, location: Introspection.DirectiveLocation): List<ResolvedDirective> {
         // TODO throw a SchemaError instead in 15.0.0 (#884), like graphql-java does
         directiveProblems(directives, location).forEach { log.warn(it) }
         return directives.map { directive ->
-            val graphQLDirective = findDirective(directive.name)
-                ?: if (options.allowUndeclaredDirectives) return@map buildUndeclaredAppliedDirective(directive)
-                else throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
-            val graphQLArguments = graphQLDirective.arguments.associateBy { it.name }
-
-            GraphQLAppliedDirective.newDirective()
-                .name(directive.name)
-                .description(getDocumentation(directive, options))
-                .definition(directive)
-                .comparatorRegistry(runtimeWiring.comparatorRegistry)
-                .apply {
-                    directive.arguments.forEach { arg ->
-                        val graphQLArgument = graphQLArguments[arg.name]
-                            ?: throw SchemaError("Found an unexpected directive argument ${directive.name}#${arg.name} .")
-                        argument(GraphQLAppliedDirectiveArgument.newArgument()
-                            .name(arg.name)
-                            // TODO instead of guessing the type from its value, lookup the directive definition
-                            .type(graphQLArgument.type)
-                            .valueLiteral(arg.value)
-                            .description(graphQLArgument.description)
-                            .build()
-                        )
-                    }
-                }
-                .apply {
-                    // arguments that weren't supplied get the default from the directive definition, like graphql-java does.
-                    // this also gives a bare @deprecated its "reason", without which SchemaPrinter throws a NPE.
-                    missingArgumentsWithDefault(directive, graphQLDirective).forEach { graphQLArgument ->
-                        argument(GraphQLAppliedDirectiveArgument.newArgument()
-                            .name(graphQLArgument.name)
-                            .type(graphQLArgument.type)
-                            .description(graphQLArgument.description)
-                            .inputValueWithState(graphQLArgument.argumentDefaultValue)
-                            .build()
-                        )
-                    }
-                }
-                .build()
-        }.toTypedArray()
+            val definition = findDirective(directive.name)
+            when {
+                definition != null -> ResolvedDirective(directive, declaredArguments(directive, definition), declared = true)
+                options.allowUndeclaredDirectives -> ResolvedDirective(directive, undeclaredArguments(directive), declared = false)
+                else -> throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
+            }
+        }
     }
+
+    // missing arguments get their defaults like in graphql-java, which gives a bare @deprecated the "reason" SchemaPrinter needs
+    private fun declaredArguments(directive: Directive, definition: GraphQLDirective): List<ResolvedArgument> {
+        val supplied = directive.arguments.map { arg ->
+            val argument = definition.getArgument(arg.name)
+                ?: throw SchemaError("Found an unexpected directive argument ${directive.name}#${arg.name} .")
+            ResolvedArgument(arg.name, argument.type, InputValueWithState.newLiteralValue(arg.value), legacyDescription = null)
+        }
+        val defaulted = missingArgumentsWithDefault(directive, definition).map {
+            ResolvedArgument(it.name, it.type, it.argumentDefaultValue, legacyDescription = it.description)
+        }
+        return supplied + defaulted
+    }
+
+    private fun undeclaredArguments(directive: Directive): List<ResolvedArgument> =
+        directive.arguments.map { arg ->
+            ResolvedArgument(arg.name, guessDirectiveArgumentType(directive, arg.name, arg.value), InputValueWithState.newLiteralValue(arg.value), legacyDescription = null)
+        }
 
     private fun directiveProblems(directives: List<Directive>, location: Introspection.DirectiveLocation): List<String> =
         directives.groupBy { it.name }.flatMap { (name, applied) ->
@@ -532,24 +514,6 @@ class SchemaParser internal constructor(
 
     private fun findDirective(name: String): GraphQLDirective? = schemaDirectives[name] ?: BUILT_IN_DIRECTIVES[name]
 
-    private fun buildUndeclaredAppliedDirective(directive: Directive): GraphQLAppliedDirective {
-        return GraphQLAppliedDirective.newDirective()
-            .name(directive.name)
-            .definition(directive)
-            .comparatorRegistry(runtimeWiring.comparatorRegistry)
-            .apply {
-                directive.arguments.forEach { arg ->
-                    argument(GraphQLAppliedDirectiveArgument.newArgument()
-                        .name(arg.name)
-                        .type(guessDirectiveArgumentType(directive, arg.name, arg.value))
-                        .valueLiteral(arg.value)
-                        .build()
-                    )
-                }
-            }
-            .build()
-    }
-
     // there's no directive definition to look the type up in, so it's guessed from the value
     private fun guessDirectiveArgumentType(directive: Directive, argumentName: String, value: Value<*>): GraphQLInputType {
         return when (value) {
@@ -562,59 +526,70 @@ class SchemaParser internal constructor(
         }
     }
 
+    // graphql-java's applied directives and their arguments have no description
+    private fun appliedDirectives(directives: List<ResolvedDirective>): Array<GraphQLAppliedDirective> =
+        directives.map { directive ->
+            GraphQLAppliedDirective.newDirective()
+                .name(directive.usage.name)
+                .definition(directive.usage)
+                .comparatorRegistry(runtimeWiring.comparatorRegistry)
+                .apply {
+                    directive.arguments.forEach { arg ->
+                        argument(GraphQLAppliedDirectiveArgument.newArgument()
+                            .name(arg.name)
+                            .type(arg.type)
+                            .inputValueWithState(arg.value)
+                            .build()
+                        )
+                    }
+                }
+                .build()
+        }.toTypedArray()
+
     // TODO remove this once directives are fully replaced with applied directives
     @Suppress("DEPRECATION") // legacy directive argument values
-    private fun buildDirectives(
-        directives: List<Directive>,
-        directiveLocation: Introspection.DirectiveLocation
-    ): Array<GraphQLDirective> {
-        val names = mutableSetOf<String>()
-        val output = mutableListOf<GraphQLDirective>()
-
-        for (directive in directives) {
-            val repeatable = directiveDefinitions.find { it.name.equals(directive.name) }?.isRepeatable ?: false
-            if (repeatable || !names.contains(directive.name)) {
-                names.add(directive.name)
-                val graphQLDirective = findDirective(directive.name)
-                    // graphql-java rejects legacy directives without a definition, so undeclared ones are only kept as applied directives
-                    ?: if (options.allowUndeclaredDirectives) continue
-                    else throw SchemaError("Found applied directive ${directive.name} without corresponding directive definition.")
-                val graphQLArguments = graphQLDirective.arguments.associateBy { it.name }
-                output.add(
-                    GraphQLDirective.newDirective()
-                        .name(directive.name)
-                        .description(getDocumentation(directive, options))
-                        .comparatorRegistry(runtimeWiring.comparatorRegistry)
-                        .validLocation(directiveLocation)
-                        .repeatable(repeatable)
-                        .apply {
-                            directive.arguments.forEach { arg ->
-                                val graphQLArgument = graphQLArguments[arg.name]
-                                    ?: throw SchemaError("Found an unexpected directive argument ${directive.name}#${arg.name}.")
-                                argument(GraphQLArgument.newArgument()
-                                    .name(arg.name)
-                                    .type(graphQLArgument.type)
-                                    // TODO remove this once directives are fully replaced with applied directives
-                                    .valueLiteral(arg.value)
-                                    .build())
-                            }
-                            missingArgumentsWithDefault(directive, graphQLDirective).forEach { graphQLArgument ->
-                                val defaultValue = graphQLArgument.argumentDefaultValue
-                                argument(GraphQLArgument.newArgument()
-                                    .name(graphQLArgument.name)
-                                    .type(graphQLArgument.type)
-                                    .description(graphQLArgument.description)
-                                    .apply { if (defaultValue.isLiteral) valueLiteral(defaultValue.value as Value<*>) else valueProgrammatic(defaultValue.value) }
-                                    .build())
-                            }
-                        }
-                        .build()
-                )
-            }
-        }
-
-        return output.toTypedArray()
+    private fun legacyDirectives(directives: List<ResolvedDirective>, location: Introspection.DirectiveLocation): Array<GraphQLDirective> {
+        val seen = mutableSetOf<String>()
+        return directives.mapNotNull { directive ->
+            // graphql-java rejects legacy directives without a definition, so undeclared ones are only kept as applied directives
+            if (!directive.declared) return@mapNotNull null
+            val name = directive.usage.name
+            val nonRepeatable = isNonRepeatableByFirstDeclaration(name)
+            // graphql-java rejects a non-repeatable legacy directive that is applied more than once
+            if (!seen.add(name) && nonRepeatable) return@mapNotNull null
+            GraphQLDirective.newDirective()
+                .name(name)
+                .description(getDocumentation(directive.usage, options))
+                .comparatorRegistry(runtimeWiring.comparatorRegistry)
+                .validLocation(location)
+                .repeatable(!nonRepeatable)
+                .apply {
+                    directive.arguments.forEach { arg ->
+                        argument(GraphQLArgument.newArgument()
+                            .name(arg.name)
+                            .type(arg.type)
+                            .description(arg.legacyDescription)
+                            // there's no InputValueWithState setter. only a default can be programmatic, like @deprecated's reason
+                            .apply { if (arg.value.isLiteral) valueLiteral(arg.value.value as Value<*>) else valueProgrammatic(arg.value.value) }
+                            .build())
+                    }
+                }
+                .build()
+        }.toTypedArray()
     }
+
+    private class ResolvedDirective(
+        val usage: Directive,
+        val arguments: List<ResolvedArgument>,
+        val declared: Boolean
+    )
+
+    private class ResolvedArgument(
+        val name: String,
+        val type: GraphQLInputType,
+        val value: InputValueWithState,
+        val legacyDescription: String?
+    )
 
     private fun missingArgumentsWithDefault(directive: Directive, graphQLDirective: GraphQLDirective): List<GraphQLArgument> =
         graphQLDirective.arguments.filter { it.hasSetDefaultValue() && directive.getArgument(it.name) == null }
