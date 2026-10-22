@@ -264,23 +264,18 @@ internal class SchemaClassScanner(
         val observedDefinitions = dictionary.keys.toSet() + unvalidatedTypes
 
         // The dictionary doesn't need to know what classes are used with scalars.
-        // In addition, scalars can have duplicate classes so that breaks the bi-map.
         // Input types can also be excluded from the dictionary, since it's only used for interfaces, unions, and enums.
         // Union types can also be excluded, as their possible types are resolved recursively later
-        val dictionary = try {
-            BiMap.unmodifiableBiMap(BiMap.create<TypeDefinition<*>, JavaType>().also {
-                dictionary
-                    .filter {
-                        it.value.javaType != null
-                            && it.value.typeClass() != Any::class.java
-                            && !Map::class.java.isAssignableFrom(it.value.typeClass())
-                            && it.key !is InputObjectTypeDefinition
-                            && it.key !is UnionTypeDefinition
-                    }.mapValuesTo(it) { it.value.javaType }
-            })
-        } catch (t: Throwable) {
-            throw SchemaClassScannerError("Error creating bimap of type => class", t)
-        }
+        val dictionary = TypeClassDictionary(
+            dictionary
+                .filter {
+                    it.value.javaType != null
+                        && it.value.typeClass() != Any::class.java
+                        && !Map::class.java.isAssignableFrom(it.value.typeClass())
+                        && it.key !is InputObjectTypeDefinition
+                        && it.key !is UnionTypeDefinition
+                }.mapValues { it.value.javaType!! }
+        )
         // SchemaParser builds the scalars, this only checks that each one was provided
         val scalars = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
             .filter {

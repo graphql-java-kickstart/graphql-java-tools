@@ -7,6 +7,7 @@ import graphql.Scalars
 import graphql.execution.CoercedVariables
 import graphql.language.Value
 import graphql.schema.*
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -560,6 +561,136 @@ class SchemaClassScannerTest {
     class Pojo {
         var name: String? = null
     }
+
+    @Test
+    fun `scanner allows input object types to share a class`() {
+        val schema = SchemaParser.newParser()
+            .resolvers(object : GraphQLQueryResolver {
+                fun test(a: Pojo, b: Pojo): String = "${a.name} ${b.name}"
+            })
+            .schemaString(
+                """
+                type Query {
+                    test(a: AInput, b: BInput): String
+                }
+
+                input AInput {
+                    name: String
+                }
+
+                input BInput {
+                    name: String
+                }
+                """)
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
+            """
+            query {
+                test(a: { name: "x" }, b: { name: "y" })
+            }
+            """
+        }
+
+        assertEquals(data["test"], "x y")
+    }
+
+    @Test
+    fun `scanner rejects two object types that share a class`() {
+        val error = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .resolvers(object : GraphQLQueryResolver {
+                    fun a(): SharedObject? = null
+                    fun b(): SharedObject? = null
+                })
+                .schemaString(
+                    """
+                    type Query {
+                        a: A
+                        b: B
+                    }
+
+                    type A {
+                        id: Int
+                    }
+
+                    type B {
+                        id: Int
+                    }
+                    """)
+                .build()
+        }
+
+        assertEquals(error.message, "Class '${SharedObject::class.java.name}' is used for types 'A', 'B', " +
+            "but only input object types can share a class!")
+    }
+
+    @Test
+    fun `scanner rejects an interface type and an object type that share a class`() {
+        val error = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .resolvers(object : GraphQLQueryResolver {
+                    fun node(): SharedObject? = null
+                })
+                .schemaString(
+                    """
+                    type Query {
+                        node: Node
+                    }
+
+                    interface Node {
+                        id: Int
+                    }
+
+                    type Item implements Node {
+                        id: Int
+                    }
+                    """)
+                .dictionary("Item", SharedObject::class)
+                .build()
+        }
+
+        assertEquals(error.message, "Class '${SharedObject::class.java.name}' is used for types 'Node', 'Item', " +
+            "but only input object types can share a class!")
+    }
+
+    @Test
+    fun `scanner rejects two enum types that share a class`() {
+        val error = assertThrows(SchemaClassScannerError::class.java) {
+            SchemaParser.newParser()
+                .resolvers(object : GraphQLQueryResolver {
+                    fun a(): SharedEnum? = null
+                    fun b(): SharedEnum? = null
+                })
+                .schemaString(
+                    """
+                    type Query {
+                        a: EnumA
+                        b: EnumB
+                    }
+
+                    enum EnumA {
+                        X
+                    }
+
+                    enum EnumB {
+                        X
+                    }
+                    """)
+                .build()
+        }
+
+        assertEquals(error.message, "Class '${SharedEnum::class.java.name}' is used for types 'EnumA', 'EnumB', " +
+            "but only input object types can share a class!")
+    }
+
+    class SharedObject {
+        var id: Int? = null
+    }
+
+    enum class SharedEnum { X }
 
     @Test
     fun `scanner should handle nested types in input types`() {
