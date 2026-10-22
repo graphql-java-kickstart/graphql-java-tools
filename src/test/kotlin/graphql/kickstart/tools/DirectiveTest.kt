@@ -256,6 +256,118 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should let directive wirings change types that refer to each other`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @required on FIELD_DEFINITION
+                directive @many on INPUT_FIELD_DEFINITION
+                directive @wrap on FIELD_DEFINITION
+                directive @described on INTERFACE | ENUM
+
+                type Query {
+                    person(filter: PersonFilter): Person
+                }
+
+                interface Named @described {
+                    name: String
+                }
+
+                type Person implements Named {
+                    name: String
+                    age: Int
+                    friend: Person @required
+                    best: Person @wrap
+                    someone: Someone
+                    state: AllowedState @required
+                }
+
+                enum AllowedState @described {
+                    ALLOWED
+                    DISALLOWED
+                }
+
+                union Someone = Person
+
+                input PersonFilter {
+                    name: String
+                    parent: PersonFilter @many
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun person(filter: PersonFilter?): Person = Person("a")
+            })
+            .directive("required", object : SchemaDirectiveWiring {
+                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition =
+                    environment.element.transform { it.type(GraphQLNonNull.nonNull(environment.element.type)) }
+            })
+            .directive("many", object : SchemaDirectiveWiring {
+                override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField =
+                    environment.element.transform { it.type(GraphQLList.list(environment.element.type)) }
+            })
+            .directive("wrap", object : SchemaDirectiveWiring {
+                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+                    val wrapper = GraphQLObjectType.newObject()
+                        .name("Wrapper")
+                        .field { it.name("value").type(environment.element.type as GraphQLOutputType) }
+                        .build()
+                    return environment.element.transform { it.type(wrapper) }
+                }
+            })
+            .directive("described", object : SchemaDirectiveWiring {
+                override fun onInterface(environment: SchemaDirectiveWiringEnvironment<GraphQLInterfaceType>): GraphQLInterfaceType =
+                    environment.element.transform { it.description("described") }
+
+                override fun onEnum(environment: SchemaDirectiveWiringEnvironment<GraphQLEnumType>): GraphQLEnumType =
+                    environment.element.transform { it.description("described") }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val person = schema.getObjectType("Person")!!
+        val filter = schema.getTypeAs<GraphQLInputObjectType>("PersonFilter")!!
+        val wrapper = schema.getObjectType("Wrapper")!!
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("friend").type), "Person!")
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("best").type), "Wrapper")
+        assertEquals(GraphQLTypeUtil.simplePrint(filter.getField("parent").type), "[PersonFilter]")
+        assert(GraphQLTypeUtil.unwrapAll(person.getField("friend").type) === person)
+        assert(wrapper.getField("value").type === person)
+        assertEquals(person.interfaces.map { it.description }, listOf("described"))
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("state").type), "AllowedState!")
+        assertEquals((GraphQLTypeUtil.unwrapAll(person.getField("state").type) as GraphQLEnumType).description, "described")
+    }
+
+    @Test
+    fun `should wire an input object that is the argument type of a directive applied to it`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @described on INPUT_OBJECT
+                directive @example(value: BookFilter) on INPUT_OBJECT
+
+                type Query {
+                    search(filter: BookFilter): String
+                }
+
+                input BookFilter @described @example(value: { name: "a" }) {
+                    name: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun search(filter: BookFilter?): String? = null
+            })
+            .directive("described", object : SchemaDirectiveWiring {
+                override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>): GraphQLInputObjectType =
+                    environment.element.transform { it.description("described") }
+            })
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals(schema.getTypeAs<GraphQLInputObjectType>("BookFilter")?.description, "described")
+    }
+
+    @Test
     fun `should fail when a directive wiring returns null`() {
         val error = assertThrows(IllegalStateException::class.java) {
             SchemaParser.newParser()
@@ -481,10 +593,10 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should build input objects used by directive arguments before wiring`() {
+    fun `should resolve input objects used by directive arguments before wiring`() {
         val meta = "directive @meta(info: ConfigInput!) on FIELD_DEFINITION"
         val option = "directive @option(value: OptionInput) on INPUT_OBJECT | INPUT_FIELD_DEFINITION"
-        // ConfigInput is built for @meta and needs @option, whichever is declared first
+        // ConfigInput is used by @meta and has @option applied, whichever is declared first
         listOf("$meta\n$option", "$option\n$meta").forEach { directives ->
             val recorder = ArgumentTypeRecorder()
             SchemaParser.newParser()
@@ -739,7 +851,7 @@ class DirectiveTest {
         EXECUTION
     }
 
-    private enum class AllowedState {
+    enum class AllowedState {
         ALLOWED,
         DISALLOWED
     }
@@ -787,6 +899,18 @@ class DirectiveTest {
 
     private data class OptionInput(
         val label: String?
+    )
+
+    class Person(val name: String, val age: Int = 1) {
+        val friend: Person get() = this
+        val best: Person get() = this
+        val someone: Person get() = this
+        val state: AllowedState get() = AllowedState.ALLOWED
+    }
+
+    data class PersonFilter(
+        val name: String?,
+        val parent: PersonFilter?
     )
 
     private data class BoundInput(

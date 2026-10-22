@@ -26,6 +26,9 @@ import com.fasterxml.jackson.databind.module.SimpleModule
 import graphql.GraphQL
 import graphql.kickstart.tools.UnmappedInputFieldsFixtures.*
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.GraphQLInputObjectType
+import graphql.schema.idl.SchemaDirectiveWiring
+import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.util.*
@@ -296,6 +299,39 @@ class UnmappedInputFieldsTest {
                 "drops the field's value, since the ObjectMapper ignores unknown properties"),
             unmapped("GreetingInput.name", GreetingInput::class.java, "argument 'input' of field 'Query.strict'", "nmae")
         ).joinToString("\n"))
+    }
+
+    @Test
+    fun `input fields removed by a directive wiring are not checked`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @withoutLimit on INPUT_OBJECT
+
+                type Query {
+                    search(filter: SearchFilter): String
+                }
+
+                input SearchFilter @withoutLimit {
+                    query: String
+                    limit: Int
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun search(filter: SearchFilter?): String? = filter?.query
+            })
+            .directive("withoutLimit", object : SchemaDirectiveWiring {
+                override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>): GraphQLInputObjectType {
+                    val fields = environment.element.fields.filter { it.name != "limit" }
+                    return environment.element.transform { it.clearFields().fields(fields) }
+                }
+            })
+            .options(failOptions().build())
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals(schema.getTypeAs<GraphQLInputObjectType>("SearchFilter")?.fields?.map { it.name }, listOf("query"))
     }
 
     @Test
