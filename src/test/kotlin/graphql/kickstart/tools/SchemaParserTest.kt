@@ -278,6 +278,52 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `parser should throw descriptive exception when unions list each other`() {
+        val error = assertThrows(SchemaError::class.java) {
+            unionParser(
+                """
+                |union Result = Book | Media
+                |union Media = Movie | Result
+                """.trimMargin())
+        }
+
+        assertEquals(error.message, "Union 'Result' contains itself through Result -> Media -> Result at line 6, column 23.")
+    }
+
+    @Test
+    fun `parser should throw descriptive exception when union lists itself`() {
+        val error = assertThrows(SchemaError::class.java) {
+            unionParser("union Result = Book | Result")
+        }
+
+        assertEquals(error.message, "Union 'Result' contains itself through Result -> Result at line 5, column 23.")
+    }
+
+    private fun unionParser(unions: String) = SchemaParser.newParser()
+        .schemaString(
+            """
+            |type Query {
+            |    results: [Result!]!
+            |}
+            |
+            |$unions
+            |
+            |type Book {
+            |    title: String!
+            |}
+            |
+            |type Movie {
+            |    title: String!
+            |}
+            """.trimMargin())
+        .resolvers(object : GraphQLQueryResolver {
+            fun results(): List<Any> = listOf()
+        })
+        .dictionary(Book::class, Movie::class)
+        .build()
+        .makeExecutableSchema()
+
+    @Test
     fun `parser should throw descriptive exception when type was never reached by the scanner`() {
         val error = assertThrows(SchemaError::class.java) {
             SchemaParser.newParser()
@@ -1061,6 +1107,10 @@ class SchemaParserTest {
     }
 
     class RootObj
+
+    data class Book(val title: String)
+
+    data class Movie(val title: String)
 
     class ProxiedResolver : GraphQLQueryResolver {
         fun test(): List<String> = listOf()
