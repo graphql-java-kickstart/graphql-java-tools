@@ -2,6 +2,7 @@ package graphql.kickstart.tools.directive
 
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.*
+import graphql.kickstart.tools.GRAPHQL_SCALARS
 import graphql.kickstart.tools.directive.SchemaDirectiveWiringEnvironmentImpl.Parameters
 import graphql.language.NamedNode
 import graphql.language.NodeParentTree
@@ -31,6 +32,7 @@ internal class DirectiveWiringHelper(
                 is GraphQLInputObjectType -> wireInputObject(type)
                 is GraphQLEnumType -> wireEnum(type)
                 is GraphQLUnionType -> wireUnion(type)
+                is GraphQLScalarType -> wireScalar(type)
                 else -> type
             }
             if (wired !== type) changed[type.name] = wired
@@ -67,9 +69,12 @@ internal class DirectiveWiringHelper(
         private fun of(type: GraphQLType): GraphQLType = when (type) {
             is GraphQLNonNull -> GraphQLNonNull.nonNull(of(type.wrappedType))
             is GraphQLList -> GraphQLList.list(of(type.wrappedType))
-            // scalars aren't wired, and a reference only finds a scalar another field uses
-            is GraphQLScalarType -> type
-            is GraphQLNamedType -> if (schema.typeMap[type.name] === type) GraphQLTypeReference.typeRef(type.name) else built.getOrPut(type) { inType(type) }
+            is GraphQLNamedType -> when {
+                // spec scalars aren't in the dictionary, so a reference only finds one another field uses
+                GRAPHQL_SCALARS[type.name] === type -> type
+                schema.typeMap[type.name] === type -> GraphQLTypeReference.typeRef(type.name)
+                else -> built.getOrPut(type) { inType(type) }
+            }
             else -> type
         }
 
@@ -102,6 +107,10 @@ internal class DirectiveWiringHelper(
 
     private fun wireUnion(unionType: GraphQLUnionType): GraphQLUnionType {
         return wireDirectives(WiringWrapper(unionType, UNION, SchemaDirectiveWiring::onUnion))
+    }
+
+    private fun wireScalar(scalarType: GraphQLScalarType): GraphQLScalarType {
+        return wireDirectives(WiringWrapper(scalarType, SCALAR, SchemaDirectiveWiring::onScalar))
     }
 
     private fun wireFields(fieldsContainer: GraphQLFieldsContainer): List<GraphQLFieldDefinition> {
