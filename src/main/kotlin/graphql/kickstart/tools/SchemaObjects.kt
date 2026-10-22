@@ -44,26 +44,21 @@ data class SchemaObjects @JvmOverloads constructor(
     /**
      * Makes a GraphQLSchema with query, mutation and subscription.
      */
-    fun toSchema(): GraphQLSchema {
-        return GraphQLSchema.newSchema()
-            .description(description)
-            .query(query)
-            .mutation(mutation)
-            .subscription(subscription)
-            .additionalTypes(namedDictionary())
-            .additionalDirectives(directives)
-            .withSchemaAppliedDirectives(schemaAppliedDirectives)
-            .codeRegistry(codeRegistryBuilder.build())
-            .build()
-    }
+    fun toSchema(): GraphQLSchema = newSchema()
+        .mutation(mutation)
+        .subscription(subscription)
+        .build()
 
     /**
      * Makes a GraphQLSchema with query but without mutation and subscription.
      */
-    fun toReadOnlySchema(): GraphQLSchema = GraphQLSchema.newSchema()
+    fun toReadOnlySchema(): GraphQLSchema = newSchema().build()
+
+    private fun newSchema(): GraphQLSchema.Builder = GraphQLSchema.newSchema()
         .description(description)
         .query(query)
         .additionalTypes(namedDictionary())
         .additionalDirectives(directives)
-        .build()
+        .withSchemaAppliedDirectives(schemaAppliedDirectives)
+        .codeRegistry(codeRegistryBuilder.build())
 }
