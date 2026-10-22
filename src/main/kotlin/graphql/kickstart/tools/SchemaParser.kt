@@ -629,7 +629,6 @@ class SchemaParser internal constructor(
     private fun determineOutputType(typeDefinition: Type<*>) =
         determineType(GraphQLOutputType::class, typeDefinition, permittedTypesForObject) as GraphQLOutputType
 
-    // named types other than spec scalars are type references
     private fun <T : Any> determineType(
         expectedType: KClass<T>,
         typeDefinition: Type<*>,
