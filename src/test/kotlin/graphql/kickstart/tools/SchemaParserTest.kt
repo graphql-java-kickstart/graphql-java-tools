@@ -291,6 +291,21 @@ class SchemaParserTest {
     }
 
     @Test
+    fun `parser should throw descriptive exception when nested unions list each other`() {
+        val error = assertThrows(SchemaError::class.java) {
+            unionParser(
+                """
+                |union Result = Book | A
+                |union A = B
+                |union B = C
+                |union C = A | Movie
+                """.trimMargin())
+        }
+
+        assertEquals(error.message, "Union 'A' contains itself through A -> B -> C -> A at line 8, column 11.")
+    }
+
+    @Test
     fun `parser should throw descriptive exception when union lists itself`() {
         val error = assertThrows(SchemaError::class.java) {
             unionParser("union Result = Book | Result")
