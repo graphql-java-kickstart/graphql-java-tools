@@ -64,5 +64,6 @@ data class SchemaObjects @JvmOverloads constructor(
         .description(description)
         .query(query)
         .additionalTypes(namedDictionary())
+        .additionalDirectives(directives)
         .build()
 }

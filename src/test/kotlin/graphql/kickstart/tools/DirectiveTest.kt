@@ -676,7 +676,7 @@ class DirectiveTest {
     @Test
     fun `should apply the schema's directives and the provided specifiedBy URL to scalars`() {
         val wired = mutableListOf<String>()
-        val schema = SchemaParser.newParser()
+        val parser = SchemaParser.newParser()
             .schemaString(
                 """
                 directive @unit(name: String!) on SCALAR
@@ -707,8 +707,7 @@ class DirectiveTest {
                 }
             })
             .build()
-            .makeExecutableSchema()
-            .assertEveryFieldResolves()
+        val schema = parser.makeExecutableSchema().assertEveryFieldResolves()
 
         val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
@@ -728,6 +727,7 @@ class DirectiveTest {
         assertEquals(date.appliedDirectives.map { it.name }, listOf("specifiedBy", "unit"))
         val printed = SchemaPrinter().print(schema)
         assert(printed.contains("""@specifiedBy(url : "https://example.com/date")""")) { printed }
+        assertEquals(parser.parseSchemaObjects().toReadOnlySchema().getDirective("unit")?.name, "unit")
     }
 
     @Test
