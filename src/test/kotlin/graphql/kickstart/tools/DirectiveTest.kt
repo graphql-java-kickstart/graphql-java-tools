@@ -9,6 +9,7 @@ import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import graphql.schema.idl.SchemaPrinter
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -257,6 +258,118 @@ class DirectiveTest {
     }
 
     @Test
+    fun `should let directive wirings change types that refer to each other`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @required on FIELD_DEFINITION
+                directive @many on INPUT_FIELD_DEFINITION
+                directive @wrap on FIELD_DEFINITION
+                directive @described on INTERFACE | ENUM
+
+                type Query {
+                    person(filter: PersonFilter): Person
+                }
+
+                interface Named @described {
+                    name: String
+                }
+
+                type Person implements Named {
+                    name: String
+                    age: Int
+                    friend: Person @required
+                    best: Person @wrap
+                    someone: Someone
+                    state: AllowedState @required
+                }
+
+                enum AllowedState @described {
+                    ALLOWED
+                    DISALLOWED
+                }
+
+                union Someone = Person
+
+                input PersonFilter {
+                    name: String
+                    parent: PersonFilter @many
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun person(filter: PersonFilter?): Person = Person("a")
+            })
+            .directive("required", object : SchemaDirectiveWiring {
+                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition =
+                    environment.element.transform { it.type(GraphQLNonNull.nonNull(environment.element.type)) }
+            })
+            .directive("many", object : SchemaDirectiveWiring {
+                override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField =
+                    environment.element.transform { it.type(GraphQLList.list(environment.element.type)) }
+            })
+            .directive("wrap", object : SchemaDirectiveWiring {
+                override fun onField(environment: SchemaDirectiveWiringEnvironment<GraphQLFieldDefinition>): GraphQLFieldDefinition {
+                    val wrapper = GraphQLObjectType.newObject()
+                        .name("Wrapper")
+                        .field { it.name("value").type(environment.element.type as GraphQLOutputType) }
+                        .build()
+                    return environment.element.transform { it.type(wrapper) }
+                }
+            })
+            .directive("described", object : SchemaDirectiveWiring {
+                override fun onInterface(environment: SchemaDirectiveWiringEnvironment<GraphQLInterfaceType>): GraphQLInterfaceType =
+                    environment.element.transform { it.description("described") }
+
+                override fun onEnum(environment: SchemaDirectiveWiringEnvironment<GraphQLEnumType>): GraphQLEnumType =
+                    environment.element.transform { it.description("described") }
+            })
+            .build()
+            .makeExecutableSchema()
+
+        val person = schema.getObjectType("Person")!!
+        val filter = schema.getTypeAs<GraphQLInputObjectType>("PersonFilter")!!
+        val wrapper = schema.getObjectType("Wrapper")!!
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("friend").type), "Person!")
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("best").type), "Wrapper")
+        assertEquals(GraphQLTypeUtil.simplePrint(filter.getField("parent").type), "[PersonFilter]")
+        assert(GraphQLTypeUtil.unwrapAll(person.getField("friend").type) === person)
+        assert(wrapper.getField("value").type === person)
+        assertEquals(person.interfaces.map { it.description }, listOf("described"))
+        assertEquals(GraphQLTypeUtil.simplePrint(person.getField("state").type), "AllowedState!")
+        assertEquals((GraphQLTypeUtil.unwrapAll(person.getField("state").type) as GraphQLEnumType).description, "described")
+    }
+
+    @Test
+    fun `should wire an input object that is the argument type of a directive applied to it`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @described on INPUT_OBJECT
+                directive @example(value: BookFilter) on INPUT_OBJECT
+
+                type Query {
+                    search(filter: BookFilter): String
+                }
+
+                input BookFilter @described @example(value: { name: "a" }) {
+                    name: String
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun search(filter: BookFilter?): String? = null
+            })
+            .directive("described", object : SchemaDirectiveWiring {
+                override fun onInputObjectType(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectType>): GraphQLInputObjectType =
+                    environment.element.transform { it.description("described") }
+            })
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals(schema.getTypeAs<GraphQLInputObjectType>("BookFilter")?.description, "described")
+    }
+
+    @Test
     fun `should fail when a directive wiring returns null`() {
         val error = assertThrows(IllegalStateException::class.java) {
             SchemaParser.newParser()
@@ -482,10 +595,10 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should build input objects used by directive arguments before wiring`() {
+    fun `should resolve input objects used by directive arguments before wiring`() {
         val meta = "directive @meta(info: ConfigInput!) on FIELD_DEFINITION"
         val option = "directive @option(value: OptionInput) on INPUT_OBJECT | INPUT_FIELD_DEFINITION"
-        // ConfigInput is built for @meta and needs @option, whichever is declared first
+        // ConfigInput is used by @meta and has @option applied, whichever is declared first
         listOf("$meta\n$option", "$option\n$meta").forEach { directives ->
             val recorder = ArgumentTypeRecorder()
             SchemaParser.newParser()
@@ -523,7 +636,7 @@ class DirectiveTest {
 
     @Test
     fun `should wire input objects only once when a directive is applied within its own argument types`() {
-        val limit = "directive @limit(bound: BoundInput!, since: Date) on INPUT_FIELD_DEFINITION"
+        val limit = "directive @limit(bound: BoundInput!) on INPUT_FIELD_DEFINITION"
         val limits = "directive @limits(bounds: [BoundInput!]) on FIELD_DEFINITION"
         listOf("$limits\n$limit", "$limit\n$limits").forEach { directives ->
             val wiredFields = mutableListOf<String>()
@@ -537,19 +650,16 @@ class DirectiveTest {
                     }
 
                     input BoundInput {
-                        max: Int @limit(bound: { max: 10 }, since: "2020-01-01")
+                        max: Int @limit(bound: { max: 10 })
                     }
-
-                    scalar Date
                     """)
                 .resolvers(object : GraphQLQueryResolver {
                     fun name(): String? = null
                 })
                 .dictionary(BoundInput::class)
-                .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
                 .directive("limit", object : SchemaDirectiveWiring {
                     override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
-                        wiredFields.add("${environment.element.name} since ${environment.appliedDirective.getArgument("since")?.getValue<String>()}")
+                        wiredFields.add(environment.element.name)
                         return environment.element
                     }
                 })
@@ -557,7 +667,7 @@ class DirectiveTest {
                 .makeExecutableSchema()
                 .assertEveryFieldResolves()
 
-            assert(wiredFields == listOf("max since 2020-01-01")) { "$wiredFields with directives declared as $directives" }
+            assert(wiredFields == listOf("max")) { "$wiredFields with directives declared as $directives" }
             val limit = (schema.getType("BoundInput") as GraphQLInputObjectType).getField("max").getAppliedDirective("limit")
             assertEquals(limit.getArgument("bound")?.getValue<Map<String, Int>>(), mapOf("max" to 10))
         }
@@ -621,44 +731,42 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should build scalars used by the arguments of their own directives`() {
-        val until = "directive @until(date: Date) on FIELD_DEFINITION"
-        val since = "directive @since(date: Date) on SCALAR | FIELD_DEFINITION | INPUT_FIELD_DEFINITION"
-        // building @until builds Date, which needs @since, whichever is declared first
-        listOf("$until\n$since", "$since\n$until").forEach { directives ->
-            val recorder = ArgumentTypeRecorder()
-            val schema = SchemaParser.newParser()
-                .schemaString(
-                    """
-                    $directives
+    fun `should wire scalars used by the arguments of their own directives`() {
+        val recorder = ArgumentTypeRecorder()
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                directive @since(date: Date) on SCALAR | FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
-                    scalar Date @since(date: "2020-01-01")
+                scalar Date @since(date: "2020-01-01")
 
-                    input Range {
-                        from: Date @since(date: "2021-01-01")
-                    }
+                input Range {
+                    from: Date @since(date: "2021-01-01")
+                }
 
-                    type Query {
-                        name(after: Date, range: Range): String @since(date: "2022-01-01") @until(date: "2030-01-01")
-                    }
-                    """)
-                .resolvers(object : GraphQLQueryResolver {
-                    fun name(after: String?, range: Range?): String? = null
-                })
-                .dictionary(Range::class)
-                .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
-                .directive("since", recorder)
-                .directive("until", recorder)
-                .build()
-                .makeExecutableSchema()
-                .assertEveryFieldResolves()
+                type Query {
+                    name(after: Date, range: Range): String @since(date: "2022-01-01")
+                }
+                """)
+            .resolvers(object : GraphQLQueryResolver {
+                fun name(after: String?, range: Range?): String? = null
+            })
+            .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+            .directive("since", recorder)
+            .directiveWiring(object : SchemaDirectiveWiring {
+                override fun onScalar(environment: SchemaDirectiveWiringEnvironment<GraphQLScalarType>): GraphQLScalarType =
+                    environment.element.transform { it.description("wired") }
+            })
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
 
-            // only Date's own @since can't hold Date yet, graphql-java replaces the reference when it builds the schema
-            val expectedTypes = mapOf("name" to listOf("GraphQLScalarType"), "from" to listOf("GraphQLScalarType"), "Date" to listOf("GraphQLTypeReference"))
-            assert(recorder.argumentTypes == expectedTypes) { "${recorder.argumentTypes} with directives declared as $directives" }
-            val since = (schema.getType("Date") as GraphQLScalarType).getAppliedDirective("since")
-            assertEquals(since.getArgument("date")?.getValue<String>(), "2020-01-01")
-        }
+        val expectedTypes = mapOf("name" to listOf("GraphQLScalarType"), "from" to listOf("GraphQLScalarType"), "Date" to listOf("GraphQLScalarType"))
+        assertEquals(recorder.argumentTypes, expectedTypes)
+        val date = schema.getType("Date") as GraphQLScalarType
+        assertEquals(date.description, "wired")
+        assertEquals(date.getAppliedDirective("since").getArgument("date")?.getValue<String>(), "2020-01-01")
+        assertSame(schema.queryType.getField("name").getArgument("after").type, date)
     }
 
     @Test
@@ -868,7 +976,7 @@ class DirectiveTest {
         EXECUTION
     }
 
-    private enum class AllowedState {
+    enum class AllowedState {
         ALLOWED,
         DISALLOWED
     }
@@ -916,6 +1024,18 @@ class DirectiveTest {
 
     private data class OptionInput(
         val label: String?
+    )
+
+    class Person(val name: String, val age: Int = 1) {
+        val friend: Person get() = this
+        val best: Person get() = this
+        val someone: Person get() = this
+        val state: AllowedState get() = AllowedState.ALLOWED
+    }
+
+    data class PersonFilter(
+        val name: String?,
+        val parent: PersonFilter?
     )
 
     private data class BoundInput(

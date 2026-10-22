@@ -2,6 +2,7 @@ package graphql.kickstart.tools.directive
 
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.*
+import graphql.kickstart.tools.GRAPHQL_SCALARS
 import graphql.kickstart.tools.directive.SchemaDirectiveWiringEnvironmentImpl.Parameters
 import graphql.language.NamedNode
 import graphql.language.NodeParentTree
@@ -16,35 +17,99 @@ internal class DirectiveWiringHelper(
 ) {
     private val schemaDirectiveParameters = Parameters(runtimeWiring, codeRegistryBuilder)
 
-    fun wireObject(objectType: GraphQLObjectType): GraphQLObjectType {
+    val isWiringRequired = runtimeWiring.registeredDirectiveWiring.isNotEmpty() || runtimeWiring.directiveWiring.isNotEmpty()
+
+    /**
+     * Runs the wirings on the given types of the assembled schema. If they change any, returns every type by name with type references to
+     * the others, so that the next build resolves them to the wired types.
+     */
+    fun wireTypes(schema: GraphQLSchema, types: List<GraphQLNamedType>): Map<String, GraphQLNamedType> {
+        val changed = linkedMapOf<String, GraphQLNamedType>()
+        types.forEach { type ->
+            val wired = when (type) {
+                is GraphQLObjectType -> wireObject(type)
+                is GraphQLInterfaceType -> wireInterFace(type)
+                is GraphQLInputObjectType -> wireInputObject(type)
+                is GraphQLEnumType -> wireEnum(type)
+                is GraphQLUnionType -> wireUnion(type)
+                is GraphQLScalarType -> wireScalar(type)
+                else -> type
+            }
+            if (wired !== type) changed[type.name] = wired
+        }
+        if (changed.isEmpty()) return changed
+        val references = TypeReferences(schema)
+        return types.associate { it.name to references.inType(changed[it.name] ?: it) }
+    }
+
+    /**
+     * Swaps the schema's own types that a type refers to for type references, like they were before the schema was built.
+     */
+    private class TypeReferences(private val schema: GraphQLSchema) {
+        // the types wirings build in code, rebuilt once each
+        private val built = IdentityHashMap<GraphQLType, GraphQLType>()
+
+        @Suppress("UNCHECKED_CAST")
+        fun <T : GraphQLNamedType> inType(type: T): T = when (type) {
+            is GraphQLObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inField)).replaceInterfaces(of(type.interfaces)) }
+            is GraphQLInterfaceType -> type.transform { it.clearFields().fields(type.fields.map(::inField)).replaceInterfacesOrReferences(of(type.interfaces)) }
+            is GraphQLUnionType -> type.transform { it.replacePossibleTypes(of(type.types)) }
+            is GraphQLInputObjectType -> type.transform { it.clearFields().fields(type.fields.map(::inInputField)) }
+            else -> type
+        } as T
+
+        private fun inField(field: GraphQLFieldDefinition) = field.transform {
+            it.type(of(field.type) as GraphQLOutputType)
+                .clearArguments()
+                .arguments(field.arguments.map { argument -> argument.transform { a -> a.type(of(argument.type) as GraphQLInputType) } })
+        }
+
+        private fun inInputField(field: GraphQLInputObjectField) = field.transform { it.type(of(field.type) as GraphQLInputType) }
+
+        private fun of(type: GraphQLType): GraphQLType = when (type) {
+            is GraphQLNonNull -> GraphQLNonNull.nonNull(of(type.wrappedType))
+            is GraphQLList -> GraphQLList.list(of(type.wrappedType))
+            is GraphQLNamedType -> when {
+                // spec scalars aren't in the dictionary, so a reference only finds one another field uses
+                GRAPHQL_SCALARS[type.name] === type -> type
+                schema.typeMap[type.name] === type -> GraphQLTypeReference.typeRef(type.name)
+                else -> built.getOrPut(type) { inType(type) }
+            }
+            else -> type
+        }
+
+        private fun of(types: List<GraphQLNamedOutputType>) = types.map { of(it) as GraphQLNamedOutputType }
+    }
+
+    private fun wireObject(objectType: GraphQLObjectType): GraphQLObjectType {
         return wireFields(objectType)
             .let { fields -> if (objectType.fields != fields) objectType.transform { it.clearFields().fields(fields) } else objectType }
             .let { wireDirectives(WiringWrapper(it, OBJECT, SchemaDirectiveWiring::onObject)) }
     }
 
-    fun wireInterFace(interfaceType: GraphQLInterfaceType): GraphQLInterfaceType {
+    private fun wireInterFace(interfaceType: GraphQLInterfaceType): GraphQLInterfaceType {
         return wireFields(interfaceType)
             .let { fields -> if (interfaceType.fields != fields) interfaceType.transform { it.clearFields().fields(fields) } else interfaceType }
             .let { wireDirectives(WiringWrapper(it, INTERFACE, SchemaDirectiveWiring::onInterface)) }
     }
 
-    fun wireInputObject(inputObjectType: GraphQLInputObjectType): GraphQLInputObjectType {
+    private fun wireInputObject(inputObjectType: GraphQLInputObjectType): GraphQLInputObjectType {
         return wireInputFields(inputObjectType)
             .let { fields -> if (inputObjectType.fields != fields) inputObjectType.transform { it.clearFields().fields(fields) } else inputObjectType }
             .let { wireDirectives(WiringWrapper(it, INPUT_OBJECT, SchemaDirectiveWiring::onInputObjectType)) }
     }
 
-    fun wireEnum(enumType: GraphQLEnumType): GraphQLEnumType {
+    private fun wireEnum(enumType: GraphQLEnumType): GraphQLEnumType {
         return wireEnumValues(enumType)
             .let { values -> if (enumType.values != values) enumType.transform { it.clearValues().values(values) } else enumType }
             .let { wireDirectives(WiringWrapper(it, ENUM, SchemaDirectiveWiring::onEnum)) }
     }
 
-    fun wireUnion(unionType: GraphQLUnionType): GraphQLUnionType {
+    private fun wireUnion(unionType: GraphQLUnionType): GraphQLUnionType {
         return wireDirectives(WiringWrapper(unionType, UNION, SchemaDirectiveWiring::onUnion))
     }
 
-    fun wireScalar(scalarType: GraphQLScalarType): GraphQLScalarType {
+    private fun wireScalar(scalarType: GraphQLScalarType): GraphQLScalarType {
         return wireDirectives(WiringWrapper(scalarType, SCALAR, SchemaDirectiveWiring::onScalar))
     }
 

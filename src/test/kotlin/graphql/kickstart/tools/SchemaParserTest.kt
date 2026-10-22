@@ -827,7 +827,7 @@ class SchemaParserTest {
     }
 
     @Test
-    fun `input objects behind list and non-null input fields should resolve to GraphQLInputObjectType during directive wiring`() {
+    fun `input objects behind list, non-null and recursive input fields should resolve to GraphQLInputObjectType during directive wiring`() {
         val wiredFieldTypes = mutableMapOf<String, String>()
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -865,11 +865,10 @@ class SchemaParserTest {
             .makeExecutableSchema()
             .assertEveryFieldResolves()
 
-        // parent points back at NestedFilter while it's still being built, so it stays a type reference until the schema is built
         assertEquals(wiredFieldTypes, mapOf(
             "subs" to "GraphQLInputObjectType",
             "other" to "GraphQLInputObjectType",
-            "parent" to "GraphQLTypeReference"
+            "parent" to "GraphQLInputObjectType"
         ))
     }
 
