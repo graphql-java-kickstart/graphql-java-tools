@@ -104,8 +104,8 @@ class SchemaParser internal constructor(
         val enums = enumDefinitions.map { createEnumObject(it) }
 
         // Assign type resolver to interfaces now that we know all of the object types
-        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it)) }
-        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it)) }
+        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.typeByClass, it)) }
+        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.typeByClass, it)) }
 
         // Find query type and mutation/subscription type (if mutation/subscription type exists)
         val queryName = rootInfo.getQueryName()
@@ -240,7 +240,7 @@ class SchemaParser internal constructor(
     private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
         val name = definition.name
         // enums only used by directives can do without a class, see SchemaClassScanner.handleDirectiveEnum
-        val enumClass = dictionary[definition]?.unwrap()
+        val enumClass = dictionary.classByType[definition]?.unwrap()
         if (enumClass == null && definition !in directiveOnlyEnums) throw SchemaError("Expected enum with name '$name' but found none!")
         if (enumClass != null && !enumClass.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 

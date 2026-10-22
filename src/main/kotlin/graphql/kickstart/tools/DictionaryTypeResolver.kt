@@ -1,7 +1,6 @@
 package graphql.kickstart.tools
 
 import graphql.TypeResolutionEnvironment
-import graphql.kickstart.tools.util.BiMap
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.TypeDefinition
@@ -15,7 +14,7 @@ import java.lang.reflect.ParameterizedType
  * @author Andrew Potter
  */
 internal abstract class DictionaryTypeResolver(
-        private val dictionary: BiMap<JavaType, TypeDefinition<*>>
+        private val dictionary: Map<JavaType, TypeDefinition<*>>
 ) : TypeResolver {
     // Raw class of each parameterized entry, e.g. Box for Box<String>, unless several entries share it
     private val rawClassDictionary by lazy {
@@ -46,7 +45,7 @@ internal abstract class DictionaryTypeResolver(
 }
 
 internal class InterfaceTypeResolver(
-    dictionary: BiMap<JavaType, TypeDefinition<*>>,
+    dictionary: Map<JavaType, TypeDefinition<*>>,
     private val thisInterface: GraphQLInterfaceType
 ) : DictionaryTypeResolver(
         dictionary
@@ -55,7 +54,7 @@ internal class InterfaceTypeResolver(
 }
 
 internal class UnionTypeResolver(
-    dictionary: BiMap<JavaType, TypeDefinition<*>>,
+    dictionary: Map<JavaType, TypeDefinition<*>>,
     private val thisUnion: GraphQLUnionType
 ) : DictionaryTypeResolver(
         dictionary

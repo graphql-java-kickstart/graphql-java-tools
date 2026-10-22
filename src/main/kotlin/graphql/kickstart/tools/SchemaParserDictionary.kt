@@ -1,6 +1,5 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.util.BiMap
 import kotlin.reflect.KClass
 
 class SchemaParserDictionary {
@@ -8,10 +7,19 @@ class SchemaParserDictionary {
     private val dictionary = linkedMapOf<String, Class<*>>()
 
     /**
+     * Returns a copy of the entries added so far, in the order they were added. Several names may share a class.
+     */
+    fun toMap(): Map<String, Class<*>> = dictionary.toMap()
+
+    // TODO remove in 15.0.0 (#900)
+    /**
      * Returns a copy of the entries added so far. If several types share a class, the inverse of the copy only maps that class
      * back to the first of them.
      */
-    fun getDictionary(): BiMap<String, Class<*>> = BiMap.unmodifiableCopyOf(dictionary)
+    @Deprecated("Use toMap() instead", ReplaceWith("toMap()"))
+    @Suppress("DEPRECATION")
+    fun getDictionary(): graphql.kickstart.tools.util.BiMap<String, Class<*>> =
+        graphql.kickstart.tools.util.BiMap.unmodifiableCopyOf(dictionary)
 
     /**
      * Add arbitrary classes to the parser's dictionary, overriding the generated type name.
