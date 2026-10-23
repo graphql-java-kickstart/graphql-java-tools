@@ -68,8 +68,8 @@ class TypeExtensionTest {
         assertEquals(date.description, "A date")
         assertEquals(date.appliedDirectives.map { it.name }, listOf("format"))
 
-        // through GraphQLNamedSchemaElement, since graphql-java 25 and 26 disagree on which types have a nullable definition
-        assertEquals(listOf<GraphQLNamedSchemaElement>(fooBar, color, node, item, date).map { it.definition?.javaClass }, listOf(
+        val definitions = listOf(fooBar.definition, color.definition, node.definition, item.definition, date.definition)
+        assertEquals(definitions.map { it?.javaClass }, listOf(
             UnionTypeDefinition::class.java,
             EnumTypeDefinition::class.java,
             InterfaceTypeDefinition::class.java,
