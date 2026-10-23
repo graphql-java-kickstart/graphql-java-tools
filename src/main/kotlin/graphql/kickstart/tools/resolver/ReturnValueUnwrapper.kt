@@ -41,7 +41,7 @@ internal class ReturnValueUnwrapper private constructor(
             // picked by the value's class, like a resolver declared as Object returning a wrapper
             val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
             // graphql-java completes a subscription's events one at a time
-            val nested = if (isSubscription) null else steps(if (outermost == null) unwrapped else unwrapped.drop(1), genericWrappers, method)
+            val nested = if (isSubscription) null else steps(if (outermost == null) unwrapped else unwrapped.drop(1), method)
             return ReturnValueUnwrapper(genericWrappers, method, valueClass, outermost?.isFuture == true, nested)
         }
     }
@@ -51,14 +51,14 @@ private sealed interface Step {
     fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any?
 }
 
-private class Await(private val genericWrappers: List<GenericWrapper>, private val method: Method, private val next: Step?) : Step {
+private class Await(private val wrapper: GenericWrapper, private val method: Method, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        value?.transformWithGenericWrapper(genericWrappers, environmentSupplier).requireCompletionStage(method).then(next, environmentSupplier)
+        value?.let { wrapper.transformer(it, environmentSupplier.get()) }.requireCompletionStage(method).then(next, environmentSupplier)
 }
 
-private class Peel(private val genericWrappers: List<GenericWrapper>, private val next: Step?) : Step {
+private class Peel(private val wrapper: GenericWrapper, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        value?.transformWithGenericWrapper(genericWrappers, environmentSupplier).handOver(next, environmentSupplier)
+        value?.let { wrapper.transformer(it, environmentSupplier.get()) }.handOver(next, environmentSupplier)
 }
 
 private class EachElement(private val element: Step) : Step {
@@ -84,10 +84,10 @@ private class ValueOf(private val present: Step) : Step {
 private val Unwrapped.Wrapper.isFuture
     get() = Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type)
 
-private fun steps(unwrapped: List<Unwrapped>, genericWrappers: List<GenericWrapper>, method: Method): Step? =
+private fun steps(unwrapped: List<Unwrapped>, method: Method): Step? =
     unwrapped.foldRight(null as Step?) { it, next ->
         when (it) {
-            is Unwrapped.Wrapper -> if (it.isFuture) Await(genericWrappers, method, next) else Peel(genericWrappers, next)
+            is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, method, next) else Peel(it.wrapper, next)
             Unwrapped.Data -> next?.let(::DataOf)
             Unwrapped.Present -> next?.let(::ValueOf)
             Unwrapped.Elements -> next?.let(::EachElement)

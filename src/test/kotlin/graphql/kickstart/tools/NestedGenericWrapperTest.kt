@@ -140,6 +140,9 @@ class NestedGenericWrapperTest {
     fun `unwraps the wrappers a schemaWrapper introduces`() = assertResolves("batchOfPayloads", ab)
 
     @Test
+    fun `picks a nested wrapper by the type the schema was matched to`() = assertResolves("listOfBoxes", ab)
+
+    @Test
     fun `gives a custom scalar the unwrapped values`() {
         val json = mutableListOf<Any?>()
         val schema = schema(Query(), jsonScalar(json))
@@ -279,6 +282,7 @@ class NestedGenericWrapperTest {
                 futureOfListWithFailedWrapper: [Payload]
                 listOfPlainFutures: [Payload]
                 batchOfPayloads: [Payload!]!
+                listOfBoxes: [Payload!]!
                 plainList: [Payload!]!
                 futureOfList: [Payload!]!
                 wrappedFuture: Payload!
@@ -293,7 +297,7 @@ class NestedGenericWrapperTest {
             """)
         .resolvers(query)
         .scalars(*scalars)
-        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper).build())
+        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper).build())
         .build()
         .makeExecutableSchema()
 
@@ -387,9 +391,14 @@ class NestedGenericWrapperTest {
         fun futureJson(): CompletableFuture<Try<Map<String, Any>>> = completedFuture(Try.success(mapOf("c" to 3)))
         fun jsonFutures(): List<CompletableFuture<Map<String, Any>>> = listOf(completedFuture(mapOf("d" to 4)), CompletableFuture.supplyAsync { mapOf("e" to 5) })
         fun batchOfPayloads(): Batch<Payload> = Batch(listOfFutures())
+        fun listOfBoxes(): List<Box<Payload>> = listOf(Box(Payload("a")), SpecialBox(Payload("b")))
     }
 
     class Batch<T>(val items: List<CompletableFuture<T>>)
+
+    open class Box<T>(val content: T)
+
+    class SpecialBox<T>(content: T) : Box<T>(content)
 
     companion object {
         private val tryWrapper = GenericWrapper.withTransformer(Try::class, 0, { wrapper -> wrapper.get() })
@@ -397,6 +406,8 @@ class NestedGenericWrapperTest {
         private val batchWrapper = GenericWrapper.withTransformer(Batch::class, 0, { batch -> batch.items }) { item ->
             ParameterizedTypeImpl(List::class.java, arrayOf(ParameterizedTypeImpl(CompletableFuture::class.java, arrayOf(item), null)), null)
         }
+        private val boxWrapper = GenericWrapper.withTransformer(Box::class, 0, { box -> box.content })
+        private val specialBoxWrapper = GenericWrapper.withTransformer(SpecialBox::class, 0, { _ -> throw IllegalStateException("picked by the value's class") })
         private val payloadType = GraphQLObjectType.newObject()
             .name("Payload")
             .field(GraphQLFieldDefinition.newFieldDefinition().name("data").type(GraphQLNonNull.nonNull(Scalars.GraphQLString)))
