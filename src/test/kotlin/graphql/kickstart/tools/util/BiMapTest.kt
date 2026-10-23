@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package graphql.kickstart.tools.util
 
 import graphql.kickstart.tools.assertEquals
