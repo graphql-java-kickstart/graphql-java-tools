@@ -130,14 +130,11 @@ class NestedGenericWrapperTest {
     fun `fails the list when one of its wrappers in a future fails`() = assertFails("futureOfListWithFailedWrapper", "failed wrapper")
 
     @Test
-    fun `leaves futures in a list that graphql-java can't wait on as they are`() {
-        val result = execute("listOfPlainFutures")
-
-        assertEquals(result.errors.map { it.message }, listOf(
-            "Exception while fetching data (/listOfPlainFutures[0]/data) : " +
-                "Expected source object to be an instance of '${Payload::class.java.name}' but instead got '${FutureTask::class.java.name}'"
-        ))
-    }
+    fun `fails a list of futures graphql-java can't wait on`() = assertFails(
+        "listOfPlainFutures",
+        "Resolver method '${Query::class.java.name}.listOfPlainFutures' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. " +
+            "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+    )
 
     @Test
     fun `unwraps the wrappers a schemaWrapper introduces`() = assertResolves("batchOfPayloads", ab)
@@ -181,7 +178,7 @@ class NestedGenericWrapperTest {
         val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload"), "Leaf" to ScalarTypeDefinition("Leaf")))
         val method = Query::class.java.getMethod("listOfWrapped")
         val graphQLTypes = listOf(TypeName("Payload"), TypeName("Leaf")).flatMap { listOf(it, NonNullType(it), ListType(it), NonNullType(ListType(NonNullType(it))), ListType(ListType(it))) }
-        val containers = listOf(List::class.java, CompletableFuture::class.java, Try::class.java, Page::class.java, DataFetcherResult::class.java, Optional::class.java)
+        val containers = listOf(List::class.java, CompletableFuture::class.java, Try::class.java, Page::class.java, DataFetcherResult::class.java, Optional::class.java, Future::class.java)
         val shapes = (1..4).fold(listOf(listOf<Class<*>>())) { shapes, _ -> shapes + shapes.filter { it.size == shapes.last().size }.flatMap { shape -> containers.map { shape + it } } }
 
         val accepted = graphQLTypes.flatMap { graphQLType ->
@@ -203,8 +200,12 @@ class NestedGenericWrapperTest {
             val value = value(shape, leaf(graphQLType))
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
                 .execute(if (leaf(graphQLType) is Payload) "query { field { data } }" else "query { field }")
-            "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}"
-                .takeUnless { result.errors.isEmpty() && result.getData<Any>() == mapOf("field" to expected(graphQLType)) }
+            val resolved = if (Future::class.java in shape) {
+                result.errors.singleOrNull()?.message.orEmpty().contains("which graphql-java can't wait on")
+            } else {
+                result.errors.isEmpty() && result.getData<Any>() == mapOf("field" to expected(graphQLType))
+            }
+            "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}".takeUnless { resolved }
         }
 
         assertTrue(accepted.count { (_, potentialMatch) -> leaf(potentialMatch.graphQLType) is Leaf } > graphQLTypes.size)
@@ -226,7 +227,8 @@ class NestedGenericWrapperTest {
             Try::class.java -> Try.success(inner)
             Page::class.java -> Page(listOf(inner, inner))
             DataFetcherResult::class.java -> DataFetcherResult.newResult<Any>().data(inner).build()
-            else -> Optional.of(inner)
+            Optional::class.java -> Optional.of(inner)
+            else -> FutureTask { inner }.apply { run() }
         }
     }
 
