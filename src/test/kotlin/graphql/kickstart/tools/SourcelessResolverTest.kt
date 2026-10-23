@@ -12,33 +12,33 @@ import org.junit.Test
 
 class SourcelessResolverTest {
 
-    private val folderSchema = """
-        type Query {
-            folder: Folder!
-        }
-
-        type Folder {
-            images: [Image!]!
-        }
-        """
-
     @Test
     fun `resolver methods without the source take the environment, GraphQLContext or the context class`() {
-        val schema = build(
-            """
-            type Image {
-                name: String!
-                imageBlob: String!
-                thumbnail(size: Int!): String!
-                owner: String
-                locale: String!
-                signature: String!
-                caption: String!
-            }
-            """,
-            SourcelessImageResolver(),
-            options = SchemaParserOptions.newOptions().contextClass(AppContext::class).build()
-        )
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
+                }
+
+                type Folder {
+                    images: [Image!]!
+                }
+
+                type Image {
+                    name: String!
+                    imageBlob: String!
+                    thumbnail(size: Int!): String!
+                    owner: String
+                    locale: String!
+                    signature: String!
+                    caption: String!
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), SourcelessImageResolver())
+            .options(SchemaParserOptions.newOptions().contextClass(AppContext::class).build())
+            .build()
+            .makeExecutableSchema()
         val context = mapOf<Any, Any>(AppContext::class.java to AppContext("ada", "en-CA"), "owner" to "grace")
         schema.assertEveryFieldResolves { graphQLContext(context) }
 
@@ -73,17 +73,29 @@ class SourcelessResolverTest {
 
     @Test
     fun `methods with the source win over methods without it`() {
-        val data = query(
-            """
-            type Image {
-                name: String!
-                title: String!
-                subtitle: String!
-                label: String!
-            }
-            """,
-            ShadowedImageResolver()
-        ) {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
+                }
+
+                type Folder {
+                    images: [Image!]!
+                }
+
+                type Image {
+                    name: String!
+                    title: String!
+                    subtitle: String!
+                    label: String!
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), ShadowedImageResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
             query {
                 folder {
@@ -108,36 +120,58 @@ class SourcelessResolverTest {
 
     @Test
     fun `a field of the resolver wins over a method without the source`() {
-        val data = query(
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
+                }
+
+                type Folder {
+                    images: [Image!]!
+                }
+
+                type Image {
+                    title: String!
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), FieldImageResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
-            type Image {
-                title: String!
+            query {
+                folder {
+                    images {
+                        title
+                    }
+                }
             }
-            """,
-            FieldImageResolver()
-        ) { imagesQuery("title") }
+            """
+        }
 
         assertEquals(data, mapOf("folder" to mapOf("images" to listOf(mapOf("title" to "resolver field")))))
     }
 
     @Test
     fun `a data class that is a Map wins over a method without the source`() {
-        val data = query(
-            """
-            type Image {
-                name: String!
-            }
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    tags: Tags!
+                }
 
-            extend type Query {
-                tags: Tags!
-            }
+                type Tags {
+                    title: String!
+                }
+                """)
+            .resolvers(TagsQuery(), TagsResolver())
+            .build()
+            .makeExecutableSchema()
 
-            type Tags {
-                title: String!
-            }
-            """,
-            TagsQuery(), TagsResolver()
-        ) {
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
             query {
                 tags {
@@ -171,15 +205,25 @@ class SourcelessResolverTest {
     @Test
     fun `methods without the source need an environment or context parameter`() {
         val error = assertThrows(FieldResolverError::class.java) {
-            build(
-                """
-                type Image {
-                    preview: String
-                    reviews: String
-                }
-                """,
-                NoTrailingImageResolver()
-            )
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        folder: Folder!
+                    }
+
+                    type Folder {
+                        images: [Image!]!
+                    }
+
+                    type Image {
+                        preview: String
+                        reviews: String
+                    }
+                    """)
+                .resolvers(FolderQuery(), FolderResolver(), NoTrailingImageResolver())
+                .build()
+                .makeExecutableSchema()
         }
 
         assert(error.message!!.contains("${NoTrailingImageResolver::class.java.name}.preview(<environment or context>)")) { error.message!! }
@@ -188,28 +232,48 @@ class SourcelessResolverTest {
     @Test
     fun `extension functions on the environment are not methods without the source`() {
         assertThrows(FieldResolverError::class.java) {
-            build(
-                """
-                type Image {
-                    blob: String
-                }
-                """,
-                ExtensionImageResolver()
-            )
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        folder: Folder!
+                    }
+
+                    type Folder {
+                        images: [Image!]!
+                    }
+
+                    type Image {
+                        blob: String
+                    }
+                    """)
+                .resolvers(FolderQuery(), FolderResolver(), ExtensionImageResolver())
+                .build()
+                .makeExecutableSchema()
         }
     }
 
     @Test
     fun `an argument may not land on a context parameter of a method without the source`() {
         val error = assertThrows(FieldResolverError::class.java) {
-            build(
-                """
-                type Image {
-                    thumbnail(size: Int): String
-                }
-                """,
-                MisboundImageResolver()
-            )
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        folder: Folder!
+                    }
+
+                    type Folder {
+                        images: [Image!]!
+                    }
+
+                    type Image {
+                        thumbnail(size: Int): String
+                    }
+                    """)
+                .resolvers(FolderQuery(), FolderResolver(), MisboundImageResolver())
+                .build()
+                .makeExecutableSchema()
         }
 
         assert(error.message!!.contains("${MisboundImageResolver::class.java.name}.thumbnail(~size, <environment or context>)")) { error.message!! }
@@ -219,14 +283,24 @@ class SourcelessResolverTest {
     fun `an argument may not land on a first parameter that could take the source`() {
         listOf(MistypedSourceResolver(), AnySourceResolver()).forEach { resolver ->
             assertThrows(FieldResolverError::class.java) {
-                build(
-                    """
-                    type Image {
-                        title(lang: String): String
-                    }
-                    """,
-                    resolver
-                )
+                SchemaParser.newParser()
+                    .schemaString(
+                        """
+                        type Query {
+                            folder: Folder!
+                        }
+
+                        type Folder {
+                            images: [Image!]!
+                        }
+
+                        type Image {
+                            title(lang: String): String
+                        }
+                        """)
+                    .resolvers(FolderQuery(), FolderResolver(), resolver)
+                    .build()
+                    .makeExecutableSchema()
             }
         }
     }
@@ -234,21 +308,40 @@ class SourcelessResolverTest {
     @Test
     fun `unimplemented resolvers leave a method without the source unused`() {
         val (schema, warnings) = withWarnings {
-            build(
-                """
-                type Image {
-                    name: String!
-                    preview: String
-                }
-                """,
-                HelperImageResolver(),
-                options = SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build()
-            )
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        folder: Folder!
+                    }
+
+                    type Folder {
+                        images: [Image!]!
+                    }
+
+                    type Image {
+                        name: String!
+                        preview: String
+                    }
+                    """)
+                .resolvers(FolderQuery(), FolderResolver(), HelperImageResolver())
+                .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+                .build()
+                .makeExecutableSchema()
         }
         schema.assertEveryFieldResolves(except = setOf("Image.preview"))
 
         val error = assertThrows(Exception::class.java) {
-            GraphQL.newGraphQL(schema).build().execute(imagesQuery("preview"))
+            GraphQL.newGraphQL(schema).build().execute(
+                """
+                query {
+                    folder {
+                        images {
+                            preview
+                        }
+                    }
+                }
+                """)
         }
         assert("Schema resolver not implemented" in error.toString()) { error.toString() }
         assertEquals(
@@ -259,32 +352,65 @@ class SourcelessResolverTest {
 
     @Test
     fun `the missing resolver data fetcher provider keeps fields that only have a method without the source`() {
-        val provider = MissingResolverDataFetcherProvider { _, _ -> DataFetcher { "provided" } }
-        val data = query(
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
+                }
+
+                type Folder {
+                    images: [Image!]!
+                }
+
+                type Image {
+                    preview: String
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), HelperImageResolver())
+            .options(SchemaParserOptions.newOptions().missingResolverDataFetcherProvider(MissingResolverDataFetcherProvider { _, _ -> DataFetcher { "provided" } }).build())
+            .build()
+            .makeExecutableSchema()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
-            type Image {
-                preview: String
+            query {
+                folder {
+                    images {
+                        preview
+                    }
+                }
             }
-            """,
-            HelperImageResolver(),
-            options = SchemaParserOptions.newOptions().missingResolverDataFetcherProvider(provider).build()
-        ) { imagesQuery("preview") }
+            """
+        }
 
         assertEquals(data, mapOf("folder" to mapOf("images" to listOf(mapOf("preview" to "provided")))))
     }
 
     @Test
     fun `supertype resolvers' methods without the source resolve fields of subclasses, after the specific resolver's`() {
-        val data = query(
-            """
-            type Image {
-                title: String!
-                label: String!
-                kind: String!
-            }
-            """,
-            SpecificImageResolver(), NamedResolver()
-        ) {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
+                }
+
+                type Folder {
+                    images: [Image!]!
+                }
+
+                type Image {
+                    title: String!
+                    label: String!
+                    kind: String!
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), SpecificImageResolver(), NamedResolver())
+            .build()
+            .makeExecutableSchema()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
             """
             query {
                 folder {
@@ -308,14 +434,24 @@ class SourcelessResolverTest {
     @Test
     fun `no argument warning for a method without the source`() {
         val (_, warnings) = withWarnings {
-            build(
-                """
-                type Image {
-                    thumbnail(size: Int!): String!
-                }
-                """,
-                SourcelessImageResolver()
-            )
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        folder: Folder!
+                    }
+
+                    type Folder {
+                        images: [Image!]!
+                    }
+
+                    type Image {
+                        thumbnail(size: Int!): String!
+                    }
+                    """)
+                .resolvers(FolderQuery(), FolderResolver(), SourcelessImageResolver())
+                .build()
+                .makeExecutableSchema()
         }
 
         assertEquals(warnings.filter { "has no parameter for its argument" in it }, listOf())
@@ -323,48 +459,44 @@ class SourcelessResolverTest {
 
     @Test
     fun `input objects of methods without the source are found from the right parameter`() {
-        val data = query(
-            """
-            type Image {
-                resized(spec: ResizeSpec!): String!
-            }
-
-            input ResizeSpec {
-                width: Int!
-                height: Int!
-            }
-            """,
-            ResizingImageResolver()
-        ) { imagesQuery("resized(spec: { width: 2, height: 3 })") }
-
-        assertEquals(data, mapOf("folder" to mapOf("images" to listOf(mapOf("resized" to "2x3 resized")))))
-    }
-
-    private fun imagesQuery(field: String) =
-        """
-        query {
-            folder {
-                images {
-                    $field
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
                 }
-            }
-        }
-        """
 
-    private fun build(imageTypes: String, vararg resolvers: GraphQLResolver<*>?, options: SchemaParserOptions = SchemaParserOptions.defaultOptions()) =
-        SchemaParser.newParser()
-            .schemaString(folderSchema + imageTypes)
-            .resolvers(listOf(FolderQuery(), FolderResolver()) + resolvers.filterNotNull())
-            .options(options)
+                type Folder {
+                    images: [Image!]!
+                }
+
+                type Image {
+                    resized(spec: ResizeSpec!): String!
+                }
+
+                input ResizeSpec {
+                    width: Int!
+                    height: Int!
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), ResizingImageResolver())
             .build()
             .makeExecutableSchema()
 
-    private fun query(
-        imageTypes: String,
-        vararg resolvers: GraphQLResolver<*>?,
-        options: SchemaParserOptions = SchemaParserOptions.defaultOptions(),
-        query: () -> String
-    ): Map<String, Any> = assertNoGraphQlErrors(GraphQL.newGraphQL(build(imageTypes, *resolvers, options = options)).build(), closure = query)
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
+            """
+            query {
+                folder {
+                    images {
+                        resized(spec: { width: 2, height: 3 })
+                    }
+                }
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("folder" to mapOf("images" to listOf(mapOf("resized" to "2x3 resized")))))
+    }
 
     data class AppContext(val user: String, val locale: String)
 
