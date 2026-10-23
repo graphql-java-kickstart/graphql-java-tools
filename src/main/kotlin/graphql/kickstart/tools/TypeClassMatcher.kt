@@ -53,9 +53,6 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         val reference: ScanDictionary.Reference,
         val location: Location
     ) {
-        /**
-         * How the java type is matched to the GraphQL type, kept so a data fetcher can unwrap the value the same way.
-         */
         val unwrapping: Unwrapping by lazy { unwrap(graphQLType, javaType, root = true, mutableListOf()) }
 
         fun error(msg: String) = SchemaClassScannerError("Unable to match type definition (${TypeUtil.simplePrint(graphQLType)}) for reference $reference with java type ($javaType): $msg")
@@ -131,9 +128,6 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         }
     }
 
-    /**
-     * What a java type is unwrapped through, outermost first, to reach the java type matched to the named GraphQL type.
-     */
     internal class Unwrapping(val unwrapped: List<Unwrapped>, val graphQLType: GraphQLLangType, val javaType: JavaType)
 
     internal sealed interface Unwrapped {

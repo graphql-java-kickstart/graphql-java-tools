@@ -211,11 +211,11 @@ class NestedGenericWrapperTest {
             "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}".takeUnless { resolved }
         }
 
-        assertTrue(accepted.count { (_, potentialMatch) -> leaf(potentialMatch.graphQLType) is Leaf } > graphQLTypes.size)
+        assertTrue(accepted.count { (_, potentialMatch) -> leaf(potentialMatch.graphQLType) is FutureLeaf } > graphQLTypes.size)
         assertEquals(failures, listOf<String>())
     }
 
-    private fun leaf(graphQLType: Type<*>): Any = if (graphQLType.unwrap().name == "Leaf") Leaf("a") else Payload("a")
+    private fun leaf(graphQLType: Type<*>): Any = if (graphQLType.unwrap().name == "Leaf") FutureLeaf("a") else Payload("a")
 
     private fun javaType(shape: List<Class<*>>, leafClass: Class<*>, wildcardElements: Boolean): java.lang.reflect.Type =
         shape.foldRight(leafClass as java.lang.reflect.Type) { container, inner ->
@@ -346,8 +346,7 @@ class NestedGenericWrapperTest {
 
     data class Payload(val data: String)
 
-    // a Future, so a custom scalar's value that only happens to be one is shown to reach the scalar
-    data class Leaf(val data: String) : Future<String> by completedFuture(data)
+    data class FutureLeaf(val data: String) : Future<String> by completedFuture(data)
 
     class Query : GraphQLQueryResolver {
         val plainList = listOf(Payload("a"))
@@ -414,9 +413,9 @@ class NestedGenericWrapperTest {
             .build()
         private val leafType = GraphQLScalarType.newScalar()
             .name("Leaf")
-            .coercing(object : Coercing<Leaf, String> {
+            .coercing(object : Coercing<FutureLeaf, String> {
                 override fun serialize(dataFetcherResult: Any, graphQLContext: GraphQLContext, locale: Locale): String =
-                    (dataFetcherResult as? Leaf)?.data ?: throw CoercingSerializeException("Expected a Leaf but got $dataFetcherResult")
+                    (dataFetcherResult as? FutureLeaf)?.data ?: throw CoercingSerializeException("Expected a FutureLeaf but got $dataFetcherResult")
             })
             .build()
     }

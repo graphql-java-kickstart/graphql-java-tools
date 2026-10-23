@@ -180,7 +180,6 @@ internal class MethodFieldResolver(
         typeResolver.resolveTypeVariables(declaredType)
     }
 
-    // the declared type, so the match also covers the wrappers of the value the method returns
     private val returnValueMatch by lazy {
         TypeClassMatcher.PotentialMatch.returnValue(field.type, matchedReturnType(), typeResolver, ScanDictionary.ReturnValueReference(method))
     }

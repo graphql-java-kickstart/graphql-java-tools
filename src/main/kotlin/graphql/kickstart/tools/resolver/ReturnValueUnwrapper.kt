@@ -33,12 +33,11 @@ internal class ReturnValueUnwrapper private constructor(
 
     private fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>, isSuspendFunction: Boolean): Any? {
         val unwrapped = value.transformWithGenericWrapper(genericWrappers, environmentSupplier).requireAwaitable(valueClass, method, isSuspendFunction)
-        return if (isOutermostFuture) unwrapped.then(nested, environmentSupplier) else unwrapped.handOver(nested, environmentSupplier)
+        return if (isOutermostFuture) unwrapped.then(nested, environmentSupplier) else unwrapped.thenUnlessNextAwaits(nested, environmentSupplier)
     }
 
     companion object {
         fun create(method: Method, unwrapped: List<Unwrapped>, valueClass: Class<*>?, isSubscription: Boolean, genericWrappers: List<GenericWrapper>): ReturnValueUnwrapper {
-            // picked by the value's class, like a resolver declared as Object returning a wrapper
             val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
             // graphql-java completes a subscription's events one at a time
             val nested = if (isSubscription) null else steps(if (outermost == null) unwrapped else unwrapped.drop(1), method)
@@ -58,7 +57,7 @@ private class Await(private val wrapper: GenericWrapper, private val method: Met
 
 private class Peel(private val wrapper: GenericWrapper, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        value?.let { wrapper.transformer(it, environmentSupplier.get()) }.handOver(next, environmentSupplier)
+        value?.let { wrapper.transformer(it, environmentSupplier.get()) }.thenUnlessNextAwaits(next, environmentSupplier)
 }
 
 private class EachElement(private val element: Step) : Step {
@@ -94,9 +93,7 @@ private fun steps(unwrapped: List<Unwrapped>, method: Method): Step? =
         }
     }
 
-// a future goes to its own step as is, which waits on it. Any other CompletionStage, such as a DataLoader load that a
-// transformer returns, is waited on before the next step
-private fun Any?.handOver(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
+private fun Any?.thenUnlessNextAwaits(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
     if (next is Await) next.unwrap(this, environmentSupplier) else then(next, environmentSupplier)
 
 private fun Any?.then(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
