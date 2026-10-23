@@ -52,7 +52,6 @@ internal class MethodFieldResolver(
         val args = mutableListOf<ArgumentPlaceholder>()
         val mapper = objectMapper
 
-        // Add source argument if this is a resolver (but not a root resolver)
         if (this.search.requiredFirstParameterType != null) {
             val expectedType = this.search.requiredFirstParameterType
 

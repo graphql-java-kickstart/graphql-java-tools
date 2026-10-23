@@ -553,7 +553,7 @@ internal class SchemaClassScanner(
 
         fieldResolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
             val parameter = fieldResolver.getMethodParameterType(index)?.let(fieldResolver.typeResolver::getRawClass) ?: return@forEachIndexed
-            if (!isContextParameter(parameter, argument)) {
+            if (!fieldResolverScanner.isContextParameter(parameter, argument)) {
                 return@forEachIndexed
             }
 
@@ -565,11 +565,6 @@ internal class SchemaClassScanner(
             )
         }
     }
-
-    // the context class can also be an argument's type (e.g. a Map for an input object), so only spec scalars count for it
-    private fun isContextParameter(parameter: Class<*>, argument: InputValueDefinition): Boolean =
-        parameter in fieldResolverScanner.allowedTrailingParameterTypes &&
-            (parameter != options.contextClass || argument.type.unwrap().name in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS)
 
     private fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {
         is TypeClassMatcher.ScalarMatch -> handleFoundScalarType(match.type)

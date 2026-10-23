@@ -7,7 +7,9 @@ import graphql.kickstart.tools.RootResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.*
 import graphql.language.FieldDefinition
+import graphql.language.InputValueDefinition
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.idl.ScalarInfo
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.apache.commons.lang3.ClassUtils
 import org.apache.commons.lang3.reflect.FieldUtils
@@ -25,7 +27,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    val allowedTrailingParameterTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
+    private val allowedTrailingParameterTypes = listOfNotNull(DataFetchingEnvironment::class.java, GraphQLContext::class.java, options.contextClass)
 
     private val methodsByNameCache = mutableMapOf<Pair<Class<out Any>, Boolean>, Map<String, List<Method>>>()
 
@@ -39,7 +41,10 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
             throw FieldResolverError("Found more than one matching resolver for field '$field': $found")
         }
 
-        return found.firstOrNull() ?: missingFieldResolver(field, searches, scanProperties)
+        return found.firstOrNull()
+            ?: missingFieldResolver(field)
+            ?: findSourcelessFieldResolver(field, searches)
+            ?: throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
     }
 
     private fun findFieldResolver(field: FieldDefinition, search: Search, scanProperties: Boolean): FieldResolver? {
@@ -71,7 +76,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
         }
     }
 
-    private fun missingFieldResolver(field: FieldDefinition, searches: List<Search>, scanProperties: Boolean): FieldResolver {
+    private fun missingFieldResolver(field: FieldDefinition): FieldResolver? {
         @Suppress("DEPRECATION")
         return if (options.allowUnimplementedResolvers
             || options.missingResolverDataFetcher != null
@@ -82,13 +87,44 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
 
             MissingFieldResolver(field, options)
         } else {
-            throw FieldResolverError(getMissingFieldMessage(field, searches, scanProperties))
+            null
         }
     }
 
+    private fun findSourcelessFieldResolver(field: FieldDefinition, searches: List<Search>): FieldResolver? =
+        searches.firstNotNullOfOrNull { search ->
+            val sourceType = search.requiredFirstParameterType ?: return@firstNotNullOfOrNull null
+            val sourceless = search.withoutSourceParameter()
+            findMethodByName(field, sourceless) { isSourcelessMethod(it, field, sourceless, sourceType) }?.let { method ->
+                MethodFieldResolver(field, sourceless, options, method.apply(trySetAccessible(field, search.type)), scalarNames)
+            }
+        }
+
+    private fun isSourcelessMethod(method: Method, field: FieldDefinition, search: Search, sourceType: Class<*>): Boolean {
+        val arguments = field.inputValueDefinitions
+        val parameterTypes = method.parameterTypes
+
+        return method.parameterCountWithoutContinuation() > arguments.size &&
+            arguments.indices.none { isContextParameter(parameterTypes[it], arguments[it]) } &&
+            (arguments.isEmpty() || !couldTakeSource(parameterTypes[0], sourceType)) &&
+            verifyMethodArguments(method, arguments.size, search)
+    }
+
+    private fun couldTakeSource(parameterType: Class<*>, sourceType: Class<*>) =
+        sourceType.isAssignableFrom(parameterType) || parameterType.isAssignableFrom(sourceType)
+
+    // the context class can also be an argument's type (e.g. a Map for an input object), so only spec scalars count for it
+    fun isContextParameter(parameter: Class<*>, argument: InputValueDefinition): Boolean =
+        parameter in allowedTrailingParameterTypes &&
+            (parameter != options.contextClass || argument.type.unwrap().name in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS)
+
     private fun findResolverMethod(field: FieldDefinition, search: Search): Method? {
-        val methodsByName = getMethodsByName(search)
         val argumentCount = field.inputValueDefinitions.size + search.firstArgumentIndex
+        return findMethodByName(field, search) { verifyMethodArguments(it, argumentCount, search) }
+    }
+
+    private inline fun findMethodByName(field: FieldDefinition, search: Search, matches: (Method) -> Boolean): Method? {
+        val methodsByName = getMethodsByName(search)
         val name = field.name
         val capitalizedName = name.replaceFirstChar(Char::titlecase)
 
@@ -105,7 +141,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
             "getField$capitalizedName",
             "get${name.snakeToCamelCase()}"
         ).firstNotNullOfOrNull { methodName ->
-            methodsByName[methodName]?.find { verifyMethodArguments(it, argumentCount, search) }
+            methodsByName[methodName]?.find { matches(it) }
         }
     }
 
@@ -197,6 +233,9 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
             signatures.addAll(getMissingMethodSignatures(field, search, isBoolean, scannedProperties))
             isSubscription = isSubscription || search.isSubscription
         }
+        searches.filter { it.requiredFirstParameterType != null }.forEach { search ->
+            signatures.addAll(getMissingMethodSignatures(field, search.withoutSourceParameter(), isBoolean, false, "<environment or context>"))
+        }
 
         val sourceName = field.sourceLocation?.sourceName ?: "<unknown>"
         val sourceLocation = field.sourceLocation?.let { "$sourceName:${it.line}" } ?: "<unknown>"
@@ -206,7 +245,13 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
             if (isSubscription) "\n\nNote that a Subscription data fetcher must return a Publisher of events" else ""
     }
 
-    private fun getMissingMethodSignatures(field: FieldDefinition, search: Search, isBoolean: Boolean, scannedProperties: Boolean): List<String> {
+    private fun getMissingMethodSignatures(
+        field: FieldDefinition,
+        search: Search,
+        isBoolean: Boolean,
+        scannedProperties: Boolean,
+        trailingParameter: String? = null
+    ): List<String> {
         val baseType = search.type.unwrap()
         val signatures = mutableListOf<String>()
         val args = mutableListOf<String>()
@@ -217,6 +262,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
         }
 
         args.addAll(field.inputValueDefinitions.map { "~${it.name}" })
+        trailingParameter?.let(args::add)
 
         val argString = args.joinToString(sep)
 
@@ -241,6 +287,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
         val isSubscription get() = resolverInfo is RootResolverInfo && resolverInfo.isSubscription
 
         val firstArgumentIndex get() = if (requiredFirstParameterType != null) 1 else 0
+
+        fun withoutSourceParameter() = copy(requiredFirstParameterType = null)
     }
 }
 
