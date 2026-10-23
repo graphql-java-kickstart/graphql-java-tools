@@ -552,8 +552,8 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should warn about invalid applied directives and keep them`() {
-        val (schema, warnings) = withWarnings {
+    fun `should fail with every invalid applied directive`() {
+        val error = assertThrows(SchemaError::class.java) {
             SchemaParser.newParser()
                 .schemaString(
                     """
@@ -579,19 +579,16 @@ class DirectiveTest {
                 .resolvers(QueryResolver())
                 .build()
                 .makeExecutableSchema()
-                .assertEveryFieldResolves()
         }
 
-        assertEquals(warnings, listOf(
+        assertEquals(error.message, listOf(
             "Directive @meta at line 4, column 47 in directives.graphqls is missing its required argument 'info'.",
             "Directive @deprecated at line 16, column 31 in directives.graphqls is applied to OBJECT, but it's declared on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION.",
             "Directive @limit at line 18, column 46 in directives.graphqls isn't repeatable but is applied more than once.",
             "Directive @entity at line 13, column 40 in directives.graphqls is applied to FIELD_DEFINITION, but it's declared on OBJECT.",
             "Directive @meta at line 13, column 48 in directives.graphqls is missing its required argument 'info'.",
             "Directive @meta at line 10, column 35 in directives.graphqls isn't repeatable but is applied more than once."
-        ))
-        assertEquals(schema.getObjectType("Book")!!.getField("name").getAppliedDirectives("limit").size, 2)
-        assertEquals(schema.getSchemaAppliedDirectives("meta").size, 2)
+        ).joinToString("\n"))
     }
 
     @Test
@@ -943,7 +940,7 @@ class DirectiveTest {
 
     @Test
     @Suppress("DEPRECATION") // legacy directives
-    fun `should keep the first of repeated non-repeatable legacy directives and describe only their defaulted arguments`() {
+    fun `should describe only the defaulted arguments of legacy directives`() {
         val schema = SchemaParser.newParser()
             .schemaString(
                 """
@@ -955,7 +952,7 @@ class DirectiveTest {
                 ) on FIELD_DEFINITION
 
                 type Query {
-                    books: [Book!] @tag(name: "a") @tag(name: "b")
+                    books: [Book!] @tag(name: "a")
                 }
 
                 type Book {
@@ -968,7 +965,7 @@ class DirectiveTest {
             .makeExecutableSchema()
 
         val books = schema.queryType.getField("books")
-        assertEquals(books.getAppliedDirectives("tag").map { it.getArgument("name")?.getValue<String>() }, listOf("a", "b"))
+        assertEquals(books.getAppliedDirectives("tag").map { it.getArgument("name")?.getValue<String>() }, listOf("a"))
         val legacy = books.directives.single()
         assertEquals(legacy.getArgument("name")?.description, null)
         assertEquals(legacy.getArgument("level")?.description, "How loud")

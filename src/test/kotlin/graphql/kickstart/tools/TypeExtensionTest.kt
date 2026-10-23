@@ -229,8 +229,6 @@ class TypeExtensionTest {
                     today: Date
                 }
 
-                extend type Query @once(name: "Query extension")
-
                 interface Node @tag(name: "Node") { id: ID! }
                 extend interface Node @tag(name: "Node extension")
 
@@ -259,7 +257,7 @@ class TypeExtensionTest {
         }
         schema.assertEveryFieldResolves()
 
-        assertEquals(warnings, listOf("Directive @once isn't repeatable but an extension of type 'Query' applies it again, only the first one is kept."))
+        assertEquals(warnings, emptyList())
 
         val applied = listOf("Query", "Node", "Item", "FooBar", "Color", "Filter", "Date").associateWith { name ->
             (schema.getType(name) as GraphQLDirectiveContainer).appliedDirectives.map { it.describe() }
@@ -287,6 +285,27 @@ class TypeExtensionTest {
         val printed = SchemaPrinter().print(schema)
         assert(printed.contains("""type Item implements Node @tag(name : "Item") @tag(name : "Item extension") {""")) { printed }
         assert(printed.contains("""type Query @once(name : "Query") {""")) { printed }
+    }
+
+    @Test
+    fun `an extension can't apply a directive that isn't repeatable again`() {
+        val error = assertThrows(SchemaError::class.java) {
+            parser(
+                """
+                directive @once(name: String!) on OBJECT | INPUT_OBJECT
+
+                type Query @once(name: "Query") { search(filter: Filter): String }
+                extend type Query @once(name: "Query extension")
+
+                input Filter @once(name: "Filter") { id: ID }
+                extend input Filter @once(name: "Filter extension")
+                """).makeExecutableSchema()
+        }
+
+        assertEquals(error.message, listOf(
+            "Directive @once at line 8, column 37 isn't repeatable but is applied more than once.",
+            "Directive @once at line 5, column 35 isn't repeatable but is applied more than once."
+        ).joinToString("\n"))
     }
 
     @Test
