@@ -488,9 +488,8 @@ internal class SchemaClassScanner(
             return
         }
 
-        // class-based proxies don't delegate field reads to the target, so a field needs a getter too
         val fix = "Use class-based proxies instead, e.g. proxyTargetClass = true in Spring." +
-            if (notCallableOnResolver.any { it.isField }) " For a public field, also add a getter and read it through that." else ""
+            if (notCallableOnResolver.any { it.isField }) " For a public field, also add a getter, since class-based proxies don't pass field reads to the target." else ""
         throw FieldResolverError(
             notCallableOnResolver.joinToString("\n", postfix = "\nThis happens with JDK dynamic proxies, which only implement interfaces. $fix") { it.message }
         )
