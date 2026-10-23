@@ -102,9 +102,17 @@ internal class MethodFieldResolver(
         val firstTrailingParameter = field.inputValueDefinitions.size + search.firstArgumentIndex
         method.parameterTypes.slice(firstTrailingParameter until numberOfParameters).forEach { parameterType ->
             when (parameterType) {
-                options.contextClass -> args.add { environment -> environment.graphQlContext[options.contextClass] }
-
                 GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
+
+                options.contextClass -> args.add { environment ->
+                    environment.graphQlContext.get<Any>(parameterType) ?: throw ResolverError(
+                        "Resolver method '${method.declaringClass.name}.${method.name}' has a parameter of the context class " +
+                            "'${parameterType.name}', but the GraphQLContext has no value for it. Put it in the GraphQLContext under " +
+                            "the class key when building the ExecutionInput, for example " +
+                            "graphQLContext(mapOf(${parameterType.simpleName}::class.java to context))."
+                    )
+                }
+
                 else -> args.add { environment -> environment }
             }
         }
