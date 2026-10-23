@@ -160,10 +160,10 @@ internal class MethodFieldResolver(
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, getResolvedReturnType(), typeResolver, SchemaClassScanner.ReturnValueReference(method))
+        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, getResolvedReturnType(), typeResolver, ScanDictionary.ReturnValueReference(method))
 
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, typeResolver, SchemaClassScanner.MethodParameterReference(method, i))
+            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, typeResolver, ScanDictionary.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
     }
 

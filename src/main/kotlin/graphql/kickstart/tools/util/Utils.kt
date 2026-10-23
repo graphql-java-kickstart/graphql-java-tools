@@ -116,3 +116,6 @@ internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOption
     }
 
 internal fun String.snakeToCamelCase(): String = split("_").joinToString(separator = "") { it.replaceFirstChar(Char::titlecase) }
+
+internal fun SourceLocation?.describe(): String =
+    this?.let { " at line $line, column $column" + sourceName?.let { name -> " in $name" }.orEmpty() }.orEmpty()

@@ -1,6 +1,10 @@
 package graphql.kickstart.tools
 
-import com.fasterxml.jackson.databind.JsonNode
+import graphql.kickstart.tools.ScanDictionary.DictionaryReference
+import graphql.kickstart.tools.ScanDictionary.FieldTypeReference
+import graphql.kickstart.tools.ScanDictionary.InitialDictionaryEntry
+import graphql.kickstart.tools.ScanDictionary.UnionMemberReference
+import graphql.kickstart.tools.ScanDictionary.UnusedTypeReference
 import graphql.kickstart.tools.resolver.FieldResolver
 import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.resolver.MethodFieldResolver
@@ -10,13 +14,10 @@ import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.TypeUtil
 import org.apache.commons.lang3.ClassUtils
-import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Member
-import java.lang.reflect.Method
 import java.lang.reflect.Modifier
-import java.lang.reflect.ParameterizedType
 
 /**
  * @author Andrew Potter
@@ -55,15 +56,14 @@ internal class SchemaClassScanner(
         .groupBy { it.name }
     private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>().filter { it !is ObjectTypeExtensionDefinition }
     private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
-    private val interfaceDefinitionsByName = definitionsByName.values.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
 
     private val scalarNames = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.keys + scalarDefinitions.map { it.name }
     private val fieldResolverScanner = FieldResolverScanner(options, scalarNames)
     private val typeClassMatcher = TypeClassMatcher(definitionsByName)
-    private val dictionary = mutableMapOf<TypeDefinition<*>, DictionaryEntry>()
     private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
-    private val enumsWithoutClass = mutableMapOf<EnumTypeDefinition, String>()
     private val queue = linkedSetOf<QueueItem>()
+    private val dictionary = ScanDictionary(options, log, typeExtensions, definitionsByName, typeClassMatcher, this.initialDictionary, ::enqueue, ::handleFoundScalarType)
+    private val sealedSubclassMatcher = SealedSubclassMatcher(dictionary, typeExtensions)
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
 
@@ -158,9 +158,9 @@ internal class SchemaClassScanner(
     private fun handleUnusedType(type: TypeDefinition<*>) {
         val initialEntry = initialDictionary[type.name]
         when {
-            initialEntry != null -> handleFoundType(type, initialEntry.get(), DictionaryReference())
+            initialEntry != null -> dictionary.handleFoundType(type, initialEntry.get(), DictionaryReference())
             // Interfaces and unions are resolved through the classes of their implementations, so they don't need one
-            type is InterfaceTypeDefinition || type is UnionTypeDefinition -> handleFoundType(type, null, UnusedTypeReference())
+            type is InterfaceTypeDefinition || type is UnionTypeDefinition -> dictionary.handleFoundType(type, null, UnusedTypeReference())
             else -> throw SchemaClassScannerError("Object type '${type.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${type.name}' in the parser's dictionary.")
         }
     }
@@ -186,7 +186,7 @@ internal class SchemaClassScanner(
         }
 
         unvalidatedTypes.add(rootType.type)
-        scanInterfacesOfType(rootType.type)
+        dictionary.scanInterfacesOfType(rootType.type)
         scanResolverInfoForPotentialMatches(rootType.type, rootType.resolverInfo)
     }
 
@@ -225,7 +225,7 @@ internal class SchemaClassScanner(
 
         val initialEntry = initialDictionary[type.name]
         if (initialEntry != null) {
-            handleFoundType(type, initialEntry.get(), DictionaryReference())
+            dictionary.handleFoundType(type, initialEntry.get(), DictionaryReference())
         } else {
             unvalidatedTypes.add(type)
         }
@@ -251,9 +251,7 @@ internal class SchemaClassScanner(
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
-        enumsWithoutClass.entries
-            .find { dictionary[it.key]?.javaType == null }
-            ?.let { throw SchemaClassScannerError(it.value) }
+        dictionary.throwIfEnumWithoutClass()
 
         initialDictionary
             .filter { !it.value.accessed }
@@ -361,7 +359,7 @@ internal class SchemaClassScanner(
                 .map { it to UnionMemberReference(union) }
         }
 
-        newUnions.forEach { (type, reference) -> handleFoundType(type, null, reference) }
+        newUnions.forEach { (type, reference) -> dictionary.handleFoundType(type, null, reference) }
         return newUnions.isNotEmpty()
     }
 
@@ -381,7 +379,7 @@ internal class SchemaClassScanner(
             }
         }
 
-        newTypes.forEach { (type, reference) -> handleFoundType(type, null, reference) }
+        newTypes.forEach { (type, reference) -> dictionary.handleFoundType(type, null, reference) }
         return newTypes.isNotEmpty()
     }
 
@@ -392,75 +390,19 @@ internal class SchemaClassScanner(
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
                 val initialEntry = initialDictionary[type.name]
                 if (initialEntry != null) {
-                    handleFoundType(type, initialEntry.get(), DictionaryReference())
+                    dictionary.handleFoundType(type, initialEntry.get(), DictionaryReference())
                 } else {
                     typesWithoutClass.add(type)
                 }
             }
         }
 
-        val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatches(it).singleOrNull() }
+        val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatcher.sealedSubclassMatches(it).singleOrNull() }
         if (sealedMatches.isEmpty()) {
-            typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassHint(it)) }
+            typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassMatcher.sealedSubclassHint(it)) }
         }
 
-        sealedMatches.forEach { handleFoundType(it) }
-    }
-
-    private fun sealedSubclassHint(type: TypeDefinition<*>): String {
-        if (type !is ObjectTypeDefinition) {
-            return ""
-        }
-
-        val sealedTypes = sealedTypesOf(type)
-        if (sealedTypes.isEmpty()) {
-            return ""
-        }
-
-        val sealedTypeNames = sealedTypes.joinToString(" or ") { it.unwrap().name }
-        val matches = sealedSubclassMatches(type)
-        return if (matches.isEmpty()) {
-            "  No subclass of sealed type $sealedTypeNames is named '${type.name}'."
-        } else {
-            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${matches.joinToString { it.javaType.unwrap().name }}."
-        }
-    }
-
-    private fun sealedSubclassMatches(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
-        sealedTypesOf(type)
-            .flatMap { sealedType ->
-                sealedSubclasses(sealedType.unwrap())
-                    .filter { it.simpleName == type.name }
-                    .map { TypeClassMatcher.ValidMatch(type, withSealedTypeArguments(it, sealedType), SealedSubclassReference(sealedType)) }
-            }
-            .distinctBy { it.javaType.unwrap() }
-
-    private fun sealedTypesOf(type: ObjectTypeDefinition): List<JavaType> =
-        dictionary
-            .filterKeys { definition ->
-                when (definition) {
-                    is UnionTypeDefinition -> definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.filterIsInstance<TypeName>().any { it.name == type.name }
-                    is InterfaceTypeDefinition -> type.withExtensions(typeExtensions).flatMap { it.implements }.filterIsInstance<TypeName>().any { it.name == definition.name }
-                    else -> false
-                }
-            }
-            .values.mapNotNull { it.javaType }
-            .distinct()
-            .filter { it.unwrap().kotlin.isSealed }
-
-    // kotlin-reflect also returns the permitted subclasses of Java sealed classes
-    private fun sealedSubclasses(clazz: Class<*>): List<Class<*>> =
-        clazz.kotlin.sealedSubclasses.flatMap { listOf(it.java) + sealedSubclasses(it.java) }
-
-    private fun withSealedTypeArguments(subclass: Class<*>, sealedType: JavaType): JavaType {
-        if (sealedType !is ParameterizedType || subclass.typeParameters.isEmpty()) {
-            return subclass
-        }
-
-        return TypeUtils.determineTypeArguments(subclass, sealedType)
-            ?.takeIf { it.keys.containsAll(subclass.typeParameters.asList()) }
-            ?.let { TypeUtils.parameterize(subclass, it) }
-            ?: subclass
+        sealedMatches.forEach { dictionary.handleFoundType(it) }
     }
 
     /**
@@ -513,7 +455,7 @@ internal class SchemaClassScanner(
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
 
             fieldResolver.scanForMatches().forEach { potentialMatch ->
-                handleFoundType(typeClassMatcher.match(potentialMatch))
+                dictionary.handleFoundType(typeClassMatcher.match(potentialMatch))
             }
             warnIfParameterMissing(type, fieldResolver)
         }
@@ -561,137 +503,8 @@ internal class SchemaClassScanner(
         }
     }
 
-    private fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {
-        is TypeClassMatcher.ScalarMatch -> handleFoundScalarType(match.type)
-        is TypeClassMatcher.ValidMatch -> handleFoundType(match.type, match.javaType, match.reference)
-    }
-
     private fun handleFoundScalarType(type: ScalarTypeDefinition) {
         unvalidatedTypes.add(type)
-    }
-
-    /**
-     * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
-     */
-    private fun handleFoundType(type: TypeDefinition<*>, javaType: JavaType?, reference: Reference) {
-        val realEntry = dictionary.getOrPut(type) { DictionaryEntry() }
-        var typeWasSet = false
-
-        if (javaType != null) {
-            typeWasSet = realEntry.setTypeIfMissing(javaType)
-
-            if (realEntry.javaType != javaType) {
-                if (options.preferGraphQLResolver && realEntry.hasResolverRef()) {
-                    log.warn("The real entry ${realEntry.joinReferences()} is a GraphQLResolver so ignoring this one ${javaType.unwrap()} $reference")
-                } else {
-                    if (Map::class.java.isAssignableFrom(javaType.unwrap())) {
-                        throw SchemaClassScannerError("Two different property map classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType}:\n|   ${reference.getDescription()}")
-                    }
-                    throw SchemaClassScannerError("Two different classes used for type ${type.name}:\n${realEntry.joinReferences()}\n\n- ${javaType.typeName}:\n|   ${reference.getDescription()}")
-                }
-            }
-        }
-
-        realEntry.addReference(reference)
-
-        // Check if we just added the entry... a little odd, but it works (and thread-safe, FWIW)
-        if (typeWasSet && javaType != null) {
-            handleNewType(type, javaType)
-        }
-    }
-
-    /**
-     * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
-     */
-    private fun handleNewType(graphQLType: TypeDefinition<*>, javaType: JavaType) {
-        when (graphQLType) {
-            is ObjectTypeDefinition -> {
-                enqueue(graphQLType, javaType)
-                scanInterfacesOfType(graphQLType)
-            }
-
-            is InputObjectTypeDefinition -> handleInputObjectFields(graphQLType, javaType)
-        }
-    }
-
-    /**
-     * Finds the types of the input object's fields through the properties of its class. A null [javaType] means the input object
-     * has no known class, e.g. because it's only reachable through a Map.
-     */
-    private fun handleInputObjectFields(graphQLType: InputObjectTypeDefinition, javaType: JavaType?) {
-        val clazz = javaType?.unwrap()
-        graphQLType.withExtensions(typeExtensions)
-            .flatMap { it.inputValueDefinitions }
-            .forEach { inputValueDefinition ->
-                val inputGraphQLType = inputValueDefinition.type.unwrap()
-                if (ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
-                    return@forEach
-                }
-
-                val propertyType = clazz?.let { findInputValueTypeInType(inputValueDefinition.name, it) }
-                val inputValueJavaType = propertyType ?: initialDictionary[inputGraphQLType.name]?.get()
-                if (inputValueJavaType == null) {
-                    handleInputValueWithoutJavaType(graphQLType, inputValueDefinition, inputGraphQLType, clazz)
-                    return@forEach
-                }
-
-                handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
-                    // a class from the dictionary is for the unwrapped type, not for its list or non-null wrapper
-                    if (propertyType != null) inputValueDefinition.type else inputGraphQLType,
-                    inputValueJavaType,
-                    GenericTypeResolver(javaType ?: inputValueJavaType, options),
-                    InputObjectReference(inputValueDefinition)
-                )))
-            }
-    }
-
-    /**
-     * Without a Java property for an input field its type can still be built, as long as it doesn't need a class of its own.
-     * At runtime the value is whatever the input object's class (or the Map) deserializes it into.
-     */
-    private fun handleInputValueWithoutJavaType(graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, inputGraphQLType: TypeName, clazz: Class<*>?) {
-        when (val definition = definitionsByName[inputGraphQLType.name]) {
-            is ScalarTypeDefinition -> handleFoundScalarType(definition)
-            is InputObjectTypeDefinition -> {
-                val isNewType = !dictionary.containsKey(definition)
-                // registered without a class, so a class found for it later still gets set and scanned
-                handleFoundType(definition, null, InputObjectReference(inputValueDefinition))
-                if (isNewType) {
-                    handleInputObjectFields(definition, null)
-                }
-            }
-            // the enum class may still be found through another field, so this is only reported once scanning is done
-            is EnumTypeDefinition -> enumsWithoutClass.putIfAbsent(definition, enumWithoutClassMessage(definition, graphQLType, inputValueDefinition, clazz))
-            // undefined types and output types are reported by the SchemaParser
-            else -> {}
-        }
-    }
-
-    // an input bound to Any gets a Map at runtime too
-    private fun isPropertyMap(clazz: Class<*>) =
-        Map::class.java.isAssignableFrom(clazz) || JsonNode::class.java.isAssignableFrom(clazz) || clazz == Any::class.java
-
-    private fun isLibraryClass(clazz: Class<*>) =
-        listOf("java.", "kotlin.", "com.fasterxml.jackson.").any { clazz.name.startsWith(it) }
-
-    private fun enumWithoutClassMessage(enumType: EnumTypeDefinition, graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, clazz: Class<*>?): String {
-        val field = inputValueDefinition.name
-        val reason = when {
-            clazz == null -> "no class was found for input type '${graphQLType.name}'"
-            isPropertyMap(clazz) && isLibraryClass(clazz) -> "'${graphQLType.name}' is bound to ${clazz.name}, which has no type information for its fields"
-            else -> "${clazz.name} has no public getter or field named '$field'"
-        }
-        return "Enum type '${enumType.name}' is used by field '$field' of input type '${graphQLType.name}', but its Java enum can't be determined because $reason. " +
-            "Pass the enum class for type '${enumType.name}' in the parser's dictionary, or use a class for '${graphQLType.name}' with a public getter or field '$field'."
-    }
-
-    private fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {
-        graphQLType.withExtensions(typeExtensions).flatMap { it.implements }.forEach {
-            if (it is TypeName) {
-                handleFoundType(interfaceDefinitionsByName[it.name]
-                    ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
-            }
-        }
     }
 
     private fun extendsOtherKind(definition: TypeDefinition<*>): Boolean {
@@ -713,110 +526,7 @@ internal class SchemaClassScanner(
         queue.add(QueueItem(graphQLType, javaType))
     }
 
-    private fun findInputValueTypeInType(name: String, clazz: Class<*>): JavaType? {
-        // a Map or JsonNode has no properties for the input's fields, only methods that may share their names, e.g. ObjectNode.fields(),
-        // but a subclass of one may still declare typed getters or fields of its own
-        val isProperty = { member: Member -> !isPropertyMap(clazz) || !isLibraryClass(member.declaringClass) }
-        val methods = clazz.methods.filter(isProperty)
-
-        val (getters, methodsWithParameters) = methods.filter {
-            it.name == name || it.name == "get${name.replaceFirstChar(Char::titlecase)}"
-        }.sortedBy { it.name.length }.partition { it.parameterCount == 0 }
-
-        return getters.find { !it.isSynthetic }?.genericReturnType
-            ?: getters.firstOrNull()?.genericReturnType
-            ?: clazz.fields.find { it.name == name && isProperty(it) }?.genericType
-            ?: methodsWithParameters.find { !it.isSynthetic }?.genericReturnType
-            ?: methodsWithParameters.firstOrNull()?.genericReturnType
-    }
-
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
-
-    private class DictionaryEntry {
-        private val references = mutableListOf<Reference>()
-        var javaType: JavaType? = null
-            private set
-
-        fun setTypeIfMissing(javaType: JavaType): Boolean {
-            if (this.javaType == null) {
-                this.javaType = javaType
-                return true
-            }
-
-            return false
-        }
-
-//        fun type(): JavaType? = classEntry?.type
-
-        fun typeClass(): Class<out Any>? = javaType?.unwrap()
-
-        fun addReference(reference: Reference) {
-            references.add(reference)
-        }
-
-        fun joinReferences() = "- ${javaType?.typeName}:\n|   " + references.joinToString("\n|   ") { it.getDescription() }
-
-        fun hasResolverRef(): Boolean {
-            references.filterIsInstance<ReturnValueReference>().forEach { reference ->
-                if (GraphQLResolver::class.java.isAssignableFrom(reference.getMethod().declaringClass)) {
-                    return true
-                }
-            }
-            return false
-        }
-    }
-
-    abstract class Reference {
-        abstract fun getDescription(): String
-        override fun toString() = getDescription()
-    }
-
-    private class DictionaryReference : Reference() {
-        override fun getDescription() = "provided dictionary"
-    }
-
-    private class UnusedTypeReference : Reference() {
-        override fun getDescription() = "unused type"
-    }
-
-    private class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
-        override fun getDescription() = "interface declarations of ${type.name}"
-    }
-
-    private class UnionMemberReference(private val union: UnionTypeDefinition) : Reference() {
-        override fun getDescription() = "member of union ${union.name}"
-    }
-
-    private class SealedSubclassReference(private val sealedType: JavaType) : Reference() {
-        override fun getDescription() = "subclass of sealed type ${sealedType.typeName}"
-    }
-
-    private class InputObjectReference(private val type: InputValueDefinition) : Reference() {
-        override fun getDescription() = "input object $type"
-    }
-
-    private class InitialDictionaryEntry(private val clazz: Class<*>) {
-        var accessed = false
-            private set
-
-        fun get(): Class<*> {
-            accessed = true
-            return clazz
-        }
-    }
-
-    internal class ReturnValueReference(private val method: Method) : Reference() {
-        fun getMethod() = method
-        override fun getDescription() = "return type of method $method"
-    }
-
-    internal class MethodParameterReference(private val method: Method, private val index: Int) : Reference() {
-        override fun getDescription() = "parameter $index of method $method"
-    }
-
-    internal class FieldTypeReference(private val field: String) : Reference() {
-        override fun getDescription() = "type of field $field"
-    }
 
     private class RootTypesHolder(
         options: SchemaParserOptions,
