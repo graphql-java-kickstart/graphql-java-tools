@@ -448,6 +448,42 @@ class TypeExtensionTest {
                 |extend input Filter { id: ID }
                 """,
                 "Type 'Filter' declares field 'id' more than once at line 3, column 23."
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |type Item implements Node { id: ID name: String name: String }
+                """,
+                "Type 'Item' declares field 'name' more than once at line 3, column 49.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { id: ID id: ID }
+                """,
+                "Type 'Filter' declares field 'id' more than once at line 2, column 23."
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |type Item implements Node { id: ID }
+                |extend type Item { name: String }
+                |extend type Item { name: String }
+                """,
+                "Type 'Item' declares field 'name' more than once at line 5, column 20.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { id: ID }
+                |extend input Filter { limit: Int }
+                |extend input Filter { limit: Int }
+                """,
+                "Type 'Filter' declares field 'limit' more than once at line 4, column 23."
             )
         )
 
