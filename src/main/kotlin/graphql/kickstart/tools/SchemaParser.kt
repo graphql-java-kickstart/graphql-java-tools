@@ -16,6 +16,7 @@ import graphql.introspection.Introspection.DirectiveLocation.SCHEMA
 import graphql.introspection.Introspection.DirectiveLocation.UNION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
 import graphql.kickstart.tools.resolver.MethodFieldResolver
+import graphql.kickstart.tools.util.describe
 import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.unwrap
@@ -734,6 +735,3 @@ private val BUILT_IN_DIRECTIVES = listOf(
 ).associateBy { it.name }
 
 const val DEFAULT_DEPRECATION_MESSAGE = "No longer supported"
-
-private fun SourceLocation?.describe(): String =
-    this?.let { " at line $line, column $column" + sourceName?.let { name -> " in $name" }.orEmpty() }.orEmpty()
