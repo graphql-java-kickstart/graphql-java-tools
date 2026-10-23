@@ -1,10 +1,6 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.jackson.databind.JsonNode
-import graphql.kickstart.tools.SchemaClassScanner.InputObjectReference
-import graphql.kickstart.tools.SchemaClassScanner.InterfaceReference
-import graphql.kickstart.tools.SchemaClassScanner.Reference
-import graphql.kickstart.tools.SchemaClassScanner.ReturnValueReference
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
 import graphql.kickstart.tools.util.withExtensions
@@ -12,6 +8,7 @@ import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.Logger
 import java.lang.reflect.Member
+import java.lang.reflect.Method
 
 internal class ScanDictionary(
     private val options: SchemaParserOptions,
@@ -226,5 +223,47 @@ internal class ScanDictionary(
             accessed = true
             return clazz
         }
+    }
+
+    abstract class Reference {
+        abstract fun getDescription(): String
+        override fun toString() = getDescription()
+    }
+
+    class DictionaryReference : Reference() {
+        override fun getDescription() = "provided dictionary"
+    }
+
+    class UnusedTypeReference : Reference() {
+        override fun getDescription() = "unused type"
+    }
+
+    private class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
+        override fun getDescription() = "interface declarations of ${type.name}"
+    }
+
+    class UnionMemberReference(private val union: UnionTypeDefinition) : Reference() {
+        override fun getDescription() = "member of union ${union.name}"
+    }
+
+    class SealedSubclassReference(private val sealedType: JavaType) : Reference() {
+        override fun getDescription() = "subclass of sealed type ${sealedType.typeName}"
+    }
+
+    private class InputObjectReference(private val type: InputValueDefinition) : Reference() {
+        override fun getDescription() = "input object $type"
+    }
+
+    internal class ReturnValueReference(private val method: Method) : Reference() {
+        fun getMethod() = method
+        override fun getDescription() = "return type of method $method"
+    }
+
+    internal class MethodParameterReference(private val method: Method, private val index: Int) : Reference() {
+        override fun getDescription() = "parameter $index of method $method"
+    }
+
+    internal class FieldTypeReference(private val field: String) : Reference() {
+        override fun getDescription() = "type of field $field"
     }
 }

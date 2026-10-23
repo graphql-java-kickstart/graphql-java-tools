@@ -1,6 +1,11 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.ScanDictionary.DictionaryReference
+import graphql.kickstart.tools.ScanDictionary.FieldTypeReference
 import graphql.kickstart.tools.ScanDictionary.InitialDictionaryEntry
+import graphql.kickstart.tools.ScanDictionary.SealedSubclassReference
+import graphql.kickstart.tools.ScanDictionary.UnionMemberReference
+import graphql.kickstart.tools.ScanDictionary.UnusedTypeReference
 import graphql.kickstart.tools.resolver.FieldResolver
 import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.resolver.MethodFieldResolver
@@ -14,7 +19,6 @@ import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Member
-import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
 
@@ -581,48 +585,6 @@ internal class SchemaClassScanner(
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
-
-    abstract class Reference {
-        abstract fun getDescription(): String
-        override fun toString() = getDescription()
-    }
-
-    private class DictionaryReference : Reference() {
-        override fun getDescription() = "provided dictionary"
-    }
-
-    private class UnusedTypeReference : Reference() {
-        override fun getDescription() = "unused type"
-    }
-
-    class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
-        override fun getDescription() = "interface declarations of ${type.name}"
-    }
-
-    private class UnionMemberReference(private val union: UnionTypeDefinition) : Reference() {
-        override fun getDescription() = "member of union ${union.name}"
-    }
-
-    private class SealedSubclassReference(private val sealedType: JavaType) : Reference() {
-        override fun getDescription() = "subclass of sealed type ${sealedType.typeName}"
-    }
-
-    class InputObjectReference(private val type: InputValueDefinition) : Reference() {
-        override fun getDescription() = "input object $type"
-    }
-
-    internal class ReturnValueReference(private val method: Method) : Reference() {
-        fun getMethod() = method
-        override fun getDescription() = "return type of method $method"
-    }
-
-    internal class MethodParameterReference(private val method: Method, private val index: Int) : Reference() {
-        override fun getDescription() = "parameter $index of method $method"
-    }
-
-    internal class FieldTypeReference(private val field: String) : Reference() {
-        override fun getDescription() = "type of field $field"
-    }
 
     private class RootTypesHolder(
         options: SchemaParserOptions,

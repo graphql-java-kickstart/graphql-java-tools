@@ -1,6 +1,6 @@
 package graphql.kickstart.tools.resolver
 
-import graphql.kickstart.tools.SchemaClassScanner
+import graphql.kickstart.tools.ScanDictionary
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
@@ -31,7 +31,7 @@ internal class PropertyFieldResolver(
                 field.type,
                 property.genericType,
                 typeResolver,
-                SchemaClassScanner.FieldTypeReference(property.toString())
+                ScanDictionary.FieldTypeReference(property.toString())
             )
         )
     }

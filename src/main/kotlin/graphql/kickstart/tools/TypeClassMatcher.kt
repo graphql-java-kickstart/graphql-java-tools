@@ -95,7 +95,7 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
 
     internal data class ScalarMatch(val type: ScalarTypeDefinition) : Match
 
-    internal data class ValidMatch(val type: TypeDefinition<*>, val javaType: JavaType, val reference: SchemaClassScanner.Reference) : Match
+    internal data class ValidMatch(val type: TypeDefinition<*>, val javaType: JavaType, val reference: ScanDictionary.Reference) : Match
 
     internal enum class Location(val prettyName: String) {
         RETURN_TYPE("return type"),
@@ -106,14 +106,14 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         val graphQLType: GraphQLLangType,
         val javaType: JavaType,
         val typeResolver: GenericTypeResolver,
-        val reference: SchemaClassScanner.Reference,
+        val reference: ScanDictionary.Reference,
         val location: Location
     ) {
         companion object {
-            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: SchemaClassScanner.Reference) =
+            fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: ScanDictionary.Reference) =
                 PotentialMatch(graphQLType, javaType, typeResolver, reference, Location.RETURN_TYPE)
 
-            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: SchemaClassScanner.Reference) =
+            fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: ScanDictionary.Reference) =
                 PotentialMatch(graphQLType, javaType, typeResolver, reference, Location.PARAMETER_TYPE)
         }
     }

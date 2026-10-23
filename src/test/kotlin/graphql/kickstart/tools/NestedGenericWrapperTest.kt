@@ -181,7 +181,7 @@ class NestedGenericWrapperTest {
 
         val accepted = javaTypes.flatMap { (shape, javaType) -> graphQLTypes.map { Triple(shape, javaType, it) } }.filter { (_, javaType, graphQLType) ->
             val match = try {
-                matcher.match(TypeClassMatcher.PotentialMatch.returnValue(graphQLType, typeResolver.resolve(javaType), typeResolver, SchemaClassScanner.ReturnValueReference(method)))
+                matcher.match(TypeClassMatcher.PotentialMatch.returnValue(graphQLType, typeResolver.resolve(javaType), typeResolver, ScanDictionary.ReturnValueReference(method)))
             } catch (e: SchemaClassScannerError) {
                 null
             }
