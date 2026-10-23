@@ -171,6 +171,8 @@ class SchemaParser internal constructor(
         val name = objectDefinition.name
         val extensions = typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name)
         val directives = sdlDirectives.directivesOf(objectDefinition, extensions)
+        val fieldDefinitions = objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
+        rejectRepeated(name, "field", fieldDefinitions)
         val builder = GraphQLObjectType.newObject()
             .name(name)
             .definition(objectDefinition)
@@ -185,7 +187,7 @@ class SchemaParser internal constructor(
                 }
             }
             .apply {
-                objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { fieldDefinition ->
+                fieldDefinitions.forEach { fieldDefinition ->
                     field { field ->
                         createField(field, fieldDefinition, inputObjects)
                         codeRegistryBuilder.dataFetcher(
@@ -209,6 +211,8 @@ class SchemaParser internal constructor(
                                   inputObjectsInProgress: MutableSet<String>): GraphQLInputObjectType {
         val extensionDefinitions = typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(definition.name)
         val directives = sdlDirectives.directivesOf(definition, extensionDefinitions)
+        val inputValueDefinitions = definition.withExtensions(typeExtensions).flatMap { it.inputValueDefinitions }
+        rejectRepeated(definition.name, "field", inputValueDefinitions)
 
         inputObjectsInProgress.add(definition.name)
 
@@ -219,20 +223,18 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
             .withSdlDirectives(directives, INPUT_OBJECT)
             .apply {
-                (extensionDefinitions + definition).forEach { typeDefinition ->
-                    typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
-                        field(
-                            GraphQLInputObjectField.newInputObjectField()
-                                .name(fieldDefinition.name)
-                                .definition(fieldDefinition)
-                                .description(getDocumentation(fieldDefinition, options))
-                                .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
-                                .apply { sdlDirectives.getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
-                                .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
-                                .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
-                                .build()
-                        )
-                    }
+                inputValueDefinitions.forEach { fieldDefinition ->
+                    field(
+                        GraphQLInputObjectField.newInputObjectField()
+                            .name(fieldDefinition.name)
+                            .definition(fieldDefinition)
+                            .description(getDocumentation(fieldDefinition, options))
+                            .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
+                            .apply { sdlDirectives.getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
+                            .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
+                            .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
+                            .build()
+                    )
                 }
             }
 

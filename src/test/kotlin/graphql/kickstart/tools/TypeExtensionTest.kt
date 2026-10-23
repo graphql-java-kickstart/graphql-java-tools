@@ -426,6 +426,28 @@ class TypeExtensionTest {
                 """,
                 "Type 'FooBar' declares member 'Bar' more than once at line 3, column 23.",
                 Foo::class, Bar::class, Baz::class
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |type Item implements Node {
+                |    id: ID
+                |}
+                |extend type Item {
+                |    id: ID
+                |}
+                """,
+                "Type 'Item' declares field 'id' more than once at line 7, column 5.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { id: ID }
+                |extend input Filter { id: ID }
+                """,
+                "Type 'Filter' declares field 'id' more than once at line 3, column 23."
             )
         )
 
@@ -436,6 +458,21 @@ class TypeExtensionTest {
 
             assertEquals(error.message, repeat.message)
         }
+    }
+
+    @Test
+    fun `input object fields list those of the type before those of its extensions`() {
+        val schema = parser(
+            """
+            type Query { search(filter: Filter): String }
+
+            extend input Filter { limit: Int }
+            input Filter { id: ID }
+            extend input Filter { offset: Int }
+            """).makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals((schema.getType("Filter") as GraphQLInputObjectType).fieldDefinitions.map { it.name }, listOf("id", "limit", "offset"))
     }
 
     @Test
@@ -549,7 +586,7 @@ class TypeExtensionTest {
 
     class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
 
-    class Filter(val id: String?)
+    class Filter(val id: String?, val limit: Int? = null, val offset: Int? = null)
 
     enum class Color { RED, GREEN }
 
