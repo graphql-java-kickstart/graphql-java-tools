@@ -364,6 +364,27 @@ class MethodFieldResolverTest {
         fun thumbnail(image: Image, env: DataFetchingEnvironment?) = env.toString()
     }
 
+    @Test
+    fun `should pass the source to a resolver method declared by the data class itself`() {
+        val schema = SchemaParser.newParser()
+            .schemaString("type Query { badge: Badge! } type Badge { size(scale: Int!): Int! }")
+            .resolvers(BadgeQuery(), Badge("resolver"))
+            .build()
+            .makeExecutableSchema()
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { "{ badge { size(scale: 3) } }" }
+
+        assertEquals(data, mapOf("badge" to mapOf("size" to 15)))
+    }
+
+    class BadgeQuery : GraphQLQueryResolver {
+        fun badge() = Badge("badge")
+    }
+
+    class Badge(val label: String) : GraphQLResolver<Badge> {
+        fun size(badge: Badge, scale: Int) = badge.label.length * scale
+    }
+
     sealed class Maybe<out T> {
         data class Some<T>(val value: T) : Maybe<T>()
         object None : Maybe<Nothing>()
