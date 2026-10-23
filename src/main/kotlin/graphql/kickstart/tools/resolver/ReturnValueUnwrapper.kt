@@ -4,10 +4,7 @@ import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.ResolverError
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.TypeClassMatcher.Unwrapped
-import graphql.kickstart.tools.util.GraphQLLangType
-import graphql.kickstart.tools.util.unwrap
 import graphql.schema.DataFetchingEnvironment
-import graphql.schema.idl.ScalarInfo
 import kotlinx.coroutines.future.asDeferred
 import java.lang.reflect.Method
 import java.util.*
@@ -39,21 +36,9 @@ internal class ReturnValueUnwrapper private constructor(
             .then(nested, environmentSupplier)
 
     companion object {
-        fun create(
-            method: Method,
-            unwrapped: List<Unwrapped>,
-            valueClass: Class<*>?,
-            fieldType: GraphQLLangType,
-            isSubscription: Boolean,
-            genericWrappers: List<GenericWrapper>,
-            scalarNames: Set<String>
-        ): ReturnValueUnwrapper {
-            val nested = when {
-                // graphql-java completes a subscription's events one at a time
-                isSubscription -> null
-                fieldType.unwrap().name.let { it in scalarNames && it !in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS } -> null
-                else -> nestedSteps(unwrapped, genericWrappers)
-            }
+        fun create(method: Method, unwrapped: List<Unwrapped>, valueClass: Class<*>?, isSubscription: Boolean, genericWrappers: List<GenericWrapper>): ReturnValueUnwrapper {
+            // graphql-java completes a subscription's events one at a time
+            val nested = if (isSubscription) null else nestedSteps(unwrapped, genericWrappers)
             return ReturnValueUnwrapper(genericWrappers, method, valueClass, nested)
         }
     }
