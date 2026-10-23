@@ -276,6 +276,18 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @Test
+    fun `data fetcher does not read custom context from the legacy context object`() {
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: ContextClass?): Boolean {
+                return ctx != null
+            }
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass(), legacyContext = ContextClass())), false)
+    }
+
+    @Test
     fun `data fetcher passes custom context and environment if method has both as extra arguments`() {
         val customContext = ContextClass()
         val context = GraphQLContext.of(mapOf(ContextClass::class.java to customContext))
