@@ -28,8 +28,6 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
      * - generic wrappers are replaced by their wrapped type, e.g. `CompletableFuture<Foo>` becomes `Foo`
      * - wildcards are replaced by their upper bound, e.g. `? extends Foo` becomes `Foo`
      * - primitives are replaced by their boxed class, e.g. `int` becomes `Integer`
-     *
-     * [onUnwrap] is told each generic wrapper that is replaced, outermost first.
      */
     fun resolve(javaType: JavaType, onUnwrap: ((wrapped: ParameterizedType) -> Unit)? = null): JavaType {
         return when (val type = resolveTypeVariables(javaType)) {
