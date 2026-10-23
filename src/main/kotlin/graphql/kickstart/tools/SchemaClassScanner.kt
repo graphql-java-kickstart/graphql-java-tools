@@ -251,9 +251,7 @@ internal class SchemaClassScanner(
     }
 
     private fun validateAndCreateResult(rootTypeHolder: RootTypesHolder): ScannedSchemaObjects {
-        enumsWithoutClass.entries
-            .find { dictionary[it.key]?.javaType == null }
-            ?.let { throw SchemaClassScannerError(it.value) }
+        throwIfEnumWithoutClass()
 
         initialDictionary
             .filter { !it.value.accessed }
@@ -685,6 +683,12 @@ internal class SchemaClassScanner(
             "Pass the enum class for type '${enumType.name}' in the parser's dictionary, or use a class for '${graphQLType.name}' with a public getter or field '$field'."
     }
 
+    private fun throwIfEnumWithoutClass() {
+        enumsWithoutClass.entries
+            .find { dictionary[it.key]?.javaType == null }
+            ?.let { throw SchemaClassScannerError(it.value) }
+    }
+
     private fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {
         graphQLType.withExtensions(typeExtensions).flatMap { it.implements }.forEach {
             if (it is TypeName) {
@@ -732,9 +736,14 @@ internal class SchemaClassScanner(
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
 
-    private class DictionaryEntry {
+    interface EntryView {
+        val javaType: JavaType?
+        fun typeClass(): Class<out Any>?
+    }
+
+    private class DictionaryEntry : EntryView {
         private val references = mutableListOf<Reference>()
-        var javaType: JavaType? = null
+        override var javaType: JavaType? = null
             private set
 
         fun setTypeIfMissing(javaType: JavaType): Boolean {
@@ -748,7 +757,7 @@ internal class SchemaClassScanner(
 
 //        fun type(): JavaType? = classEntry?.type
 
-        fun typeClass(): Class<out Any>? = javaType?.unwrap()
+        override fun typeClass(): Class<out Any>? = javaType?.unwrap()
 
         fun addReference(reference: Reference) {
             references.add(reference)
