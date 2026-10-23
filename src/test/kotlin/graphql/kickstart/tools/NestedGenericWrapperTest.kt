@@ -137,6 +137,9 @@ class NestedGenericWrapperTest {
     }
 
     @Test
+    fun `unwraps the wrappers a schemaWrapper introduces`() = assertResolves("batchOfPayloads", ab)
+
+    @Test
     fun `gives a custom scalar the wrappers as they are`() {
         val json = mutableListOf<Any?>()
         val schema = schema(Query(), jsonScalar(json))
@@ -179,17 +182,19 @@ class NestedGenericWrapperTest {
         val shapes = (1..4).fold(listOf(listOf<Class<*>>())) { shapes, _ -> shapes + shapes.filter { it.size == shapes.last().size }.flatMap { shape -> containers.map { shape + it } } }
         val javaTypes = shapes.flatMap { shape -> listOf(shape to javaType(shape, wildcardElements = false), shape to javaType(shape, wildcardElements = true)) }
 
-        val accepted = javaTypes.flatMap { (shape, javaType) -> graphQLTypes.map { Triple(shape, javaType, it) } }.filter { (_, javaType, graphQLType) ->
+        val accepted = javaTypes.flatMap { (shape, javaType) -> graphQLTypes.map { Triple(shape, javaType, it) } }.mapNotNull { (shape, javaType, graphQLType) ->
+            val potentialMatch = TypeClassMatcher.PotentialMatch.returnValue(graphQLType, javaType, typeResolver, ScanDictionary.ReturnValueReference(method))
             val match = try {
-                matcher.match(TypeClassMatcher.PotentialMatch.returnValue(graphQLType, typeResolver.resolve(javaType), typeResolver, ScanDictionary.ReturnValueReference(method)))
+                matcher.match(potentialMatch)
             } catch (e: SchemaClassScannerError) {
                 null
             }
-            (match as? TypeClassMatcher.ValidMatch)?.javaType == Payload::class.java
+            Triple(shape, potentialMatch, graphQLType).takeIf { (match as? TypeClassMatcher.ValidMatch)?.javaType == Payload::class.java }
         }
-        val failures = accepted.mapNotNull { (shape, javaType, graphQLType) ->
+        val failures = accepted.mapNotNull { (shape, potentialMatch, graphQLType) ->
+            val javaType = potentialMatch.javaType
             val unwrapper = ReturnValueUnwrapper.create(
-                method, javaType, TypeUtils.getRawType(typeResolver.resolve(javaType), null), graphQLType, false, typeResolver, options.genericWrappers, emptySet()
+                method, potentialMatch.unwrapping.unwrapped, TypeUtils.getRawType(typeResolver.resolve(javaType), null), graphQLType, false, options.genericWrappers, emptySet()
             )
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value(shape)) { environment } }).build().execute("query { field { data } }")
             "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}"
@@ -263,6 +268,7 @@ class NestedGenericWrapperTest {
                 listWithFailedWrapper: [Payload]
                 futureOfListWithFailedWrapper: [Payload]
                 listOfPlainFutures: [Payload]
+                batchOfPayloads: [Payload!]!
                 plainList: [Payload!]!
                 futureOfList: [Payload!]!
                 wrappedFuture: Payload!
@@ -277,7 +283,7 @@ class NestedGenericWrapperTest {
             """)
         .resolvers(query)
         .scalars(*scalars)
-        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper).build())
+        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper).build())
         .build()
         .makeExecutableSchema()
 
@@ -366,11 +372,17 @@ class NestedGenericWrapperTest {
         fun listOfPlainFutures(): List<Future<Payload>> = listOf(FutureTask { Payload("a") }.apply { run() })
         fun json(): List<Try<Map<String, Any>>> = listOf(Try.success(mapOf("a" to 1)), Try.success(mapOf("b" to 2)))
         fun futureJson(): CompletableFuture<Try<Map<String, Any>>> = completedFuture(Try.success(mapOf("c" to 3)))
+        fun batchOfPayloads(): Batch<Payload> = Batch(listOfFutures())
     }
+
+    class Batch<T>(val items: List<CompletableFuture<T>>)
 
     companion object {
         private val tryWrapper = GenericWrapper.withTransformer(Try::class, 0, { wrapper -> wrapper.get() })
         private val pageWrapper = GenericWrapper.listCollectionWithTransformer(Page::class, 0, { page -> page.content })
+        private val batchWrapper = GenericWrapper.withTransformer(Batch::class, 0, { batch -> batch.items }) { item ->
+            ParameterizedTypeImpl(List::class.java, arrayOf(ParameterizedTypeImpl(CompletableFuture::class.java, arrayOf(item), null)), null)
+        }
         private val payloadType = GraphQLObjectType.newObject()
             .name("Payload")
             .field(GraphQLFieldDefinition.newFieldDefinition().name("data").type(GraphQLNonNull.nonNull(Scalars.GraphQLString)))

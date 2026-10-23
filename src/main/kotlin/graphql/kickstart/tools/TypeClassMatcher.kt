@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import graphql.execution.DataFetcherResult
+import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.GraphQLLangType
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.isSubtypeOf
@@ -15,79 +16,22 @@ import java.util.*
  */
 internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition<*>>) {
 
-    private fun error(potentialMatch: PotentialMatch, msg: String) = SchemaClassScannerError("Unable to match type definition (${TypeUtil.simplePrint(potentialMatch.graphQLType)}) for reference ${potentialMatch.reference} with java type (${potentialMatch.javaType}): $msg")
-
     fun match(potentialMatch: PotentialMatch): Match {
-        return match(potentialMatch, potentialMatch.graphQLType, potentialMatch.javaType, true)
-    }
-
-    private fun match(potentialMatch: PotentialMatch, graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
-
-        var realType = potentialMatch.typeResolver.resolve(javaType)
-
-        if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
-            if (potentialMatch.location != Location.RETURN_TYPE) {
-                throw error(potentialMatch, "${DataFetcherResult::class.java.name} can only be used as a return type")
-            }
-
-            realType = potentialMatch.typeResolver.resolve(realType.actualTypeArguments.first())
-
-            if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
-                throw error(potentialMatch, "${DataFetcherResult::class.java.name} cannot be nested within itself")
-            }
-        }
-
-        var optional = false
-
-        // Handle jdk8 Optionals
-        if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
-            optional = true
-
-            if (potentialMatch.location == Location.RETURN_TYPE && !root) {
-                throw error(potentialMatch, "${Optional::class.java.name} can only be used at the top level of a return type")
-            }
-
-            realType = potentialMatch.typeResolver.resolve(realType.actualTypeArguments.first())
-
-            if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
-                throw error(potentialMatch, "${Optional::class.java.name} cannot be nested within itself")
-            }
-        }
-
-        // Match graphql type to java type.
-        return when (graphQLType) {
-            is NonNullType -> {
-                if (optional) {
-                    throw error(potentialMatch, "graphql type is marked as nonnull but ${Optional::class.java.name} was used")
-                }
-                match(potentialMatch, graphQLType.type, realType)
-            }
-
-            is ListType -> when {
-                realType is ParameterizedType && realType.isSubtypeOf(Iterable::class.java) ->
-                    match(potentialMatch, graphQLType.type, realType.actualTypeArguments.first())
-                realType is Class<*> && realType.isArray ->
-                    match(potentialMatch, graphQLType.type, realType.componentType)
-                // e.g. a property map value: the element type is unknown, so match it as Object too
-                realType == Any::class.java ->
-                    match(potentialMatch, graphQLType.type, realType)
-                else ->
-                    throw error(potentialMatch, "Java class is not a List or generic type information was lost: $realType")
-            }
-
+        val unwrapping = potentialMatch.unwrapping
+        return when (val graphQLType = unwrapping.graphQLType) {
             is TypeName -> {
                 val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[graphQLType.name]
                     ?: definitionsByName[graphQLType.name]
-                    ?: throw error(potentialMatch, "No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
+                    ?: throw potentialMatch.error("No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
                 if (typeDefinition is ScalarTypeDefinition) {
                     ScalarMatch(typeDefinition)
                 } else {
-                    ValidMatch(typeDefinition, realType, potentialMatch.reference)
+                    ValidMatch(typeDefinition, unwrapping.javaType, potentialMatch.reference)
                 }
             }
 
-            is TypeDefinition<*> -> ValidMatch(graphQLType, realType, potentialMatch.reference)
-            else -> throw error(potentialMatch, "Unknown type: ${realType.javaClass.name}")
+            is TypeDefinition<*> -> ValidMatch(graphQLType, unwrapping.javaType, potentialMatch.reference)
+            else -> throw potentialMatch.error("Unknown type: ${unwrapping.javaType.javaClass.name}")
         }
     }
 
@@ -109,6 +53,75 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         val reference: ScanDictionary.Reference,
         val location: Location
     ) {
+        /**
+         * How the java type is matched to the GraphQL type, kept so a data fetcher can unwrap the value the same way.
+         */
+        val unwrapping: Unwrapping by lazy { unwrap(graphQLType, javaType, root = true, mutableListOf()) }
+
+        fun error(msg: String) = SchemaClassScannerError("Unable to match type definition (${TypeUtil.simplePrint(graphQLType)}) for reference $reference with java type ($javaType): $msg")
+
+        private fun unwrap(graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean, unwrapped: MutableList<Unwrapped>): Unwrapping {
+            val onUnwrap = { wrapper: GenericWrapper -> unwrapped += Unwrapped.Wrapper(wrapper) }
+            var realType = typeResolver.resolve(javaType, onUnwrap)
+
+            if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
+                if (location != Location.RETURN_TYPE) {
+                    throw error("${DataFetcherResult::class.java.name} can only be used as a return type")
+                }
+
+                unwrapped += Unwrapped.Data
+                realType = typeResolver.resolve(realType.actualTypeArguments.first(), onUnwrap)
+
+                if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
+                    throw error("${DataFetcherResult::class.java.name} cannot be nested within itself")
+                }
+            }
+
+            var optional = false
+
+            // Handle jdk8 Optionals
+            if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
+                optional = true
+
+                if (location == Location.RETURN_TYPE && !root) {
+                    throw error("${Optional::class.java.name} can only be used at the top level of a return type")
+                }
+
+                unwrapped += Unwrapped.Present
+                realType = typeResolver.resolve(realType.actualTypeArguments.first(), onUnwrap)
+
+                if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
+                    throw error("${Optional::class.java.name} cannot be nested within itself")
+                }
+            }
+
+            // Match graphql type to java type.
+            return when (graphQLType) {
+                is NonNullType -> {
+                    if (optional) {
+                        throw error("graphql type is marked as nonnull but ${Optional::class.java.name} was used")
+                    }
+                    unwrap(graphQLType.type, realType, root = false, unwrapped)
+                }
+
+                is ListType -> when {
+                    realType is ParameterizedType && realType.isSubtypeOf(Iterable::class.java) -> {
+                        unwrapped += Unwrapped.Elements
+                        unwrap(graphQLType.type, realType.actualTypeArguments.first(), root = false, unwrapped)
+                    }
+                    realType is Class<*> && realType.isArray ->
+                        unwrap(graphQLType.type, realType.componentType, root = false, unwrapped)
+                    // e.g. a property map value: the element type is unknown, so match it as Object too
+                    realType == Any::class.java ->
+                        unwrap(graphQLType.type, realType, root = false, unwrapped)
+                    else ->
+                        throw error("Java class is not a List or generic type information was lost: $realType")
+                }
+
+                else -> Unwrapping(unwrapped, graphQLType, realType)
+            }
+        }
+
         companion object {
             fun returnValue(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: ScanDictionary.Reference) =
                 PotentialMatch(graphQLType, javaType, typeResolver, reference, Location.RETURN_TYPE)
@@ -116,5 +129,17 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
             fun parameterType(graphQLType: GraphQLLangType, javaType: JavaType, typeResolver: GenericTypeResolver, reference: ScanDictionary.Reference) =
                 PotentialMatch(graphQLType, javaType, typeResolver, reference, Location.PARAMETER_TYPE)
         }
+    }
+
+    /**
+     * What a java type is unwrapped through, outermost first, to reach the java type matched to the named GraphQL type.
+     */
+    internal class Unwrapping(val unwrapped: List<Unwrapped>, val graphQLType: GraphQLLangType, val javaType: JavaType)
+
+    internal sealed interface Unwrapped {
+        class Wrapper(val wrapper: GenericWrapper) : Unwrapped
+        object Data : Unwrapped
+        object Present : Unwrapped
+        object Elements : Unwrapped
     }
 }

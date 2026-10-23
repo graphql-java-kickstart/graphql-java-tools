@@ -131,7 +131,7 @@ internal class MethodFieldResolver(
         val valueClass = (TypeUtils.getRawType(getResolvedReturnType(), null) ?: Any::class.java)
             .takeUnless { it == Any::class.java && TypeUtils.getRawType(returnType, null) == Future::class.java }
         val unwrapper = ReturnValueUnwrapper.create(
-            method, returnType, valueClass, field.type, search.isSubscription, typeResolver, options.genericWrappers, scalarNames
+            method, returnValueMatch.unwrapping.unwrapped, valueClass, field.type, search.isSubscription, options.genericWrappers, scalarNames
         )
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
@@ -160,8 +160,6 @@ internal class MethodFieldResolver(
     }
 
     override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        val returnValueMatch = TypeClassMatcher.PotentialMatch.returnValue(field.type, getResolvedReturnType(), typeResolver, ScanDictionary.ReturnValueReference(method))
-
         return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
             TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, typeResolver, ScanDictionary.MethodParameterReference(method, i))
         } + listOf(returnValueMatch)
@@ -184,8 +182,14 @@ internal class MethodFieldResolver(
         typeResolver.resolveTypeVariables(declaredType)
     }
 
-    private fun getResolvedReturnType(): JavaType =
-        typeResolver.resolve(if (search.isSubscription) returnType.asPublisher() else returnType)
+    // the declared type, so the match also covers the wrappers of the value the method returns
+    private val returnValueMatch by lazy {
+        TypeClassMatcher.PotentialMatch.returnValue(field.type, matchedReturnType(), typeResolver, ScanDictionary.ReturnValueReference(method))
+    }
+
+    private fun matchedReturnType(): JavaType = if (search.isSubscription) returnType.asPublisher() else returnType
+
+    private fun getResolvedReturnType(): JavaType = typeResolver.resolve(matchedReturnType())
 
     private fun getJavaMethodParameterIndex(index: Int) = index + search.firstArgumentIndex
 

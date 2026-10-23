@@ -1,21 +1,15 @@
 package graphql.kickstart.tools.resolver
 
 import graphql.execution.DataFetcherResult
-import graphql.kickstart.tools.GenericTypeResolver
 import graphql.kickstart.tools.ResolverError
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
+import graphql.kickstart.tools.TypeClassMatcher.Unwrapped
 import graphql.kickstart.tools.util.GraphQLLangType
-import graphql.kickstart.tools.util.JavaType
-import graphql.kickstart.tools.util.isSubtypeOf
 import graphql.kickstart.tools.util.unwrap
-import graphql.language.ListType
-import graphql.language.NonNullType
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.idl.ScalarInfo
 import kotlinx.coroutines.future.asDeferred
 import java.lang.reflect.Method
-import java.lang.reflect.ParameterizedType
-import java.lang.reflect.WildcardType
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
@@ -47,20 +41,18 @@ internal class ReturnValueUnwrapper private constructor(
     companion object {
         fun create(
             method: Method,
-            returnType: JavaType,
+            unwrapped: List<Unwrapped>,
             valueClass: Class<*>?,
             fieldType: GraphQLLangType,
             isSubscription: Boolean,
-            typeResolver: GenericTypeResolver,
             genericWrappers: List<GenericWrapper>,
             scalarNames: Set<String>
         ): ReturnValueUnwrapper {
             val nested = when {
                 // graphql-java completes a subscription's events one at a time
                 isSubscription -> null
-                !hasGenericWrapperBelow(returnType, genericWrappers) -> null
                 fieldType.unwrap().name.let { it in scalarNames && it !in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS } -> null
-                else -> nestedSteps(fieldType, returnType, typeResolver, genericWrappers)
+                else -> nestedSteps(unwrapped, genericWrappers)
             }
             return ReturnValueUnwrapper(genericWrappers, method, valueClass, nested)
         }
@@ -96,44 +88,13 @@ private class ValueOf(private val present: Step) : Step {
         if (value is Optional<*>) present.unwrap(value.orElse(null), environmentSupplier) else value
 }
 
-private sealed interface Unwrapped {
-    class Wrapper(rawType: Class<*>) : Unwrapped {
-        val isFuture = Future::class.java.isAssignableFrom(rawType) || CompletionStage::class.java.isAssignableFrom(rawType)
-    }
+private val Unwrapped.isFuture
+    get() = this is Unwrapped.Wrapper && (Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type))
 
-    object Data : Unwrapped
-    object Present : Unwrapped
-    object Elements : Unwrapped
-}
-
-private fun nestedSteps(fieldType: GraphQLLangType, returnType: JavaType, typeResolver: GenericTypeResolver, genericWrappers: List<GenericWrapper>): Step? {
-    val unwrapped = mutableListOf<Unwrapped>()
-    val onUnwrap = { wrapped: ParameterizedType -> unwrapped += Unwrapped.Wrapper(wrapped.rawType as Class<*>) }
-
-    fun addLevel(graphQLType: GraphQLLangType, javaType: JavaType) {
-        var type = typeResolver.resolve(javaType, onUnwrap)
-        if (type is ParameterizedType && type.isSubtypeOf(DataFetcherResult::class.java)) {
-            unwrapped += Unwrapped.Data
-            type = typeResolver.resolve(type.actualTypeArguments.first(), onUnwrap)
-        }
-        if (type is ParameterizedType && type.isSubtypeOf(Optional::class.java)) {
-            unwrapped += Unwrapped.Present
-            type = typeResolver.resolve(type.actualTypeArguments.first(), onUnwrap)
-        }
-        when (graphQLType) {
-            is NonNullType -> addLevel(graphQLType.type, type)
-            is ListType -> if (type is ParameterizedType && type.isSubtypeOf(Iterable::class.java)) {
-                unwrapped += Unwrapped.Elements
-                addLevel(graphQLType.type, type.actualTypeArguments.first())
-            }
-            else -> Unit
-        }
-    }
-
+private fun nestedSteps(unwrapped: List<Unwrapped>, genericWrappers: List<GenericWrapper>): Step? {
     fun isFutureReturnedByWrapperBefore(i: Int) =
-        (unwrapped[i] as? Unwrapped.Wrapper)?.isFuture == true && (unwrapped.getOrNull(i - 1) as? Unwrapped.Wrapper)?.isFuture == false
+        unwrapped[i].isFuture && unwrapped.getOrNull(i - 1).let { it is Unwrapped.Wrapper && !it.isFuture }
 
-    addLevel(fieldType, typeResolver.resolve(returnType, onUnwrap))
     val awaited = unwrapped.filterIndexed { i, _ -> !isFutureReturnedByWrapperBefore(i) }
     val belowOutermost = if (awaited.firstOrNull() is Unwrapped.Wrapper) awaited.drop(1) else awaited
     return belowOutermost.foldRight(null as Step?) { it, next ->
@@ -144,15 +105,6 @@ private fun nestedSteps(fieldType: GraphQLLangType, returnType: JavaType, typeRe
             Unwrapped.Elements -> next?.let(::EachElement)
         }
     }
-}
-
-private fun hasGenericWrapperBelow(type: JavaType, genericWrappers: List<GenericWrapper>): Boolean =
-    type is ParameterizedType && type.actualTypeArguments.any { it.mentionsGenericWrapper(genericWrappers) }
-
-private fun JavaType.mentionsGenericWrapper(genericWrappers: List<GenericWrapper>): Boolean = when (this) {
-    is ParameterizedType -> genericWrappers.any { it.type == rawType } || actualTypeArguments.any { it.mentionsGenericWrapper(genericWrappers) }
-    is WildcardType -> upperBounds.any { it.mentionsGenericWrapper(genericWrappers) }
-    else -> false
 }
 
 private fun Any?.then(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
