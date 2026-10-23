@@ -46,7 +46,8 @@ internal class ReturnValueUnwrapper private constructor(
             val unwrapped = unwrapping.unwrapped
             val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
             val belowOutermost = if (outermost == null) unwrapped else unwrapped.drop(1)
-            val leafClass = TypeUtils.getRawType(unwrapping.javaType, null)
+            // Object (e.g. for a union) can't tell a future from a value, so then every nested future is checked
+            val leafClass = TypeUtils.getRawType(unwrapping.javaType, null)?.takeUnless { it == Any::class.java }
             // graphql-java completes a subscription's events one at a time
             val nested = if (isSubscription) null else steps(belowOutermost, Awaitable(method, leafClass, isSuspendFunction))
             return ReturnValueUnwrapper(genericWrappers, Awaitable(method, valueClass, isSuspendFunction), outermost?.isFuture == true, nested)
@@ -148,22 +149,20 @@ private fun Any.transformWithGenericWrapper(
 // that a suspend function completes with, would reach it as the field value
 private class Awaitable(private val method: Method, private val valueClass: Class<*>?, private val isSuspendFunction: Boolean) {
 
-    fun requireOutermost(value: Any?): Any? {
-        if (value !is Future<*> || valueClass?.isInstance(value) == true || value is CompletionStage<*> && !isSuspendFunction) {
-            return value
+    fun requireOutermost(value: Any?): Any? =
+        if (value !is Future<*> || valueClass?.isInstance(value) == true || value is CompletionStage<*> && !isSuspendFunction) value else fail(value)
+
+    fun requireNested(value: Any?): Any? =
+        if (value !is Future<*> || value is CompletionStage<*> || valueClass?.isInstance(value) == true) value else fail(value)
+
+    private fun fail(value: Any): Nothing = throw ResolverError(
+        if (isSuspendFunction) {
+            "Suspend function '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. Return its value instead."
+        } else {
+            "Resolver method '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
+                "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
         }
-
-        throw ResolverError(
-            if (isSuspendFunction) {
-                "Suspend function '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. Return its value instead."
-            } else {
-                "Resolver method '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
-                    "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
-            }
-        )
-    }
-
-    fun requireNested(value: Any?): Any? = if (value is CompletionStage<*>) value else requireOutermost(value)
+    )
 }
 
 private val Method.resolverName

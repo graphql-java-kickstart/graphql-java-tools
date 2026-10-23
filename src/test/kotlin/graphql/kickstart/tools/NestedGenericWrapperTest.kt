@@ -133,6 +133,10 @@ class NestedGenericWrapperTest {
     fun `fails a list of futures graphql-java can't wait on`() = assertFails("listOfPlainFutures", cantWaitOn("listOfPlainFutures"))
 
     @Test
+    fun `fails a list of futures graphql-java can't wait on typed as Object`() =
+        assertFails("listOfPlainFuturesOfAny", cantWaitOn("listOfPlainFuturesOfAny"), selection = "{ ... on Payload { data } }")
+
+    @Test
     fun `fails a list of wrappers whose transformer returns a future graphql-java can't wait on`() = assertFails("listOfLater", cantWaitOn("listOfLater"))
 
     @Test
@@ -206,7 +210,7 @@ class NestedGenericWrapperTest {
         val failures = accepted.mapNotNull { (shape, potentialMatch) ->
             val graphQLType = potentialMatch.graphQLType
             val unwrapper = ReturnValueUnwrapper.create(
-                method, potentialMatch.unwrapping, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), false, false, options.genericWrappers
+                method, potentialMatch.unwrapping, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), isSuspendFunction = false, isSubscription = false, options.genericWrappers
             )
             val value = value(shape, leaf(graphQLType))
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
@@ -289,6 +293,7 @@ class NestedGenericWrapperTest {
                 listWithFailedWrapper: [Payload]
                 futureOfListWithFailedWrapper: [Payload]
                 listOfPlainFutures: [Payload]
+                listOfPlainFuturesOfAny: [Item]
                 listOfLater: [Payload]
                 suspendListOfPlainFutures: [Payload]
                 listOfWrappedPending: [Payload!]!
@@ -303,6 +308,8 @@ class NestedGenericWrapperTest {
             type Payload {
                 data: String!
             }
+
+            union Item = Payload
 
             ${if (scalars.isEmpty()) "" else "scalar JSON"}
             """)
@@ -329,8 +336,8 @@ class NestedGenericWrapperTest {
         "Resolver method '${Query::class.java.name}.$field' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. " +
             "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
 
-    private fun assertFails(field: String, message: String) {
-        val result = execute(field)
+    private fun assertFails(field: String, message: String, selection: String = "{ data }") {
+        val result = execute(field, selection)
         assertEquals(result.errors.map { it.message }, listOf("Exception while fetching data (/$field) : $message"))
         assertEquals(result.getData(), mapOf(field to null))
     }
@@ -401,6 +408,7 @@ class NestedGenericWrapperTest {
         fun listWithFailedWrapper(): List<Try<Payload>> = listOf(Try.success(Payload("a")), Try.failure("failed wrapper"))
         fun futureOfListWithFailedWrapper(): CompletableFuture<List<Try<Payload>>> = CompletableFuture.supplyAsync { listWithFailedWrapper() }
         fun listOfPlainFutures(): List<Future<Payload>> = listOf(FutureTask { Payload("a") }.apply { run() })
+        fun listOfPlainFuturesOfAny(): List<Future<Any>> = listOf(FutureTask<Any> { Payload("a") }.apply { run() })
         fun listOfLater(): List<Later<Payload>> = listOf(Later(Payload("a")))
         suspend fun suspendListOfPlainFutures(): List<Future<Payload>> = listOfPlainFutures()
         fun listOfWrappedPending(): List<Try<Pending<Payload>>> = listOf(Try.success(Pending(Payload("a"))), Try.success(Pending(Payload("b"))))
