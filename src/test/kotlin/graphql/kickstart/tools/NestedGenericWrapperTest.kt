@@ -130,11 +130,19 @@ class NestedGenericWrapperTest {
     fun `fails the list when one of its wrappers in a future fails`() = assertFails("futureOfListWithFailedWrapper", "failed wrapper")
 
     @Test
-    fun `fails a list of futures graphql-java can't wait on`() = assertFails(
-        "listOfPlainFutures",
-        "Resolver method '${Query::class.java.name}.listOfPlainFutures' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. " +
-            "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+    fun `fails a list of futures graphql-java can't wait on`() = assertFails("listOfPlainFutures", cantWaitOn("listOfPlainFutures"))
+
+    @Test
+    fun `fails a list of wrappers whose transformer returns a future graphql-java can't wait on`() = assertFails("listOfLater", cantWaitOn("listOfLater"))
+
+    @Test
+    fun `fails a list of futures graphql-java can't wait on from a suspend function`() = assertFails(
+        "suspendListOfPlainFutures",
+        "Suspend function '${Query::class.java.name}.suspendListOfPlainFutures' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. Return its value instead."
     )
+
+    @Test
+    fun `hands a future graphql-java can't wait on to its own wrapper`() = assertResolves("listOfWrappedPending", ab)
 
     @Test
     fun `unwraps the wrappers a schemaWrapper introduces`() = assertResolves("batchOfPayloads", ab)
@@ -198,7 +206,7 @@ class NestedGenericWrapperTest {
         val failures = accepted.mapNotNull { (shape, potentialMatch) ->
             val graphQLType = potentialMatch.graphQLType
             val unwrapper = ReturnValueUnwrapper.create(
-                method, potentialMatch.unwrapping.unwrapped, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), false, options.genericWrappers
+                method, potentialMatch.unwrapping, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), false, false, options.genericWrappers
             )
             val value = value(shape, leaf(graphQLType))
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
@@ -281,6 +289,9 @@ class NestedGenericWrapperTest {
                 listWithFailedWrapper: [Payload]
                 futureOfListWithFailedWrapper: [Payload]
                 listOfPlainFutures: [Payload]
+                listOfLater: [Payload]
+                suspendListOfPlainFutures: [Payload]
+                listOfWrappedPending: [Payload!]!
                 batchOfPayloads: [Payload!]!
                 listOfBoxes: [Payload!]!
                 plainList: [Payload!]!
@@ -297,7 +308,7 @@ class NestedGenericWrapperTest {
             """)
         .resolvers(query)
         .scalars(*scalars)
-        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper).build())
+        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper, laterWrapper, pendingWrapper).build())
         .build()
         .makeExecutableSchema()
 
@@ -313,6 +324,10 @@ class NestedGenericWrapperTest {
         assertEquals(result.errors, listOf<GraphQLError>())
         assertEquals(result.getData(), mapOf(field to expected))
     }
+
+    private fun cantWaitOn(field: String) =
+        "Resolver method '${Query::class.java.name}.$field' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. " +
+            "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
 
     private fun assertFails(field: String, message: String) {
         val result = execute(field)
@@ -386,6 +401,9 @@ class NestedGenericWrapperTest {
         fun listWithFailedWrapper(): List<Try<Payload>> = listOf(Try.success(Payload("a")), Try.failure("failed wrapper"))
         fun futureOfListWithFailedWrapper(): CompletableFuture<List<Try<Payload>>> = CompletableFuture.supplyAsync { listWithFailedWrapper() }
         fun listOfPlainFutures(): List<Future<Payload>> = listOf(FutureTask { Payload("a") }.apply { run() })
+        fun listOfLater(): List<Later<Payload>> = listOf(Later(Payload("a")))
+        suspend fun suspendListOfPlainFutures(): List<Future<Payload>> = listOfPlainFutures()
+        fun listOfWrappedPending(): List<Try<Pending<Payload>>> = listOf(Try.success(Pending(Payload("a"))), Try.success(Pending(Payload("b"))))
         fun json(): List<Try<Map<String, Any>>> = listOf(Try.success(mapOf("a" to 1)), Try.success(mapOf("b" to 2)))
         fun futureJson(): CompletableFuture<Try<Map<String, Any>>> = completedFuture(Try.success(mapOf("c" to 3)))
         fun jsonFutures(): List<CompletableFuture<Map<String, Any>>> = listOf(completedFuture(mapOf("d" to 4)), CompletableFuture.supplyAsync { mapOf("e" to 5) })
@@ -399,6 +417,10 @@ class NestedGenericWrapperTest {
 
     class SpecialBox<T>(content: T) : Box<T>(content)
 
+    class Later<T>(val value: T)
+
+    class Pending<T>(val value: T) : Future<T> by completedFuture(value)
+
     companion object {
         private val tryWrapper = GenericWrapper.withTransformer(Try::class, 0, { wrapper -> wrapper.get() })
         private val pageWrapper = GenericWrapper.listCollectionWithTransformer(Page::class, 0, { page -> page.content })
@@ -407,6 +429,8 @@ class NestedGenericWrapperTest {
         }
         private val boxWrapper = GenericWrapper.withTransformer(Box::class, 0, { box -> box.content })
         private val specialBoxWrapper = GenericWrapper.withTransformer(SpecialBox::class, 0, { _ -> throw IllegalStateException("picked by the value's class") })
+        private val laterWrapper = GenericWrapper.withTransformer(Later::class, 0, { later -> FutureTask { later.value }.apply { run() } })
+        private val pendingWrapper = GenericWrapper.withTransformer(Pending::class, 0, { pending -> completedFuture(pending.value) })
         private val payloadType = GraphQLObjectType.newObject()
             .name("Payload")
             .field(GraphQLFieldDefinition.newFieldDefinition().name("data").type(GraphQLNonNull.nonNull(Scalars.GraphQLString)))

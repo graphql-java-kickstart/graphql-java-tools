@@ -4,8 +4,10 @@ import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.ResolverError
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.TypeClassMatcher.Unwrapped
+import graphql.kickstart.tools.TypeClassMatcher.Unwrapping
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.future.asDeferred
+import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.Method
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -15,33 +17,39 @@ import java.util.function.Supplier
 
 internal class ReturnValueUnwrapper private constructor(
     private val genericWrappers: List<GenericWrapper>,
-    private val method: Method,
-    private val valueClass: Class<*>?,
+    private val awaitable: Awaitable,
     private val isOutermostFuture: Boolean,
     private val nested: Step?
 ) {
 
-    fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        unwrap(value, environmentSupplier, isSuspendFunction = false)
+    fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+        val unwrapped = awaitable.requireOutermost(value.transformWithGenericWrapper(genericWrappers, environmentSupplier))
+        return if (isOutermostFuture) unwrapped.then(nested, environmentSupplier) else unwrapped.thenUnlessNextAwaits(nested, environmentSupplier)
+    }
 
     suspend fun unwrapSuspending(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
-        val unwrapped = unwrap(value, environmentSupplier, isSuspendFunction = true)
+        val unwrapped = unwrap(value, environmentSupplier)
         // the coroutine's future would complete with the future made below the outermost value, which graphql-java
         // doesn't wait on. asDeferred, so cancelling the coroutine doesn't cancel a future the resolver returned
         return if (nested != null && unwrapped is CompletionStage<*>) unwrapped.asDeferred().await() else unwrapped
     }
 
-    private fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>, isSuspendFunction: Boolean): Any? {
-        val unwrapped = value.transformWithGenericWrapper(genericWrappers, environmentSupplier).requireAwaitable(valueClass, method, isSuspendFunction)
-        return if (isOutermostFuture) unwrapped.then(nested, environmentSupplier) else unwrapped.thenUnlessNextAwaits(nested, environmentSupplier)
-    }
-
     companion object {
-        fun create(method: Method, unwrapped: List<Unwrapped>, valueClass: Class<*>?, isSubscription: Boolean, genericWrappers: List<GenericWrapper>): ReturnValueUnwrapper {
+        fun create(
+            method: Method,
+            unwrapping: Unwrapping,
+            valueClass: Class<*>?,
+            isSuspendFunction: Boolean,
+            isSubscription: Boolean,
+            genericWrappers: List<GenericWrapper>
+        ): ReturnValueUnwrapper {
+            val unwrapped = unwrapping.unwrapped
             val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
+            val belowOutermost = if (outermost == null) unwrapped else unwrapped.drop(1)
+            val leafClass = TypeUtils.getRawType(unwrapping.javaType, null)
             // graphql-java completes a subscription's events one at a time
-            val nested = if (isSubscription) null else steps(if (outermost == null) unwrapped else unwrapped.drop(1), method)
-            return ReturnValueUnwrapper(genericWrappers, method, valueClass, outermost?.isFuture == true, nested)
+            val nested = if (isSubscription) null else steps(belowOutermost, Awaitable(method, leafClass, isSuspendFunction))
+            return ReturnValueUnwrapper(genericWrappers, Awaitable(method, valueClass, isSuspendFunction), outermost?.isFuture == true, nested)
         }
     }
 }
@@ -50,14 +58,16 @@ private sealed interface Step {
     fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any?
 }
 
-private class Await(private val wrapper: GenericWrapper, private val method: Method, private val next: Step?) : Step {
+private class Await(private val wrapper: GenericWrapper, private val awaitable: Awaitable, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        value?.let { wrapper.transformer(it, environmentSupplier.get()) }.requireCompletionStage(method).then(next, environmentSupplier)
+        awaitable.requireNested(value?.let { wrapper.transformer(it, environmentSupplier.get()) }).then(next, environmentSupplier)
 }
 
-private class Peel(private val wrapper: GenericWrapper, private val next: Step?) : Step {
-    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        value?.let { wrapper.transformer(it, environmentSupplier.get()) }.thenUnlessNextAwaits(next, environmentSupplier)
+private class Peel(private val wrapper: GenericWrapper, private val awaitable: Awaitable, private val next: Step?) : Step {
+    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+        val transformed = value?.let { wrapper.transformer(it, environmentSupplier.get()) }
+        return if (next is Await) next.unwrap(transformed, environmentSupplier) else awaitable.requireNested(transformed).then(next, environmentSupplier)
+    }
 }
 
 private class EachElement(private val element: Step) : Step {
@@ -83,10 +93,10 @@ private class ValueOf(private val present: Step) : Step {
 private val Unwrapped.Wrapper.isFuture
     get() = Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type)
 
-private fun steps(unwrapped: List<Unwrapped>, method: Method): Step? =
+private fun steps(unwrapped: List<Unwrapped>, awaitable: Awaitable): Step? =
     unwrapped.foldRight(null as Step?) { it, next ->
         when (it) {
-            is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, method, next) else Peel(it.wrapper, next)
+            is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, awaitable, next) else Peel(it.wrapper, awaitable, next)
             Unwrapped.Data -> next?.let(::DataOf)
             Unwrapped.Present -> next?.let(::ValueOf)
             Unwrapped.Elements -> next?.let(::EachElement)
@@ -136,27 +146,24 @@ private fun Any.transformWithGenericWrapper(
 
 // graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
 // that a suspend function completes with, would reach it as the field value
-private fun Any?.requireAwaitable(valueClass: Class<*>?, method: Method, isSuspendFunction: Boolean): Any? {
-    if (this !is Future<*> || valueClass?.isInstance(this) == true) {
-        return this
-    }
+private class Awaitable(private val method: Method, private val valueClass: Class<*>?, private val isSuspendFunction: Boolean) {
 
-    if (isSuspendFunction) {
-        throw ResolverError("Suspend function '${method.resolverName}' resolved to a ${javaClass.name}, which graphql-java can't wait on. Return its value instead.")
-    }
+    fun requireOutermost(value: Any?): Any? {
+        if (value !is Future<*> || valueClass?.isInstance(value) == true || value is CompletionStage<*> && !isSuspendFunction) {
+            return value
+        }
 
-    return requireCompletionStage(method)
-}
-
-private fun Any?.requireCompletionStage(method: Method): Any? {
-    if (this is Future<*> && this !is CompletionStage<*>) {
         throw ResolverError(
-            "Resolver method '${method.resolverName}' resolved to a ${javaClass.name}, which graphql-java can't wait on. " +
-                "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+            if (isSuspendFunction) {
+                "Suspend function '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. Return its value instead."
+            } else {
+                "Resolver method '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
+                    "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+            }
         )
     }
 
-    return this
+    fun requireNested(value: Any?): Any? = if (value is CompletionStage<*>) value else requireOutermost(value)
 }
 
 private val Method.resolverName

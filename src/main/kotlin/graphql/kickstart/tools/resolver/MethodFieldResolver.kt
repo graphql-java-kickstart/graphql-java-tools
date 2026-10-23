@@ -130,7 +130,7 @@ internal class MethodFieldResolver(
         // Object (e.g. for a union) can't tell them apart, so then every future of a method whose return type is Future is checked
         val valueClass = (TypeUtils.getRawType(getResolvedReturnType(), null) ?: Any::class.java)
             .takeUnless { it == Any::class.java && TypeUtils.getRawType(returnType, null) == Future::class.java }
-        val unwrapper = ReturnValueUnwrapper.create(method, returnValueMatch.unwrapping.unwrapped, valueClass, search.isSubscription, options.genericWrappers)
+        val unwrapper = ReturnValueUnwrapper.create(method, returnValueMatch.unwrapping, valueClass, isSuspendFunction, search.isSubscription, options.genericWrappers)
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
