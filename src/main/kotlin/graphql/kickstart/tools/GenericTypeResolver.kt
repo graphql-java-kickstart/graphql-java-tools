@@ -46,8 +46,12 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
                 resolve(unwrapsTo, onUnwrap)
             }
             is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' relative to ${TypeUtils.toString(containingType)}")
-            is WildcardType -> type.upperBounds.firstOrNull()
-                ?: error("Unable to unwrap type, wildcard has no upper bound: $type")
+            // Kotlin reflection gives a suspend function returning List<Foo> the type List<? extends Foo> when Foo is open.
+            // A type variable bound stays as it is, since a method's own variable can't be resolved and a scalar doesn't need it
+            is WildcardType -> when (val bound = type.upperBounds.firstOrNull() ?: error("Unable to unwrap type, wildcard has no upper bound: $type")) {
+                is ParameterizedType -> resolve(bound, onUnwrap)
+                else -> bound
+            }
             is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
             else -> error("Unable to unwrap type: $type")
         }

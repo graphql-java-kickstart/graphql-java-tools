@@ -97,6 +97,12 @@ class NestedGenericWrapperTest {
     fun `waits on futures in a list from a suspend function`() = assertResolves("suspendListOfFutures", ab)
 
     @Test
+    fun `waits on futures in a list of nullable elements from a suspend function`() = assertResolves("suspendNullableListOfFutures", ab)
+
+    @Test
+    fun `resolves a list of scalars typed by a suspend function's own type variable`() = assertResolves("suspendListOfTypeVariable", listOf("a", "b"), selection = "")
+
+    @Test
     fun `keeps null elements and null transformer results in a list`() = assertResolves("listOfNullableWrapped", listOf(mapOf("data" to "a"), null, null))
 
     @Test
@@ -171,21 +177,22 @@ class NestedGenericWrapperTest {
         val graphQLTypes = listOf(payload, NonNullType(payload), ListType(payload), NonNullType(ListType(NonNullType(payload))), ListType(ListType(payload)))
         val containers = listOf(List::class.java, CompletableFuture::class.java, Try::class.java, Page::class.java, DataFetcherResult::class.java, Optional::class.java)
         val shapes = (1..4).fold(listOf(listOf<Class<*>>())) { shapes, _ -> shapes + shapes.filter { it.size == shapes.last().size }.flatMap { shape -> containers.map { shape + it } } }
+        val javaTypes = shapes.flatMap { shape -> listOf(shape to javaType(shape, wildcardElements = false), shape to javaType(shape, wildcardElements = true)) }
 
-        val accepted = shapes.flatMap { shape -> graphQLTypes.map { shape to it } }.filter { (shape, graphQLType) ->
+        val accepted = javaTypes.flatMap { (shape, javaType) -> graphQLTypes.map { Triple(shape, javaType, it) } }.filter { (_, javaType, graphQLType) ->
             val match = try {
-                matcher.match(TypeClassMatcher.PotentialMatch.returnValue(graphQLType, typeResolver.resolve(javaType(shape)), typeResolver, SchemaClassScanner.ReturnValueReference(method)))
+                matcher.match(TypeClassMatcher.PotentialMatch.returnValue(graphQLType, typeResolver.resolve(javaType), typeResolver, SchemaClassScanner.ReturnValueReference(method)))
             } catch (e: SchemaClassScannerError) {
                 null
             }
             (match as? TypeClassMatcher.ValidMatch)?.javaType == Payload::class.java
         }
-        val failures = accepted.mapNotNull { (shape, graphQLType) ->
+        val failures = accepted.mapNotNull { (shape, javaType, graphQLType) ->
             val unwrapper = ReturnValueUnwrapper.create(
-                method, javaType(shape), TypeUtils.getRawType(typeResolver.resolve(javaType(shape)), null), graphQLType, false, typeResolver, options.genericWrappers, emptySet()
+                method, javaType, TypeUtils.getRawType(typeResolver.resolve(javaType), null), graphQLType, false, typeResolver, options.genericWrappers, emptySet()
             )
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value(shape)) { environment } }).build().execute("query { field { data } }")
-            "${TypeUtils.toString(javaType(shape))} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}"
+            "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}"
                 .takeUnless { result.errors.isEmpty() && result.getData<Any>() == mapOf("field" to expected(graphQLType)) }
         }
 
@@ -193,8 +200,11 @@ class NestedGenericWrapperTest {
         assertEquals(failures, listOf<String>())
     }
 
-    private fun javaType(shape: List<Class<*>>): java.lang.reflect.Type =
-        shape.foldRight(Payload::class.java as java.lang.reflect.Type) { container, inner -> ParameterizedTypeImpl(container, arrayOf(inner), null) }
+    private fun javaType(shape: List<Class<*>>, wildcardElements: Boolean): java.lang.reflect.Type =
+        shape.foldRight(Payload::class.java as java.lang.reflect.Type) { container, inner ->
+            val element = if (wildcardElements && container == List::class.java) TypeUtils.wildcardType().withUpperBounds(inner).build() else inner
+            ParameterizedTypeImpl(container, arrayOf(element), null)
+        }
 
     private fun value(shape: List<Class<*>>): Any = shape.foldRight(Payload("a") as Any) { container, inner ->
         when (container) {
@@ -242,6 +252,8 @@ class NestedGenericWrapperTest {
                 optionalListOfWrapped: [Payload!]
                 suspendListOfWrapped: [Payload!]!
                 suspendListOfFutures: [Payload!]!
+                suspendNullableListOfFutures: [Payload]
+                suspendListOfTypeVariable: [String]
                 listOfNullableWrapped: [Payload]!
                 futureOfFuture: Payload!
                 optionalFuture: Payload
@@ -339,6 +351,9 @@ class NestedGenericWrapperTest {
         fun optionalListOfWrapped(): Optional<List<Try<Payload>>> = Optional.of(listOfWrapped())
         suspend fun suspendListOfWrapped(): List<Try<Payload>> = listOfWrapped()
         suspend fun suspendListOfFutures(): List<CompletableFuture<Payload>> = listOfFutures()
+        suspend fun suspendNullableListOfFutures(): List<CompletableFuture<Payload>> = listOfFutures()
+        @Suppress("UNCHECKED_CAST")
+        suspend fun <T> suspendListOfTypeVariable(): List<T> = listOf("a", "b") as List<T>
         fun listOfNullableWrapped(): List<Try<Payload>?> = listOf(Try.success(Payload("a")), Try.success(null), null)
         fun futureOfFuture(): CompletableFuture<CompletableFuture<Payload>> = CompletableFuture.supplyAsync { completedFuture(Payload("a")) }
         fun optionalFuture(): Optional<CompletableFuture<Payload>> = Optional.of(CompletableFuture.supplyAsync { Payload("a") })
