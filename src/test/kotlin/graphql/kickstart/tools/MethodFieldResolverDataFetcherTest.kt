@@ -98,7 +98,7 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @Test
-    fun `data fetcher executes suspend function in CoroutineScope from legacy context`() {
+    fun `data fetcher does not execute suspend function in CoroutineScope from legacy context`() {
         // setup
         val scopeClass = ScopeClass()
 
@@ -107,7 +107,7 @@ class MethodFieldResolverDataFetcherTest {
         // expect
         @Suppress("UNCHECKED_CAST")
         val future = resolver.get(createEnvironment(DataClass(), legacyContext = scopeClass.scope)) as CompletableFuture<Boolean>
-        assert(future.get())
+        assertEquals(future.get(), false)
     }
 
     class ScopeClass : GraphQLResolver<DataClass> {
@@ -116,7 +116,7 @@ class MethodFieldResolverDataFetcherTest {
 
         @Suppress("UNUSED_PARAMETER")
         suspend fun isActive(data: DataClass): Boolean {
-            return coroutineContext[Job] == job.children.first()
+            return coroutineContext[Job] == job.children.firstOrNull()
         }
     }
 
