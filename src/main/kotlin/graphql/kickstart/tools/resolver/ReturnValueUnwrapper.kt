@@ -17,6 +17,7 @@ internal class ReturnValueUnwrapper private constructor(
     private val genericWrappers: List<GenericWrapper>,
     private val method: Method,
     private val valueClass: Class<*>?,
+    private val isOutermostFuture: Boolean,
     private val nested: Step?
 ) {
 
@@ -30,16 +31,18 @@ internal class ReturnValueUnwrapper private constructor(
         return if (nested != null && unwrapped is CompletionStage<*>) unwrapped.asDeferred().await() else unwrapped
     }
 
-    private fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>, isSuspendFunction: Boolean): Any? =
-        value.transformWithGenericWrapper(genericWrappers, environmentSupplier)
-            .requireAwaitable(valueClass, method, isSuspendFunction)
-            .then(nested, environmentSupplier)
+    private fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>, isSuspendFunction: Boolean): Any? {
+        val unwrapped = value.transformWithGenericWrapper(genericWrappers, environmentSupplier).requireAwaitable(valueClass, method, isSuspendFunction)
+        return if (isOutermostFuture) unwrapped.then(nested, environmentSupplier) else unwrapped.handOver(nested, environmentSupplier)
+    }
 
     companion object {
         fun create(method: Method, unwrapped: List<Unwrapped>, valueClass: Class<*>?, isSubscription: Boolean, genericWrappers: List<GenericWrapper>): ReturnValueUnwrapper {
+            // picked by the value's class, like a resolver declared as Object returning a wrapper
+            val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
             // graphql-java completes a subscription's events one at a time
-            val nested = if (isSubscription) null else nestedSteps(unwrapped, genericWrappers)
-            return ReturnValueUnwrapper(genericWrappers, method, valueClass, nested)
+            val nested = if (isSubscription) null else steps(if (outermost == null) unwrapped else unwrapped.drop(1), genericWrappers)
+            return ReturnValueUnwrapper(genericWrappers, method, valueClass, outermost?.isFuture == true, nested)
         }
     }
 }
@@ -48,9 +51,14 @@ private sealed interface Step {
     fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any?
 }
 
-private class Peel(private val genericWrappers: List<GenericWrapper>, private val next: Step?) : Step {
+private class Await(private val genericWrappers: List<GenericWrapper>, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
         value?.transformWithGenericWrapper(genericWrappers, environmentSupplier).then(next, environmentSupplier)
+}
+
+private class Peel(private val genericWrappers: List<GenericWrapper>, private val next: Step?) : Step {
+    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
+        value?.transformWithGenericWrapper(genericWrappers, environmentSupplier).handOver(next, environmentSupplier)
 }
 
 private class EachElement(private val element: Step) : Step {
@@ -73,24 +81,23 @@ private class ValueOf(private val present: Step) : Step {
         if (value is Optional<*>) present.unwrap(value.orElse(null), environmentSupplier) else value
 }
 
-private val Unwrapped.isFuture
-    get() = this is Unwrapped.Wrapper && (Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type))
+private val Unwrapped.Wrapper.isFuture
+    get() = Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type)
 
-private fun nestedSteps(unwrapped: List<Unwrapped>, genericWrappers: List<GenericWrapper>): Step? {
-    fun isFutureReturnedByWrapperBefore(i: Int) =
-        unwrapped[i].isFuture && unwrapped.getOrNull(i - 1).let { it is Unwrapped.Wrapper && !it.isFuture }
-
-    val awaited = unwrapped.filterIndexed { i, _ -> !isFutureReturnedByWrapperBefore(i) }
-    val belowOutermost = if (awaited.firstOrNull() is Unwrapped.Wrapper) awaited.drop(1) else awaited
-    return belowOutermost.foldRight(null as Step?) { it, next ->
+private fun steps(unwrapped: List<Unwrapped>, genericWrappers: List<GenericWrapper>): Step? =
+    unwrapped.foldRight(null as Step?) { it, next ->
         when (it) {
-            is Unwrapped.Wrapper -> Peel(genericWrappers, next)
+            is Unwrapped.Wrapper -> if (it.isFuture) Await(genericWrappers, next) else Peel(genericWrappers, next)
             Unwrapped.Data -> next?.let(::DataOf)
             Unwrapped.Present -> next?.let(::ValueOf)
             Unwrapped.Elements -> next?.let(::EachElement)
         }
     }
-}
+
+// a future goes to its own step as is, which waits on it. Any other CompletionStage, such as a DataLoader load that a
+// transformer returns, is waited on before the next step
+private fun Any?.handOver(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
+    if (next is Await) next.unwrap(this, environmentSupplier) else then(next, environmentSupplier)
 
 private fun Any?.then(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
     if (next == null) this else then { next.unwrap(it, environmentSupplier) }
