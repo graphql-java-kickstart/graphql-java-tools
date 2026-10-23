@@ -22,41 +22,29 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 import java.util.function.Supplier
 
-/**
- * Turns what a resolver method returned into the value graphql-java completes its field with.
- *
- * The schema build matches the field's GraphQL type against the return type with generic wrappers unwrapped at every
- * level, e.g. `List<Try<Item>>` against `[Item]`. graphql-java only waits on a CompletionStage that the data fetcher
- * returns and doesn't know generic wrappers, so the value is unwrapped at the same positions, and futures below the
- * outermost value are combined into one: one failed element fails the whole field.
- */
 internal class ReturnValueUnwrapper private constructor(
     private val genericWrappers: List<GenericWrapper>,
     private val method: Method,
     private val valueClass: Class<*>?,
-    /** null for most fields: nothing is unwrapped below the outermost value */
     private val nested: Step?
 ) {
 
     fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        value.transformWithGenericWrapper(genericWrappers, environmentSupplier)
-            .requireAwaitable(valueClass, method, isSuspendFunction = false)
-            .then(nested, environmentSupplier)
+        unwrap(value, environmentSupplier, isSuspendFunction = false)
 
     suspend fun unwrapSuspending(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
-        val unwrapped = value.transformWithGenericWrapper(genericWrappers, environmentSupplier)
-            .requireAwaitable(valueClass, method, isSuspendFunction = true)
-            .then(nested, environmentSupplier)
+        val unwrapped = unwrap(value, environmentSupplier, isSuspendFunction = true)
         // the coroutine's future would complete with the future made below the outermost value, which graphql-java
         // doesn't wait on. asDeferred, so cancelling the coroutine doesn't cancel a future the resolver returned
         return if (nested != null && unwrapped is CompletionStage<*>) unwrapped.asDeferred().await() else unwrapped
     }
 
+    private fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>, isSuspendFunction: Boolean): Any? =
+        value.transformWithGenericWrapper(genericWrappers, environmentSupplier)
+            .requireAwaitable(valueClass, method, isSuspendFunction)
+            .then(nested, environmentSupplier)
+
     companion object {
-        /**
-         * @param returnType the declared return type with type variables resolved, generic wrappers kept
-         * @param valueClass the class the outermost value unwraps to, see [requireAwaitable]
-         */
         fun create(
             method: Method,
             returnType: JavaType,
@@ -71,7 +59,6 @@ internal class ReturnValueUnwrapper private constructor(
                 // graphql-java completes a subscription's events one at a time
                 isSubscription -> null
                 !hasGenericWrapperBelow(returnType, genericWrappers) -> null
-                // a custom scalar's Coercing may take the wrapper itself, e.g. a JSON scalar
                 fieldType.unwrap().name.let { it in scalarNames && it !in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS } -> null
                 else -> nestedSteps(fieldType, returnType, typeResolver, genericWrappers)
             }
@@ -80,13 +67,10 @@ internal class ReturnValueUnwrapper private constructor(
     }
 }
 
-/** A position below the outermost value where the schema build unwrapped something. */
 private sealed interface Step {
-    /** The value unwrapped, or a CompletionStage of it. A value of another shape than expected, null included, is kept. */
     fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any?
 }
 
-/** A generic wrapper, e.g. each `Try` of `List<Try<Item>>`. Every chain of steps ends in one. */
 private class Peel(private val genericWrappers: List<GenericWrapper>, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
         value?.transformWithGenericWrapper(genericWrappers, environmentSupplier).then(next, environmentSupplier)
@@ -112,7 +96,6 @@ private class ValueOf(private val present: Step) : Step {
         if (value is Optional<*>) present.unwrap(value.orElse(null), environmentSupplier) else value
 }
 
-/** What the schema build unwraps in a return type. */
 private sealed interface Unwrapped {
     class Wrapper(rawType: Class<*>) : Unwrapped {
         val isFuture = Future::class.java.isAssignableFrom(rawType) || CompletionStage::class.java.isAssignableFrom(rawType)
@@ -127,9 +110,6 @@ private fun nestedSteps(fieldType: GraphQLLangType, returnType: JavaType, typeRe
     val unwrapped = mutableListOf<Unwrapped>()
     val onUnwrap = { wrapped: ParameterizedType -> unwrapped += Unwrapped.Wrapper(wrapped.rawType as Class<*>) }
 
-    // TypeClassMatcher.match without its errors, which the build has thrown already: generic wrappers, then a
-    // DataFetcherResult, then an Optional, then the GraphQL type: NonNull matches the same Java type again, a list goes
-    // on with the Iterable's elements, anything else ends the walk
     fun addLevel(graphQLType: GraphQLLangType, javaType: JavaType) {
         var type = typeResolver.resolve(javaType, onUnwrap)
         if (type is ParameterizedType && type.isSubtypeOf(DataFetcherResult::class.java)) {
@@ -150,16 +130,12 @@ private fun nestedSteps(fieldType: GraphQLLangType, returnType: JavaType, typeRe
         }
     }
 
-    // MethodFieldResolver.scanForMatches matches the resolved return type
+    fun isFutureReturnedByWrapperBefore(i: Int) =
+        (unwrapped[i] as? Unwrapped.Wrapper)?.isFuture == true && (unwrapped.getOrNull(i - 1) as? Unwrapped.Wrapper)?.isFuture == false
+
     addLevel(fieldType, typeResolver.resolve(returnType, onUnwrap))
-    val awaited = unwrapped.filterIndexed { i, it ->
-        // a future returned by the wrapper before it is waited on by whatever takes that wrapper's result,
-        // e.g. graphql-java for `Try<CompletableFuture<Item>>`
-        !(it is Unwrapped.Wrapper && it.isFuture && (unwrapped.getOrNull(i - 1) as? Unwrapped.Wrapper)?.isFuture == false)
-    }
-    // the outermost value is unwrapped by the data fetcher itself
+    val awaited = unwrapped.filterIndexed { i, _ -> !isFutureReturnedByWrapperBefore(i) }
     val belowOutermost = if (awaited.firstOrNull() is Unwrapped.Wrapper) awaited.drop(1) else awaited
-    // only a generic wrapper needs a step of its own, the others only lead to one
     return belowOutermost.foldRight(null as Step?) { it, next ->
         when (it) {
             is Unwrapped.Wrapper -> Peel(genericWrappers, next)
@@ -170,8 +146,6 @@ private fun nestedSteps(fieldType: GraphQLLangType, returnType: JavaType, typeRe
     }
 }
 
-// without one, nothing below the outermost value can be unwrapped (unless a schemaWrapper adds one), so most fields
-// skip the walk
 private fun hasGenericWrapperBelow(type: JavaType, genericWrappers: List<GenericWrapper>): Boolean =
     type is ParameterizedType && type.actualTypeArguments.any { it.mentionsGenericWrapper(genericWrappers) }
 
@@ -203,6 +177,11 @@ private fun Any.transformWithGenericWrapper(
     genericWrappers: List<GenericWrapper>,
     environmentSupplier: Supplier<DataFetchingEnvironment>
 ): Any? {
+    // the JIT doesn't optimize away the sequence below on this call path, so values that aren't wrappers, which is
+    // most of them, return before it's allocated
+    if (genericWrappers.none { it.type.isInstance(this) }) {
+        return this
+    }
     val genericWrapper = genericWrappers
         .asSequence()
         .filter { it.type.isInstance(this) }

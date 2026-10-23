@@ -67,7 +67,7 @@ class SchemaParserDictionaryTest {
             .add("AInput", Map::class)
             .add("BInput", Map::class)
 
-        assertEquals(dictionary.getDictionary().toMap(), mapOf("AInput" to Map::class.java, "BInput" to Map::class.java))
+        assertEquals(dictionary.toMap(), mapOf("AInput" to Map::class.java, "BInput" to Map::class.java))
 
         val schema = SchemaParser.newParser()
             .schemaString(
@@ -90,7 +90,7 @@ class SchemaParserDictionaryTest {
             .resolvers(object : GraphQLQueryResolver {
                 fun test(): String? = null
             })
-            .dictionary(dictionary.getDictionary())
+            .dictionary(dictionary.toMap())
             .build()
             .makeExecutableSchema()
             .assertEveryFieldResolves()
@@ -98,6 +98,30 @@ class SchemaParserDictionaryTest {
         val field = schema.queryType.getFieldDefinition("test")
         assertEquals(field.getAppliedDirective("a").getArgument("arg")?.getValue<Map<*, *>>(), mapOf("x" to 1))
         assertEquals(field.getAppliedDirective("b").getArgument("arg")?.getValue<Map<*, *>>(), mapOf("y" to "b"))
+    }
+
+    @Test
+    fun `toMap returns the entries in insertion order and keeps every name of a shared class`() {
+        val dictionary = SchemaParserDictionary()
+            .add("B", Map::class)
+            .add("A", String::class)
+            .add("C", Map::class)
+
+        assertEquals(dictionary.toMap().entries.map { it.key to it.value }, listOf("B" to Map::class.java, "A" to String::class.java, "C" to Map::class.java))
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun `getDictionary keeps working and only maps a shared class back to its first name`() {
+        val dictionary = SchemaParserDictionary()
+            .add("B", Map::class)
+            .add("A", String::class)
+            .add("C", Map::class)
+
+        val deprecated = dictionary.getDictionary()
+
+        assertEquals(deprecated.toMap(), dictionary.toMap())
+        assertEquals(deprecated.inverse().toMap(), mapOf<Class<*>, String>(Map::class.java to "B", String::class.java to "A"))
     }
 
     @Test

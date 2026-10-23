@@ -8,6 +8,11 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
+// TODO remove in 15.0.0 (#900)
+/**
+ * @deprecated Use a plain {@link java.util.Map}.
+ */
+@Deprecated
 @SuppressWarnings("SuspiciousMethodCalls")
 public class BiMap<K, V> implements Map<K, V> {
 

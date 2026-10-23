@@ -21,7 +21,6 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         return match(potentialMatch, potentialMatch.graphQLType, potentialMatch.javaType, true)
     }
 
-    // ReturnValueUnwrapper walks a method's return type the same way, so its values are unwrapped where their types are
     private fun match(potentialMatch: PotentialMatch, graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean = false): Match {
 
         var realType = potentialMatch.typeResolver.resolve(javaType)
