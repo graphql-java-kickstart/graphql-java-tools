@@ -3,7 +3,6 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.ScanDictionary.DictionaryReference
 import graphql.kickstart.tools.ScanDictionary.FieldTypeReference
 import graphql.kickstart.tools.ScanDictionary.InitialDictionaryEntry
-import graphql.kickstart.tools.ScanDictionary.SealedSubclassReference
 import graphql.kickstart.tools.ScanDictionary.UnionMemberReference
 import graphql.kickstart.tools.ScanDictionary.UnusedTypeReference
 import graphql.kickstart.tools.resolver.FieldResolver
@@ -15,12 +14,10 @@ import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.TypeUtil
 import org.apache.commons.lang3.ClassUtils
-import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Modifier
-import java.lang.reflect.ParameterizedType
 
 /**
  * @author Andrew Potter
@@ -66,6 +63,7 @@ internal class SchemaClassScanner(
     private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
     private val queue = linkedSetOf<QueueItem>()
     private val dictionary = ScanDictionary(options, log, typeExtensions, definitionsByName, typeClassMatcher, this.initialDictionary, ::enqueue, ::handleFoundScalarType)
+    private val sealedSubclassMatcher = SealedSubclassMatcher(dictionary, typeExtensions)
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
 
@@ -399,68 +397,12 @@ internal class SchemaClassScanner(
             }
         }
 
-        val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatches(it).singleOrNull() }
+        val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatcher.sealedSubclassMatches(it).singleOrNull() }
         if (sealedMatches.isEmpty()) {
-            typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassHint(it)) }
+            typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassMatcher.sealedSubclassHint(it)) }
         }
 
         sealedMatches.forEach { dictionary.handleFoundType(it) }
-    }
-
-    private fun sealedSubclassHint(type: TypeDefinition<*>): String {
-        if (type !is ObjectTypeDefinition) {
-            return ""
-        }
-
-        val sealedTypes = sealedTypesOf(type)
-        if (sealedTypes.isEmpty()) {
-            return ""
-        }
-
-        val sealedTypeNames = sealedTypes.joinToString(" or ") { it.unwrap().name }
-        val matches = sealedSubclassMatches(type)
-        return if (matches.isEmpty()) {
-            "  No subclass of sealed type $sealedTypeNames is named '${type.name}'."
-        } else {
-            "  More than one subclass of sealed type $sealedTypeNames is named '${type.name}': ${matches.joinToString { it.javaType.unwrap().name }}."
-        }
-    }
-
-    private fun sealedSubclassMatches(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
-        sealedTypesOf(type)
-            .flatMap { sealedType ->
-                sealedSubclasses(sealedType.unwrap())
-                    .filter { it.simpleName == type.name }
-                    .map { TypeClassMatcher.ValidMatch(type, withSealedTypeArguments(it, sealedType), SealedSubclassReference(sealedType)) }
-            }
-            .distinctBy { it.javaType.unwrap() }
-
-    private fun sealedTypesOf(type: ObjectTypeDefinition): List<JavaType> =
-        dictionary
-            .filterKeys { definition ->
-                when (definition) {
-                    is UnionTypeDefinition -> definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.filterIsInstance<TypeName>().any { it.name == type.name }
-                    is InterfaceTypeDefinition -> type.withExtensions(typeExtensions).flatMap { it.implements }.filterIsInstance<TypeName>().any { it.name == definition.name }
-                    else -> false
-                }
-            }
-            .values.mapNotNull { it.javaType }
-            .distinct()
-            .filter { it.unwrap().kotlin.isSealed }
-
-    // kotlin-reflect also returns the permitted subclasses of Java sealed classes
-    private fun sealedSubclasses(clazz: Class<*>): List<Class<*>> =
-        clazz.kotlin.sealedSubclasses.flatMap { listOf(it.java) + sealedSubclasses(it.java) }
-
-    private fun withSealedTypeArguments(subclass: Class<*>, sealedType: JavaType): JavaType {
-        if (sealedType !is ParameterizedType || subclass.typeParameters.isEmpty()) {
-            return subclass
-        }
-
-        return TypeUtils.determineTypeArguments(subclass, sealedType)
-            ?.takeIf { it.keys.containsAll(subclass.typeParameters.asList()) }
-            ?.let { TypeUtils.parameterize(subclass, it) }
-            ?: subclass
     }
 
     /**
