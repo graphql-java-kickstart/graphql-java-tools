@@ -14,6 +14,7 @@ import graphql.schema.idl.SchemaPrinter
 import graphql.schema.validation.InvalidSchemaException
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import kotlin.reflect.KClass
 
 class TypeExtensionTest {
 
@@ -342,13 +343,12 @@ class TypeExtensionTest {
     }
 
     @Test
-    fun `repeats and extensions without a type keep building`() {
+    fun `enums and unions that only have extensions are built from them`() {
         val (schema, warnings) = withWarnings {
             parser(
                 """
                 type Query {
                     color: Color
-                    node: Node
                     fooBar: FooBar
                 }
 
@@ -356,41 +356,86 @@ class TypeExtensionTest {
                     "The first red"
                     RED
                 }
-                extend enum Color { RED GREEN }
-
-                interface Node {
-                    "The base id"
-                    id: ID!
-                }
-                extend interface Node { id: ID! name: String }
-
-                type Item implements Node { id: ID! name: String }
+                extend enum Color { GREEN }
 
                 extend union FooBar = Foo | Bar
-                extend union FooBar = Bar | Baz
+                extend union FooBar = Baz
 
                 $fooBarBaz
                 """) {
-                dictionary(Item::class, Foo::class, Bar::class, Baz::class)
+                dictionary(Foo::class, Bar::class, Baz::class)
             }.makeExecutableSchema()
         }
         schema.assertEveryFieldResolves()
 
-        assertEquals(warnings, listOf(
-            "Type 'Node' declares field 'id' more than once, only the first one is kept.",
-            "Type 'FooBar' declares member 'Bar' more than once, only the first one is kept.",
-            "Type 'Color' declares value 'RED' more than once, only the first one is kept."
-        ))
+        assertEquals(warnings, listOf())
 
         val color = schema.getType("Color") as GraphQLEnumType
         assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
         assertEquals(color.getValue("RED")?.description, "The first red")
-
-        val node = schema.getType("Node") as GraphQLInterfaceType
-        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id", "name"))
-        assertEquals(node.getFieldDefinition("id").description, "The base id")
-
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
+    }
+
+    @Test
+    fun `a type that declares a value, field or member twice is rejected`() {
+        val cases = listOf(
+            Repeat(
+                """
+                |type Query { color: Color }
+                |enum Color {
+                |    RED
+                |}
+                |extend enum Color {
+                |    RED
+                |    GREEN
+                |}
+                """,
+                "Type 'Color' declares value 'RED' more than once at line 6, column 5."
+            ),
+            Repeat(
+                """
+                |type Query { color: Color }
+                |extend enum Color { RED }
+                |extend enum Color { RED GREEN }
+                """,
+                "Type 'Color' declares value 'RED' more than once at line 3, column 21."
+            ),
+            Repeat(
+                """
+                |type Query { color: Color }
+                |enum Color { RED GREEN RED }
+                """,
+                "Type 'Color' declares value 'RED' more than once at line 2, column 24."
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |extend interface Node { id: String }
+                |type Item implements Node { id: ID }
+                """,
+                "Type 'Node' declares field 'id' more than once at line 3, column 25.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { fooBar: FooBar }
+                |union FooBar = Foo | Bar
+                |extend union FooBar = Bar | Baz
+                |$fooBarBaz
+                """,
+                "Type 'FooBar' declares member 'Bar' more than once at line 3, column 23.",
+                Foo::class, Bar::class, Baz::class
+            )
+        )
+
+        cases.forEach { repeat ->
+            val error = assertThrows(SchemaError::class.java) {
+                parser(repeat.schema.trimMargin()) { dictionary(*repeat.dictionary) }.makeExecutableSchema()
+            }
+
+            assertEquals(error.message, repeat.message)
+        }
     }
 
     @Test
@@ -472,6 +517,8 @@ class TypeExtensionTest {
         assertEquals((schema.getType("Purpose") as GraphQLEnumType).values.map { it.value }, listOf<Any>("SECURITY", "EXECUTION"))
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))
     }
+
+    private class Repeat(val schema: String, val message: String, vararg val dictionary: KClass<*>)
 
     private val fooBarBaz = """
         type Foo { foo: String }

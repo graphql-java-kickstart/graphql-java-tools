@@ -249,7 +249,7 @@ class SchemaParser internal constructor(
         val extensions = typeExtensions.extensionsOf<EnumTypeExtensionDefinition>(name)
         val directives = sdlDirectives.directivesOf(definition, extensions)
         val values = definition.withExtensions(typeExtensions).flatMap { it.enumValueDefinitions }
-        warnRepeated(name, "value", values.map { it.name })
+        rejectRepeated(name, "value", values)
         val builder = GraphQLEnumType.newEnum()
             .name(name)
             .definition(definition)
@@ -257,7 +257,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
             .withSdlDirectives(directives, ENUM)
             .apply {
-                values.distinctBy { it.name }.forEach { valueDefinition ->
+                values.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
                     val enumValue = if (enumClass == null) {
                         enumName
@@ -308,7 +308,7 @@ class SchemaParser internal constructor(
         val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
         val directives = sdlDirectives.directivesOf(interfaceDefinition, extensions)
         val fieldDefinitions = interfaceDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
-        warnRepeated(interfaceDefinition.name, "field", fieldDefinitions.map { it.name })
+        rejectRepeated(interfaceDefinition.name, "field", fieldDefinitions)
         val builder = GraphQLInterfaceType.newInterface()
             .name(interfaceDefinition.name)
             .definition(interfaceDefinition)
@@ -316,7 +316,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(interfaceDefinition, options))
             .withSdlDirectives(directives, INTERFACE)
             .apply {
-                fieldDefinitions.distinctBy { it.name }.forEach { fieldDefinition ->
+                fieldDefinitions.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
                 }
             }
@@ -333,7 +333,7 @@ class SchemaParser internal constructor(
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
         val extensions = typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name)
         val directives = sdlDirectives.directivesOf(definition, extensions)
-        warnRepeated(definition.name, "member", definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.map { (it as TypeName).name })
+        rejectRepeated(definition.name, "member", definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.map { it as TypeName })
         val builder = GraphQLUnionType.newUnionType()
             .name(definition.name)
             .definition(definition)
@@ -375,11 +375,10 @@ class SchemaParser internal constructor(
         return leafObjects
     }
 
-    // TODO throw a SchemaError instead in 15.0.0 (#863), like graphql-java does
-    private fun warnRepeated(typeName: String, kind: String, names: List<String?>) {
-        names.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.forEach {
-            log.warn("Type '$typeName' declares $kind '$it' more than once, only the first one is kept.")
-        }
+    private fun rejectRepeated(typeName: String, kind: String, declarations: List<NamedNode<*>>) {
+        val names = mutableSetOf<String?>()
+        val repeat = declarations.firstOrNull { !names.add(it.name) } ?: return
+        throw SchemaError("Type '$typeName' declares $kind '${repeat.name}' more than once${repeat.sourceLocation.describe()}.")
     }
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
