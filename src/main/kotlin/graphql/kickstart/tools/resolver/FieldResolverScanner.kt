@@ -88,7 +88,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
 
     private fun findResolverMethod(field: FieldDefinition, search: Search): Method? {
         val methodsByName = getMethodsByName(search)
-        val argumentCount = field.inputValueDefinitions.size + if (search.requiredFirstParameterType != null) 1 else 0
+        val argumentCount = field.inputValueDefinitions.size + search.firstArgumentIndex
         val name = field.name
         val capitalizedName = name.replaceFirstChar(Char::titlecase)
 
@@ -239,6 +239,8 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
         val requiredFirstParameterType: Class<*>? = null
     ) {
         val isSubscription get() = resolverInfo is RootResolverInfo && resolverInfo.isSubscription
+
+        val firstArgumentIndex get() = if (requiredFirstParameterType != null) 1 else 0
     }
 }
 

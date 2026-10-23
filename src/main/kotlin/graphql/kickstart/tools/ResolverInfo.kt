@@ -4,7 +4,6 @@ import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.util.GraphQLRootResolver
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.eraseUnboundedWildcards
-import graphql.kickstart.tools.util.unwrap
 import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.ParameterizedType
 
@@ -17,17 +16,13 @@ internal abstract class ResolverInfo {
             ?: resolver.javaClass
 }
 
-internal interface DataClassTypeResolverInfo {
-    val dataClassType: Class<out Any>
-}
-
 internal class NormalResolverInfo(
     val resolver: GraphQLResolver<*>,
     options: SchemaParserOptions
-) : DataClassTypeResolverInfo, ResolverInfo() {
+) : ResolverInfo() {
 
     val resolverType = getRealResolverClass(resolver, options)
-    override val dataClassType = findDataClass()
+    val dataClassType = findDataClass()
 
     private fun findDataClass(): Class<out Any> {
         val type = TypeUtils.getTypeArguments(resolverType, GraphQLResolver::class.java)[GraphQLResolver::class.java.typeParameters[0]]
@@ -63,9 +58,7 @@ internal class NormalResolverInfo(
 internal class MultiResolverInfo(
     val resolverInfoList: List<NormalResolverInfo>,
     private val dataClass: JavaType
-) : DataClassTypeResolverInfo, ResolverInfo() {
-
-    override val dataClassType = dataClass.unwrap()
+) : ResolverInfo() {
 
     override fun getFieldSearches(): List<FieldResolverScanner.Search> {
         return resolverInfoList

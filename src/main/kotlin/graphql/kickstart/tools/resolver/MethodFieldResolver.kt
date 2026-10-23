@@ -103,7 +103,7 @@ internal class MethodFieldResolver(
         }
 
         // Add DataFetchingEnvironment/Context arguments, stopping before the Continuation parameter of a suspend function
-        val firstTrailingParameter = field.inputValueDefinitions.size + getIndexOffset()
+        val firstTrailingParameter = field.inputValueDefinitions.size + search.firstArgumentIndex
         method.parameterTypes.slice(firstTrailingParameter until numberOfParameters).forEach { parameterType ->
             when (parameterType) {
                 options.contextClass -> args.add { environment ->
@@ -188,15 +188,7 @@ internal class MethodFieldResolver(
     private fun getResolvedReturnType(): JavaType =
         typeResolver.resolve(if (search.isSubscription) returnType.asPublisher() else returnType)
 
-    private fun getIndexOffset(): Int {
-        return if (resolverInfo is DataClassTypeResolverInfo && !method.declaringClass.isAssignableFrom(resolverInfo.dataClassType)) {
-            1
-        } else {
-            0
-        }
-    }
-
-    private fun getJavaMethodParameterIndex(index: Int) = index + getIndexOffset()
+    private fun getJavaMethodParameterIndex(index: Int) = index + search.firstArgumentIndex
 
     internal fun getMethodParameterType(index: Int): JavaType? {
         val methodIndex = getJavaMethodParameterIndex(index)
