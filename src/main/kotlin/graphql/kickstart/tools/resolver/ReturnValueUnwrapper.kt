@@ -46,10 +46,9 @@ internal class ReturnValueUnwrapper private constructor(
             val unwrapped = unwrapping.unwrapped
             val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
             val belowOutermost = if (outermost == null) unwrapped else unwrapped.drop(1)
-            // Object (e.g. for a union) can't tell a future from a value, so then every nested future is checked
-            val leafClass = TypeUtils.getRawType(unwrapping.javaType, null)?.takeUnless { it == Any::class.java }
+            val specificLeafClass = TypeUtils.getRawType(unwrapping.javaType, null)?.takeUnless { it == Any::class.java }
             // graphql-java completes a subscription's events one at a time
-            val nested = if (isSubscription) null else steps(belowOutermost, Awaitable(method, leafClass, isSuspendFunction))
+            val nested = if (isSubscription) null else steps(belowOutermost, Awaitable(method, specificLeafClass, isSuspendFunction))
             return ReturnValueUnwrapper(genericWrappers, Awaitable(method, valueClass, isSuspendFunction), outermost?.isFuture == true, nested)
         }
     }
