@@ -3,7 +3,6 @@ package graphql.kickstart.tools.resolver
 import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.GraphQLContext
 import graphql.kickstart.tools.*
-import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
 import graphql.kickstart.tools.util.futureValueType
@@ -25,7 +24,6 @@ import org.slf4j.LoggerFactory
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.*
-import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 import java.util.function.Supplier
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
@@ -133,13 +131,16 @@ internal class MethodFieldResolver(
         // Object (e.g. for a union) can't tell them apart, so then every future of a method whose return type is Future is checked
         val valueClass = (TypeUtils.getRawType(getResolvedReturnType(), null) ?: Any::class.java)
             .takeUnless { it == Any::class.java && TypeUtils.getRawType(returnType, null) == Future::class.java }
+        val unwrapper = ReturnValueUnwrapper.create(
+            method, returnType, valueClass, field.type, search.isSubscription, typeResolver, options.genericWrappers, scalarNames
+        )
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
-            MethodFieldResolverDataFetcher(createSourceResolver(), this.method, args, options, isSuspendFunction, valueClass)
+            MethodFieldResolverDataFetcher(createSourceResolver(), this.method, args, options, isSuspendFunction, unwrapper)
         } else {
             // if there are no parameters an optimized version of the data fetcher can be used
-            LightMethodFieldResolverDataFetcher(createSourceResolver(), this.method, options, valueClass)
+            LightMethodFieldResolverDataFetcher(createSourceResolver(), this.method, unwrapper)
         }
     }
 
@@ -217,7 +218,7 @@ internal class MethodFieldResolverDataFetcher(
     private val args: List<ArgumentPlaceholder>,
     private val options: SchemaParserOptions,
     private val isSuspendFunction: Boolean,
-    private val valueClass: Class<*>?
+    private val unwrapper: ReturnValueUnwrapper
 ) : DataFetcher<Any> {
 
     override fun get(environment: DataFetchingEnvironment): Any? {
@@ -229,12 +230,10 @@ internal class MethodFieldResolverDataFetcher(
             // which runs the block even if the context is already cancelled, hence ensureActive
             environment.coroutineScope().future(options.coroutineContextProvider.provide(), CoroutineStart.UNDISPATCHED) {
                 ensureActive()
-                invokeSuspend(source, method, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
-                    .requireAwaitable(valueClass, method, isSuspendFunction = true)
+                invokeSuspend(source, method, args)?.let { unwrapper.unwrapSuspending(it) { environment } }
             }
         } else {
-            invoke(method, source, args)?.transformWithGenericWrapper(options.genericWrappers) { environment }
-                .requireAwaitable(valueClass, method, isSuspendFunction = false)
+            invoke(method, source, args)?.let { unwrapper.unwrap(it) { environment } }
         }
     }
 
@@ -253,15 +252,13 @@ internal class MethodFieldResolverDataFetcher(
 internal class LightMethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val method: Method,
-    private val options: SchemaParserOptions,
-    private val valueClass: Class<*>?
+    private val unwrapper: ReturnValueUnwrapper
 ) : LightDataFetcher<Any?> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         val source = sourceResolver.resolve(null, sourceObject)
 
-        return invoke(method, source, emptyArray())?.transformWithGenericWrapper(options.genericWrappers, environmentSupplier)
-            .requireAwaitable(valueClass, method, isSuspendFunction = false)
+        return invoke(method, source, emptyArray())?.let { unwrapper.unwrap(it, environmentSupplier) }
     }
 
     override fun get(environment: DataFetchingEnvironment): Any? {
@@ -274,51 +271,6 @@ internal class LightMethodFieldResolverDataFetcher(
     @Suppress("unused")
     fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any {
         return sourceResolver.resolve(environment, null)
-    }
-}
-
-private fun Any.transformWithGenericWrapper(
-    genericWrappers: List<GenericWrapper>,
-    environmentSupplier: Supplier<DataFetchingEnvironment>
-): Any? {
-    val genericWrapper = genericWrappers
-        .asSequence()
-        .filter { it.type.isInstance(this) }
-        .sortedWith(CompareGenericWrappers)
-        .firstOrNull()
-        ?: return this
-
-    // returned as is, even if null, so a transformer can map a value to null
-    return genericWrapper.transformer(this, environmentSupplier.get())
-}
-
-// graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
-// that a suspend function completes with, would reach it as the field value
-private fun Any?.requireAwaitable(valueClass: Class<*>?, method: Method, isSuspendFunction: Boolean): Any? {
-    if (this !is Future<*> || valueClass?.isInstance(this) == true) {
-        return this
-    }
-
-    val resolverName = "${method.declaringClass.name}.${method.name}"
-    if (isSuspendFunction) {
-        throw ResolverError("Suspend function '$resolverName' resolved to a ${javaClass.name}, which graphql-java can't wait on. Return its value instead.")
-    }
-    if (this !is CompletionStage<*>) {
-        throw ResolverError(
-            "Resolver method '$resolverName' resolved to a ${javaClass.name}, which graphql-java can't wait on. " +
-                "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
-        )
-    }
-
-    return this
-}
-
-private class CompareGenericWrappers {
-    companion object : Comparator<GenericWrapper> {
-        override fun compare(w1: GenericWrapper, w2: GenericWrapper): Int = when {
-            w1.type.isAssignableFrom(w2.type) -> 1
-            else -> -1
-        }
     }
 }
 

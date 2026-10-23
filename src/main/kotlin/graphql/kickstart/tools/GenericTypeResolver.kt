@@ -29,7 +29,7 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
      * - wildcards are replaced by their upper bound, e.g. `? extends Foo` becomes `Foo`
      * - primitives are replaced by their boxed class, e.g. `int` becomes `Integer`
      */
-    fun resolve(javaType: JavaType): JavaType {
+    fun resolve(javaType: JavaType, onUnwrap: ((wrapped: ParameterizedType) -> Unit)? = null): JavaType {
         return when (val type = resolveTypeVariables(javaType)) {
             is ParameterizedType -> {
                 val rawType = type.rawType
@@ -41,12 +41,17 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
                     throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${wrapper.index}!")
                 }
 
+                onUnwrap?.invoke(type)
                 val unwrapsTo = wrapper.schemaWrapper.invoke(typeArguments[wrapper.index])
-                resolve(unwrapsTo)
+                resolve(unwrapsTo, onUnwrap)
             }
             is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' relative to ${TypeUtils.toString(containingType)}")
-            is WildcardType -> type.upperBounds.firstOrNull()
-                ?: error("Unable to unwrap type, wildcard has no upper bound: $type")
+            // Kotlin reflection gives a suspend function returning List<Foo> the type List<? extends Foo> when Foo is open.
+            // A type variable bound stays as it is, since a method's own variable can't be resolved and a scalar doesn't need it
+            is WildcardType -> when (val bound = type.upperBounds.firstOrNull() ?: error("Unable to unwrap type, wildcard has no upper bound: $type")) {
+                is ParameterizedType -> resolve(bound, onUnwrap)
+                else -> bound
+            }
             is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
             else -> error("Unable to unwrap type: $type")
         }
