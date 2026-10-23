@@ -137,6 +137,10 @@ class NestedGenericWrapperTest {
         assertFails("listOfPlainFuturesOfAny", cantWaitOn("listOfPlainFuturesOfAny"), selection = "{ ... on Payload { data } }")
 
     @Test
+    fun `resolves a union member that implements Future in a list of wrappers`() =
+        assertResolves("listOfWrappedItems", ab, selection = "{ ... on Payload { data } ... on FutureItem { data } }")
+
+    @Test
     fun `fails a list of wrappers whose transformer returns a future graphql-java can't wait on`() = assertFails("listOfLater", cantWaitOn("listOfLater"))
 
     @Test
@@ -162,7 +166,8 @@ class NestedGenericWrapperTest {
         assertEquals(execute("json", schema = schema, selection = "").errors, listOf<GraphQLError>())
         assertEquals(execute("futureJson", schema = schema, selection = "").errors, listOf<GraphQLError>())
         assertEquals(execute("jsonFutures", schema = schema, selection = "").errors, listOf<GraphQLError>())
-        assertEquals(json, listOf(mapOf("a" to 1), mapOf("b" to 2), mapOf("c" to 3), mapOf("d" to 4), mapOf("e" to 5)))
+        assertEquals(execute("wrappedJsonOfAny", schema = schema, selection = "").errors, listOf<GraphQLError>())
+        assertEquals(json, listOf(mapOf("a" to 1), mapOf("b" to 2), mapOf("c" to 3), mapOf("d" to 4), mapOf("e" to 5), FutureLeaf("f")))
     }
 
     @Test
@@ -294,6 +299,7 @@ class NestedGenericWrapperTest {
                 futureOfListWithFailedWrapper: [Payload]
                 listOfPlainFutures: [Payload]
                 listOfPlainFuturesOfAny: [Item]
+                listOfWrappedItems: [Item!]!
                 listOfLater: [Payload]
                 suspendListOfPlainFutures: [Payload]
                 listOfWrappedPending: [Payload!]!
@@ -302,18 +308,23 @@ class NestedGenericWrapperTest {
                 plainList: [Payload!]!
                 futureOfList: [Payload!]!
                 wrappedFuture: Payload!
-                ${if (scalars.isEmpty()) "" else "json: [JSON] futureJson: JSON jsonFutures: [JSON]"}
+                ${if (scalars.isEmpty()) "" else "json: [JSON] futureJson: JSON jsonFutures: [JSON] wrappedJsonOfAny: [JSON]"}
             }
 
             type Payload {
                 data: String!
             }
 
-            union Item = Payload
+            type FutureItem {
+                data: String!
+            }
+
+            union Item = Payload | FutureItem
 
             ${if (scalars.isEmpty()) "" else "scalar JSON"}
             """)
         .resolvers(query)
+        .dictionary(FutureItem::class)
         .scalars(*scalars)
         .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper, laterWrapper, pendingWrapper).build())
         .build()
@@ -370,6 +381,8 @@ class NestedGenericWrapperTest {
 
     data class FutureLeaf(val data: String) : Future<String> by completedFuture(data)
 
+    data class FutureItem(val data: String) : Future<String> by completedFuture(data)
+
     class Query : GraphQLQueryResolver {
         val plainList = listOf(Payload("a"))
         val futureOfList: CompletableFuture<List<Payload>> = completedFuture(plainList)
@@ -409,12 +422,14 @@ class NestedGenericWrapperTest {
         fun futureOfListWithFailedWrapper(): CompletableFuture<List<Try<Payload>>> = CompletableFuture.supplyAsync { listWithFailedWrapper() }
         fun listOfPlainFutures(): List<Future<Payload>> = listOf(FutureTask { Payload("a") }.apply { run() })
         fun listOfPlainFuturesOfAny(): List<Future<Any>> = listOf(FutureTask<Any> { Payload("a") }.apply { run() })
+        fun listOfWrappedItems(): List<Try<Any>> = listOf(Try.success(Payload("a")), Try.success(FutureItem("b")))
         fun listOfLater(): List<Later<Payload>> = listOf(Later(Payload("a")))
         suspend fun suspendListOfPlainFutures(): List<Future<Payload>> = listOfPlainFutures()
         fun listOfWrappedPending(): List<Try<Pending<Payload>>> = listOf(Try.success(Pending(Payload("a"))), Try.success(Pending(Payload("b"))))
         fun json(): List<Try<Map<String, Any>>> = listOf(Try.success(mapOf("a" to 1)), Try.success(mapOf("b" to 2)))
         fun futureJson(): CompletableFuture<Try<Map<String, Any>>> = completedFuture(Try.success(mapOf("c" to 3)))
         fun jsonFutures(): List<CompletableFuture<Map<String, Any>>> = listOf(completedFuture(mapOf("d" to 4)), CompletableFuture.supplyAsync { mapOf("e" to 5) })
+        fun wrappedJsonOfAny(): List<Try<Any>> = listOf(Try.success(FutureLeaf("f")))
         fun batchOfPayloads(): Batch<Payload> = Batch(listOfFutures())
         fun listOfBoxes(): List<Box<Payload>> = listOf(Box(Payload("a")), SpecialBox(Payload("b")))
     }

@@ -46,9 +46,12 @@ internal class ReturnValueUnwrapper private constructor(
             val unwrapped = unwrapping.unwrapped
             val outermost = unwrapped.firstOrNull() as? Unwrapped.Wrapper
             val belowOutermost = if (outermost == null) unwrapped else unwrapped.drop(1)
-            val specificLeafClass = TypeUtils.getRawType(unwrapping.javaType, null)?.takeUnless { it == Any::class.java }
+            val leafClass = TypeUtils.getRawType(unwrapping.javaType, null)
+            val specificLeafClass = leafClass?.takeUnless { it == Any::class.java }
+            val awaits = Awaitable(method, specificLeafClass, isSuspendFunction)
+            val peels = Awaitable(method, leafClass, isSuspendFunction)
             // graphql-java completes a subscription's events one at a time
-            val nested = if (isSubscription) null else steps(belowOutermost, Awaitable(method, specificLeafClass, isSuspendFunction))
+            val nested = if (isSubscription) null else steps(belowOutermost, awaits, peels)
             return ReturnValueUnwrapper(genericWrappers, Awaitable(method, valueClass, isSuspendFunction), outermost?.isFuture == true, nested)
         }
     }
@@ -93,10 +96,10 @@ private class ValueOf(private val present: Step) : Step {
 private val Unwrapped.Wrapper.isFuture
     get() = Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type)
 
-private fun steps(unwrapped: List<Unwrapped>, awaitable: Awaitable): Step? =
+private fun steps(unwrapped: List<Unwrapped>, awaits: Awaitable, peels: Awaitable): Step? =
     unwrapped.foldRight(null as Step?) { it, next ->
         when (it) {
-            is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, awaitable, next) else Peel(it.wrapper, awaitable, next)
+            is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, awaits, next) else Peel(it.wrapper, peels, next)
             Unwrapped.Data -> next?.let(::DataOf)
             Unwrapped.Present -> next?.let(::ValueOf)
             Unwrapped.Elements -> next?.let(::EachElement)
