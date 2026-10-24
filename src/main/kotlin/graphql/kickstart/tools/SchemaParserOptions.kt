@@ -31,6 +31,7 @@ data class SchemaParserOptions internal constructor(
     val proxyHandlers: List<ProxyHandler>,
     val inputArgumentOptionalDetectOmission: Boolean,
     val preferGraphQLResolver: Boolean,
+    @Deprecated("Will be removed in 15.0.0. Use Introspection.enabledJvmWide(false) for the whole JVM, or put Introspection.INTROSPECTION_DISABLED in the GraphQLContext of the request.")
     val introspectionEnabled: Boolean,
     val coroutineContextProvider: CoroutineContextProvider,
     val typeDefinitionFactories: List<TypeDefinitionFactory>,
@@ -128,6 +129,7 @@ data class SchemaParserOptions internal constructor(
             this.proxyHandlers.add(proxyHandler)
         }
 
+        @Deprecated("Will be removed in 15.0.0. Use Introspection.enabledJvmWide(false) for the whole JVM, or put Introspection.INTROSPECTION_DISABLED in the GraphQLContext of the request.")
         fun introspectionEnabled(introspectionEnabled: Boolean) = this.apply {
             this.introspectionEnabled = introspectionEnabled
         }
