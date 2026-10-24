@@ -59,46 +59,6 @@ class MissingFieldResolverTest {
     }
 
     @Test
-    @Suppress("DEPRECATION")
-    fun `should call missing resolver data fetcher if provided`() {
-        val schema = SchemaParser.newParser()
-            .schemaString(
-                """
-                type Query {
-                    implementedField(input: String): String
-                    missingField(input: Int): Int
-                }
-                """
-            )
-            .resolvers(object : GraphQLQueryResolver {
-                fun implementedField(input: Optional<String>) = input.toString()
-            })
-            .options(SchemaParserOptions.newOptions()
-                .missingResolverDataFetcher(TestMissingResolverDataFetcher())
-                .build())
-            .build()
-            .makeExecutableSchema()
-            .assertEveryFieldResolves()
-
-        val gql = GraphQL.newGraphQL(schema).build()
-
-        val result = gql.execute(
-            """
-            query {
-                implementedField(input: "test-value")
-                missingField(input: 1)
-            }
-            """)
-
-        val expected = mapOf(
-            "implementedField" to "Optional[test-value]",
-            "missingField" to 1
-        )
-
-        assertEquals(result.getData(), expected)
-    }
-
-    @Test
     fun `should call missing resolver data fetcher provider if provided`() {
         val missingResolverDataFetcherProvider = TestMissingResolverDataFetcherProvider();
         val options = SchemaParserOptions.newOptions()

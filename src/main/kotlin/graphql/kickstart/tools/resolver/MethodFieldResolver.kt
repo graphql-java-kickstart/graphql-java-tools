@@ -20,7 +20,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
-import org.slf4j.LoggerFactory
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.*
@@ -40,8 +39,6 @@ internal class MethodFieldResolver(
     val method: Method,
     private val scalarNames: Set<String>
 ) : FieldResolver(field, search, options) {
-
-    private val log = LoggerFactory.getLogger(javaClass)
 
     private val isSuspendFunction = method.isSuspendFunction()
     private val numberOfParameters = method.parameterCountWithoutContinuation()
@@ -105,23 +102,17 @@ internal class MethodFieldResolver(
         val firstTrailingParameter = field.inputValueDefinitions.size + search.firstArgumentIndex
         method.parameterTypes.slice(firstTrailingParameter until numberOfParameters).forEach { parameterType ->
             when (parameterType) {
+                GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
+
                 options.contextClass -> args.add { environment ->
-                    val context: Any? = environment.graphQlContext[options.contextClass]
-                    if (context != null) {
-                        context
-                    } else {
-                        log.warn(
-                            "Generic context class has been deprecated by graphql-java. " +
-                                "To continue using a custom context class as the last parameter in resolver methods " +
-                                "please insert it into the GraphQLContext map when building the ExecutionInput. " +
-                                "This warning will become an error in the future."
-                        )
-                        @Suppress("DEPRECATION")
-                        environment.getContext() // TODO: remove deprecated use in next major release
-                    }
+                    environment.graphQlContext.get<Any>(parameterType) ?: throw ResolverError(
+                        "Resolver method '${method.declaringClass.name}.${method.name}' has a parameter of the context class " +
+                            "'${parameterType.name}', but the GraphQLContext has no value for it. Put it in the GraphQLContext under " +
+                            "the class key when building the ExecutionInput, for example " +
+                            "graphQLContext(mapOf(${parameterType.simpleName}::class.java to context))."
+                    )
                 }
 
-                GraphQLContext::class.java -> args.add { environment -> environment.graphQlContext }
                 else -> args.add { environment -> environment }
             }
         }

@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.reactivestreams.Publisher
 import org.reactivestreams.tck.TestEnvironment
@@ -98,7 +100,7 @@ class MethodFieldResolverDataFetcherTest {
     }
 
     @Test
-    fun `data fetcher executes suspend function in CoroutineScope from legacy context`() {
+    fun `data fetcher does not execute suspend function in CoroutineScope from legacy context`() {
         // setup
         val scopeClass = ScopeClass()
 
@@ -107,7 +109,7 @@ class MethodFieldResolverDataFetcherTest {
         // expect
         @Suppress("UNCHECKED_CAST")
         val future = resolver.get(createEnvironment(DataClass(), legacyContext = scopeClass.scope)) as CompletableFuture<Boolean>
-        assert(future.get())
+        assertEquals(future.get(), false)
     }
 
     class ScopeClass : GraphQLResolver<DataClass> {
@@ -116,7 +118,7 @@ class MethodFieldResolverDataFetcherTest {
 
         @Suppress("UNUSED_PARAMETER")
         suspend fun isActive(data: DataClass): Boolean {
-            return coroutineContext[Job] == job.children.first()
+            return coroutineContext[Job] == job.children.firstOrNull()
         }
     }
 
@@ -269,6 +271,47 @@ class MethodFieldResolverDataFetcherTest {
         val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
             fun isActive(dataClass: DataClass, ctx: ContextClass): Boolean {
                 return ctx == customContext
+            }
+        })
+
+        assertEquals(resolver.get(createEnvironment(DataClass(), context = context)), true)
+    }
+
+    @Test
+    fun `data fetcher fails if custom context is missing from GraphQLContext`() {
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: ContextClass?): Boolean {
+                return ctx != null
+            }
+        })
+
+        val error = assertThrows(ResolverError::class.java) { resolver.get(createEnvironment(DataClass())) }
+
+        assertTrue(error.message!!.contains("'${ContextClass::class.java.name}'"))
+        assertTrue(error.message!!.contains(".isActive'"))
+        assertTrue(error.message!!.contains("GraphQLContext"))
+    }
+
+    @Test
+    fun `data fetcher fails if custom context is only passed as the legacy context object`() {
+        val options = SchemaParserOptions.newOptions().contextClass(ContextClass::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: ContextClass): Boolean {
+                return true
+            }
+        })
+
+        assertThrows(ResolverError::class.java) { resolver.get(createEnvironment(DataClass(), legacyContext = ContextClass())) }
+    }
+
+    @Test
+    fun `data fetcher passes GraphQLContext if it is the custom context class`() {
+        val context = GraphQLContext.newContext().build()
+        val options = SchemaParserOptions.newOptions().contextClass(GraphQLContext::class).build()
+        val resolver = createFetcher("active", options = options, resolver = object : GraphQLResolver<DataClass> {
+            fun isActive(dataClass: DataClass, ctx: GraphQLContext): Boolean {
+                return ctx == context
             }
         })
 
