@@ -1,6 +1,9 @@
 package graphql.kickstart.tools
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonTypeInfo
+import com.fasterxml.jackson.annotation.ObjectIdGenerators
 import graphql.ExceptionWhileDataFetching
 import graphql.GraphQL
 import graphql.GraphQLContext
@@ -218,6 +221,28 @@ class CustomScalarInputTest {
     }
 
     @Test
+    fun `Kotlin custom scalars without visible properties are passed when written with a type or object id`() {
+        val data = assertNoGraphQlErrors(graphQL(inputSchema)) {
+            """
+            query {
+                optionalTypedToken(token: "optional")
+                optionalWrappedToken(token: "optional")
+                optionalIdToken(token: "optional")
+                markedTokens(input: { typed: "input", wrapped: "input", id: "input", typedList: ["first", "second"] })
+                markedTokenNode(input: { typed: "node", wrapped: "node", id: "node" })
+            }
+            """
+        }
+
+        assertEquals(data, mapOf(
+            "optionalTypedToken" to "optional",
+            "optionalWrappedToken" to "optional",
+            "optionalIdToken" to "optional",
+            "markedTokens" to "input input input [first, second]",
+            "markedTokenNode" to "node node node"))
+    }
+
+    @Test
     fun `errors converting inputs with custom scalars name the actual problem`() {
         val result = graphQL(inputSchema).execute(
             """
@@ -234,7 +259,8 @@ class CustomScalarInputTest {
     private fun graphQL(schema: String, options: SchemaParserOptions = SchemaParserOptions.defaultOptions()): GraphQL {
         val graphQLSchema = SchemaParser.newParser()
             .schemaString(schema)
-            .scalars(localDateScalar, opaqueScalar, secretScalar, boxScalar, moneyScalar, tokenScalar, customScalarUUID, uploadScalar)
+            .scalars(localDateScalar, opaqueScalar, secretScalar, boxScalar, moneyScalar, tokenScalar, typedTokenScalar, wrappedTokenScalar,
+                idTokenScalar, customScalarUUID, uploadScalar)
             .resolvers(resolver)
             .options(options)
             .build()
@@ -251,6 +277,9 @@ class CustomScalarInputTest {
         scalar Money
         scalar Upload
         scalar Token
+        scalar TypedToken
+        scalar WrappedToken
+        scalar IdToken
 
         type Query {
             event(input: EventInput!): String!
@@ -267,6 +296,11 @@ class CustomScalarInputTest {
             tokenInput(input: TokenInput!): String!
             tokenNode(input: NodeInput!): String!
             otherTokens(input: OtherTokensInput!): String!
+            optionalTypedToken(token: TypedToken): String!
+            optionalWrappedToken(token: WrappedToken): String!
+            optionalIdToken(token: IdToken): String!
+            markedTokens(input: MarkedTokensInput!): String!
+            markedTokenNode(input: NodeInput!): String!
         }
 
         input EventInput {
@@ -291,6 +325,9 @@ class CustomScalarInputTest {
             secret: Secret
             price: Money
             token: Token
+            typed: TypedToken
+            wrapped: WrappedToken
+            id: IdToken
         }
 
         input TokenInput {
@@ -301,6 +338,13 @@ class CustomScalarInputTest {
             bean: Token
             map: Token
             node: Token
+        }
+
+        input MarkedTokensInput {
+            typed: TypedToken
+            wrapped: WrappedToken
+            id: IdToken
+            typedList: [TypedToken!]
         }
 
         input PaymentInput {
@@ -341,6 +385,12 @@ class CustomScalarInputTest {
         fun tokenInput(input: TokenInput): String = input.token.toString()
         fun otherTokens(input: OtherTokensInput): String = "${input.bean} ${input.map} ${input.node}"
         fun tokenNode(input: ObjectNode): String = input.get("token").let { if (it is POJONode) it.pojo.toString() else "$it" }
+        fun optionalTypedToken(token: Optional<TypedToken>): String = token.map { it.toString() }.orElse("empty")
+        fun optionalWrappedToken(token: Optional<WrappedToken>): String = token.map { it.toString() }.orElse("empty")
+        fun optionalIdToken(token: Optional<IdToken>): String = token.map { it.toString() }.orElse("empty")
+        fun markedTokens(input: MarkedTokensInput): String = "${input.typed} ${input.wrapped} ${input.id} ${input.typedList}"
+        fun markedTokenNode(input: ObjectNode): String =
+            listOf("typed", "wrapped", "id").joinToString(" ") { input.get(it).let { node -> if (node is POJONode) node.pojo.toString() else "$node" } }
 
         fun map(input: Map<String, Any?>) = receive("map", input)
         fun mapList(inputs: List<Map<String, Any?>>) = receive("mapList", inputs)
@@ -395,6 +445,28 @@ class CustomScalarInputTest {
 
     data class OtherToken(val value: String = "other")
 
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY)
+    class TypedToken(private val value: String = "default") {
+        override fun toString() = value
+    }
+
+    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.WRAPPER_OBJECT)
+    class WrappedToken(private val value: String = "default") {
+        override fun toString() = value
+    }
+
+    @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator::class)
+    class IdToken(private val value: String = "default") {
+        override fun toString() = value
+    }
+
+    data class MarkedTokensInput(
+        val typed: TypedToken? = null,
+        val wrapped: WrappedToken? = null,
+        val id: IdToken? = null,
+        val typedList: List<TypedToken>? = null
+    )
+
     data class OtherTokensInput(val bean: OtherToken? = null, val map: Map<String, String>? = null, val node: ObjectNode? = null)
 
     class BoxContentDeserializer : StdDeserializer<String>(String::class.java) {
@@ -428,6 +500,9 @@ class CustomScalarInputTest {
     private val boxScalar = scalar("Box") { Box(if (it.startsWith("secret:")) Secret(it.removePrefix("secret:")) else it) }
     private val moneyScalar = scalar("Money") { Money(it.toInt(), "CAD") }
     private val tokenScalar = scalar("Token") { Token(it) }
+    private val typedTokenScalar = scalar("TypedToken") { TypedToken(it) }
+    private val wrappedTokenScalar = scalar("WrappedToken") { WrappedToken(it) }
+    private val idTokenScalar = scalar("IdToken") { IdToken(it) }
 
     private fun <T : Any> scalar(name: String, parse: (String) -> T): GraphQLScalarType = GraphQLScalarType.newScalar()
         .name(name)
