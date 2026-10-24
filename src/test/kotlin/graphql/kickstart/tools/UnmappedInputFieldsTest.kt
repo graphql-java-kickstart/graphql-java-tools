@@ -7,22 +7,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.JsonUnwrapped
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.BeanDescription
-import com.fasterxml.jackson.databind.DeserializationConfig
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.InjectableValues
-import com.fasterxml.jackson.databind.JavaType
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.PropertyNamingStrategies
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonNaming
-import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer
-import com.fasterxml.jackson.databind.module.SimpleDeserializers
-import com.fasterxml.jackson.databind.module.SimpleModule
 import graphql.GraphQL
 import graphql.kickstart.tools.UnmappedInputFieldsFixtures.*
 import graphql.schema.DataFetchingEnvironment
@@ -31,6 +15,23 @@ import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import tools.jackson.core.JsonParser
+import tools.jackson.databind.BeanDescription
+import tools.jackson.databind.DeserializationConfig
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.InjectableValues
+import tools.jackson.databind.JavaType
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.PropertyNamingStrategies
+import tools.jackson.databind.ValueDeserializer
+import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.annotation.JsonNaming
+import tools.jackson.databind.annotation.JsonPOJOBuilder
+import tools.jackson.databind.deser.std.StdDeserializer
+import tools.jackson.databind.module.SimpleDeserializers
+import tools.jackson.databind.module.SimpleModule
 import java.util.*
 
 class UnmappedInputFieldsTest {
@@ -47,7 +48,7 @@ class UnmappedInputFieldsTest {
                 createProject(input: { name: "tools", technologies: [{ name: "Kotlin" }] })
             }
             """)
-        assertContains(result.errors.single().message, "Unrecognized field \"technologies\"")
+        assertContains(result.errors.single().message, "Unrecognized property \"technologies\"")
     }
 
     @Test
@@ -93,7 +94,7 @@ class UnmappedInputFieldsTest {
         ))
 
         val result = GraphQL.newGraphQL(schema).build().execute("query { active(input: { active: true }) }")
-        assertContains(result.errors.single().message, "Unrecognized field \"active\"")
+        assertContains(result.errors.single().message, "Unrecognized property \"active\"")
     }
 
     @Test
@@ -183,6 +184,16 @@ class UnmappedInputFieldsTest {
 
     @Test
     fun `misspelled property is reported if the ObjectMapper ignores unknown properties`() {
+        assertReportedAsDropped(SchemaParserOptions.newOptions()
+            .objectMapperConfigurer { builder, _ -> builder.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES) })
+    }
+
+    @Test
+    fun `misspelled property is reported as dropped with a Jackson ObjectMapper from a provider`() {
+        assertReportedAsDropped(SchemaParserOptions.newOptions().objectMapperProvider { ObjectMapper() })
+    }
+
+    private fun assertReportedAsDropped(options: SchemaParserOptions.Builder) {
         val (schema, warnings) = withWarnings {
             SchemaParser.newParser()
                 .schemaString(
@@ -198,9 +209,7 @@ class UnmappedInputFieldsTest {
                 .resolvers(object : GraphQLQueryResolver {
                     fun greet(input: GreetingInput): String? = input.nmae
                 })
-                .options(SchemaParserOptions.newOptions()
-                    .objectMapperConfigurer { mapper, _ -> mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES) }
-                    .build())
+                .options(options.build())
                 .build()
                 .makeExecutableSchema()
         }
@@ -239,9 +248,9 @@ class UnmappedInputFieldsTest {
                     fun camel(input: NameInput): String? = input.firstName
                 })
                 .options(options
-                    .objectMapperConfigurer { mapper, context ->
+                    .objectMapperConfigurer { builder, context ->
                         if (context.field.name == "snake") {
-                            mapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+                            builder.propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
                         }
                     }
                     .build())
@@ -258,7 +267,7 @@ class UnmappedInputFieldsTest {
             .assertEveryFieldResolves(except = setOf("Query.snake"))
         val gql = GraphQL.newGraphQL(schema).build()
         val result = gql.execute("query { snake(input: { firstName: \"Ada\" }) camel(input: { firstName: \"Ada\" }) }")
-        assertContains(result.errors.single().message, "Unrecognized field \"firstName\"")
+        assertContains(result.errors.single().message, "Unrecognized property \"firstName\"")
         assertEquals(result.getData<Map<String, Any?>>()!!["camel"], "Ada")
     }
 
@@ -284,9 +293,9 @@ class UnmappedInputFieldsTest {
                     fun alsoStrict(input: GreetingInput): String? = input.nmae
                 })
                 .options(failOptions()
-                    .objectMapperConfigurer { mapper, context ->
+                    .objectMapperConfigurer { builder, context ->
                         if (context.field.name == "lenient") {
-                            mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                            builder.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                         }
                     }
                     .build())
@@ -360,7 +369,7 @@ class UnmappedInputFieldsTest {
             "fails for every 'SearchFilter' value sent, since the field has a default value")))
 
         val result = GraphQL.newGraphQL(schema).build().execute("query { search(filter: { query: \"a\" }) }")
-        assertContains(result.errors.single().message, "Unrecognized field \"limit\"")
+        assertContains(result.errors.single().message, "Unrecognized property \"limit\"")
     }
 
     @Test
@@ -687,7 +696,7 @@ class UnmappedInputFieldsTest {
                 fun money(input: Money): String = input.amount.toString()
             })
             .options(failOptions()
-                .objectMapperConfigurer { mapper, _ -> mapper.registerModule(SimpleModule().addDeserializer(Money::class.java, MoneyDeserializer())) }
+                .objectMapperConfigurer { builder, _ -> builder.addModule(SimpleModule().addDeserializer(Money::class.java, MoneyDeserializer())) }
                 .build())
             .build()
             .makeExecutableSchema()
@@ -731,7 +740,6 @@ class UnmappedInputFieldsTest {
                 type Query {
                     injected(input: InjectedInput!): String
                     builder(input: BuilderTypoInput!): String
-                    unwrapped(input: KotlinUnwrappedInput!): String
                 }
 
                 input InjectedInput {
@@ -741,19 +749,13 @@ class UnmappedInputFieldsTest {
                 input BuilderTypoInput {
                     name: String
                 }
-
-                input KotlinUnwrappedInput {
-                    name: String
-                    street: String
-                }
                 """)
             .resolvers(object : GraphQLQueryResolver {
                 fun injected(input: InjectedInput): String? = input.nmae
                 fun builder(input: BuilderTypoInput): String? = input.name
-                fun unwrapped(input: KotlinUnwrappedInput): String = "${input.name} ${input.address?.stret}"
             })
             .options(failOptions()
-                .objectMapperConfigurer { mapper, _ -> mapper.setInjectableValues(InjectableValues.Std().addValue("tenant", "acme")) }
+                .objectMapperConfigurer { builder, _ -> builder.injectableValues(InjectableValues.Std().addValue("tenant", "acme")) }
                 .build())
             .build()
             .makeExecutableSchema()
@@ -765,14 +767,43 @@ class UnmappedInputFieldsTest {
             query {
                 injected(input: { name: "a" })
                 builder(input: { name: "b" })
-                unwrapped(input: { name: "c", street: "d" })
             }
             """)
 
         assertEquals(result.errors.map { it.path }, listOf(listOf("injected"), listOf("builder")))
-        result.errors.forEach { assertContains(it.message, "Unrecognized field \"name\"") }
-        // Jackson drops what none of the unwrapped properties know
-        assertEquals(result.getData<Map<String, Any?>>()!!["unwrapped"], "c null")
+        result.errors.forEach { assertContains(it.message, "Unrecognized property \"name\"") }
+    }
+
+    @Test
+    fun `input field that none of the unwrapped properties know is reported`() {
+        val parser = { options: SchemaParserOptions.Builder ->
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        unwrapped(input: KotlinUnwrappedInput!): String
+                    }
+
+                    input KotlinUnwrappedInput {
+                        name: String
+                        street: String
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun unwrapped(input: KotlinUnwrappedInput): String = "${input.name} ${input.address?.stret}"
+                })
+                .options(options.build())
+                .build()
+        }
+
+        val error = assertThrows(SchemaError::class.java) {
+            parser(failOptions()).makeExecutableSchema()
+        }
+        assertEquals(error.message, unmapped("KotlinUnwrappedInput.street", KotlinUnwrappedInput::class.java, "argument 'input' of field 'Query.unwrapped'", "name"))
+
+        val result = GraphQL.newGraphQL(parser(SchemaParserOptions.newOptions()).makeExecutableSchema()).build()
+            .execute("query { unwrapped(input: { name: \"c\", street: \"d\" }) }")
+        assertContains(result.errors.single().message, "Unrecognized property \"street\"")
     }
 
     @Test
@@ -798,9 +829,9 @@ class UnmappedInputFieldsTest {
                 fun missingClass(input: GreetingInput): String? = input.nmae
             })
             .options(failOptions()
-                .objectMapperConfigurer { mapper, context ->
+                .objectMapperConfigurer { builder, context ->
                     if (context.field.name == "missingClass") {
-                        mapper.registerModule(SimpleModule().apply { setDeserializers(MissingClassDeserializers()) })
+                        builder.addModule(SimpleModule().apply { setDeserializers(MissingClassDeserializers()) })
                     }
                 }
                 .build())
@@ -1034,7 +1065,7 @@ class UnmappedInputFieldsTest {
     }
 
     class MissingClassDeserializers : SimpleDeserializers() {
-        override fun findBeanDeserializer(type: JavaType, config: DeserializationConfig, beanDesc: BeanDescription): JsonDeserializer<*> =
+        override fun findBeanDeserializer(type: JavaType, config: DeserializationConfig, beanDescRef: BeanDescription.Supplier): ValueDeserializer<*> =
             throw NoClassDefFoundError("com/example/Missing")
     }
 

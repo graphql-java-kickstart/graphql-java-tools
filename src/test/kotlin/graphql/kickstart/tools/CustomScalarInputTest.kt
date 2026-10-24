@@ -1,29 +1,32 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer
-import com.fasterxml.jackson.databind.exc.InvalidDefinitionException
-import com.fasterxml.jackson.databind.exc.MismatchedInputException
-import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.databind.node.POJONode
-import com.fasterxml.jackson.databind.ser.std.StdSerializer
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer
 import graphql.ExceptionWhileDataFetching
 import graphql.GraphQL
 import graphql.GraphQLContext
 import graphql.execution.CoercedVariables
+import graphql.kickstart.tools.CustomScalarInputFixtures.Secret
 import graphql.language.StringValue
 import graphql.language.Value
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
 import org.junit.Test
+import tools.jackson.core.JsonGenerator
+import tools.jackson.core.JsonParser
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.SerializationContext
+import tools.jackson.databind.SerializationFeature
+import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.deser.std.StdDeserializer
+import tools.jackson.databind.exc.InvalidDefinitionException
+import tools.jackson.databind.exc.MismatchedInputException
+import tools.jackson.databind.module.SimpleModule
+import tools.jackson.databind.node.ObjectNode
+import tools.jackson.databind.node.POJONode
+import tools.jackson.databind.ser.std.StdSerializer
+import tools.jackson.databind.ser.std.ToStringSerializer
+import tools.jackson.module.kotlin.jacksonMapperBuilder
 import java.time.LocalDate
 import java.util.*
 import javax.servlet.http.Part
@@ -49,7 +52,7 @@ class CustomScalarInputTest {
                 events(inputs: [{ date: "2020-01-02" }, { opaque: "second" }])
                 optionalEvent(input: { date: "2020-01-02", opaque: "optional" })
                 message(input: { name: "greeting", file: ${'$'}file, files: ${'$'}files })
-                dateNode(input: { date: "2020-01-02" })
+                secretNode(input: { secret: "s" })
                 dateLabel: label(input: { date: "2020-01-02" })
                 opaqueLabel: label(input: { opaque: "secret" })
             }
@@ -64,7 +67,7 @@ class CustomScalarInputTest {
             "events" to listOf("2020-01-02", "second"),
             "optionalEvent" to "2020-01-02 optional",
             "message" to "greeting: Hello big world",
-            "dateNode" to "LocalDate 2020-01-02",
+            "secretNode" to "Secret s",
             "dateLabel" to "2020-01-02 null"
         ))
         assert((data["opaqueLabel"] as String).startsWith("null ${Opaque::class.java.name}@")) { data["opaqueLabel"].toString() }
@@ -142,9 +145,9 @@ class CustomScalarInputTest {
             """
             query {
                 payment(input: { price: "5", reference: "ref", box: "text" })
-                withDate: payment(input: { price: "5", reference: "ref", box: "text", date: "2020-01-02" })
-                boxOfDate: payment(input: { box: "date:2021-03-04" })
-                afterBoxOfDate: payment(input: { price: "5", reference: "ref", box: "text", date: "2020-01-02" })
+                withSecret: payment(input: { price: "5", reference: "ref", box: "text", secret: "s" })
+                boxOfSecret: payment(input: { box: "secret:s" })
+                afterBoxOfSecret: payment(input: { price: "5", reference: "ref", box: "text", secret: "s" })
                 priceNode(input: { price: "5" })
                 price(price: "5")
             }
@@ -160,9 +163,9 @@ class CustomScalarInputTest {
 
         assertEquals(data, mapOf(
             "payment" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) text",
-            "withDate" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) 2020-01-02 text",
-            "boxOfDate" to "<missing>",
-            "afterBoxOfDate" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) 2020-01-02 text",
+            "withSecret" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) s text",
+            "boxOfSecret" to "<missing>",
+            "afterBoxOfSecret" to "MoneyDto(amount=5, currency=CAD) OpaqueDto(value=ref) s text",
             "priceNode" to """{"price":{"amount":5,"currency":"CAD"}}""",
             "price" to "MoneyDto(amount=5, currency=CAD)"
         ))
@@ -170,23 +173,39 @@ class CustomScalarInputTest {
     }
 
     @Test
+    fun `custom scalars without visible properties are passed even if the ObjectMapper writes them as empty objects`() {
+        val mapper = jacksonMapperBuilder().disable(SerializationFeature.FAIL_ON_EMPTY_BEANS).build()
+        val options = SchemaParserOptions.newOptions().objectMapperProvider { mapper }.build()
+
+        val data = assertNoGraphQlErrors(graphQL(inputSchema, options)) {
+            """
+            query {
+                payment(input: { secret: "kept" })
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("payment" to "kept"))
+    }
+
+    @Test
     fun `errors converting inputs with custom scalars name the actual problem`() {
         val result = graphQL(inputSchema).execute(
             """
             query {
-                message(input: { name: null, date: "2020-01-02" })
+                message(input: { name: null, secret: "s" })
             }
             """)
 
         val exception = (result.errors.single() as ExceptionWhileDataFetching).exception
-        assertEquals((exception.cause as MismatchedInputException).path.map { it.fieldName }, listOf("name"))
-        assertEquals((exception.suppressed.single().cause as InvalidDefinitionException).type.rawClass, LocalDate::class.java)
+        assertEquals((exception as MismatchedInputException).path.map { it.propertyName }, listOf("name"))
+        assertEquals((exception.suppressed.single() as InvalidDefinitionException).type.rawClass, Secret::class.java)
     }
 
     private fun graphQL(schema: String, options: SchemaParserOptions = SchemaParserOptions.defaultOptions()): GraphQL {
         val graphQLSchema = SchemaParser.newParser()
             .schemaString(schema)
-            .scalars(localDateScalar, opaqueScalar, boxScalar, moneyScalar, customScalarUUID, uploadScalar)
+            .scalars(localDateScalar, opaqueScalar, secretScalar, boxScalar, moneyScalar, customScalarUUID, uploadScalar)
             .resolvers(resolver)
             .options(options)
             .build()
@@ -198,6 +217,7 @@ class CustomScalarInputTest {
     private val inputSchema = """
         scalar LocalDate
         scalar Opaque
+        scalar Secret
         scalar Box
         scalar Money
         scalar Upload
@@ -208,7 +228,7 @@ class CustomScalarInputTest {
             optionalEvent(input: EventInput): String!
             message(input: MessageInput!): String!
             label(input: LabelInput!): String!
-            dateNode(input: NodeInput!): String!
+            secretNode(input: NodeInput!): String!
             priceNode(input: NodeInput!): String!
             payment(input: PaymentInput!): String!
             price(price: Money!): String!
@@ -222,7 +242,7 @@ class CustomScalarInputTest {
 
         input MessageInput {
             name: String
-            date: LocalDate
+            secret: Secret
             file: Upload
             files: [Upload!]
         }
@@ -233,26 +253,26 @@ class CustomScalarInputTest {
         }
 
         input NodeInput {
-            date: LocalDate
+            secret: Secret
             price: Money
         }
 
         input PaymentInput {
             price: Money
             reference: Opaque
-            date: LocalDate
+            secret: Secret
             box: Box
         }
         """
 
     private val configuredMapperOptions = SchemaParserOptions.newOptions()
-        .objectMapperConfigurer { mapper, _ ->
-            mapper.registerModule(SimpleModule()
+        .objectMapperConfigurer { builder, _ ->
+            builder.addModule(SimpleModule()
                 .addSerializer(LocalDate::class.java, ToStringSerializer.instance)
                 .addDeserializer(LocalDate::class.java, NextDayDeserializer())
                 .addSerializer(Part::class.java, PartSerializer())
                 .addDeserializer(Part::class.java, PartDeserializer()))
-            mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
+            builder.changeDefaultPropertyInclusion { JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL) }
         }
         .build()
 
@@ -266,9 +286,9 @@ class CustomScalarInputTest {
         fun optionalEvent(input: Optional<EventInput>): String = input.map { event(it) }.orElse("empty")
         fun message(input: MessageInput): String = "${input.name}: ${(listOfNotNull(input.file) + input.files).joinToString(" ") { it.content() }}"
         fun label(input: LabelInput): String = "${input.date} ${input.opaque}"
-        fun dateNode(input: ObjectNode): String = (input["date"] as POJONode?)?.pojo?.let { "${it.javaClass.simpleName} $it" }.orEmpty()
+        fun secretNode(input: ObjectNode): String = (input["secret"] as POJONode?)?.pojo?.let { "${it.javaClass.simpleName} $it" }.orEmpty()
         fun priceNode(input: ObjectNode): String = input.toString()
-        fun payment(input: PaymentInput): String = listOfNotNull(input.price, input.reference, input.date, input.box).joinToString(" ")
+        fun payment(input: PaymentInput): String = listOfNotNull(input.price, input.reference, input.secret, input.box).joinToString(" ")
         fun price(price: MoneyDto): String = price.toString()
 
         fun map(input: Map<String, Any?>) = receive("map", input)
@@ -291,14 +311,14 @@ class CustomScalarInputTest {
         var file: Part? = null
     }
 
-    data class MessageInput(val name: String, val date: LocalDate? = null, val file: Part? = null, val files: List<Part> = emptyList())
+    data class MessageInput(val name: String, val secret: Secret? = null, val file: Part? = null, val files: List<Part> = emptyList())
 
     data class LabelInput(val date: String? = null, val opaque: String? = null)
 
     class PaymentInput {
         var price: MoneyDto? = null
         var reference: OpaqueDto? = null
-        var date: LocalDate? = null
+        var secret: Secret? = null
 
         @field:JsonDeserialize(using = BoxContentDeserializer::class)
         var box: String? = null
@@ -318,32 +338,33 @@ class CustomScalarInputTest {
 
     class BoxContentDeserializer : StdDeserializer<String>(String::class.java) {
         override fun deserialize(p: JsonParser, context: DeserializationContext): String =
-            p.codec.readTree<JsonNode>(p).path("content").textValue() ?: "<missing>"
+            p.readValueAsTree<JsonNode>().path("content").stringValue("<missing>")
     }
 
     class NextDayDeserializer : StdDeserializer<LocalDate>(LocalDate::class.java) {
-        override fun deserialize(p: JsonParser, context: DeserializationContext): LocalDate = LocalDate.parse(p.text).plusDays(1)
+        override fun deserialize(p: JsonParser, context: DeserializationContext): LocalDate = LocalDate.parse(p.string).plusDays(1)
     }
 
     class PartSerializer : StdSerializer<Part>(Part::class.java) {
-        override fun serialize(value: Part, gen: JsonGenerator, provider: SerializerProvider) {
+        override fun serialize(value: Part, gen: JsonGenerator, provider: SerializationContext) {
             gen.writeStartObject()
-            gen.writeStringField("name", value.name)
-            gen.writeBinaryField("content", value.inputStream.readBytes())
+            gen.writeStringProperty("name", value.name)
+            gen.writeBinaryProperty("content", value.inputStream.readBytes())
             gen.writeEndObject()
         }
     }
 
     class PartDeserializer : StdDeserializer<Part>(Part::class.java) {
         override fun deserialize(p: JsonParser, context: DeserializationContext): Part {
-            val node = p.codec.readTree<JsonNode>(p)
-            return MockPart("copy of ${node["name"].textValue()}", String(node["content"].binaryValue()))
+            val node = context.readTree(p)
+            return MockPart("copy of ${node["name"].stringValue()}", String(node["content"].binaryValue()))
         }
     }
 
     private val localDateScalar = scalar("LocalDate") { LocalDate.parse(it) }
     private val opaqueScalar = scalar("Opaque") { Opaque(it) }
-    private val boxScalar = scalar("Box") { Box(if (it.startsWith("date:")) LocalDate.parse(it.removePrefix("date:")) else it) }
+    private val secretScalar = scalar("Secret") { Secret(it) }
+    private val boxScalar = scalar("Box") { Box(if (it.startsWith("secret:")) Secret(it.removePrefix("secret:")) else it) }
     private val moneyScalar = scalar("Money") { Money(it.toInt(), "CAD") }
 
     private fun <T : Any> scalar(name: String, parse: (String) -> T): GraphQLScalarType = GraphQLScalarType.newScalar()

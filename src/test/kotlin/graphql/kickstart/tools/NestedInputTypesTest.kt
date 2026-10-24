@@ -1,10 +1,10 @@
 package graphql.kickstart.tools
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.node.ObjectNode
 import graphql.GraphQL
 import graphql.execution.AsyncExecutionStrategy
 import org.junit.Test
+import tools.jackson.databind.node.ObjectNode
 
 class NestedInputTypesTest {
 
@@ -177,8 +177,8 @@ class NestedInputTypesTest {
                     id: ID!
                     # named like methods of ObjectNode
                     values: [Nested]
-                    elements: [Nested]
-                    fields: [Nested]
+                    properties: [Nested]
+                    propertyNames: [Nested]
                 }
 
                 input Nested {
@@ -200,13 +200,13 @@ class NestedInputTypesTest {
             """
             mutation {
                 create(input: { name: "n", nested: { x: 1 } })
-                update(input: { id: "2", values: [{ x: 3 }], elements: [{ x: 4 }], fields: [{ x: 5 }] })
+                update(input: { id: "2", values: [{ x: 3 }], properties: [{ x: 4 }], propertyNames: [{ x: 5 }] })
             }
             """
         }
 
         assertEquals(data["create"], """{"name":"n","nested":{"x":1}}""")
-        assertEquals(data["update"], """{"id":"2","values":[{"x":3}],"elements":[{"x":4}],"fields":[{"x":5}]}""")
+        assertEquals(data["update"], """{"id":"2","values":[{"x":3}],"properties":[{"x":4}],"propertyNames":[{"x":5}]}""")
     }
 
     @Test

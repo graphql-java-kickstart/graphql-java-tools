@@ -40,6 +40,21 @@ public class ResolverMethodsTest {
         assertEquals("false,null", ((Map<?, ?>) result.getData()).get("testOmittedBoolean"));
     }
 
+    @Test
+    public void testNullPrimitiveInputField() {
+        GraphQLSchema schema = SchemaParser.newParser()
+            .schemaString("type Query { limit(page: Page!): Int } input Page { limit: Int }")
+            .resolvers(new PageLimitResolver())
+            .build()
+            .makeExecutableSchema();
+
+        ExecutionResult result = GraphQL.newGraphQL(schema).build()
+            .execute("query { limit(page: { limit: null }) }");
+
+        assertEquals(1, result.getErrors().size());
+        assertEquals(List.of("limit"), result.getErrors().get(0).getPath());
+    }
+
     // Kotlin reflection used to fail on anonymous Java classes (KT-41373), so these resolvers must stay in Java.
     @Test
     public void testAnonymousClassResolvers() {
@@ -137,6 +152,18 @@ public class ResolverMethodsTest {
         @SuppressWarnings("unused")
         public int size(Page page) {
             return page.getContent().size();
+        }
+    }
+
+    static class PageInput {
+        public int limit;
+    }
+
+    static class PageLimitResolver implements GraphQLQueryResolver {
+
+        @SuppressWarnings("unused")
+        public int limit(PageInput page) {
+            return page.limit;
         }
     }
 

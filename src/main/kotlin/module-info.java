@@ -8,10 +8,9 @@ module graphql.java.tools {
     // graphql-java's nullability annotations, only needed at compile time
     requires static org.jspecify;
 
-    requires com.fasterxml.jackson.core;
-    requires com.fasterxml.jackson.kotlin;
-    requires com.fasterxml.jackson.databind;
-    requires com.fasterxml.jackson.datatype.jdk8;
+    requires tools.jackson.core;
+    requires transitive tools.jackson.databind;
+    requires tools.jackson.module.kotlin;
     requires com.fasterxml.classmate;
 
     requires org.apache.commons.lang3;
@@ -21,5 +20,5 @@ module graphql.java.tools {
 
     exports graphql.kickstart.tools;
 
-    opens graphql.kickstart.tools to com.fasterxml.jackson.databind;
+    opens graphql.kickstart.tools to tools.jackson.databind;
 }

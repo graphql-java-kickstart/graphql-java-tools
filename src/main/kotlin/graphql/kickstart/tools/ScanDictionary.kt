@@ -1,12 +1,12 @@
 package graphql.kickstart.tools
 
-import com.fasterxml.jackson.databind.JsonNode
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
 import graphql.kickstart.tools.util.withExtensions
 import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.Logger
+import tools.jackson.databind.JsonNode
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 
@@ -131,7 +131,7 @@ internal class ScanDictionary(
         Map::class.java.isAssignableFrom(clazz) || JsonNode::class.java.isAssignableFrom(clazz) || clazz == Any::class.java
 
     private fun isLibraryClass(clazz: Class<*>) =
-        listOf("java.", "kotlin.", "com.fasterxml.jackson.").any { clazz.name.startsWith(it) }
+        listOf("java.", "kotlin.", JACKSON_PACKAGE_PREFIX).any { clazz.name.startsWith(it) }
 
     private fun enumWithoutClassMessage(enumType: EnumTypeDefinition, graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, clazz: Class<*>?): String {
         val field = inputValueDefinition.name
@@ -267,3 +267,6 @@ internal class ScanDictionary(
         override fun getDescription() = "type of field $field"
     }
 }
+
+// not a literal, which would keep compiling when Jackson's packages move but stop matching. Covers jackson-core's TreeNode too
+private val JACKSON_PACKAGE_PREFIX = JsonNode::class.java.packageName.substringBeforeLast('.') + "."
