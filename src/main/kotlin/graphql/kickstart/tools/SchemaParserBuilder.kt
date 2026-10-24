@@ -11,8 +11,6 @@ import graphql.parser.ParserOptions
 import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.SchemaDirectiveWiring
-import org.antlr.v4.runtime.RecognitionException
-import org.antlr.v4.runtime.misc.ParseCancellationException
 import java.text.NumberFormat
 import kotlin.Int.Companion.MAX_VALUE
 import kotlin.reflect.KClass
@@ -178,22 +176,13 @@ class SchemaParserBuilder {
     }
 
     private fun parseDocuments(): List<Document> {
-        try {
-            val documents = files.map { parseDocument(listOf(Source(readFile(it), it))) }.toMutableList()
+        val documents = files.map { parseDocument(listOf(Source(readFile(it), it))) }.toMutableList()
 
-            if (schemaStrings.any { it.text.isNotBlank() }) {
-                documents.add(parseDocument(schemaStrings))
-            }
-
-            return documents
-        } catch (pce: ParseCancellationException) {
-            val cause = pce.cause
-            if (cause != null && cause is RecognitionException) {
-                throw InvalidSchemaError(pce, cause)
-            } else {
-                throw pce
-            }
+        if (schemaStrings.any { it.text.isNotBlank() }) {
+            documents.add(parseDocument(schemaStrings))
         }
+
+        return documents
     }
 
     private fun parseDocument(sources: List<Source>): Document {
@@ -241,14 +230,6 @@ class SchemaParserBuilder {
     private data class Source(val text: String, val name: String?) {
         fun endingWithLineBreak() = if (text.endsWith("\n")) this else copy(text = "$text\n")
     }
-}
-
-class InvalidSchemaError(
-    pce: ParseCancellationException,
-    private val recognitionException: RecognitionException
-) : RuntimeException(pce) {
-    override val message: String
-        get() = "Invalid schema provided (${recognitionException.javaClass.name}) at: ${recognitionException.offendingToken}"
 }
 
 internal class SchemaSyntaxException(message: String, location: SourceLocation, e: InvalidSyntaxException) :
