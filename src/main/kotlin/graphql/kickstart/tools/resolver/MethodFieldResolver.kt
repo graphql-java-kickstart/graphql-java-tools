@@ -1,6 +1,5 @@
 package graphql.kickstart.tools.resolver
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.GraphQLContext
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.util.JavaType
@@ -20,6 +19,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
+import tools.jackson.databind.ObjectMapper
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.*

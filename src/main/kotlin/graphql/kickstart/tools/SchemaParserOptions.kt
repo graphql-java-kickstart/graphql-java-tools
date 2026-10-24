@@ -1,6 +1,5 @@
 package graphql.kickstart.tools
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import graphql.kickstart.tools.proxy.*
 import graphql.kickstart.tools.relay.RelayConnectionFactory
 import graphql.kickstart.tools.resolver.MissingResolverDataFetcherProvider
@@ -53,7 +52,7 @@ data class SchemaParserOptions internal constructor(
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
         private var missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider? = null
-        private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
+        private var objectMapperProvider: PerFieldObjectMapperProvider = DefaultObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
         private var inputArgumentOptionalDetectOmission = false
         private var preferGraphQLResolver = false
@@ -101,16 +100,21 @@ data class SchemaParserOptions internal constructor(
             this.preferGraphQLResolver = preferGraphQLResolver
         }
 
+        /**
+         * Customizes the ObjectMapper of each resolver field, starting from the library's defaults and the Kotlin module.
+         * Replaces a provider set before, and the other way round.
+         */
         fun objectMapperConfigurer(objectMapperConfigurer: ObjectMapperConfigurer) = this.apply {
-            this.objectMapperProvider = PerFieldConfiguringObjectMapperProvider(objectMapperConfigurer)
+            this.objectMapperProvider = DefaultObjectMapperProvider(objectMapperConfigurer)
         }
 
+        /**
+         * Uses these ObjectMappers as they are, e.g. `objectMapperProvider { springMapper }` to share an application's
+         * JsonMapper. They don't get the library's defaults or the Kotlin module. For a per-field variant of your own mapper,
+         * return `mapper.rebuild()...build()` from the provider.
+         */
         fun objectMapperProvider(objectMapperProvider: PerFieldObjectMapperProvider) = this.apply {
             this.objectMapperProvider = objectMapperProvider
-        }
-
-        fun objectMapperConfigurer(objectMapperConfigurer: (ObjectMapper, ObjectMapperConfigurerContext) -> Unit) = this.apply {
-            this.objectMapperConfigurer(ObjectMapperConfigurer(objectMapperConfigurer))
         }
 
         fun addProxyHandler(proxyHandler: ProxyHandler) = this.apply {
@@ -150,9 +154,9 @@ data class SchemaParserOptions internal constructor(
         }
 
         /**
-         * What to do about input object fields that the class of a resolver argument has no property for. Jackson fails to convert
-         * the argument when such a field is sent, or drops the field's value if the ObjectMapper ignores unknown properties.
-         * Defaults to [UnmappedInputFields.WARN].
+         * What to do about input object fields that the class of a resolver argument has no property for. With the library's
+         * ObjectMapper, converting the argument fails when such a field is sent. An ObjectMapper that ignores unknown
+         * properties, the Jackson 3 default and Spring's, drops the field's value instead. Defaults to [UnmappedInputFields.WARN].
          *
          * The classes are checked when the schema is built, with the deserializer of each resolver field's own ObjectMapper, so
          * anything that maps a property for Jackson counts, e.g. setters, creators, naming strategies, aliases, ignored properties
@@ -160,8 +164,8 @@ data class SchemaParserOptions internal constructor(
          * every class at once, but not if its class has `@JsonIgnoreProperties(ignoreUnknown = true)`.
          *
          * Classes that Jackson doesn't deserialize property by property aren't checked: those with a custom deserializer, a
-         * delegating creator, a builder or type info, and those with injected values. Neither are classes with `@JsonUnwrapped`
-         * properties, whose unknown fields Jackson drops, nor arguments bound to a Map, a JsonNode or a type variable.
+         * delegating creator, a builder or type info, and those with injected values. Neither are arguments bound to a Map, a
+         * JsonNode or a type variable.
          */
         fun unmappedInputFields(unmappedInputFields: UnmappedInputFields) = this.apply {
             this.unmappedInputFields = unmappedInputFields

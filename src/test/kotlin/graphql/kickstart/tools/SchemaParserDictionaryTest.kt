@@ -1,9 +1,9 @@
 package graphql.kickstart.tools
 
-import com.fasterxml.jackson.databind.node.ObjectNode
 import graphql.GraphQL
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import tools.jackson.databind.node.ObjectNode
 
 class SchemaParserDictionaryTest {
 

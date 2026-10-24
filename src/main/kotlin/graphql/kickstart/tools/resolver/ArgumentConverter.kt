@@ -1,36 +1,37 @@
 package graphql.kickstart.tools.resolver
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.JavaType
-import com.fasterxml.jackson.databind.JsonSerializable
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler
-import com.fasterxml.jackson.databind.deser.ValueInstantiator
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer
-import com.fasterxml.jackson.databind.util.TokenBuffer
-import java.io.IOException
+import tools.jackson.core.JacksonException
+import tools.jackson.core.JsonGenerator
+import tools.jackson.core.JsonParser
+import tools.jackson.core.JsonToken
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.JacksonSerializable
+import tools.jackson.databind.JavaType
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.SerializationContext
+import tools.jackson.databind.SerializationFeature
+import tools.jackson.databind.deser.DeserializationProblemHandler
+import tools.jackson.databind.deser.ValueInstantiator
+import tools.jackson.databind.jsontype.TypeSerializer
+import tools.jackson.databind.util.TokenBuffer
 import java.lang.reflect.Type
 
 /**
- * ObjectMapper.convertValue serializes a value and reads it back, which the coerced values of many custom scalars don't
- * survive, e.g. an upload, or a LocalDate without the jsr310 module. Those values are written as embedded objects
- * instead, which Jackson's deserializers return as they are if they have the type being read, and convert with
- * toString() if a String is read.
+ * Converts a coerced argument value to a resolver parameter's type the way ObjectMapper.convertValue does, by writing it into
+ * a TokenBuffer and reading it back. The coerced values of many custom scalars don't survive that, e.g. an upload, or a class
+ * without a creator. Those values are written as embedded objects instead, which Jackson's deserializers return as they are if
+ * they have the type being read, and convert with toString() if a String is read.
  */
 internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private val javaType = mapper.typeFactory.constructType(type)
     private val isUntyped = javaType.isUntyped()
+    private val useBigDecimalForFloats = mapper.isEnabled(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
 
     fun convert(value: Any?): Any? {
         if (value == null) {
-            return mapper.convertValue(value, javaType)
+            return nullToJavaDefaultReader.readValue(buffer(null))
         }
 
         if (isUntyped) {
@@ -38,8 +39,8 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
         }
 
         return try {
-            mapper.convertValue<Any?>(value, javaType)
-        } catch (e: IllegalArgumentException) {
+            read(value)
+        } catch (e: JacksonException) {
             val nonConvertingClasses = HashSet<Class<*>>()
             val embedded = embed(value) { scalar ->
                 when {
@@ -53,7 +54,7 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
             } ?: throw e
             try {
                 read(embedded)
-            } catch (retryError: IllegalArgumentException) {
+            } catch (retryError: JacksonException) {
                 throw retryError.apply { addSuppressed(e) }
             }
         }
@@ -72,22 +73,16 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
     }
 
     private fun convertsToOwnClass(value: Any): Boolean = try {
-        mapper.convertValue(value, value.javaClass)
+        mapper.readValue(buffer(value), value.javaClass)
         true
-    } catch (e: IllegalArgumentException) {
+    } catch (e: JacksonException) {
         false
     }
 
-    // ObjectMapper.convertValue, but read with the handler for embedded values
-    private fun read(value: Any): Any? {
-        val buffer = TokenBuffer(mapper, false).forceUseOfBigDecimal(mapper.isEnabled(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS))
-        return try {
-            writer.writeValue(buffer, value)
-            reader.readValue<Any?>(buffer.asParser())
-        } catch (e: IOException) {
-            throw IllegalArgumentException(e.message, e)
-        }
-    }
+    private fun read(value: Any?): Any? = reader.readValue(buffer(value))
+
+    private fun buffer(value: Any?): TokenBuffer =
+        writer.writeValueIntoBuffer(value).forceUseOfBigDecimal(useBigDecimalForFloats)
 
     private val embeddedValueHandler = object : DeserializationProblemHandler() {
         // called for an interface or abstract class, e.g. Part, since no deserializer of it returns embedded values
@@ -104,23 +99,29 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
         // called for an embedded value read as a bean of another class, which the value is converted to on its own
         override fun handleWeirdNativeValue(context: DeserializationContext, targetType: JavaType, valueToConvert: Any, p: JsonParser): Any? =
-            mapper.convertValue(valueToConvert, targetType)
+            mapper.readValue(buffer(valueToConvert), targetType)
     }
 
-    private val writer = mapper.writer().without(SerializationFeature.WRAP_ROOT_VALUE)
+    // FAIL_ON_EMPTY_BEANS whatever the mapper says: a scalar class with no visible properties would otherwise be read back as
+    // a new default instance, losing its value without the error that makes it embedded
+    private val writer = mapper.writer().without(SerializationFeature.WRAP_ROOT_VALUE).with(SerializationFeature.FAIL_ON_EMPTY_BEANS)
 
-    // built on first use, since readerFor looks up the deserializer right away, at schema build, and most arguments
-    // never need the reader
     private val reader by lazy {
         mapper.readerFor(javaType)
             .without(DeserializationFeature.UNWRAP_ROOT_VALUE)
             .withHandler(embeddedValueHandler)
     }
 
-    private class EmbeddedValue(private val value: Any) : JsonSerializable {
-        override fun serialize(gen: JsonGenerator, serializers: SerializerProvider) = gen.writeEmbeddedObject(value)
+    private val nullToJavaDefaultReader by lazy { reader.without(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES) }
 
-        override fun serializeWithType(gen: JsonGenerator, serializers: SerializerProvider, typeSer: TypeSerializer) = gen.writeEmbeddedObject(value)
+    private class EmbeddedValue(private val value: Any) : JacksonSerializable {
+        override fun serialize(gen: JsonGenerator, serializers: SerializationContext) {
+            gen.writeEmbeddedObject(value)
+        }
+
+        override fun serializeWithType(gen: JsonGenerator, serializers: SerializationContext, typeSer: TypeSerializer) {
+            gen.writeEmbeddedObject(value)
+        }
     }
 }
 
