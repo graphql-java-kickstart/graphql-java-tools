@@ -2,10 +2,13 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.Scalars
+import graphql.language.Definition
 import graphql.language.EnumTypeDefinition
+import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
+import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
@@ -69,8 +72,8 @@ class TypeExtensionTest {
         assertEquals(date.description, "A date")
         assertEquals(date.appliedDirectives.map { it.name }, listOf("format"))
 
-        // through GraphQLNamedSchemaElement, since graphql-java 25 and 26 disagree on which types have a nullable definition
-        assertEquals(listOf<GraphQLNamedSchemaElement>(fooBar, color, node, item, date).map { it.definition?.javaClass }, listOf(
+        val definitions = listOf(fooBar.definition, color.definition, node.definition, item.definition, date.definition)
+        assertEquals(definitions.map { it?.javaClass }, listOf(
             UnionTypeDefinition::class.java,
             EnumTypeDefinition::class.java,
             InterfaceTypeDefinition::class.java,
@@ -467,6 +470,14 @@ class TypeExtensionTest {
             ),
             Repeat(
                 """
+                |type Query { search(filter: Filter): String }
+                |input Filter { inner: Inner }
+                |input Inner { id: ID id: ID }
+                """,
+                "Type 'Inner' declares field 'id' more than once at line 3, column 22."
+            ),
+            Repeat(
+                """
                 |type Query { node: Node }
                 |interface Node { id: ID }
                 |type Item implements Node { id: ID }
@@ -494,6 +505,27 @@ class TypeExtensionTest {
 
             assertEquals(error.message, repeat.message)
         }
+    }
+
+    @Test
+    fun `a repeat without a source location is rejected without one`() {
+        fun field(name: String) = FieldDefinition.newFieldDefinition().name(name).type(TypeName("String")).build()
+        val item = ObjectTypeDefinition.newObjectTypeDefinition()
+            .name("Item")
+            .implementz(TypeName("Node"))
+            .fieldDefinitions(listOf(field("id"), field("name"), field("name")))
+            .build()
+
+        val error = assertThrows(SchemaError::class.java) {
+            parser("type Query { node: Node }\ninterface Node { id: String }") {
+                dictionary(Item::class)
+                options(SchemaParserOptions.newOptions().typeDefinitionFactory(object : TypeDefinitionFactory {
+                    override fun create(existing: MutableList<Definition<*>>) = listOf(item)
+                }).build())
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Item' declares field 'name' more than once.")
     }
 
     @Test
@@ -622,7 +654,9 @@ class TypeExtensionTest {
 
     class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
 
-    class Filter(val id: String?, val limit: Int? = null, val offset: Int? = null)
+    class Filter(val id: String?, val limit: Int? = null, val offset: Int? = null, val inner: Inner? = null)
+
+    class Inner(val id: String?)
 
     enum class Color { RED, GREEN }
 

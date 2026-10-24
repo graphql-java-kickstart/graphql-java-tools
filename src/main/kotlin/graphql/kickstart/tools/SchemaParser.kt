@@ -79,10 +79,11 @@ class SchemaParser internal constructor(
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
      */
     fun parseSchemaObjects(): SchemaObjects {
+        @Suppress("DEPRECATION")
         if (!options.introspectionEnabled) {
             // What the deprecated NoIntrospectionGraphqlFieldVisibility does. Its suggested replacement,
             // Introspection.enabledJvmWide, would also turn introspection off for every other schema in the JVM.
-            // TODO deprecate introspectionEnabled and remove this in 15.0.0 (#858)
+            // TODO remove this in 15.0.0 (#858)
             codeRegistryBuilder.fieldVisibility(BlockedFields.newBlock().addPattern("__.*").build())
         }
         // this overrides the above introspection enabled setting obviously... todo: add documentation
@@ -296,12 +297,7 @@ class SchemaParser internal constructor(
             .specifiedByUrl(getSpecifiedByUrl(directives) ?: provided.specifiedByUrl)
             // like graphql-java, only the schema's directives are applied
             .clearDirectives()
-        try {
-            builder.withSdlDirectives(directives, SCALAR)
-        } catch (e: SchemaError) {
-            // TODO throw instead in 15.0.0 (#893), like for the other types
-            log.warn("Scalar '$name' is built without its directives from the schema: ${e.message}")
-        }
+            .withSdlDirectives(directives, SCALAR)
 
         return builder.build()
     }
