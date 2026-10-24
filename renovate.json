@@ -2,6 +2,7 @@
   "extends": [
     "github>graphql-java-kickstart/renovate-config"
   ],
+  "dependencyDashboardAutoclose": true,
   "packageRules": [
     {
       "description": "Group Kotlin updates together",
@@ -15,20 +16,6 @@
       "allowedVersions": "<=2.3.10",
       "matchPackageNames": [
         "org.jetbrains.kotlin:{/,}**"
-      ]
-    },
-    {
-      "description": "Align antlr version with graphql-java",
-      "allowedVersions": "<=4.11.1",
-      "matchPackageNames": [
-        "org.antlr{/,}**"
-      ]
-    },
-    {
-      "description": "Logback 1.4 requires Java 11",
-      "allowedVersions": "!/1\\.4\\..*$/",
-      "matchPackageNames": [
-        "ch.qos.logback{/,}**"
       ]
     },
     {
