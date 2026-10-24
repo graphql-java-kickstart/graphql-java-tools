@@ -77,10 +77,7 @@ internal class FieldResolverScanner(val options: SchemaParserOptions, private va
     }
 
     private fun missingFieldResolver(field: FieldDefinition): FieldResolver? {
-        @Suppress("DEPRECATION")
-        return if (options.allowUnimplementedResolvers
-            || options.missingResolverDataFetcher != null
-            || options.missingResolverDataFetcherProvider != null) {
+        return if (options.allowUnimplementedResolvers || options.missingResolverDataFetcherProvider != null) {
             if (options.allowUnimplementedResolvers) {
                 log.warn("Missing resolver for field: $field")
             }

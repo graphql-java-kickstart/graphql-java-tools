@@ -6,7 +6,6 @@ import graphql.kickstart.tools.relay.RelayConnectionFactory
 import graphql.kickstart.tools.resolver.MissingResolverDataFetcherProvider
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
-import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.visibility.GraphqlFieldVisibility
 import kotlinx.coroutines.Dispatchers
@@ -24,8 +23,6 @@ data class SchemaParserOptions internal constructor(
     val contextClass: Class<*>?,
     val genericWrappers: List<GenericWrapper>,
     val allowUnimplementedResolvers: Boolean,
-    @Deprecated("Use missingResolverDataFetcherProvider instead.")
-    val missingResolverDataFetcher: DataFetcher<Any?>?,
     val missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider?,
     val objectMapperProvider: PerFieldObjectMapperProvider,
     val proxyHandlers: List<ProxyHandler>,
@@ -55,7 +52,6 @@ data class SchemaParserOptions internal constructor(
         private val genericWrappers: MutableList<GenericWrapper> = mutableListOf()
         private var useDefaultGenericWrappers = true
         private var allowUnimplementedResolvers = false
-        private var missingResolverDataFetcher: DataFetcher<Any?>? = null
         private var missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider? = null
         private var objectMapperProvider: PerFieldObjectMapperProvider = PerFieldConfiguringObjectMapperProvider()
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
@@ -91,11 +87,6 @@ data class SchemaParserOptions internal constructor(
 
         fun allowUnimplementedResolvers(allowUnimplementedResolvers: Boolean) = this.apply {
             this.allowUnimplementedResolvers = allowUnimplementedResolvers
-        }
-
-        @Deprecated("Use missingResolverDataFetcherProvider instead.")
-        fun missingResolverDataFetcher(missingResolverDataFetcher: DataFetcher<Any?>?) = this.apply {
-            this.missingResolverDataFetcher = missingResolverDataFetcher
         }
 
         fun missingResolverDataFetcherProvider(missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider?) = this.apply {
@@ -205,7 +196,6 @@ data class SchemaParserOptions internal constructor(
                 contextClass,
                 wrappers,
                 allowUnimplementedResolvers,
-                missingResolverDataFetcher,
                 missingResolverDataFetcherProvider,
                 objectMapperProvider,
                 proxyHandlers,
