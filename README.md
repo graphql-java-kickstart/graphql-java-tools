@@ -18,6 +18,8 @@ Are you interested in improving our documentation, working on the codebase, revi
 
 ## Quick start
 
+GraphQL Java Tools requires Java 17 or later.
+
 ### Using Gradle
 Set the Kotlin version in your `gradle.properties`:
 ```
@@ -26,7 +28,7 @@ kotlin.version=2.3.10
 
 Add the dependency:
 ```groovy
-compile 'io.github.graphql-java-kickstart:graphql-java-tools:14.5.0'
+implementation 'io.github.graphql-java-kickstart:graphql-java-tools:14.5.0'
 ```
 
 ### Using Maven
