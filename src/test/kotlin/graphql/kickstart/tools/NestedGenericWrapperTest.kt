@@ -11,13 +11,16 @@ import graphql.execution.DefaultValueUnboxer
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.resolver.ReturnValueUnwrapper
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
+import graphql.kickstart.tools.util.unwrap
 import graphql.language.AstPrinter
 import graphql.language.ListType
 import graphql.language.NonNullType
 import graphql.language.ObjectTypeDefinition
+import graphql.language.ScalarTypeDefinition
 import graphql.language.Type
 import graphql.language.TypeName
 import graphql.schema.Coercing
+import graphql.schema.CoercingSerializeException
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingEnvironmentImpl
@@ -127,23 +130,44 @@ class NestedGenericWrapperTest {
     fun `fails the list when one of its wrappers in a future fails`() = assertFails("futureOfListWithFailedWrapper", "failed wrapper")
 
     @Test
-    fun `leaves futures in a list that graphql-java can't wait on as they are`() {
-        val result = execute("listOfPlainFutures")
-
-        assertEquals(result.errors.map { it.message }, listOf(
-            "Exception while fetching data (/listOfPlainFutures[0]/data) : " +
-                "Expected source object to be an instance of '${Payload::class.java.name}' but instead got '${FutureTask::class.java.name}'"
-        ))
-    }
+    fun `fails a list of futures graphql-java can't wait on`() = assertFails("listOfPlainFutures", cantWaitOn("listOfPlainFutures"))
 
     @Test
-    fun `gives a custom scalar the wrappers as they are`() {
+    fun `fails a list of futures graphql-java can't wait on typed as Object`() =
+        assertFails("listOfPlainFuturesOfAny", cantWaitOn("listOfPlainFuturesOfAny"), selection = "{ ... on Payload { data } }")
+
+    @Test
+    fun `resolves a union member that implements Future in a list of wrappers`() =
+        assertResolves("listOfWrappedItems", ab, selection = "{ ... on Payload { data } ... on FutureItem { data } }")
+
+    @Test
+    fun `fails a list of wrappers whose transformer returns a future graphql-java can't wait on`() = assertFails("listOfLater", cantWaitOn("listOfLater"))
+
+    @Test
+    fun `fails a list of futures graphql-java can't wait on from a suspend function`() = assertFails(
+        "suspendListOfPlainFutures",
+        "Suspend function '${Query::class.java.name}.suspendListOfPlainFutures' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. Return its value instead."
+    )
+
+    @Test
+    fun `hands a future graphql-java can't wait on to its own wrapper`() = assertResolves("listOfWrappedPending", ab)
+
+    @Test
+    fun `unwraps the wrappers a schemaWrapper introduces`() = assertResolves("batchOfPayloads", ab)
+
+    @Test
+    fun `picks a nested wrapper by the type the schema was matched to`() = assertResolves("listOfBoxes", ab)
+
+    @Test
+    fun `gives a custom scalar the unwrapped values`() {
         val json = mutableListOf<Any?>()
         val schema = schema(Query(), jsonScalar(json))
 
         assertEquals(execute("json", schema = schema, selection = "").errors, listOf<GraphQLError>())
         assertEquals(execute("futureJson", schema = schema, selection = "").errors, listOf<GraphQLError>())
-        assertEquals(json.map { it?.javaClass }, listOf(Try::class.java, Try::class.java, Try::class.java))
+        assertEquals(execute("jsonFutures", schema = schema, selection = "").errors, listOf<GraphQLError>())
+        assertEquals(execute("wrappedJsonOfAny", schema = schema, selection = "").errors, listOf<GraphQLError>())
+        assertEquals(json, listOf(mapOf("a" to 1), mapOf("b" to 2), mapOf("c" to 3), mapOf("d" to 4), mapOf("e" to 5), FutureLeaf("f")))
     }
 
     @Test
@@ -171,56 +195,67 @@ class NestedGenericWrapperTest {
     fun `resolves every return type the matcher accepts`() {
         val options = SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper).build()
         val typeResolver = GenericTypeResolver(Query::class.java, options)
-        val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload")))
+        val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload"), "Leaf" to ScalarTypeDefinition("Leaf")))
         val method = Query::class.java.getMethod("listOfWrapped")
-        val payload = TypeName("Payload")
-        val graphQLTypes = listOf(payload, NonNullType(payload), ListType(payload), NonNullType(ListType(NonNullType(payload))), ListType(ListType(payload)))
-        val containers = listOf(List::class.java, CompletableFuture::class.java, Try::class.java, Page::class.java, DataFetcherResult::class.java, Optional::class.java)
+        val graphQLTypes = listOf(TypeName("Payload"), TypeName("Leaf")).flatMap { listOf(it, NonNullType(it), ListType(it), NonNullType(ListType(NonNullType(it))), ListType(ListType(it))) }
+        val containers = listOf(List::class.java, CompletableFuture::class.java, Try::class.java, Page::class.java, DataFetcherResult::class.java, Optional::class.java, Future::class.java)
         val shapes = (1..4).fold(listOf(listOf<Class<*>>())) { shapes, _ -> shapes + shapes.filter { it.size == shapes.last().size }.flatMap { shape -> containers.map { shape + it } } }
-        val javaTypes = shapes.flatMap { shape -> listOf(shape to javaType(shape, wildcardElements = false), shape to javaType(shape, wildcardElements = true)) }
 
-        val accepted = javaTypes.flatMap { (shape, javaType) -> graphQLTypes.map { Triple(shape, javaType, it) } }.filter { (_, javaType, graphQLType) ->
-            val match = try {
-                matcher.match(TypeClassMatcher.PotentialMatch.returnValue(graphQLType, typeResolver.resolve(javaType), typeResolver, ScanDictionary.ReturnValueReference(method)))
-            } catch (e: SchemaClassScannerError) {
-                null
+        val accepted = graphQLTypes.flatMap { graphQLType ->
+            shapes.flatMap { shape -> listOf(false, true).map { shape to javaType(shape, leaf(graphQLType).javaClass, wildcardElements = it) } }.mapNotNull { (shape, javaType) ->
+                val potentialMatch = TypeClassMatcher.PotentialMatch.returnValue(graphQLType, javaType, typeResolver, ScanDictionary.ReturnValueReference(method))
+                val match = try {
+                    matcher.match(potentialMatch)
+                } catch (e: SchemaClassScannerError) {
+                    null
+                }
+                (shape to potentialMatch).takeIf { match != null && potentialMatch.unwrapping.javaType == leaf(graphQLType).javaClass }
             }
-            (match as? TypeClassMatcher.ValidMatch)?.javaType == Payload::class.java
         }
-        val failures = accepted.mapNotNull { (shape, javaType, graphQLType) ->
+        val failures = accepted.mapNotNull { (shape, potentialMatch) ->
+            val graphQLType = potentialMatch.graphQLType
             val unwrapper = ReturnValueUnwrapper.create(
-                method, javaType, TypeUtils.getRawType(typeResolver.resolve(javaType), null), graphQLType, false, typeResolver, options.genericWrappers, emptySet()
+                method, potentialMatch.unwrapping, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), isSuspendFunction = false, isSubscription = false, options.genericWrappers
             )
-            val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value(shape)) { environment } }).build().execute("query { field { data } }")
-            "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}"
-                .takeUnless { result.errors.isEmpty() && result.getData<Any>() == mapOf("field" to expected(graphQLType)) }
+            val value = value(shape, leaf(graphQLType))
+            val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
+                .execute(if (leaf(graphQLType) is Payload) "query { field { data } }" else "query { field }")
+            val resolved = if (Future::class.java in shape) {
+                result.errors.singleOrNull()?.message.orEmpty().contains("which graphql-java can't wait on")
+            } else {
+                result.errors.isEmpty() && result.getData<Any>() == mapOf("field" to expected(graphQLType))
+            }
+            "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}".takeUnless { resolved }
         }
 
-        assertTrue(accepted.size > graphQLTypes.size)
+        assertTrue(accepted.count { (_, potentialMatch) -> leaf(potentialMatch.graphQLType) is FutureLeaf } > graphQLTypes.size)
         assertEquals(failures, listOf<String>())
     }
 
-    private fun javaType(shape: List<Class<*>>, wildcardElements: Boolean): java.lang.reflect.Type =
-        shape.foldRight(Payload::class.java as java.lang.reflect.Type) { container, inner ->
+    private fun leaf(graphQLType: Type<*>): Any = if (graphQLType.unwrap().name == "Leaf") FutureLeaf("a") else Payload("a")
+
+    private fun javaType(shape: List<Class<*>>, leafClass: Class<*>, wildcardElements: Boolean): java.lang.reflect.Type =
+        shape.foldRight(leafClass as java.lang.reflect.Type) { container, inner ->
             val element = if (wildcardElements && container == List::class.java) TypeUtils.wildcardType().withUpperBounds(inner).build() else inner
             ParameterizedTypeImpl(container, arrayOf(element), null)
         }
 
-    private fun value(shape: List<Class<*>>): Any = shape.foldRight(Payload("a") as Any) { container, inner ->
+    private fun value(shape: List<Class<*>>, leaf: Any): Any = shape.foldRight(leaf) { container, inner ->
         when (container) {
             List::class.java -> listOf(inner, inner)
             CompletableFuture::class.java -> CompletableFuture.supplyAsync { inner }
             Try::class.java -> Try.success(inner)
             Page::class.java -> Page(listOf(inner, inner))
             DataFetcherResult::class.java -> DataFetcherResult.newResult<Any>().data(inner).build()
-            else -> Optional.of(inner)
+            Optional::class.java -> Optional.of(inner)
+            else -> FutureTask { inner }.apply { run() }
         }
     }
 
     private fun expected(graphQLType: Type<*>): Any = when (graphQLType) {
         is ListType -> List(2) { expected(graphQLType.type) }
         is NonNullType -> expected(graphQLType.type)
-        else -> mapOf("data" to "a")
+        else -> if (leaf(graphQLType) is Payload) mapOf("data" to "a") else "a"
     }
 
     private fun fieldSchema(graphQLType: Type<*>, dataFetcher: DataFetcher<*>): GraphQLSchema = GraphQLSchema.newSchema()
@@ -231,7 +266,7 @@ class NestedGenericWrapperTest {
     private fun outputType(graphQLType: Type<*>): GraphQLOutputType = when (graphQLType) {
         is ListType -> GraphQLList.list(outputType(graphQLType.type))
         is NonNullType -> GraphQLNonNull.nonNull(outputType(graphQLType.type))
-        else -> payloadType
+        else -> if (leaf(graphQLType) is Payload) payloadType else leafType
     }
 
     private fun schema(query: Query, vararg scalars: GraphQLScalarType): GraphQLSchema = SchemaParser.newParser()
@@ -263,21 +298,35 @@ class NestedGenericWrapperTest {
                 listWithFailedWrapper: [Payload]
                 futureOfListWithFailedWrapper: [Payload]
                 listOfPlainFutures: [Payload]
+                listOfPlainFuturesOfAny: [Item]
+                listOfWrappedItems: [Item!]!
+                listOfLater: [Payload]
+                suspendListOfPlainFutures: [Payload]
+                listOfWrappedPending: [Payload!]!
+                batchOfPayloads: [Payload!]!
+                listOfBoxes: [Payload!]!
                 plainList: [Payload!]!
                 futureOfList: [Payload!]!
                 wrappedFuture: Payload!
-                ${if (scalars.isEmpty()) "" else "json: [JSON] futureJson: JSON"}
+                ${if (scalars.isEmpty()) "" else "json: [JSON] futureJson: JSON jsonFutures: [JSON] wrappedJsonOfAny: [JSON]"}
             }
 
             type Payload {
                 data: String!
             }
 
+            type FutureItem {
+                data: String!
+            }
+
+            union Item = Payload | FutureItem
+
             ${if (scalars.isEmpty()) "" else "scalar JSON"}
             """)
         .resolvers(query)
+        .dictionary(FutureItem::class)
         .scalars(*scalars)
-        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper).build())
+        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper, laterWrapper, pendingWrapper).build())
         .build()
         .makeExecutableSchema()
 
@@ -294,8 +343,12 @@ class NestedGenericWrapperTest {
         assertEquals(result.getData(), mapOf(field to expected))
     }
 
-    private fun assertFails(field: String, message: String) {
-        val result = execute(field)
+    private fun cantWaitOn(field: String) =
+        "Resolver method '${Query::class.java.name}.$field' resolved to a ${FutureTask::class.java.name}, which graphql-java can't wait on. " +
+            "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+
+    private fun assertFails(field: String, message: String, selection: String = "{ data }") {
+        val result = execute(field, selection)
         assertEquals(result.errors.map { it.message }, listOf("Exception while fetching data (/$field) : $message"))
         assertEquals(result.getData(), mapOf(field to null))
     }
@@ -325,6 +378,10 @@ class NestedGenericWrapperTest {
     class Page<T>(val content: List<T>)
 
     data class Payload(val data: String)
+
+    data class FutureLeaf(val data: String) : Future<String> by completedFuture(data)
+
+    data class FutureItem(val data: String) : Future<String> by completedFuture(data)
 
     class Query : GraphQLQueryResolver {
         val plainList = listOf(Payload("a"))
@@ -364,16 +421,49 @@ class NestedGenericWrapperTest {
         fun listWithFailedWrapper(): List<Try<Payload>> = listOf(Try.success(Payload("a")), Try.failure("failed wrapper"))
         fun futureOfListWithFailedWrapper(): CompletableFuture<List<Try<Payload>>> = CompletableFuture.supplyAsync { listWithFailedWrapper() }
         fun listOfPlainFutures(): List<Future<Payload>> = listOf(FutureTask { Payload("a") }.apply { run() })
+        fun listOfPlainFuturesOfAny(): List<Future<Any>> = listOf(FutureTask<Any> { Payload("a") }.apply { run() })
+        fun listOfWrappedItems(): List<Try<Any>> = listOf(Try.success(Payload("a")), Try.success(FutureItem("b")))
+        fun listOfLater(): List<Later<Payload>> = listOf(Later(Payload("a")))
+        suspend fun suspendListOfPlainFutures(): List<Future<Payload>> = listOfPlainFutures()
+        fun listOfWrappedPending(): List<Try<Pending<Payload>>> = listOf(Try.success(Pending(Payload("a"))), Try.success(Pending(Payload("b"))))
         fun json(): List<Try<Map<String, Any>>> = listOf(Try.success(mapOf("a" to 1)), Try.success(mapOf("b" to 2)))
         fun futureJson(): CompletableFuture<Try<Map<String, Any>>> = completedFuture(Try.success(mapOf("c" to 3)))
+        fun jsonFutures(): List<CompletableFuture<Map<String, Any>>> = listOf(completedFuture(mapOf("d" to 4)), CompletableFuture.supplyAsync { mapOf("e" to 5) })
+        fun wrappedJsonOfAny(): List<Try<Any>> = listOf(Try.success(FutureLeaf("f")))
+        fun batchOfPayloads(): Batch<Payload> = Batch(listOfFutures())
+        fun listOfBoxes(): List<Box<Payload>> = listOf(Box(Payload("a")), SpecialBox(Payload("b")))
     }
+
+    class Batch<T>(val items: List<CompletableFuture<T>>)
+
+    open class Box<T>(val content: T)
+
+    class SpecialBox<T>(content: T) : Box<T>(content)
+
+    class Later<T>(val value: T)
+
+    class Pending<T>(val value: T) : Future<T> by completedFuture(value)
 
     companion object {
         private val tryWrapper = GenericWrapper.withTransformer(Try::class, 0, { wrapper -> wrapper.get() })
         private val pageWrapper = GenericWrapper.listCollectionWithTransformer(Page::class, 0, { page -> page.content })
+        private val batchWrapper = GenericWrapper.withTransformer(Batch::class, 0, { batch -> batch.items }) { item ->
+            ParameterizedTypeImpl(List::class.java, arrayOf(ParameterizedTypeImpl(CompletableFuture::class.java, arrayOf(item), null)), null)
+        }
+        private val boxWrapper = GenericWrapper.withTransformer(Box::class, 0, { box -> box.content })
+        private val specialBoxWrapper = GenericWrapper.withTransformer(SpecialBox::class, 0, { _ -> throw IllegalStateException("picked by the value's class") })
+        private val laterWrapper = GenericWrapper.withTransformer(Later::class, 0, { later -> FutureTask { later.value }.apply { run() } })
+        private val pendingWrapper = GenericWrapper.withTransformer(Pending::class, 0, { pending -> completedFuture(pending.value) })
         private val payloadType = GraphQLObjectType.newObject()
             .name("Payload")
             .field(GraphQLFieldDefinition.newFieldDefinition().name("data").type(GraphQLNonNull.nonNull(Scalars.GraphQLString)))
+            .build()
+        private val leafType = GraphQLScalarType.newScalar()
+            .name("Leaf")
+            .coercing(object : Coercing<FutureLeaf, String> {
+                override fun serialize(dataFetcherResult: Any, graphQLContext: GraphQLContext, locale: Locale): String =
+                    (dataFetcherResult as? FutureLeaf)?.data ?: throw CoercingSerializeException("Expected a FutureLeaf but got $dataFetcherResult")
+            })
             .build()
     }
 }
