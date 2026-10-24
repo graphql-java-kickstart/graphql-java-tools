@@ -48,12 +48,6 @@
                 <version>${graphql-java.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.antlr</groupId>
-                <artifactId>antlr4-runtime</artifactId>
-                <version>4.11.1</version>
-                <scope>compile</scope>
-            </dependency>
-            <dependency>
                 <groupId>tools.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
                 <version>${jackson.version}</version>
@@ -161,10 +155,6 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
         </dependency>
         <dependency>
             <groupId>com.fasterxml</groupId>

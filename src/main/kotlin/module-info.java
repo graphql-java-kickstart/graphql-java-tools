@@ -13,7 +13,6 @@ module graphql.java.tools {
     requires tools.jackson.module.kotlin;
     requires com.fasterxml.classmate;
 
-    requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;
     requires org.reactivestreams;
     requires org.slf4j;
