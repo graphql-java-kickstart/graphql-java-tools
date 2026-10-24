@@ -6,6 +6,7 @@ import graphql.kickstart.tools.ScanDictionary.InitialDictionaryEntry
 import graphql.kickstart.tools.ScanDictionary.UnionMemberReference
 import graphql.kickstart.tools.ScanDictionary.UnusedTypeReference
 import graphql.kickstart.tools.resolver.FieldResolver
+import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.resolver.PropertyFieldResolver
@@ -457,7 +458,7 @@ internal class SchemaClassScanner(
             fieldResolver.scanForMatches().forEach { potentialMatch ->
                 dictionary.handleFoundType(typeClassMatcher.match(potentialMatch))
             }
-            warnIfParameterMissing(type, fieldResolver)
+            requireParameterForEachArgument(type, fieldResolver)
         }
     }
 
@@ -482,8 +483,7 @@ internal class SchemaClassScanner(
         )
     }
 
-    // TODO throw a FieldResolverError instead in 15.0.0 (#889)
-    private fun warnIfParameterMissing(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+    private fun requireParameterForEachArgument(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
         if (fieldResolver !is MethodFieldResolver) {
             return
         }
@@ -495,7 +495,7 @@ internal class SchemaClassScanner(
             }
 
             val method = fieldResolver.method
-            log.warn(
+            throw FieldResolverError(
                 "Field '${type.name}.${fieldResolver.field.name}' has no parameter for its argument '${argument.name}: " +
                     "${TypeUtil.simplePrint(argument.type)}' in ${method.declaringClass.name}.${method.name}, so the ${parameter.simpleName} " +
                     "parameter gets the argument instead. Add a parameter for each argument, in order, before the ${parameter.simpleName} parameter."
