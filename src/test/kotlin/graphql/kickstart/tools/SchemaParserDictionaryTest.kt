@@ -111,20 +111,6 @@ class SchemaParserDictionaryTest {
     }
 
     @Test
-    @Suppress("DEPRECATION")
-    fun `getDictionary keeps working and only maps a shared class back to its first name`() {
-        val dictionary = SchemaParserDictionary()
-            .add("B", Map::class)
-            .add("A", String::class)
-            .add("C", Map::class)
-
-        val deprecated = dictionary.getDictionary()
-
-        assertEquals(deprecated.toMap(), dictionary.toMap())
-        assertEquals(deprecated.inverse().toMap(), mapOf<Class<*>, String>(Map::class.java to "B", String::class.java to "A"))
-    }
-
-    @Test
     fun `input type and object type can share a dictionary class`() {
         val schema = SchemaParser.newParser()
             .schemaString(
