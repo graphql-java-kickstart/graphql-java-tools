@@ -189,6 +189,21 @@ class CustomScalarInputTest {
     }
 
     @Test
+    fun `Kotlin custom scalars without visible properties are passed`() {
+        val data = assertNoGraphQlErrors(graphQL(inputSchema)) {
+            """
+            query {
+                token(token: "argument")
+                tokenInput(input: { token: "input" })
+                tokenNode(input: { token: "node" })
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("token" to "argument", "tokenInput" to "input", "tokenNode" to "node"))
+    }
+
+    @Test
     fun `errors converting inputs with custom scalars name the actual problem`() {
         val result = graphQL(inputSchema).execute(
             """
@@ -205,7 +220,7 @@ class CustomScalarInputTest {
     private fun graphQL(schema: String, options: SchemaParserOptions = SchemaParserOptions.defaultOptions()): GraphQL {
         val graphQLSchema = SchemaParser.newParser()
             .schemaString(schema)
-            .scalars(localDateScalar, opaqueScalar, secretScalar, boxScalar, moneyScalar, customScalarUUID, uploadScalar)
+            .scalars(localDateScalar, opaqueScalar, secretScalar, boxScalar, moneyScalar, tokenScalar, customScalarUUID, uploadScalar)
             .resolvers(resolver)
             .options(options)
             .build()
@@ -221,6 +236,7 @@ class CustomScalarInputTest {
         scalar Box
         scalar Money
         scalar Upload
+        scalar Token
 
         type Query {
             event(input: EventInput!): String!
@@ -232,6 +248,9 @@ class CustomScalarInputTest {
             priceNode(input: NodeInput!): String!
             payment(input: PaymentInput!): String!
             price(price: Money!): String!
+            token(token: Token!): String!
+            tokenInput(input: TokenInput!): String!
+            tokenNode(input: NodeInput!): String!
         }
 
         input EventInput {
@@ -255,6 +274,11 @@ class CustomScalarInputTest {
         input NodeInput {
             secret: Secret
             price: Money
+            token: Token
+        }
+
+        input TokenInput {
+            token: Token
         }
 
         input PaymentInput {
@@ -290,6 +314,9 @@ class CustomScalarInputTest {
         fun priceNode(input: ObjectNode): String = input.toString()
         fun payment(input: PaymentInput): String = listOfNotNull(input.price, input.reference, input.secret, input.box).joinToString(" ")
         fun price(price: MoneyDto): String = price.toString()
+        fun token(token: Token): String = token.toString()
+        fun tokenInput(input: TokenInput): String = input.token.toString()
+        fun tokenNode(input: ObjectNode): String = input.get("token").let { if (it is POJONode) it.pojo.toString() else "$it" }
 
         fun map(input: Map<String, Any?>) = receive("map", input)
         fun mapList(inputs: List<Map<String, Any?>>) = receive("mapList", inputs)
@@ -336,6 +363,12 @@ class CustomScalarInputTest {
 
     data class Box(val content: Any)
 
+    class Token(private val value: String = "default") {
+        override fun toString() = value
+    }
+
+    data class TokenInput(val token: Token? = null)
+
     class BoxContentDeserializer : StdDeserializer<String>(String::class.java) {
         override fun deserialize(p: JsonParser, context: DeserializationContext): String =
             p.readValueAsTree<JsonNode>().path("content").stringValue("<missing>")
@@ -366,6 +399,7 @@ class CustomScalarInputTest {
     private val secretScalar = scalar("Secret") { Secret(it) }
     private val boxScalar = scalar("Box") { Box(if (it.startsWith("secret:")) Secret(it.removePrefix("secret:")) else it) }
     private val moneyScalar = scalar("Money") { Money(it.toInt(), "CAD") }
+    private val tokenScalar = scalar("Token") { Token(it) }
 
     private fun <T : Any> scalar(name: String, parse: (String) -> T): GraphQLScalarType = GraphQLScalarType.newScalar()
         .name(name)
