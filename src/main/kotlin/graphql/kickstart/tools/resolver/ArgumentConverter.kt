@@ -139,9 +139,8 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private class EmptyBeanCheck(gen: JsonGenerator, private val serializers: SerializationContext) : JsonGeneratorDelegate(gen, false) {
         override fun writeEndObject(): JsonGenerator {
-            val context = streamWriteContext()
-            val bean = context.currentValue()
-            if (context.entryCount == 0 && bean != null && hasNoProperties(bean.javaClass)) {
+            val bean = streamWriteContext().currentValue()
+            if (bean != null && hasNoProperties(bean.javaClass)) {
                 serializers.reportBadDefinition<Unit>(bean.javaClass, "No properties discovered to write ${bean.javaClass.name}")
             }
             return super.writeEndObject()
