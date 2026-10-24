@@ -82,7 +82,7 @@ class SchemaParser internal constructor(
 
         // Create GraphQL objects
         val inputObjects: MutableList<GraphQLInputObjectType> = mutableListOf()
-        sdlDirectives = SdlDirectives(directiveDefinitions, options, runtimeWiring, log) {
+        sdlDirectives = SdlDirectives(directiveDefinitions, options, runtimeWiring) {
             // type references, so that an input object used by a directive applied to it doesn't contain itself
             determineType(GraphQLInputType::class, it, permittedTypesForInputObject) as GraphQLInputType
         }
@@ -119,6 +119,7 @@ class SchemaParser internal constructor(
         // Directives applied to the schema itself, e.g. `extend schema @link(...)`. Only GraphQLAppliedDirectives are built here, not
         // the deprecated GraphQLDirective ones: graphql-java doesn't resolve type references in those, so enum arguments would fail.
         val schemaAppliedDirectives = sdlDirectives.schemaAppliedDirectives(rootInfo.getDirectives())
+        sdlDirectives.failOnProblems()
         val schemaObjects = SchemaObjects(query, mutation, subscription, types, sdlDirectives.definitions.toSet(), codeRegistryBuilder, rootInfo.getDescription(), schemaAppliedDirectives)
         // in the order the types were created
         val wiredObjects = if (directiveWiringHelper.isWiringRequired) wire(schemaObjects, scalars + inputObjects + interfaces + objects + unions + enums) else schemaObjects

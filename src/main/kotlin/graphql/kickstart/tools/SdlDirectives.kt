@@ -10,13 +10,11 @@ import graphql.kickstart.tools.util.getDocumentation
 import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
-import org.slf4j.Logger
 
 internal class SdlDirectives(
     private val directiveDefinitions: List<DirectiveDefinition>,
     private val options: SchemaParserOptions,
     private val runtimeWiring: RuntimeWiring,
-    private val log: Logger,
     private val inputType: (Type<*>) -> GraphQLInputType
 ) {
     // by name, in the order they're declared
@@ -24,22 +22,18 @@ internal class SdlDirectives(
 
     val definitions: Collection<GraphQLDirective> get() = schemaDirectives.values
 
+    private val problems = mutableListOf<String>()
+
     init {
         createDirectives()
     }
 
-    fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> {
-        val applied = definition.directives.mapTo(mutableSetOf()) { it.name }
-        return definition.directives + extensions.flatMap { extension ->
-            val (repeated, kept) = extension.directives.partition { it.name in applied && isNonRepeatableByFirstDeclaration(it.name) }
-            repeated.forEach { log.warn("Directive @${it.name} isn't repeatable but an extension of type '${definition.name}' applies it again, only the first one is kept.") }
-            applied += kept.map { it.name }
-            kept
-        }
-    }
+    fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> =
+        definition.directives + extensions.flatMap { it.directives }
 
-    private fun isNonRepeatableByFirstDeclaration(directiveName: String): Boolean =
-        directiveDefinitions.find { it.name == directiveName }?.let { !it.isRepeatable } ?: Directives.BUILT_IN_DIRECTIVES_MAP.containsKey(directiveName)
+    fun failOnProblems() {
+        if (problems.isNotEmpty()) throw SchemaError(problems.joinToString("\n"))
+    }
 
     private fun createDirectives() {
         schemaDirectives = directiveDefinitions.associateTo(linkedMapOf()) { it.name to createDirective(it) }
@@ -94,8 +88,7 @@ internal class SdlDirectives(
         appliedDirectives(resolveDirectives(directives, SCHEMA)).toList()
 
     private fun resolveDirectives(directives: List<Directive>, location: Introspection.DirectiveLocation): List<ResolvedDirective> {
-        // TODO throw a SchemaError instead in 15.0.0 (#884), like graphql-java does
-        directiveProblems(directives, location).forEach { log.warn(it) }
+        problems += directiveProblems(directives, location)
         return directives.map { directive ->
             val definition = findDirective(directive.name)
             when {
@@ -179,21 +172,17 @@ internal class SdlDirectives(
 
     // TODO remove this once directives are fully replaced with applied directives
     @Suppress("DEPRECATION") // legacy directive argument values
-    private fun legacyDirectives(directives: List<ResolvedDirective>, location: Introspection.DirectiveLocation): Array<GraphQLDirective> {
-        val seen = mutableSetOf<String>()
-        return directives.mapNotNull { directive ->
+    private fun legacyDirectives(directives: List<ResolvedDirective>, location: Introspection.DirectiveLocation): Array<GraphQLDirective> =
+        directives.mapNotNull { directive ->
             // graphql-java rejects legacy directives without a definition, so undeclared ones are only kept as applied directives
             if (!directive.declared) return@mapNotNull null
             val name = directive.usage.name
-            val nonRepeatable = isNonRepeatableByFirstDeclaration(name)
-            // graphql-java rejects a non-repeatable legacy directive that is applied more than once
-            if (!seen.add(name) && nonRepeatable) return@mapNotNull null
             GraphQLDirective.newDirective()
                 .name(name)
                 .description(getDocumentation(directive.usage, options))
                 .comparatorRegistry(runtimeWiring.comparatorRegistry)
                 .validLocation(location)
-                .repeatable(!nonRepeatable)
+                .repeatable(findDirective(name)?.isRepeatable == true)
                 .apply {
                     directive.arguments.forEach { arg ->
                         argument(GraphQLArgument.newArgument()
@@ -207,7 +196,6 @@ internal class SdlDirectives(
                 }
                 .build()
         }.toTypedArray()
-    }
 
     private class ResolvedDirective(
         val usage: Directive,
