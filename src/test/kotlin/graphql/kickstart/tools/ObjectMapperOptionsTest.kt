@@ -1,6 +1,10 @@
 package graphql.kickstart.tools
 
 import graphql.GraphQL
+import graphql.language.FieldDefinition
+import graphql.language.TypeName
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Test
 import tools.jackson.module.kotlin.KotlinFeature
 import tools.jackson.module.kotlin.KotlinModule
@@ -48,6 +52,17 @@ class ObjectMapperOptionsTest {
         }
 
         assertEquals(data, mapOf("names" to "RED", "colors" to "RED"))
+    }
+
+    @Test
+    fun `fields share the library's ObjectMapper unless a configurer is set`() {
+        val first = FieldDefinition.newFieldDefinition().name("first").type(TypeName("String")).build()
+        val second = FieldDefinition.newFieldDefinition().name("second").type(TypeName("String")).build()
+        val library = SchemaParserOptions.defaultOptions().objectMapperProvider
+        val configured = SchemaParserOptions.newOptions().objectMapperConfigurer { _, _ -> }.build().objectMapperProvider
+
+        assertSame(library.provide(first), library.provide(second))
+        assertNotSame(configured.provide(first), configured.provide(second))
     }
 
     @Test

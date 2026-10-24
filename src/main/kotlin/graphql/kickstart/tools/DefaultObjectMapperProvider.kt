@@ -9,8 +9,11 @@ import tools.jackson.module.kotlin.jacksonMapperBuilder
 
 internal class DefaultObjectMapperProvider(private val configurer: ObjectMapperConfigurer? = null) : PerFieldObjectMapperProvider {
 
+    private val shared by lazy { builder().build() }
+
     override fun provide(fieldDefinition: FieldDefinition): ObjectMapper =
-        builder().also { configurer?.configure(it, ObjectMapperConfigurerContext(fieldDefinition)) }.build()
+        if (configurer == null) shared
+        else builder().also { configurer.configure(it, ObjectMapperConfigurerContext(fieldDefinition)) }.build()
 
     private fun builder(): JsonMapper.Builder = jacksonMapperBuilder()
         // an input field the class has no property for fails the request rather than losing the client's value
