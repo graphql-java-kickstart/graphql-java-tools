@@ -770,12 +770,12 @@ class DirectiveTest {
     }
 
     @Test
-    fun `should warn about undeclared directives on scalars and build them without the schema's directives`() {
-        val (schema, warnings) = withWarnings {
+    fun `should fail on an undeclared directive on a scalar`() {
+        val error = assertThrows(SchemaError::class.java) {
             SchemaParser.newParser()
                 .schemaString(
                     """
-                    scalar Date @specifiedBy(url: "https://example.com/date") @format(pattern: "yyyy-MM-dd")
+                    scalar Date @format(pattern: "yyyy-MM-dd")
 
                     type Query {
                         today: Date
@@ -787,13 +787,34 @@ class DirectiveTest {
                 .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
                 .build()
                 .makeExecutableSchema()
-                .assertEveryFieldResolves()
         }
 
-        assertEquals(warnings, listOf("Scalar 'Date' is built without its directives from the schema: Found applied directive format without corresponding directive definition."))
-        val date = schema.getType("Date") as GraphQLScalarType
-        assertEquals(date.appliedDirectives, emptyList())
-        assertEquals(date.specifiedByUrl, "https://example.com/date")
+        assertEquals(error.message, "Found applied directive format without corresponding directive definition.")
+    }
+
+    @Test
+    fun `should fail on an unexpected directive argument on a scalar`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    directive @format(pattern: String) on SCALAR
+
+                    scalar Date @format(patern: "yyyy-MM-dd")
+
+                    type Query {
+                        today: Date
+                    }
+                    """)
+                .resolvers(object : GraphQLQueryResolver {
+                    fun today(): String = "2026-10-19"
+                })
+                .scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Found an unexpected directive argument format#patern .")
     }
 
     @Test

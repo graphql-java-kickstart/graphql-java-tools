@@ -2,10 +2,13 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.Scalars
+import graphql.language.Definition
 import graphql.language.EnumTypeDefinition
+import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
+import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
@@ -14,6 +17,7 @@ import graphql.schema.idl.SchemaPrinter
 import graphql.schema.validation.InvalidSchemaException
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import kotlin.reflect.KClass
 
 class TypeExtensionTest {
 
@@ -68,8 +72,8 @@ class TypeExtensionTest {
         assertEquals(date.description, "A date")
         assertEquals(date.appliedDirectives.map { it.name }, listOf("format"))
 
-        // through GraphQLNamedSchemaElement, since graphql-java 25 and 26 disagree on which types have a nullable definition
-        assertEquals(listOf<GraphQLNamedSchemaElement>(fooBar, color, node, item, date).map { it.definition?.javaClass }, listOf(
+        val definitions = listOf(fooBar.definition, color.definition, node.definition, item.definition, date.definition)
+        assertEquals(definitions.map { it?.javaClass }, listOf(
             UnionTypeDefinition::class.java,
             EnumTypeDefinition::class.java,
             InterfaceTypeDefinition::class.java,
@@ -342,13 +346,12 @@ class TypeExtensionTest {
     }
 
     @Test
-    fun `repeats and extensions without a type keep building`() {
+    fun `enums and unions that only have extensions are built from them`() {
         val (schema, warnings) = withWarnings {
             parser(
                 """
                 type Query {
                     color: Color
-                    node: Node
                     fooBar: FooBar
                 }
 
@@ -356,41 +359,188 @@ class TypeExtensionTest {
                     "The first red"
                     RED
                 }
-                extend enum Color { RED GREEN }
-
-                interface Node {
-                    "The base id"
-                    id: ID!
-                }
-                extend interface Node { id: ID! name: String }
-
-                type Item implements Node { id: ID! name: String }
+                extend enum Color { GREEN }
 
                 extend union FooBar = Foo | Bar
-                extend union FooBar = Bar | Baz
+                extend union FooBar = Baz
 
                 $fooBarBaz
                 """) {
-                dictionary(Item::class, Foo::class, Bar::class, Baz::class)
+                dictionary(Foo::class, Bar::class, Baz::class)
             }.makeExecutableSchema()
         }
         schema.assertEveryFieldResolves()
 
-        assertEquals(warnings, listOf(
-            "Type 'Node' declares field 'id' more than once, only the first one is kept.",
-            "Type 'FooBar' declares member 'Bar' more than once, only the first one is kept.",
-            "Type 'Color' declares value 'RED' more than once, only the first one is kept."
-        ))
+        assertEquals(warnings, listOf())
 
         val color = schema.getType("Color") as GraphQLEnumType
         assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
         assertEquals(color.getValue("RED")?.description, "The first red")
-
-        val node = schema.getType("Node") as GraphQLInterfaceType
-        assertEquals(node.fieldDefinitions.map { it.name }, listOf("id", "name"))
-        assertEquals(node.getFieldDefinition("id").description, "The base id")
-
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
+    }
+
+    @Test
+    fun `a type that declares a value, field or member twice is rejected`() {
+        val cases = listOf(
+            Repeat(
+                """
+                |type Query { color: Color }
+                |enum Color {
+                |    RED
+                |}
+                |extend enum Color {
+                |    RED
+                |    GREEN
+                |}
+                """,
+                "Type 'Color' declares value 'RED' more than once at line 6, column 5."
+            ),
+            Repeat(
+                """
+                |type Query { color: Color }
+                |extend enum Color { RED }
+                |extend enum Color { RED GREEN }
+                """,
+                "Type 'Color' declares value 'RED' more than once at line 3, column 21."
+            ),
+            Repeat(
+                """
+                |type Query { color: Color }
+                |enum Color { RED GREEN RED }
+                """,
+                "Type 'Color' declares value 'RED' more than once at line 2, column 24."
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |extend interface Node { id: String }
+                |type Item implements Node { id: ID }
+                """,
+                "Type 'Node' declares field 'id' more than once at line 3, column 25.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { fooBar: FooBar }
+                |union FooBar = Foo | Bar
+                |extend union FooBar = Bar | Baz
+                |$fooBarBaz
+                """,
+                "Type 'FooBar' declares member 'Bar' more than once at line 3, column 23.",
+                Foo::class, Bar::class, Baz::class
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |type Item implements Node {
+                |    id: ID
+                |}
+                |extend type Item {
+                |    id: ID
+                |}
+                """,
+                "Type 'Item' declares field 'id' more than once at line 7, column 5.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { id: ID }
+                |extend input Filter { id: ID }
+                """,
+                "Type 'Filter' declares field 'id' more than once at line 3, column 23."
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |type Item implements Node { id: ID name: String name: String }
+                """,
+                "Type 'Item' declares field 'name' more than once at line 3, column 49.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { id: ID id: ID }
+                """,
+                "Type 'Filter' declares field 'id' more than once at line 2, column 23."
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { inner: Inner }
+                |input Inner { id: ID id: ID }
+                """,
+                "Type 'Inner' declares field 'id' more than once at line 3, column 22."
+            ),
+            Repeat(
+                """
+                |type Query { node: Node }
+                |interface Node { id: ID }
+                |type Item implements Node { id: ID }
+                |extend type Item { name: String }
+                |extend type Item { name: String }
+                """,
+                "Type 'Item' declares field 'name' more than once at line 5, column 20.",
+                Item::class
+            ),
+            Repeat(
+                """
+                |type Query { search(filter: Filter): String }
+                |input Filter { id: ID }
+                |extend input Filter { limit: Int }
+                |extend input Filter { limit: Int }
+                """,
+                "Type 'Filter' declares field 'limit' more than once at line 4, column 23."
+            )
+        )
+
+        cases.forEach { repeat ->
+            val error = assertThrows(SchemaError::class.java) {
+                parser(repeat.schema.trimMargin()) { dictionary(*repeat.dictionary) }.makeExecutableSchema()
+            }
+
+            assertEquals(error.message, repeat.message)
+        }
+    }
+
+    @Test
+    fun `a repeat without a source location is rejected without one`() {
+        fun field(name: String) = FieldDefinition.newFieldDefinition().name(name).type(TypeName("String")).build()
+        val item = ObjectTypeDefinition.newObjectTypeDefinition()
+            .name("Item")
+            .implementz(TypeName("Node"))
+            .fieldDefinitions(listOf(field("id"), field("name"), field("name")))
+            .build()
+
+        val error = assertThrows(SchemaError::class.java) {
+            parser("type Query { node: Node }\ninterface Node { id: String }") {
+                dictionary(Item::class)
+                options(SchemaParserOptions.newOptions().typeDefinitionFactory(object : TypeDefinitionFactory {
+                    override fun create(existing: MutableList<Definition<*>>) = listOf(item)
+                }).build())
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Item' declares field 'name' more than once.")
+    }
+
+    @Test
+    fun `input object fields list those of the type before those of its extensions`() {
+        val schema = parser(
+            """
+            type Query { search(filter: Filter): String }
+
+            extend input Filter { limit: Int }
+            input Filter { id: ID }
+            extend input Filter { offset: Int }
+            """).makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals((schema.getType("Filter") as GraphQLInputObjectType).fieldDefinitions.map { it.name }, listOf("id", "limit", "offset"))
     }
 
     @Test
@@ -473,6 +623,8 @@ class TypeExtensionTest {
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))
     }
 
+    private class Repeat(val schema: String, val message: String, vararg val dictionary: KClass<*>)
+
     private val fooBarBaz = """
         type Foo { foo: String }
         type Bar { bar: String }
@@ -502,7 +654,9 @@ class TypeExtensionTest {
 
     class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
 
-    class Filter(val id: String?)
+    class Filter(val id: String?, val limit: Int? = null, val offset: Int? = null, val inner: Inner? = null)
+
+    class Inner(val id: String?)
 
     enum class Color { RED, GREEN }
 
