@@ -16,7 +16,8 @@ module graphql.java.tools {
     requires org.apache.commons.lang3;
     requires org.reactivestreams;
     requires org.slf4j;
-    requires spring.aop;
+    // only for applications that have Spring AOP proxies
+    requires static spring.aop;
 
     exports graphql.kickstart.tools;
 
