@@ -9,7 +9,9 @@ import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.reactive.publish
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.reactivestreams.Publisher
@@ -410,8 +412,123 @@ class SchemaParserTest {
     }
 
     @Test
-    fun `parser handles spring AOP proxied resolvers by default`() {
+    fun `parser rejects spring AOP proxied resolvers that are JDK dynamic proxies`() {
         val resolver = ProxyFactory(ProxiedResolver()).proxy as GraphQLQueryResolver
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: [String]
+                    }
+                    """)
+                .resolvers(resolver)
+                .build()
+        }
+
+        assertTrue(error.message!!.contains("Field 'Query.test' resolves to ${ProxiedResolver::class.java.name}.test, but the resolver is a "))
+        assertTrue(error.message!!.contains("Use class-based proxies instead"))
+    }
+
+    @Test
+    fun `parser rejects JDK dynamic proxied resolvers even when unimplemented resolvers are allowed`() {
+        val resolver = ProxyFactory(ProxiedResolver()).proxy as GraphQLQueryResolver
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: [String]
+                        missing: String
+                    }
+                    """)
+                .resolvers(resolver)
+                .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
+                .build()
+        }
+
+        assertTrue(error.message!!.contains("Field 'Query.test'"))
+    }
+
+    @Test
+    fun `parser rejects JDK dynamic proxied resolvers even with a missing resolver data fetcher provider`() {
+        val resolver = ProxyFactory(ProxiedResolver()).proxy as GraphQLQueryResolver
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: [String]
+                        missing: String
+                    }
+                    """)
+                .resolvers(resolver)
+                .options(
+                    SchemaParserOptions.newOptions()
+                        .missingResolverDataFetcherProvider { _, _ -> DataFetcher<Any?> { null } }
+                        .build()
+                )
+                .build()
+        }
+
+        assertTrue(error.message!!.contains("Field 'Query.test'"))
+    }
+
+    @Test
+    fun `parser names every field of every JDK dynamic proxied resolver in one error`() {
+        val query = ProxyFactory(ProxiedResolver()).proxy as GraphQLQueryResolver
+        val mutation = ProxyFactory(ProxiedMutationResolver()).proxy as GraphQLMutationResolver
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        test: [String]
+                        total: Int!
+                    }
+
+                    type Mutation {
+                        save: Boolean!
+                    }
+                    """)
+                .resolvers(query, mutation)
+                .build()
+        }
+
+        val message = error.message!!
+        assertTrue(message, message.contains("Field 'Query.test'"))
+        assertTrue(message, message.contains("Field 'Query.total'"))
+        assertTrue(message, message.contains("Field 'Mutation.save'"))
+        assertFalse(message, message.contains("add a getter"))
+    }
+
+    @Test
+    fun `parser suggests a getter when a JDK dynamic proxied resolver is read through a field`() {
+        val resolver = ProxyFactory(ProxiedFieldResolver()).proxy as GraphQLQueryResolver
+
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query {
+                        count: Int!
+                    }
+                    """)
+                .resolvers(resolver)
+                .build()
+        }
+
+        assertTrue(error.message!!.contains("Field 'Query.count' resolves to ${ProxiedFieldResolver::class.java.name}.count"))
+        assertTrue(error.message!!.contains("add a getter"))
+    }
+
+    @Test
+    fun `parser handles spring AOP proxied resolvers that are class-based proxies`() {
+        val factory = ProxyFactory(ProxiedResolver()).apply { setProxyTargetClass(true) }
 
         SchemaParser.newParser()
             .schemaString(
@@ -420,7 +537,7 @@ class SchemaParserTest {
                     test: [String]
                 }
                 """)
-            .resolvers(resolver)
+            .resolvers(factory.proxy as GraphQLQueryResolver)
             .build()
     }
 
@@ -1127,8 +1244,18 @@ class SchemaParserTest {
 
     data class Movie(val title: String)
 
-    class ProxiedResolver : GraphQLQueryResolver {
-        fun test(): List<String> = listOf()
+    open class ProxiedResolver : GraphQLQueryResolver {
+        open fun test(): List<String> = listOf()
+        open fun total(): Int = 2
+    }
+
+    open class ProxiedMutationResolver : GraphQLMutationResolver {
+        open fun save(): Boolean = true
+    }
+
+    open class ProxiedFieldResolver : GraphQLQueryResolver {
+        @JvmField
+        val count: Int = 1
     }
 
     enum class CustomEnum {
