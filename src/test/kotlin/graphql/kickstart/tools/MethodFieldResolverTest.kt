@@ -11,8 +11,12 @@ import graphql.language.Value
 import graphql.schema.Coercing
 import graphql.schema.CoercingParseLiteralException
 import graphql.schema.CoercingSerializeException
+import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.kickstart.tools.resolver.MissingResolverDataFetcherProvider
+import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
@@ -311,44 +315,76 @@ class MethodFieldResolverTest {
     }
 
     @Test
-    fun `should warn when a resolver method is missing a parameter for an argument`() {
-        val (_, warnings) = withWarnings {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        user(id: ID!, active: Boolean!): String
-                        users(active: Boolean, first: Int): String
-                        image: Image
-                        search(filter: Filter): String
-                        count(active: Boolean): String
-                    }
-
-                    type Image {
-                        thumbnail(size: Int): String
-                    }
-
-                    input Filter {
-                        name: String
-                    }
-                    """)
-                .resolvers(MissingParameterQuery(), ImageResolver())
-                .options(SchemaParserOptions.newOptions().contextClass(Map::class).build())
-                .build()
-                .makeExecutableSchema()
-        }
-
+    fun `should fail the build when a resolver method is missing a parameter for an argument`() {
         val query = MissingParameterQuery::class.java.name
-        assertEquals(warnings, listOf(
-            "Field 'Query.user' has no parameter for its argument 'active: Boolean!' in $query.user, so the Map parameter gets the " +
+        val messagesByQueryField = mapOf(
+            "user(id: ID!, active: Boolean!): String" to
+                "Field 'Query.user' has no parameter for its argument 'active: Boolean!' in $query.user, so the Map parameter gets the " +
                 "argument instead. Add a parameter for each argument, in order, before the Map parameter.",
-            "Field 'Query.users' has no parameter for its argument 'active: Boolean' in $query.users, so the GraphQLContext parameter " +
+            "users(active: Boolean, first: Int): String" to
+                "Field 'Query.users' has no parameter for its argument 'active: Boolean' in $query.users, so the GraphQLContext parameter " +
                 "gets the argument instead. Add a parameter for each argument, in order, before the GraphQLContext parameter.",
-            "Field 'Image.thumbnail' has no parameter for its argument 'size: Int' in ${ImageResolver::class.java.name}.thumbnail, so the " +
-                "DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the " +
+            "image: Image" to
+                "Field 'Image.thumbnail' has no parameter for its argument 'size: Int' in ${ImageResolver::class.java.name}.thumbnail, so " +
+                "the DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the " +
                 "DataFetchingEnvironment parameter."
-        ))
+        )
+
+        messagesByQueryField.forEach { (queryField, message) ->
+            val error = assertThrows(FieldResolverError::class.java) {
+                buildMissingParameterSchema(queryField, SchemaParserOptions.newOptions())
+            }
+
+            assertEquals(error.message, message)
+        }
     }
+
+    @Test
+    fun `should fail the build for a missing parameter when unimplemented resolvers are allowed`() {
+        val options = listOf(
+            SchemaParserOptions.newOptions().allowUnimplementedResolvers(true),
+            SchemaParserOptions.newOptions().missingResolverDataFetcherProvider(MissingResolverDataFetcherProvider { _, _ -> DataFetcher { "provided" } })
+        )
+
+        options.forEach {
+            val error = assertThrows(FieldResolverError::class.java) {
+                buildMissingParameterSchema("users(active: Boolean, first: Int): String", it)
+            }
+
+            assert("Field 'Query.users' has no parameter for its argument 'active: Boolean'" in error.message!!) { error.message!! }
+        }
+    }
+
+    @Test
+    fun `should build when the context class is an argument type`() {
+        val schema = buildMissingParameterSchema(
+            "search(filter: Filter): String\ncount(active: Boolean): String",
+            SchemaParserOptions.newOptions()
+        )
+
+        assertEquals(schema.queryType.fieldDefinitions.map { it.name }, listOf("search", "count"))
+    }
+
+    private fun buildMissingParameterSchema(queryField: String, options: SchemaParserOptions.Builder) =
+        SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    $queryField
+                }
+
+                type Image {
+                    thumbnail(size: Int): String
+                }
+
+                input Filter {
+                    name: String
+                }
+                """)
+            .resolvers(MissingParameterQuery(), ImageResolver())
+            .options(options.contextClass(Map::class).build())
+            .build()
+            .makeExecutableSchema()
 
     class MissingParameterQuery : GraphQLQueryResolver {
         fun user(id: String, context: Map<String, Any>) = "$id $context"

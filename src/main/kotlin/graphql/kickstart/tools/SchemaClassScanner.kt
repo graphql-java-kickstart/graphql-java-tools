@@ -6,6 +6,7 @@ import graphql.kickstart.tools.ScanDictionary.InitialDictionaryEntry
 import graphql.kickstart.tools.ScanDictionary.UnionMemberReference
 import graphql.kickstart.tools.ScanDictionary.UnusedTypeReference
 import graphql.kickstart.tools.resolver.FieldResolver
+import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.kickstart.tools.resolver.FieldResolverScanner
 import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.resolver.PropertyFieldResolver
@@ -66,6 +67,7 @@ internal class SchemaClassScanner(
     private val sealedSubclassMatcher = SealedSubclassMatcher(dictionary, typeExtensions)
 
     private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
+    private val notCallableOnResolver = mutableListOf<NotCallableOnResolver>()
 
     init {
         initialDictionary.forEach { (name, clazz) ->
@@ -144,6 +146,8 @@ internal class SchemaClassScanner(
                 scanQueue()
             }
         }
+
+        throwIfNotCallableOnResolver()
 
         return validateAndCreateResult(rootTypeHolder)
     }
@@ -450,19 +454,18 @@ internal class SchemaClassScanner(
     private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
         type.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
-            warnIfNotCallableOnResolver(type, fieldResolver)
+            collectIfNotCallableOnResolver(type, fieldResolver)
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
 
             fieldResolver.scanForMatches().forEach { potentialMatch ->
                 dictionary.handleFoundType(typeClassMatcher.match(potentialMatch))
             }
-            warnIfParameterMissing(type, fieldResolver)
+            requireParameterForEachArgument(type, fieldResolver)
         }
     }
 
-    // TODO throw a FieldResolverError instead in 15.0.0 (#868)
-    private fun warnIfNotCallableOnResolver(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+    private fun collectIfNotCallableOnResolver(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
         val source = fieldResolver.search.source ?: return
         val member: Member = when (fieldResolver) {
             is MethodFieldResolver -> fieldResolver.method
@@ -473,17 +476,26 @@ internal class SchemaClassScanner(
             return
         }
 
-        // class-based proxies don't delegate field reads to the target, so a field needs a getter too
-        val fix = if (member is Field) "Add a getter for the field and use class-based proxies" else "Use class-based proxies instead"
-        log.warn(
+        notCallableOnResolver += NotCallableOnResolver(
             "Field '${type.name}.${fieldResolver.field.name}' resolves to ${member.declaringClass.name}.${member.name}, but the resolver is a " +
-                "${source.javaClass.name}, which isn't a ${member.declaringClass.name}, so every query of the field will fail. This happens " +
-                "with JDK dynamic proxies, which only implement interfaces. $fix, e.g. proxyTargetClass = true in Spring."
+                "${source.javaClass.name}, which isn't a ${member.declaringClass.name}, so every query of the field will fail.",
+            member is Field
         )
     }
 
-    // TODO throw a FieldResolverError instead in 15.0.0 (#889)
-    private fun warnIfParameterMissing(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+    private fun throwIfNotCallableOnResolver() {
+        if (notCallableOnResolver.isEmpty()) {
+            return
+        }
+
+        val fix = "Use class-based proxies instead, e.g. proxyTargetClass = true in Spring." +
+            if (notCallableOnResolver.any { it.isField }) " For a public field, also add a getter, since class-based proxies don't pass field reads to the target." else ""
+        throw FieldResolverError(
+            notCallableOnResolver.joinToString("\n", postfix = "\nThis happens with JDK dynamic proxies, which only implement interfaces. $fix") { it.message }
+        )
+    }
+
+    private fun requireParameterForEachArgument(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
         if (fieldResolver !is MethodFieldResolver) {
             return
         }
@@ -495,7 +507,7 @@ internal class SchemaClassScanner(
             }
 
             val method = fieldResolver.method
-            log.warn(
+            throw FieldResolverError(
                 "Field '${type.name}.${fieldResolver.field.name}' has no parameter for its argument '${argument.name}: " +
                     "${TypeUtil.simplePrint(argument.type)}' in ${method.declaringClass.name}.${method.name}, so the ${parameter.simpleName} " +
                     "parameter gets the argument instead. Add a parameter for each argument, in order, before the ${parameter.simpleName} parameter."
@@ -527,6 +539,8 @@ internal class SchemaClassScanner(
     }
 
     private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
+
+    private data class NotCallableOnResolver(val message: String, val isField: Boolean)
 
     private class RootTypesHolder(
         options: SchemaParserOptions,
