@@ -23,7 +23,6 @@ import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.visibility.BlockedFields
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 
@@ -79,14 +78,6 @@ class SchemaParser internal constructor(
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
      */
     fun parseSchemaObjects(): SchemaObjects {
-        @Suppress("DEPRECATION")
-        if (!options.introspectionEnabled) {
-            // What the deprecated NoIntrospectionGraphqlFieldVisibility does. Its suggested replacement,
-            // Introspection.enabledJvmWide, would also turn introspection off for every other schema in the JVM.
-            // TODO remove this in 15.0.0 (#858)
-            codeRegistryBuilder.fieldVisibility(BlockedFields.newBlock().addPattern("__.*").build())
-        }
-        // this overrides the above introspection enabled setting obviously... todo: add documentation
         options.fieldVisibility?.let { codeRegistryBuilder.fieldVisibility(it) }
 
         // Create GraphQL objects
@@ -173,7 +164,7 @@ class SchemaParser internal constructor(
         val extensions = typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name)
         val directives = sdlDirectives.directivesOf(objectDefinition, extensions)
         val fieldDefinitions = objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
-        warnRepeatedFields(name, fieldDefinitions)
+        rejectRepeated(name, "field", fieldDefinitions)
         val builder = GraphQLObjectType.newObject()
             .name(name)
             .definition(objectDefinition)
@@ -212,8 +203,8 @@ class SchemaParser internal constructor(
                                   inputObjectsInProgress: MutableSet<String>): GraphQLInputObjectType {
         val extensionDefinitions = typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(definition.name)
         val directives = sdlDirectives.directivesOf(definition, extensionDefinitions)
-        val fieldDefinitions = (extensionDefinitions + definition).flatMap { it.inputValueDefinitions }
-        warnRepeatedFields(definition.name, fieldDefinitions)
+        val inputValueDefinitions = definition.withExtensions(typeExtensions).flatMap { it.inputValueDefinitions }
+        rejectRepeated(definition.name, "field", inputValueDefinitions)
 
         inputObjectsInProgress.add(definition.name)
 
@@ -224,7 +215,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
             .withSdlDirectives(directives, INPUT_OBJECT)
             .apply {
-                fieldDefinitions.forEach { fieldDefinition ->
+                inputValueDefinitions.forEach { fieldDefinition ->
                     field(
                         GraphQLInputObjectField.newInputObjectField()
                             .name(fieldDefinition.name)
@@ -252,7 +243,7 @@ class SchemaParser internal constructor(
         val extensions = typeExtensions.extensionsOf<EnumTypeExtensionDefinition>(name)
         val directives = sdlDirectives.directivesOf(definition, extensions)
         val values = definition.withExtensions(typeExtensions).flatMap { it.enumValueDefinitions }
-        warnRepeated(name, "value", values.map { it.name })
+        rejectRepeated(name, "value", values)
         val builder = GraphQLEnumType.newEnum()
             .name(name)
             .definition(definition)
@@ -260,7 +251,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
             .withSdlDirectives(directives, ENUM)
             .apply {
-                values.distinctBy { it.name }.forEach { valueDefinition ->
+                values.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
                     val enumValue = if (enumClass == null) {
                         enumName
@@ -306,7 +297,7 @@ class SchemaParser internal constructor(
         val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
         val directives = sdlDirectives.directivesOf(interfaceDefinition, extensions)
         val fieldDefinitions = interfaceDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
-        warnRepeated(interfaceDefinition.name, "field", fieldDefinitions.map { it.name })
+        rejectRepeated(interfaceDefinition.name, "field", fieldDefinitions)
         val builder = GraphQLInterfaceType.newInterface()
             .name(interfaceDefinition.name)
             .definition(interfaceDefinition)
@@ -314,7 +305,7 @@ class SchemaParser internal constructor(
             .description(getDocumentation(interfaceDefinition, options))
             .withSdlDirectives(directives, INTERFACE)
             .apply {
-                fieldDefinitions.distinctBy { it.name }.forEach { fieldDefinition ->
+                fieldDefinitions.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
                 }
             }
@@ -331,7 +322,7 @@ class SchemaParser internal constructor(
     private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
         val extensions = typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name)
         val directives = sdlDirectives.directivesOf(definition, extensions)
-        warnRepeated(definition.name, "member", definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.map { (it as TypeName).name })
+        rejectRepeated(definition.name, "member", definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.map { it as TypeName })
         val builder = GraphQLUnionType.newUnionType()
             .name(definition.name)
             .definition(definition)
@@ -373,21 +364,10 @@ class SchemaParser internal constructor(
         return leafObjects
     }
 
-    // TODO throw a SchemaError instead in 15.0.0 (#863), like graphql-java does
-    private fun warnRepeated(typeName: String, kind: String, names: List<String?>) {
-        names.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.forEach {
-            log.warn("Type '$typeName' declares $kind '$it' more than once, only the first one is kept.")
-        }
-    }
-
-    // TODO throw a SchemaError instead in 15.0.0 (#865), like graphql-java does
-    private fun warnRepeatedFields(typeName: String, fieldDefinitions: List<NamedNode<*>>) {
-        fieldDefinitions.groupBy { it.name }.values.filter { it.size > 1 }.forEach { declarations ->
-            val kept = declarations.last()
-            val location = kept.sourceLocation.describe()
-            val which = if (location.isEmpty()) "one of them" else "the one$location"
-            log.warn("Type '$typeName' declares field '${kept.name}' more than once, only $which is kept.")
-        }
+    private fun rejectRepeated(typeName: String, kind: String, declarations: List<NamedNode<*>>) {
+        val names = mutableSetOf<String?>()
+        val repeat = declarations.firstOrNull { !names.add(it.name) } ?: return
+        throw SchemaError("Type '$typeName' declares $kind '${repeat.name}' more than once${repeat.sourceLocation.describe()}.")
     }
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
