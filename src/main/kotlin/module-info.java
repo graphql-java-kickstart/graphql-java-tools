@@ -14,7 +14,6 @@ module graphql.java.tools {
     requires com.fasterxml.jackson.datatype.jdk8;
     requires com.fasterxml.classmate;
 
-    requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;
     requires org.reactivestreams;
     requires org.slf4j;
