@@ -221,25 +221,36 @@ class CustomScalarInputTest {
     }
 
     @Test
-    fun `Kotlin custom scalars without visible properties are passed when written with a type or object id`() {
+    fun `Kotlin custom scalars without visible properties written with a type or object id are passed in ObjectNode arguments`() {
         val data = assertNoGraphQlErrors(graphQL(inputSchema)) {
             """
             query {
-                optionalTypedToken(token: "optional")
-                optionalWrappedToken(token: "optional")
-                optionalIdToken(token: "optional")
-                markedTokens(input: { typed: "input", wrapped: "input", id: "input", typedList: ["first", "second"] })
                 markedTokenNode(input: { typed: "node", wrapped: "node", id: "node" })
             }
             """
         }
 
-        assertEquals(data, mapOf(
-            "optionalTypedToken" to "optional",
-            "optionalWrappedToken" to "optional",
-            "optionalIdToken" to "optional",
-            "markedTokens" to "input input input [first, second]",
-            "markedTokenNode" to "node node node"))
+        assertEquals(data, mapOf("markedTokenNode" to "node node node"))
+    }
+
+    @Test
+    fun `Kotlin custom scalars without visible properties written with a type or object id fail rather than lose their value`() {
+        val result = graphQL(inputSchema).execute(
+            """
+            query {
+                optionalTypedToken(token: "optional")
+                optionalWrappedToken(token: "optional")
+                optionalIdToken(token: "optional")
+                typed: markedTokens(input: { typed: "input" })
+                wrapped: markedTokens(input: { wrapped: "input" })
+                id: markedTokens(input: { id: "input" })
+                typedList: markedTokens(input: { typedList: ["first", "second"] })
+            }
+            """)
+
+        assertEquals(
+            result.errors.map { it.path?.single() }.toSet(),
+            setOf("optionalTypedToken", "optionalWrappedToken", "optionalIdToken", "typed", "wrapped", "id", "typedList"))
     }
 
     @Test
