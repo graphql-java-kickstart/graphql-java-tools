@@ -20,8 +20,6 @@
         <graphql-java.version>26.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
         <useReleaseProfile>false</useReleaseProfile>
         <project.scm.id>github</project.scm.id>
     </properties>
@@ -81,16 +79,11 @@
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-aop</artifactId>
-                <version>5.3.39</version>
+                <version>7.0.10</version>
                 <scope>provided</scope>
             </dependency>
 
             <!-- Test -->
-            <dependency>
-                <groupId>cglib</groupId>
-                <artifactId>cglib-nodep</artifactId>
-                <version>3.3.0</version>
-            </dependency>
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
@@ -105,11 +98,6 @@
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <version>4.13.2</version>
-            </dependency>
-            <dependency>
-                <groupId>org.objenesis</groupId>
-                <artifactId>objenesis</artifactId>
-                <version>3.6</version>
             </dependency>
             <dependency>
                 <groupId>org.reactivestreams</groupId>
@@ -203,16 +191,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>cglib</groupId>
-            <artifactId>cglib-nodep</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.objenesis</groupId>
-            <artifactId>objenesis</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.reactivestreams</groupId>
             <artifactId>reactive-streams-tck</artifactId>
             <scope>test</scope>
@@ -247,7 +225,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.16.0</version>
                 <configuration>
-                    <release>17</release>
+                    <release>${java.version}</release>
                     <failOnWarning>true</failOnWarning>
                 </configuration>
             </plugin>
@@ -257,6 +235,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.6.0</version>
                 <dependencies>
+                    <!-- reactive-streams-tck brings TestNG, which makes surefire pick a provider that runs none of the JUnit 4 tests -->
                     <dependency>
                         <groupId>org.apache.maven.surefire</groupId>
                         <artifactId>surefire-junit4</artifactId>
