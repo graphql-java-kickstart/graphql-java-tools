@@ -205,6 +205,19 @@ class CustomScalarInputTest {
     }
 
     @Test
+    fun `Kotlin custom scalars without visible properties still convert to other classes`() {
+        val data = assertNoGraphQlErrors(graphQL(inputSchema)) {
+            """
+            query {
+                otherTokens(input: { bean: "bean", map: "map", node: "node" })
+            }
+            """
+        }
+
+        assertEquals(data, mapOf("otherTokens" to "OtherToken(value=other) {} {}"))
+    }
+
+    @Test
     fun `errors converting inputs with custom scalars name the actual problem`() {
         val result = graphQL(inputSchema).execute(
             """
@@ -253,6 +266,7 @@ class CustomScalarInputTest {
             optionalToken(token: Token): String!
             tokenInput(input: TokenInput!): String!
             tokenNode(input: NodeInput!): String!
+            otherTokens(input: OtherTokensInput!): String!
         }
 
         input EventInput {
@@ -281,6 +295,12 @@ class CustomScalarInputTest {
 
         input TokenInput {
             token: Token
+        }
+
+        input OtherTokensInput {
+            bean: Token
+            map: Token
+            node: Token
         }
 
         input PaymentInput {
@@ -319,6 +339,7 @@ class CustomScalarInputTest {
         fun token(token: Token): String = token.toString()
         fun optionalToken(token: Optional<Token>): String = token.map { it.toString() }.orElse("empty")
         fun tokenInput(input: TokenInput): String = input.token.toString()
+        fun otherTokens(input: OtherTokensInput): String = "${input.bean} ${input.map} ${input.node}"
         fun tokenNode(input: ObjectNode): String = input.get("token").let { if (it is POJONode) it.pojo.toString() else "$it" }
 
         fun map(input: Map<String, Any?>) = receive("map", input)
@@ -371,6 +392,10 @@ class CustomScalarInputTest {
     }
 
     data class TokenInput(val token: Token? = null)
+
+    data class OtherToken(val value: String = "other")
+
+    data class OtherTokensInput(val bean: OtherToken? = null, val map: Map<String, String>? = null, val node: ObjectNode? = null)
 
     class BoxContentDeserializer : StdDeserializer<String>(String::class.java) {
         override fun deserialize(p: JsonParser, context: DeserializationContext): String =

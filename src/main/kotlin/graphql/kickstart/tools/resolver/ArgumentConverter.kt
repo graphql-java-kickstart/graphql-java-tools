@@ -75,18 +75,17 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
     }
 
     private fun convertsToOwnClass(value: Any): Boolean = try {
-        mapper.readValue(buffer(value), value.javaClass)
+        mapper.readValue(bufferFailingOnEmptyBeans(value), value.javaClass)
         true
     } catch (e: JacksonException) {
         false
     }
 
-    private fun read(value: Any?): Any? = reader.readValue(buffer(value))
+    private fun read(value: Any?): Any? = reader.readValue(bufferFailingOnEmptyBeans(value))
 
-    private fun buffer(value: Any?): TokenBuffer = bufferAllowingEmptyBeans(FailOnEmptyBeans(value))
+    private fun bufferFailingOnEmptyBeans(value: Any?): TokenBuffer = buffer(FailOnEmptyBeans(value))
 
-    private fun bufferAllowingEmptyBeans(value: Any?): TokenBuffer =
-        writer.writeValueIntoBuffer(value).forceUseOfBigDecimal(useBigDecimalForFloats)
+    private fun buffer(value: Any?): TokenBuffer = writer.writeValueIntoBuffer(value).forceUseOfBigDecimal(useBigDecimalForFloats)
 
     private val embeddedValueHandler = object : DeserializationProblemHandler() {
         // called for an interface or abstract class, e.g. Part, since no deserializer of it returns embedded values
@@ -97,14 +96,21 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
             p: JsonParser,
             msg: String?
         ): Any? {
-            val value = if (p.hasToken(JsonToken.VALUE_EMBEDDED_OBJECT)) p.embeddedObject else null
+            val value = p.embeddedValue()
             return if (instClass.isInstance(value)) value else NOT_HANDLED
         }
 
-        // called for an embedded value read as a bean of another class, which the value is converted to on its own, empty beans
-        // included, since the value can't be passed as it is anyway
+        // called for an embedded value read as a bean of another class, which the value is converted to on its own
         override fun handleWeirdNativeValue(context: DeserializationContext, targetType: JavaType, valueToConvert: Any, p: JsonParser): Any? =
-            mapper.readValue(bufferAllowingEmptyBeans(valueToConvert), targetType)
+            convertOnItsOwn(valueToConvert, targetType)
+
+        // called for an embedded value read as a Map or JsonNode, e.g. a scalar without properties, which converts to {}
+        override fun handleUnexpectedToken(context: DeserializationContext, targetType: JavaType, t: JsonToken?, p: JsonParser, failureMsg: String?): Any? =
+            p.embeddedValue()?.let { convertOnItsOwn(it, targetType) } ?: NOT_HANDLED
+
+        private fun JsonParser.embeddedValue(): Any? = if (hasToken(JsonToken.VALUE_EMBEDDED_OBJECT)) embeddedObject else null
+
+        private fun convertOnItsOwn(value: Any, targetType: JavaType): Any? = mapper.readValue(buffer(value), targetType)
     }
 
     // FAIL_ON_EMPTY_BEANS whatever the mapper says: a scalar class with no visible properties would otherwise be read back as
