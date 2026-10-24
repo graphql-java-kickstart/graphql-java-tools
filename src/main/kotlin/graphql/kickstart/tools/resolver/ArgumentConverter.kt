@@ -4,6 +4,7 @@ import tools.jackson.core.JacksonException
 import tools.jackson.core.JsonGenerator
 import tools.jackson.core.JsonParser
 import tools.jackson.core.JsonToken
+import tools.jackson.core.util.JsonGeneratorDelegate
 import tools.jackson.databind.DeserializationContext
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JacksonSerializable
@@ -14,6 +15,7 @@ import tools.jackson.databind.SerializationFeature
 import tools.jackson.databind.deser.DeserializationProblemHandler
 import tools.jackson.databind.deser.ValueInstantiator
 import tools.jackson.databind.jsontype.TypeSerializer
+import tools.jackson.databind.ser.bean.BeanSerializerBase
 import tools.jackson.databind.util.TokenBuffer
 import java.lang.reflect.Type
 
@@ -81,7 +83,9 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private fun read(value: Any?): Any? = reader.readValue(buffer(value))
 
-    private fun buffer(value: Any?): TokenBuffer =
+    private fun buffer(value: Any?): TokenBuffer = bufferAllowingEmptyBeans(FailOnEmptyBeans(value))
+
+    private fun bufferAllowingEmptyBeans(value: Any?): TokenBuffer =
         writer.writeValueIntoBuffer(value).forceUseOfBigDecimal(useBigDecimalForFloats)
 
     private val embeddedValueHandler = object : DeserializationProblemHandler() {
@@ -97,9 +101,10 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
             return if (instClass.isInstance(value)) value else NOT_HANDLED
         }
 
-        // called for an embedded value read as a bean of another class, which the value is converted to on its own
+        // called for an embedded value read as a bean of another class, which the value is converted to on its own, empty beans
+        // included, since the value can't be passed as it is anyway
         override fun handleWeirdNativeValue(context: DeserializationContext, targetType: JavaType, valueToConvert: Any, p: JsonParser): Any? =
-            mapper.readValue(buffer(valueToConvert), targetType)
+            mapper.readValue(bufferAllowingEmptyBeans(valueToConvert), targetType)
     }
 
     // FAIL_ON_EMPTY_BEANS whatever the mapper says: a scalar class with no visible properties would otherwise be read back as
@@ -113,6 +118,32 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
     }
 
     private val nullToJavaDefaultReader by lazy { reader.without(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES) }
+
+    // FAIL_ON_EMPTY_BEANS skips a class with annotations, which Jackson writes as an empty object even if it has no properties,
+    // e.g. any Kotlin class, since they all have @Metadata
+    private class FailOnEmptyBeans(private val value: Any?) : JacksonSerializable {
+        override fun serialize(gen: JsonGenerator, serializers: SerializationContext) {
+            serializers.writeValue(EmptyBeanCheck(gen, serializers), value)
+        }
+
+        override fun serializeWithType(gen: JsonGenerator, serializers: SerializationContext, typeSer: TypeSerializer) {
+            serialize(gen, serializers)
+        }
+    }
+
+    private class EmptyBeanCheck(gen: JsonGenerator, private val serializers: SerializationContext) : JsonGeneratorDelegate(gen, false) {
+        override fun writeEndObject(): JsonGenerator {
+            val context = streamWriteContext()
+            val bean = context.currentValue()
+            if (context.entryCount == 0 && bean != null && hasNoProperties(bean.javaClass)) {
+                serializers.reportBadDefinition<Unit>(bean.javaClass, "No properties discovered to write ${bean.javaClass.name}")
+            }
+            return super.writeEndObject()
+        }
+
+        private fun hasNoProperties(beanClass: Class<*>) =
+            (serializers.findValueSerializer(beanClass) as? BeanSerializerBase)?.properties()?.hasNext() == false
+    }
 
     private class EmbeddedValue(private val value: Any) : JacksonSerializable {
         override fun serialize(gen: JsonGenerator, serializers: SerializationContext) {
