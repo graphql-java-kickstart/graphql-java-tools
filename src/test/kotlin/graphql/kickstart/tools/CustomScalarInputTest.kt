@@ -194,13 +194,14 @@ class CustomScalarInputTest {
             """
             query {
                 token(token: "argument")
+                optionalToken(token: "optional")
                 tokenInput(input: { token: "input" })
                 tokenNode(input: { token: "node" })
             }
             """
         }
 
-        assertEquals(data, mapOf("token" to "argument", "tokenInput" to "input", "tokenNode" to "node"))
+        assertEquals(data, mapOf("token" to "argument", "optionalToken" to "optional", "tokenInput" to "input", "tokenNode" to "node"))
     }
 
     @Test
@@ -249,6 +250,7 @@ class CustomScalarInputTest {
             payment(input: PaymentInput!): String!
             price(price: Money!): String!
             token(token: Token!): String!
+            optionalToken(token: Token): String!
             tokenInput(input: TokenInput!): String!
             tokenNode(input: NodeInput!): String!
         }
@@ -315,6 +317,7 @@ class CustomScalarInputTest {
         fun payment(input: PaymentInput): String = listOfNotNull(input.price, input.reference, input.secret, input.box).joinToString(" ")
         fun price(price: MoneyDto): String = price.toString()
         fun token(token: Token): String = token.toString()
+        fun optionalToken(token: Optional<Token>): String = token.map { it.toString() }.orElse("empty")
         fun tokenInput(input: TokenInput): String = input.token.toString()
         fun tokenNode(input: ObjectNode): String = input.get("token").let { if (it is POJONode) it.pojo.toString() else "$it" }
 
