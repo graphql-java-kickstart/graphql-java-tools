@@ -297,12 +297,7 @@ class SchemaParser internal constructor(
             .specifiedByUrl(getSpecifiedByUrl(directives) ?: provided.specifiedByUrl)
             // like graphql-java, only the schema's directives are applied
             .clearDirectives()
-        try {
-            builder.withSdlDirectives(directives, SCALAR)
-        } catch (e: SchemaError) {
-            // TODO throw instead in 15.0.0 (#893), like for the other types
-            log.warn("Scalar '$name' is built without its directives from the schema: ${e.message}")
-        }
+            .withSdlDirectives(directives, SCALAR)
 
         return builder.build()
     }
