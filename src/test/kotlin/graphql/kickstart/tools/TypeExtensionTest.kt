@@ -2,10 +2,13 @@ package graphql.kickstart.tools
 
 import graphql.GraphQL
 import graphql.Scalars
+import graphql.language.Definition
 import graphql.language.EnumTypeDefinition
+import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
+import graphql.language.TypeName
 import graphql.language.UnionTypeDefinition
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
@@ -68,8 +71,8 @@ class TypeExtensionTest {
         assertEquals(date.description, "A date")
         assertEquals(date.appliedDirectives.map { it.name }, listOf("format"))
 
-        // through GraphQLNamedSchemaElement, since graphql-java 25 and 26 disagree on which types have a nullable definition
-        assertEquals(listOf<GraphQLNamedSchemaElement>(fooBar, color, node, item, date).map { it.definition?.javaClass }, listOf(
+        val definitions = listOf(fooBar.definition, color.definition, node.definition, item.definition, date.definition)
+        assertEquals(definitions.map { it?.javaClass }, listOf(
             UnionTypeDefinition::class.java,
             EnumTypeDefinition::class.java,
             InterfaceTypeDefinition::class.java,
@@ -394,6 +397,135 @@ class TypeExtensionTest {
     }
 
     @Test
+    fun `repeated fields of objects and inputs keep building and keep the last one`() {
+        assertRepeatedObjectField(
+            """
+            type Item implements Node {
+                id: ID!
+                "From the type"
+                name: String
+            }
+            extend type Item {
+                "From the extension"
+                name: String
+            }
+            """,
+            location = "at line 9, column 5",
+            kept = "From the extension"
+        )
+        assertRepeatedObjectField(
+            """
+            type Item implements Node { id: ID! }
+            extend type Item {
+                "From the first extension"
+                name: String
+            }
+            extend type Item {
+                "From the second extension"
+                name: String
+            }
+            """,
+            location = "at line 9, column 5",
+            kept = "From the second extension"
+        )
+        assertRepeatedObjectField(
+            """
+            type Item implements Node {
+                id: ID!
+                "The first"
+                name: String
+                "The second"
+                name: String
+            }
+            """,
+            location = "at line 7, column 5",
+            kept = "The second"
+        )
+
+        assertRepeatedInputField(
+            "Filter",
+            """
+            input Filter {
+                "From the type"
+                id: ID
+            }
+            extend input Filter {
+                "From the extension"
+                id: ID
+            }
+            """,
+            location = "at line 3, column 5",
+            kept = "From the type"
+        )
+        assertRepeatedInputField(
+            "Filter",
+            """
+            input Filter { term: String }
+            extend input Filter {
+                "From the first extension"
+                id: ID
+            }
+            extend input Filter {
+                "From the second extension"
+                id: ID
+            }
+            """,
+            location = "at line 8, column 5",
+            kept = "From the second extension"
+        )
+        assertRepeatedInputField(
+            "Filter",
+            """
+            input Filter {
+                "The first"
+                id: ID
+                "The second"
+                id: ID
+            }
+            """,
+            location = "at line 5, column 5",
+            kept = "The second"
+        )
+        assertRepeatedInputField(
+            "Inner",
+            """
+            input Filter {
+                inner: Inner
+            }
+            input Inner {
+                "The first"
+                id: ID
+                "The second"
+                id: ID
+            }
+            """,
+            location = "at line 8, column 5",
+            kept = "The second"
+        )
+    }
+
+    @Test
+    fun `a repeated field without a source location says only that one is kept`() {
+        fun field(name: String) = FieldDefinition.newFieldDefinition().name(name).type(TypeName("String")).build()
+        val item = ObjectTypeDefinition.newObjectTypeDefinition()
+            .name("Item")
+            .implementz(TypeName("Node"))
+            .fieldDefinitions(listOf(field("id"), field("name"), field("name")))
+            .build()
+
+        val (_, warnings) = withWarnings {
+            parser("type Query { node: Node }\ninterface Node { id: String }") {
+                dictionary(Item::class)
+                options(SchemaParserOptions.newOptions().typeDefinitionFactory(object : TypeDefinitionFactory {
+                    override fun create(existing: MutableList<Definition<*>>) = listOf(item)
+                }).build())
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf("Type 'Item' declares field 'name' more than once, only one of them is kept."))
+    }
+
+    @Test
     fun `extensions of a different kind than the type are ignored`() {
         val (schema, warnings) = withWarnings {
             parser(
@@ -473,6 +605,26 @@ class TypeExtensionTest {
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))
     }
 
+    private fun assertRepeatedObjectField(item: String, location: String, kept: String) {
+        val (schema, warnings) = withWarnings {
+            parser("type Query { node: Node }\ninterface Node { id: ID! }\n${item.trimIndent()}") {
+                dictionary(Item::class)
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf("Type 'Item' declares field 'name' more than once, only the one $location is kept."))
+        assertEquals((schema.getType("Item") as GraphQLObjectType).getFieldDefinition("name").description, kept)
+    }
+
+    private fun assertRepeatedInputField(repeating: String, filter: String, location: String, kept: String) {
+        val (schema, warnings) = withWarnings {
+            parser("type Query { search(filter: Filter): String }\n${filter.trimIndent()}").makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf("Type '$repeating' declares field 'id' more than once, only the one $location is kept."))
+        assertEquals((schema.getType(repeating) as GraphQLInputObjectType).getField("id").description, kept)
+    }
+
     private val fooBarBaz = """
         type Foo { foo: String }
         type Bar { bar: String }
@@ -502,7 +654,9 @@ class TypeExtensionTest {
 
     class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
 
-    class Filter(val id: String?)
+    class Filter(val id: String?, val term: String? = null, val inner: Inner? = null)
+
+    class Inner(val id: String?)
 
     enum class Color { RED, GREEN }
 

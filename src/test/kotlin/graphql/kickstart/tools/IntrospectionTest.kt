@@ -9,6 +9,7 @@ import org.junit.Test
 
 class IntrospectionTest {
 
+    @Suppress("DEPRECATION")
     private fun graphQL(introspectionEnabled: Boolean): GraphQL {
         val schema = SchemaParser.newParser()
             .schemaString(

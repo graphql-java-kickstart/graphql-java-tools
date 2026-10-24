@@ -432,29 +432,27 @@ class SourcelessResolverTest {
     }
 
     @Test
-    fun `no argument warning for a method without the source`() {
-        val (_, warnings) = withWarnings {
-            SchemaParser.newParser()
-                .schemaString(
-                    """
-                    type Query {
-                        folder: Folder!
-                    }
+    fun `a method without the source needs no parameter for the source`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    folder: Folder!
+                }
 
-                    type Folder {
-                        images: [Image!]!
-                    }
+                type Folder {
+                    images: [Image!]!
+                }
 
-                    type Image {
-                        thumbnail(size: Int!): String!
-                    }
-                    """)
-                .resolvers(FolderQuery(), FolderResolver(), SourcelessImageResolver())
-                .build()
-                .makeExecutableSchema()
-        }
+                type Image {
+                    thumbnail(size: Int!): String!
+                }
+                """)
+            .resolvers(FolderQuery(), FolderResolver(), SourcelessImageResolver())
+            .build()
+            .makeExecutableSchema()
 
-        assertEquals(warnings.filter { "has no parameter for its argument" in it }, listOf())
+        assertEquals(schema.getObjectType("Image")!!.getFieldDefinition("thumbnail").arguments.map { it.name }, listOf("size"))
     }
 
     @Test
