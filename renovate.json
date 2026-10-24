@@ -19,13 +19,6 @@
       ]
     },
     {
-      "description": "Spring 6 requires Java 17",
-      "allowedVersions": "<6.0.0",
-      "matchPackageNames": [
-        "/org.springframework/"
-      ]
-    },
-    {
       "description": "Release/snapshot builds use the minimum supported JDK",
       "matchDepNames": [
         "java-jdk"
