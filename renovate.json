@@ -6,37 +6,37 @@
     {
       "description": "Group Kotlin updates together",
       "groupName": "kotlin",
-      "matchPackagePrefixes": [
-        "org.jetbrains.kotlin"
+      "matchPackageNames": [
+        "org.jetbrains.kotlin{/,}**"
       ]
     },
     {
       "description": "Stay on Kotlin 2.3.10, no more upgrades until detekt figures itself out",
-      "matchPackagePrefixes": [
-        "org.jetbrains.kotlin:"
-      ],
-      "allowedVersions": "<=2.3.10"
+      "allowedVersions": "<=2.3.10",
+      "matchPackageNames": [
+        "org.jetbrains.kotlin:{/,}**"
+      ]
     },
     {
       "description": "Align antlr version with graphql-java",
-      "matchPackagePrefixes": [
-        "org.antlr"
-      ],
-      "allowedVersions": "<=4.11.1"
+      "allowedVersions": "<=4.11.1",
+      "matchPackageNames": [
+        "org.antlr{/,}**"
+      ]
     },
     {
       "description": "Logback 1.4 requires Java 11",
-      "matchPackagePrefixes": [
-        "ch.qos.logback"
-      ],
-      "allowedVersions": "!/1\\.4\\..*$/"
+      "allowedVersions": "!/1\\.4\\..*$/",
+      "matchPackageNames": [
+        "ch.qos.logback{/,}**"
+      ]
     },
     {
       "description": "Spring 6 requires Java 17",
-      "matchPackagePatterns": [
-        "org.springframework"
-      ],
-      "allowedVersions": "<6.0.0"
+      "allowedVersions": "<6.0.0",
+      "matchPackageNames": [
+        "/org.springframework/"
+      ]
     },
     {
       "description": "Release/snapshot builds use the minimum supported JDK",
