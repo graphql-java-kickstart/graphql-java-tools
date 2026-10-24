@@ -26,7 +26,7 @@ kotlin.version=2.3.10
 
 Add the dependency:
 ```groovy
-compile 'io.github.graphql-java-kickstart:graphql-java-tools:14.4.0'
+compile 'io.github.graphql-java-kickstart:graphql-java-tools:14.5.0'
 ```
 
 ### Using Maven
@@ -43,7 +43,7 @@ Add the dependency:
 <dependency>
     <groupId>io.github.graphql-java-kickstart</groupId>
     <artifactId>graphql-java-tools</artifactId>
-    <version>14.4.0</version>
+    <version>14.5.0</version>
 </dependency>
 ```
 

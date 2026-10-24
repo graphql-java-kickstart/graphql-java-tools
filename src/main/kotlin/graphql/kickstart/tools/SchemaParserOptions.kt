@@ -31,7 +31,6 @@ data class SchemaParserOptions internal constructor(
     val proxyHandlers: List<ProxyHandler>,
     val inputArgumentOptionalDetectOmission: Boolean,
     val preferGraphQLResolver: Boolean,
-    val introspectionEnabled: Boolean,
     val coroutineContextProvider: CoroutineContextProvider,
     val typeDefinitionFactories: List<TypeDefinitionFactory>,
     val fieldVisibility: GraphqlFieldVisibility?,
@@ -62,7 +61,6 @@ data class SchemaParserOptions internal constructor(
         private val proxyHandlers: MutableList<ProxyHandler> = mutableListOf(Spring4AopProxyHandler(), GuiceAopProxyHandler(), JavassistProxyHandler(), WeldProxyHandler())
         private var inputArgumentOptionalDetectOmission = false
         private var preferGraphQLResolver = false
-        private var introspectionEnabled = true
         private var coroutineContextProvider: CoroutineContextProvider? = null
         private var typeDefinitionFactories: MutableList<TypeDefinitionFactory> = mutableListOf(RelayConnectionFactory())
         private var fieldVisibility: GraphqlFieldVisibility? = null
@@ -126,10 +124,6 @@ data class SchemaParserOptions internal constructor(
 
         fun addProxyHandler(proxyHandler: ProxyHandler) = this.apply {
             this.proxyHandlers.add(proxyHandler)
-        }
-
-        fun introspectionEnabled(introspectionEnabled: Boolean) = this.apply {
-            this.introspectionEnabled = introspectionEnabled
         }
 
         fun coroutineContext(context: CoroutineContext) = this.apply {
@@ -217,7 +211,6 @@ data class SchemaParserOptions internal constructor(
                 proxyHandlers,
                 inputArgumentOptionalDetectOmission,
                 preferGraphQLResolver,
-                introspectionEnabled,
                 coroutineContextProvider,
                 typeDefinitionFactories,
                 fieldVisibility,

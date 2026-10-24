@@ -136,7 +136,7 @@ internal class SdlDirectives(
             }
         }
 
-    private fun findDirective(name: String): GraphQLDirective? = schemaDirectives[name] ?: BUILT_IN_DIRECTIVES[name]
+    private fun findDirective(name: String): GraphQLDirective? = schemaDirectives[name] ?: Directives.BUILT_IN_DIRECTIVES_MAP[name]
 
     // there's no directive definition to look the type up in, so it's guessed from the value
     private fun guessDirectiveArgumentType(directive: Directive, argumentName: String, value: Value<*>): GraphQLInputType {
@@ -227,14 +227,3 @@ internal class SdlDirectives(
         }
 }
 
-// Built from the individual constants rather than Directives.BUILT_IN_DIRECTIVES_MAP (added in graphql-java 26)
-// so that the library keeps working with graphql-java 25. TODO replace with Directives.BUILT_IN_DIRECTIVES_MAP once we deploy a major version
-private val BUILT_IN_DIRECTIVES = listOf(
-    Directives.IncludeDirective,
-    Directives.SkipDirective,
-    Directives.DeprecatedDirective,
-    Directives.SpecifiedByDirective,
-    Directives.OneOfDirective,
-    Directives.DeferDirective,
-    Directives.ExperimentalDisableErrorPropagationDirective
-).associateBy { it.name }
