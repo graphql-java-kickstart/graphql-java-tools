@@ -1,5 +1,6 @@
 package graphql.kickstart.tools.resolver
 
+import com.fasterxml.jackson.annotation.ObjectIdGenerator
 import tools.jackson.core.JacksonException
 import tools.jackson.core.JsonGenerator
 import tools.jackson.core.JsonParser
@@ -55,7 +56,7 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
                 }
             } ?: throw e
             try {
-                read(embedded)
+                readWithNativeTypeIds(embedded)
             } catch (retryError: JacksonException) {
                 throw retryError.apply { addSuppressed(e) }
             }
@@ -83,6 +84,9 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private fun read(value: Any?): Any? = reader.readValue(bufferFailingOnEmptyBeans(value))
 
+    // append copies the empty buffer's support for native ids, so its parser reads the type ids embedded values are written with
+    private fun readWithNativeTypeIds(value: Any): Any? = reader.readValue(bufferFailingOnEmptyBeans(value).append(TokenBuffer(null, true)))
+
     private fun bufferFailingOnEmptyBeans(value: Any?): TokenBuffer = buffer(FailOnEmptyBeans(value))
 
     private fun buffer(value: Any?): TokenBuffer = writer.writeValueIntoBuffer(value).forceUseOfBigDecimal(useBigDecimalForFloats)
@@ -105,12 +109,28 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
             convertOnItsOwn(valueToConvert, targetType)
 
         // called for an embedded value read as a Map or JsonNode, e.g. a scalar without properties, which converts to {}
-        override fun handleUnexpectedToken(context: DeserializationContext, targetType: JavaType, t: JsonToken?, p: JsonParser, failureMsg: String?): Any? =
-            p.embeddedValue()?.let { convertOnItsOwn(it, targetType) } ?: NOT_HANDLED
+        override fun handleUnexpectedToken(context: DeserializationContext, targetType: JavaType, t: JsonToken?, p: JsonParser, failureMsg: String?): Any? {
+            val value = p.embeddedValue() ?: return NOT_HANDLED
+            return bindAsObjectId(context, value, targetType) ?: convertOnItsOwn(value, targetType)
+        }
 
         private fun JsonParser.embeddedValue(): Any? = if (hasToken(JsonToken.VALUE_EMBEDDED_OBJECT)) embeddedObject else null
 
         private fun convertOnItsOwn(value: Any, targetType: JavaType): Any? = mapper.readValue(buffer(value), targetType)
+
+        // the deserializer of a class with an object id reads an embedded value as the id of an object read before
+        private fun bindAsObjectId(context: DeserializationContext, value: Any, idType: JavaType): Any? {
+            val idReader = context.findRootValueDeserializer(context.constructType(value.javaClass)).getObjectIdReader(context)
+            if (idReader == null || idReader.idType != idType) {
+                return null
+            }
+            val generatorKey = idReader.generator.key(null)
+            val generator = context.getAttribute(generatorKey) as ObjectIdGenerator<*>?
+                ?: idReader.generator.newForSerialization(null).also { context.setAttribute(generatorKey, it) }
+            val id = generator.generateId(value)
+            context.findObjectId(id, idReader.generator, idReader.resolver).bindItem(context, value)
+            return id
+        }
     }
 
     // FAIL_ON_EMPTY_BEANS whatever the mapper says: a scalar class with no visible properties would otherwise be read back as
@@ -139,9 +159,8 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private class EmptyBeanCheck(gen: JsonGenerator, private val serializers: SerializationContext) : JsonGeneratorDelegate(gen, false) {
         override fun writeEndObject(): JsonGenerator {
-            val context = streamWriteContext()
-            val bean = context.currentValue()
-            if (context.entryCount == 0 && bean != null && hasNoProperties(bean.javaClass)) {
+            val bean = streamWriteContext().currentValue()
+            if (bean != null && hasNoProperties(bean.javaClass)) {
                 serializers.reportBadDefinition<Unit>(bean.javaClass, "No properties discovered to write ${bean.javaClass.name}")
             }
             return super.writeEndObject()
@@ -153,11 +172,15 @@ internal class ArgumentConverter(private val mapper: ObjectMapper, type: Type) {
 
     private class EmbeddedValue(private val value: Any) : JacksonSerializable {
         override fun serialize(gen: JsonGenerator, serializers: SerializationContext) {
+            val typeSerializer = serializers.findTypeSerializer(serializers.constructType(value.javaClass))
+            gen.writeTypeId(typeSerializer?.typeIdResolver?.idFromValue(serializers, value))
             gen.writeEmbeddedObject(value)
+            // a TokenBuffer gives the type id to every token after it until another one is written
+            gen.writeTypeId(null)
         }
 
         override fun serializeWithType(gen: JsonGenerator, serializers: SerializationContext, typeSer: TypeSerializer) {
-            gen.writeEmbeddedObject(value)
+            serialize(gen, serializers)
         }
     }
 }
