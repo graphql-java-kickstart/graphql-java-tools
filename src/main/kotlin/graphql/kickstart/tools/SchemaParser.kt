@@ -172,6 +172,8 @@ class SchemaParser internal constructor(
         val name = objectDefinition.name
         val extensions = typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name)
         val directives = sdlDirectives.directivesOf(objectDefinition, extensions)
+        val fieldDefinitions = objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
+        warnRepeatedFields(name, fieldDefinitions)
         val builder = GraphQLObjectType.newObject()
             .name(name)
             .definition(objectDefinition)
@@ -186,7 +188,7 @@ class SchemaParser internal constructor(
                 }
             }
             .apply {
-                objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { fieldDefinition ->
+                fieldDefinitions.forEach { fieldDefinition ->
                     field { field ->
                         createField(field, fieldDefinition, inputObjects)
                         codeRegistryBuilder.dataFetcher(
@@ -210,6 +212,8 @@ class SchemaParser internal constructor(
                                   inputObjectsInProgress: MutableSet<String>): GraphQLInputObjectType {
         val extensionDefinitions = typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(definition.name)
         val directives = sdlDirectives.directivesOf(definition, extensionDefinitions)
+        val fieldDefinitions = (extensionDefinitions + definition).flatMap { it.inputValueDefinitions }
+        warnRepeatedFields(definition.name, fieldDefinitions)
 
         inputObjectsInProgress.add(definition.name)
 
@@ -220,20 +224,18 @@ class SchemaParser internal constructor(
             .description(getDocumentation(definition, options))
             .withSdlDirectives(directives, INPUT_OBJECT)
             .apply {
-                (extensionDefinitions + definition).forEach { typeDefinition ->
-                    typeDefinition.inputValueDefinitions.forEach { fieldDefinition ->
-                        field(
-                            GraphQLInputObjectField.newInputObjectField()
-                                .name(fieldDefinition.name)
-                                .definition(fieldDefinition)
-                                .description(getDocumentation(fieldDefinition, options))
-                                .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
-                                .apply { sdlDirectives.getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
-                                .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
-                                .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
-                                .build()
-                        )
-                    }
+                fieldDefinitions.forEach { fieldDefinition ->
+                    field(
+                        GraphQLInputObjectField.newInputObjectField()
+                            .name(fieldDefinition.name)
+                            .definition(fieldDefinition)
+                            .description(getDocumentation(fieldDefinition, options))
+                            .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
+                            .apply { sdlDirectives.getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
+                            .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
+                            .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
+                            .build()
+                    )
                 }
             }
 
@@ -295,12 +297,7 @@ class SchemaParser internal constructor(
             .specifiedByUrl(getSpecifiedByUrl(directives) ?: provided.specifiedByUrl)
             // like graphql-java, only the schema's directives are applied
             .clearDirectives()
-        try {
-            builder.withSdlDirectives(directives, SCALAR)
-        } catch (e: SchemaError) {
-            // TODO throw instead in 15.0.0 (#893), like for the other types
-            log.warn("Scalar '$name' is built without its directives from the schema: ${e.message}")
-        }
+            .withSdlDirectives(directives, SCALAR)
 
         return builder.build()
     }
@@ -380,6 +377,16 @@ class SchemaParser internal constructor(
     private fun warnRepeated(typeName: String, kind: String, names: List<String?>) {
         names.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.forEach {
             log.warn("Type '$typeName' declares $kind '$it' more than once, only the first one is kept.")
+        }
+    }
+
+    // TODO throw a SchemaError instead in 15.0.0 (#865), like graphql-java does
+    private fun warnRepeatedFields(typeName: String, fieldDefinitions: List<NamedNode<*>>) {
+        fieldDefinitions.groupBy { it.name }.values.filter { it.size > 1 }.forEach { declarations ->
+            val kept = declarations.last()
+            val location = kept.sourceLocation.describe()
+            val which = if (location.isEmpty()) "one of them" else "the one$location"
+            log.warn("Type '$typeName' declares field '${kept.name}' more than once, only $which is kept.")
         }
     }
 

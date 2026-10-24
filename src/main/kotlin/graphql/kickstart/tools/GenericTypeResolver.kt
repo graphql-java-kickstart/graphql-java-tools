@@ -29,7 +29,7 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
      * - wildcards are replaced by their upper bound, e.g. `? extends Foo` becomes `Foo`
      * - primitives are replaced by their boxed class, e.g. `int` becomes `Integer`
      */
-    fun resolve(javaType: JavaType, onUnwrap: ((wrapped: ParameterizedType) -> Unit)? = null): JavaType {
+    fun resolve(javaType: JavaType, onUnwrap: ((SchemaParserOptions.GenericWrapper) -> Unit)? = null): JavaType {
         return when (val type = resolveTypeVariables(javaType)) {
             is ParameterizedType -> {
                 val rawType = type.rawType
@@ -41,7 +41,7 @@ internal class GenericTypeResolver(private val containingType: JavaType, private
                     throw IndexOutOfBoundsException("Generic type '${TypeUtils.toString(type)}' does not have a type argument at index ${wrapper.index}!")
                 }
 
-                onUnwrap?.invoke(type)
+                onUnwrap?.invoke(wrapper)
                 val unwrapsTo = wrapper.schemaWrapper.invoke(typeArguments[wrapper.index])
                 resolve(unwrapsTo, onUnwrap)
             }
