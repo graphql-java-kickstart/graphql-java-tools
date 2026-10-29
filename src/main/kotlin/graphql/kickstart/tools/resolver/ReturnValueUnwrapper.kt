@@ -88,20 +88,24 @@ private class DataOf(private val data: Step) : Step {
         }
 }
 
-private class ValueOf(private val present: Step) : Step {
-    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        if (value is Optional<*>) present.unwrap(value.orElse(null), environmentSupplier) else value
+private class ValueOf(private val present: Step?) : Step {
+    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? = when {
+        value !is Optional<*> -> value
+        present == null -> value.orElse(null)
+        else -> present.unwrap(value.orElse(null), environmentSupplier)
+    }
 }
 
 private val Unwrapped.Wrapper.isFuture
     get() = Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type)
 
 private fun steps(unwrapped: List<Unwrapped>, awaits: Awaitable, peels: Awaitable): Step? =
-    unwrapped.foldRight(null as Step?) { it, next ->
+    unwrapped.foldRightIndexed(null as Step?) { i, it, next ->
         when (it) {
             is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, awaits, next) else Peel(it.wrapper, peels, next)
             Unwrapped.Data -> next?.let(::DataOf)
-            Unwrapped.Present -> next?.let(::ValueOf)
+            // graphql-java reads a DataFetcherResult only as the value itself, never inside an Optional
+            Unwrapped.Present -> if (next != null || unwrapped.getOrNull(i + 1) == Unwrapped.Data) ValueOf(next) else null
             Unwrapped.Elements -> next?.let(::EachElement)
         }
     }

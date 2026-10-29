@@ -60,36 +60,36 @@ internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeD
         private fun unwrap(graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean, unwrapped: MutableList<Unwrapped>): Unwrapping {
             val onUnwrap = { wrapper: GenericWrapper -> unwrapped += Unwrapped.Wrapper(wrapper) }
             var realType = typeResolver.resolve(javaType, onUnwrap)
-
-            if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
-                if (location != Location.RETURN_TYPE) {
-                    throw error("${DataFetcherResult::class.java.name} can only be used as a return type")
-                }
-
-                unwrapped += Unwrapped.Data
-                realType = typeResolver.resolve(realType.actualTypeArguments.first(), onUnwrap)
-
-                if (realType is ParameterizedType && realType.isSubtypeOf(DataFetcherResult::class.java)) {
-                    throw error("${DataFetcherResult::class.java.name} cannot be nested within itself")
-                }
-            }
-
+            var data = false
             var optional = false
 
-            // Handle jdk8 Optionals
-            if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
-                optional = true
+            while (realType is ParameterizedType) {
+                when {
+                    realType.isSubtypeOf(DataFetcherResult::class.java) -> {
+                        if (location != Location.RETURN_TYPE) {
+                            throw error("${DataFetcherResult::class.java.name} can only be used as a return type")
+                        }
+                        if (data) {
+                            throw error("${DataFetcherResult::class.java.name} cannot be nested within itself")
+                        }
+                        data = true
+                        unwrapped += Unwrapped.Data
+                    }
 
-                if (location == Location.RETURN_TYPE && !root) {
-                    throw error("${Optional::class.java.name} can only be used at the top level of a return type")
+                    realType.isSubtypeOf(Optional::class.java) -> {
+                        if (location == Location.RETURN_TYPE && !root) {
+                            throw error("${Optional::class.java.name} can only be used at the top level of a return type")
+                        }
+                        if (optional) {
+                            throw error("${Optional::class.java.name} cannot be nested within itself")
+                        }
+                        optional = true
+                        unwrapped += Unwrapped.Present
+                    }
+
+                    else -> break
                 }
-
-                unwrapped += Unwrapped.Present
                 realType = typeResolver.resolve(realType.actualTypeArguments.first(), onUnwrap)
-
-                if (realType is ParameterizedType && realType.isSubtypeOf(Optional::class.java)) {
-                    throw error("${Optional::class.java.name} cannot be nested within itself")
-                }
             }
 
             // Match graphql type to java type.

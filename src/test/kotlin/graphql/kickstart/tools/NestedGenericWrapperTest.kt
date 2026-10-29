@@ -94,6 +94,25 @@ class NestedGenericWrapperTest {
     fun `unwraps wrappers in a list in an Optional`() = assertResolves("optionalListOfWrapped", ab)
 
     @Test
+    fun `resolves a DataFetcherResult in an Optional and keeps its errors`() {
+        val result = execute("optionalResult")
+
+        assertEquals(result.errors.map { it.message }, listOf("partial"))
+        assertEquals(result.getData(), mapOf("optionalResult" to mapOf("data" to "a")))
+    }
+
+    @Test
+    fun `resolves an empty Optional of a DataFetcherResult to null`() = assertResolves("emptyOptionalResult", null)
+
+    @Test
+    fun `unwraps wrappers in a list in a DataFetcherResult in an Optional and keeps its errors`() {
+        val result = execute("optionalResultOfListOfWrapped")
+
+        assertEquals(result.errors.map { it.message }, listOf("partial"))
+        assertEquals(result.getData(), mapOf("optionalResultOfListOfWrapped" to ab))
+    }
+
+    @Test
     fun `unwraps wrappers in a list from a suspend function`() = assertResolves("suspendListOfWrapped", ab)
 
     @Test
@@ -178,6 +197,7 @@ class NestedGenericWrapperTest {
         assertSame(fetch(schema, "plainList"), query.plainList)
         assertSame(fetch(schema, "futureOfList"), query.futureOfList)
         assertSame(fetch(schema, "wrappedFuture"), query.wrappedFuture.get())
+        assertSame(fetch(schema, "optionalPayload"), query.optionalPayload)
     }
 
     @Test
@@ -202,18 +222,22 @@ class NestedGenericWrapperTest {
         val shapes = (1..4).fold(listOf(listOf<Class<*>>())) { shapes, _ -> shapes + shapes.filter { it.size == shapes.last().size }.flatMap { shape -> containers.map { shape + it } } }
 
         val accepted = graphQLTypes.flatMap { graphQLType ->
-            shapes.flatMap { shape -> listOf(false, true).map { shape to javaType(shape, leaf(graphQLType).javaClass, wildcardElements = it) } }.mapNotNull { (shape, javaType) ->
+            val shapesOfTheSameListDepth = shapes.filter { shape -> shape.count { it == List::class.java || it == Page::class.java } == graphQLType.listDepth() }
+            shapesOfTheSameListDepth.flatMap { shape -> listOf(false, true).map { shape to javaType(shape, leaf(graphQLType).javaClass, wildcardElements = it) } }.mapNotNull { (shape, javaType) ->
                 val potentialMatch = TypeClassMatcher.PotentialMatch.returnValue(graphQLType, javaType, typeResolver, ScanDictionary.ReturnValueReference(method))
-                val match = try {
+                try {
                     matcher.match(potentialMatch)
+                    shape to potentialMatch
                 } catch (e: SchemaClassScannerError) {
                     null
                 }
-                (shape to potentialMatch).takeIf { match != null && potentialMatch.unwrapping.javaType == leaf(graphQLType).javaClass }
             }
         }
         val failures = accepted.mapNotNull { (shape, potentialMatch) ->
             val graphQLType = potentialMatch.graphQLType
+            if (potentialMatch.unwrapping.javaType != leaf(graphQLType).javaClass) {
+                return@mapNotNull "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: bound to ${TypeUtils.toString(potentialMatch.unwrapping.javaType)}"
+            }
             val unwrapper = ReturnValueUnwrapper.create(
                 method, potentialMatch.unwrapping, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), isSuspendFunction = false, isSubscription = false, options.genericWrappers
             )
@@ -230,6 +254,38 @@ class NestedGenericWrapperTest {
 
         assertTrue(accepted.count { (_, potentialMatch) -> leaf(potentialMatch.graphQLType) is FutureLeaf } > graphQLTypes.size)
         assertEquals(failures, listOf<String>())
+    }
+
+    @Test
+    fun `rejects a DataFetcherResult or an Optional twice in one value`() {
+        val typeResolver = GenericTypeResolver(Query::class.java, SchemaParserOptions.newOptions().build())
+        val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload")))
+        val method = Query::class.java.getMethod("listOfWrapped")
+        val result = DataFetcherResult::class.java
+        val optional = Optional::class.java
+        val rejections = listOf(
+            listOf(optional, result, result) to "${result.name} cannot be nested within itself",
+            listOf(result, optional, result) to "${result.name} cannot be nested within itself",
+            listOf(optional, result, optional) to "${optional.name} cannot be nested within itself",
+        )
+
+        val messages = rejections.map { (shape, _) ->
+            val potentialMatch = TypeClassMatcher.PotentialMatch.returnValue(TypeName("Payload"), javaType(shape, Payload::class.java, wildcardElements = false), typeResolver, ScanDictionary.ReturnValueReference(method))
+            try {
+                matcher.match(potentialMatch)
+                "accepted"
+            } catch (e: SchemaClassScannerError) {
+                e.message.orEmpty().substringAfterLast("): ")
+            }
+        }
+
+        assertEquals(messages, rejections.map { it.second })
+    }
+
+    private fun Type<*>.listDepth(): Int = when (this) {
+        is ListType -> 1 + type.listDepth()
+        is NonNullType -> type.listDepth()
+        else -> 0
     }
 
     private fun leaf(graphQLType: Type<*>): Any = if (graphQLType.unwrap().name == "Leaf") FutureLeaf("a") else Payload("a")
@@ -284,6 +340,10 @@ class NestedGenericWrapperTest {
                 pageOfWrapped: [Payload!]!
                 resultOfListOfWrapped: [Payload!]!
                 listOfResultsOfWrapped: [Payload!]!
+                optionalResult: Payload
+                emptyOptionalResult: Payload
+                optionalResultOfListOfWrapped: [Payload!]
+                optionalPayload: Payload
                 optionalListOfWrapped: [Payload!]
                 suspendListOfWrapped: [Payload!]!
                 suspendListOfFutures: [Payload!]!
@@ -387,6 +447,7 @@ class NestedGenericWrapperTest {
         val plainList = listOf(Payload("a"))
         val futureOfList: CompletableFuture<List<Payload>> = completedFuture(plainList)
         val wrappedFuture: Try<CompletableFuture<Payload>> = Try.success(completedFuture(Payload("a")))
+        val optionalPayload: Optional<Payload> = Optional.of(Payload("a"))
 
         private fun <T : Any> result(data: T, vararg errors: GraphQLError): DataFetcherResult<T> = DataFetcherResult.newResult<T>().data(data).errors(errors.toList()).build()
 
@@ -406,6 +467,9 @@ class NestedGenericWrapperTest {
         fun resultOfListOfWrapped(): DataFetcherResult<List<Try<Payload>>> = result(listOfWrapped(), GraphQLError.newError().message("partial").build())
         fun listOfResultsOfWrapped(): List<DataFetcherResult<Try<Payload>>> = listOfWrapped().map { result(it) }
         fun optionalListOfWrapped(): Optional<List<Try<Payload>>> = Optional.of(listOfWrapped())
+        fun optionalResult(): Optional<DataFetcherResult<Payload>> = Optional.of(result(Payload("a"), GraphQLError.newError().message("partial").build()))
+        fun emptyOptionalResult(): Optional<DataFetcherResult<Payload>> = Optional.empty()
+        fun optionalResultOfListOfWrapped(): Optional<DataFetcherResult<List<Try<Payload>>>> = Optional.of(resultOfListOfWrapped())
         suspend fun suspendListOfWrapped(): List<Try<Payload>> = listOfWrapped()
         suspend fun suspendListOfFutures(): List<CompletableFuture<Payload>> = listOfFutures()
         suspend fun suspendNullableListOfFutures(): List<CompletableFuture<Payload>> = listOfFutures()
