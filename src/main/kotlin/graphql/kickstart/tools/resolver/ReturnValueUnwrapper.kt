@@ -88,23 +88,29 @@ private class DataOf(private val data: Step) : Step {
         }
 }
 
-private class ValueOf(private val present: Step) : Step {
-    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
-        if (value is Optional<*>) present.unwrap(value.orElse(null), environmentSupplier) else value
+private class ValueOf(private val present: Step?) : Step {
+    override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? = when {
+        value !is Optional<*> -> value
+        present == null -> value.orElse(null)
+        else -> present.unwrap(value.orElse(null), environmentSupplier)
+    }
 }
 
 private val Unwrapped.Wrapper.isFuture
     get() = Future::class.java.isAssignableFrom(wrapper.type) || CompletionStage::class.java.isAssignableFrom(wrapper.type)
 
-private fun steps(unwrapped: List<Unwrapped>, awaits: Awaitable, peels: Awaitable): Step? =
-    unwrapped.foldRight(null as Step?) { it, next ->
-        when (it) {
-            is Unwrapped.Wrapper -> if (it.isFuture) Await(it.wrapper, awaits, next) else Peel(it.wrapper, peels, next)
-            Unwrapped.Data -> next?.let(::DataOf)
-            Unwrapped.Present -> next?.let(::ValueOf)
-            Unwrapped.Elements -> next?.let(::EachElement)
-        }
+private fun steps(unwrapped: List<Unwrapped>, awaits: Awaitable, peels: Awaitable): Step? {
+    val outermost = unwrapped.firstOrNull() ?: return null
+    val inner = unwrapped.subList(1, unwrapped.size)
+    val next = steps(inner, awaits, peels)
+    return when (outermost) {
+        is Unwrapped.Wrapper -> if (outermost.isFuture) Await(outermost.wrapper, awaits, next) else Peel(outermost.wrapper, peels, next)
+        Unwrapped.Data -> next?.let(::DataOf)
+        // graphql-java reads a DataFetcherResult and then an Optional in its data, so an Optional around one is ours to unwrap
+        Unwrapped.Present -> if (next != null || inner.firstOrNull() == Unwrapped.Data) ValueOf(next) else null
+        Unwrapped.Elements -> next?.let(::EachElement)
     }
+}
 
 private fun Any?.thenUnlessNextAwaits(next: Step?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
     if (next is Await) next.unwrap(this, environmentSupplier) else then(next, environmentSupplier)
