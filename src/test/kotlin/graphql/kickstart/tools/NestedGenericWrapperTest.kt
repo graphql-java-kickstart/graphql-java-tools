@@ -43,6 +43,7 @@ import org.junit.Test
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 import java.util.concurrent.FutureTask
 
@@ -170,6 +171,19 @@ class NestedGenericWrapperTest {
 
     @Test
     fun `hands a future graphql-java can't wait on to its own wrapper`() = assertResolves("listOfWrappedPending", ab)
+
+    @Test
+    fun `waits on a future in a wrapper whose transformer returns a future`() = assertResolves("promisedFuture", mapOf("data" to "a"))
+
+    @Test
+    fun `waits on a scalar future in a wrapper whose transformer returns a future`() = assertResolves("promisedString", "a", selection = "")
+
+    @Test
+    fun `waits on futures in wrappers whose transformer returns a future in a list`() = assertResolves("listOfPromisedFutures", ab)
+
+    @Test
+    fun `resolves a union member that implements Future in a list of wrappers whose transformer returns a future`() =
+        assertResolves("listOfPromisedItems", ab, selection = "{ ... on Payload { data } ... on FutureItem { data } }")
 
     @Test
     fun `unwraps the wrappers a schemaWrapper introduces`() = assertResolves("batchOfPayloads", ab)
@@ -368,6 +382,10 @@ class NestedGenericWrapperTest {
                 plainList: [Payload!]!
                 futureOfList: [Payload!]!
                 wrappedFuture: Payload!
+                promisedFuture: Payload!
+                promisedString: String
+                listOfPromisedFutures: [Payload!]!
+                listOfPromisedItems: [Item!]!
                 ${if (scalars.isEmpty()) "" else "json: [JSON] futureJson: JSON jsonFutures: [JSON] wrappedJsonOfAny: [JSON]"}
             }
 
@@ -386,7 +404,7 @@ class NestedGenericWrapperTest {
         .resolvers(query)
         .dictionary(FutureItem::class)
         .scalars(*scalars)
-        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper, laterWrapper, pendingWrapper).build())
+        .options(SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper, batchWrapper, boxWrapper, specialBoxWrapper, laterWrapper, pendingWrapper, promisedWrapper).build())
         .build()
         .makeExecutableSchema()
 
@@ -496,6 +514,10 @@ class NestedGenericWrapperTest {
         fun wrappedJsonOfAny(): List<Try<Any>> = listOf(Try.success(FutureLeaf("f")))
         fun batchOfPayloads(): Batch<Payload> = Batch(listOfFutures())
         fun listOfBoxes(): List<Box<Payload>> = listOf(Box(Payload("a")), SpecialBox(Payload("b")))
+        fun promisedFuture(): Promised<CompletableFuture<Payload>> = Promised(CompletableFuture.supplyAsync { completedFuture(Payload("a")) })
+        fun promisedString(): Promised<CompletionStage<String>> = Promised(CompletableFuture.supplyAsync { completedFuture("a") })
+        fun listOfPromisedFutures(): List<Promised<CompletableFuture<Payload>>> = listOfFutures().map { Promised(CompletableFuture.supplyAsync { it }) }
+        fun listOfPromisedItems(): List<Promised<Any>> = listOf(Promised(completedFuture(Payload("a"))), Promised(CompletableFuture.supplyAsync { FutureItem("b") }))
     }
 
     class Batch<T>(val items: List<CompletableFuture<T>>)
@@ -508,6 +530,8 @@ class NestedGenericWrapperTest {
 
     class Pending<T>(val value: T) : Future<T> by completedFuture(value)
 
+    class Promised<T>(val future: CompletableFuture<T>)
+
     companion object {
         private val tryWrapper = GenericWrapper.withTransformer(Try::class, 0, { wrapper -> wrapper.get() })
         private val pageWrapper = GenericWrapper.listCollectionWithTransformer(Page::class, 0, { page -> page.content })
@@ -518,6 +542,7 @@ class NestedGenericWrapperTest {
         private val specialBoxWrapper = GenericWrapper.withTransformer(SpecialBox::class, 0, { _ -> throw IllegalStateException("picked by the value's class") })
         private val laterWrapper = GenericWrapper.withTransformer(Later::class, 0, { later -> FutureTask { later.value }.apply { run() } })
         private val pendingWrapper = GenericWrapper.withTransformer(Pending::class, 0, { pending -> completedFuture(pending.value) })
+        private val promisedWrapper = GenericWrapper.withCompletionStageTransformer(Promised::class, 0, Promised<*>::future)
         private val payloadType = GraphQLObjectType.newObject()
             .name("Payload")
             .field(GraphQLFieldDefinition.newFieldDefinition().name("data").type(GraphQLNonNull.nonNull(Scalars.GraphQLString)))

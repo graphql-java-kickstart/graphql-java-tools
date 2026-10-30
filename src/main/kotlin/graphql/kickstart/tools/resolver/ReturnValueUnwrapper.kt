@@ -23,8 +23,14 @@ internal class ReturnValueUnwrapper private constructor(
 ) {
 
     fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
-        val unwrapped = awaitable.requireOutermost(value.transformWithGenericWrapper(genericWrappers, environmentSupplier))
-        return if (isOutermostFuture) unwrapped.then(nested, environmentSupplier) else unwrapped.thenUnlessNextAwaits(nested, environmentSupplier)
+        val wrapper = genericWrappers.wrapperOf(value)
+        val transformed = if (wrapper == null) value else wrapper.transformer(value, environmentSupplier.get())
+        val unwrapped = awaitable.requireOutermost(transformed)
+        return if (isOutermostFuture || wrapper?.transformerReturnsCompletionStage == true) {
+            unwrapped.then(nested, environmentSupplier)
+        } else {
+            unwrapped.thenUnlessNextAwaits(nested, environmentSupplier)
+        }
     }
 
     suspend fun unwrapSuspending(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
@@ -69,7 +75,11 @@ private class Await(private val wrapper: GenericWrapper, private val awaitable: 
 private class Peel(private val wrapper: GenericWrapper, private val awaitable: Awaitable, private val next: Step?) : Step {
     override fun unwrap(value: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         val transformed = value?.let { wrapper.transformer(it, environmentSupplier.get()) }
-        return if (next is Await) next.unwrap(transformed, environmentSupplier) else awaitable.requireNested(transformed).then(next, environmentSupplier)
+        return if (next is Await && !wrapper.transformerReturnsCompletionStage) {
+            next.unwrap(transformed, environmentSupplier)
+        } else {
+            awaitable.requireNested(transformed).then(next, environmentSupplier)
+        }
     }
 }
 
@@ -133,24 +143,16 @@ private fun List<Any?>.awaitAll(): Any {
 private fun Any?.asCompletionStage(): CompletionStage<Any?> =
     this as? CompletionStage<Any?> ?: CompletableFuture.completedFuture(this)
 
-private fun Any.transformWithGenericWrapper(
-    genericWrappers: List<GenericWrapper>,
-    environmentSupplier: Supplier<DataFetchingEnvironment>
-): Any? {
+private fun List<GenericWrapper>.wrapperOf(value: Any): GenericWrapper? {
     // the JIT doesn't optimize away the sequence below on this call path, so values that aren't wrappers, which is
     // most of them, return before it's allocated
-    if (genericWrappers.none { it.type.isInstance(this) }) {
-        return this
+    if (none { it.type.isInstance(value) }) {
+        return null
     }
-    val genericWrapper = genericWrappers
-        .asSequence()
-        .filter { it.type.isInstance(this) }
+    return asSequence()
+        .filter { it.type.isInstance(value) }
         .sortedWith(CompareGenericWrappers)
         .firstOrNull()
-        ?: return this
-
-    // returned as is, even if null, so a transformer can map a value to null
-    return genericWrapper.transformer(this, environmentSupplier.get())
 }
 
 // graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
