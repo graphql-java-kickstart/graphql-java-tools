@@ -231,6 +231,9 @@ data class SchemaParserOptions internal constructor(
         constructor(type: Class<*>, index: Int) : this(type, index, { x, _ -> x })
         constructor(type: KClass<*>, index: Int) : this(type.java, index, { x, _ -> x })
 
+        internal val transformerReturnsCompletionStage
+            get() = transformer is CompletionStageTransformer<*>
+
         companion object {
             @Suppress("UNCHECKED_CAST")
             @JvmStatic
@@ -289,6 +292,34 @@ data class SchemaParserOptions internal constructor(
             ): GenericWrapper where T : Any {
                 return listCollectionWithTransformer(type.java, index, transformer)
             }
+
+            /**
+             * A wrapper whose [transformer] returns a future of its content, such as Reactor's `Mono::toFuture`. Unlike
+             * [withTransformer], a future declared as the content, as in `Mono<CompletableFuture<Item>>`, is then waited on too.
+             */
+            @JvmStatic
+            fun <T> withCompletionStageTransformer(
+                type: Class<T>,
+                index: Int,
+                transformer: (T) -> CompletionStage<*>?
+            ): GenericWrapper where T : Any {
+                return GenericWrapper(type, index, CompletionStageTransformer(type, transformer))
+            }
+
+            fun <T> withCompletionStageTransformer(
+                type: KClass<T>,
+                index: Int,
+                transformer: (T) -> CompletionStage<*>?
+            ): GenericWrapper where T : Any {
+                return withCompletionStageTransformer(type.java, index, transformer)
+            }
         }
     }
+}
+
+private class CompletionStageTransformer<T : Any>(
+    private val type: Class<T>,
+    private val transformer: (T) -> CompletionStage<*>?
+) : (Any, DataFetchingEnvironment) -> Any? {
+    override fun invoke(value: Any, environment: DataFetchingEnvironment): Any? = transformer(type.cast(value))
 }
