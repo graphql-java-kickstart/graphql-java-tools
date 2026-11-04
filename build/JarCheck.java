@@ -59,7 +59,7 @@ public class JarCheck {
         });
 
         if (descriptor == null) {
-            problems.add("The jar has no module-info.class.");
+            problems.add("The jar has no module-info.class. Keep src/main/kotlin/module-info.java, which maven-compiler-plugin compiles into the jar.");
         } else {
             List<Path> modulePath = new ArrayList<>();
             modulePath.add(jar);

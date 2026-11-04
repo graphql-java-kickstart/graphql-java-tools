@@ -281,28 +281,37 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Ant's <fail> puts the jar check's reason in Maven's last error line, where exec-maven-plugin prints a stack trace -->
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.6.4</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
                 <executions>
                     <execution>
                         <id>check-jar</id>
                         <phase>verify</phase>
                         <goals>
-                            <goal>exec</goal>
+                            <goal>run</goal>
                         </goals>
                         <configuration>
-                            <executable>${java.home}/bin/java</executable>
-                            <classpathScope>runtime</classpathScope>
-                            <arguments>
-                                <argument>${project.basedir}/build/JarCheck.java</argument>
-                                <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
-                                <argument>${java.version}</argument>
-                                <classpath/>
-                                <argument>graphql.kickstart.tools.SchemaParser</argument>
-                                <argument>graphql.kickstart.tools.proxy.GuiceAopProxyHandler</argument>
-                            </arguments>
+                            <target>
+                                <property name="runtime.classpath" refid="maven.runtime.classpath"/>
+                                <java sourcefile="${project.basedir}/build/JarCheck.java" fork="true" resultproperty="jar-check.result"
+                                      errorproperty="jar-check.error">
+                                    <arg value="${project.build.directory}/${project.build.finalName}.jar"/>
+                                    <arg value="${java.version}"/>
+                                    <arg value="${runtime.classpath}"/>
+                                    <arg value="graphql.kickstart.tools.SchemaParser"/>
+                                    <arg value="graphql.kickstart.tools.proxy.GuiceAopProxyHandler"/>
+                                </java>
+                                <fail message="${jar-check.error}">
+                                    <condition>
+                                        <not>
+                                            <equals arg1="${jar-check.result}" arg2="0"/>
+                                        </not>
+                                    </condition>
+                                </fail>
+                            </target>
                         </configuration>
                     </execution>
                 </executions>
@@ -315,7 +324,10 @@
                 <configuration>
                     <parameter>
                         <oldVersionPattern>\d+\.\d+\.\d+</oldVersionPattern>
+                        <ignoreMissingOldVersion>false</ignoreMissingOldVersion>
                         <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                        <!-- The script keeps the synthetic members compiled Kotlin callers link to and drops the rest -->
+                        <includeSynthetic>true</includeSynthetic>
                         <onlyModified>true</onlyModified>
                         <!-- Otherwise every changed @kotlin.Metadata shows up in the report -->
                         <noAnnotations>true</noAnnotations>
