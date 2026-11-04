@@ -24,9 +24,9 @@ Machine-specific Maven JVM flags go in `.mvn/jvm.config` and personal agent rule
 
 ## Verifying
 
-Run the `verify-tools` skill (`.claude/skills/verify-tools/SKILL.md`) before you push any change to how the schema is built,
-refactors and new or changed warnings included. `mvn verify` runs the library's own tests. The probe builds a schema
-through the public API only, the way an app does. Bugfixes and small features stop at this skill.
+Run the `verify-tools` skill (`.claude/skills/verify-tools/SKILL.md`) before you push any change to how the schema is built.
+`mvn verify` runs the library's own tests. The probe builds a schema through the public API only, the way an app does.
+Bugfixes and small features stop at this skill.
 
 ## Compatibility
 
