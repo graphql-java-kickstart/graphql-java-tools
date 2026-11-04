@@ -25,18 +25,26 @@ data class CaseKey(val scenario: String, val operator: String, val snippet: Stri
     override fun toString() = listOf(scenario, operator, snippet).filter { it.isNotEmpty() }.joinToString(" | ")
 }
 
-class Variant(val key: CaseKey, val build: () -> Unit)
+/**
+ * [warnNames] is what a release's WARN has to name to count as a warning about this case: one name out of each set. Seed
+ * and proxy cases have none, because only their error says what broke.
+ */
+class Variant(val key: CaseKey, val warnNames: List<Set<String>>, val build: () -> Unit)
 
 fun variants(scenario: Scenario): List<Variant> {
-    fun variant(operator: String, snippet: String = "", resolvers: () -> List<GraphQLResolver<*>> = { scenario.resolvers }) =
-        Variant(CaseKey(scenario.name, operator, snippet)) {
-            val builder = scenario.parser(resolvers())
-            if (snippet.isNotEmpty()) builder.schemaString(snippet)
-            scenario.schema(builder.build())
-        }
+    fun variant(
+        operator: String,
+        snippet: String = "",
+        warnNames: List<Set<String>> = emptyList(),
+        resolvers: () -> List<GraphQLResolver<*>> = { scenario.resolvers }
+    ) = Variant(CaseKey(scenario.name, operator, snippet), warnNames) {
+        val builder = scenario.parser(resolvers())
+        if (snippet.isNotEmpty()) builder.schemaString(snippet)
+        scenario.schema(builder.build())
+    }
 
     return listOf(variant("seed"), variant("proxy") { scenario.resolvers.map { ProxyFactory(it).proxy as GraphQLResolver<*> } }) +
-        snippets(scenario).map { (operator, snippet) -> variant(operator, snippet) }
+        snippets(scenario).map { (key, warnNames) -> variant(key.first, key.second, warnNames) }
 }
 
 private val KINDS: Map<Class<*>, String> = mapOf(
@@ -52,50 +60,59 @@ private val LOCATIONS = mapOf("type" to "OBJECT", "interface" to "INTERFACE", "i
 
 private val SPECIFIED_BY = Parser().parseDocument("directive @specifiedBy(url: String!) on SCALAR").definitions.single() as DirectiveDefinition
 
-private fun snippets(scenario: Scenario): Set<Pair<String, String>> {
+private fun snippets(scenario: Scenario): Map<Pair<String, String>, List<Set<String>>> {
     val sdl = scenario.files.joinToString("\n") { Scenario::class.java.classLoader.getResource(it)!!.readText() }
     val definitions = Parser().parseDocument(sdl).definitions
     val types = definitions.filterIsInstance<TypeDefinition<*>>().filter { it.javaClass in KINDS }
     val directives = definitions.filterIsInstance<DirectiveDefinition>() + SPECIFIED_BY
     val objectNames = types.filterIsInstance<ObjectTypeDefinition>().map { it.name } - setOf("Query", "Mutation", "Subscription")
-    val snippets = LinkedHashSet<Pair<String, String>>()
+    val snippets = LinkedHashMap<Pair<String, String>, List<Set<String>>>()
 
     for (type in types) {
         val kind = KINDS.getValue(type.javaClass)
+        fun add(operator: String, snippet: String, vararg warnNames: Set<String>) = snippets.putIfAbsent(operator to snippet, warnNames.toList())
+        // a WARN about a directive in an extension may point at the application instead of naming the type
+        fun addDirective(operator: String, directive: String, applications: String) {
+            val snippet = "extend $kind ${type.name} $applications"
+            val positions = Regex("@$directive\\b").findAll(snippet).map { "line 1, column ${it.range.first + 1}" }
+            add(operator, snippet, setOf(directive), setOf(type.name) + positions)
+        }
+
         for (other in KINDS.values - kind) {
             when (other) {
                 "enum" -> "extend enum ${type.name} { COMPAT_Z }"
                 "union" -> objectNames.firstOrNull { it != type.name }?.let { "extend union ${type.name} = $it" }
                 "scalar" -> "extend scalar ${type.name} @specifiedBy(url: \"https://example.com\")"
                 else -> "extend $other ${type.name} { compatZ: String }"
-            }?.let { snippets += "kind" to it }
+            }?.let { add("kind", it, setOf(type.name)) }
         }
-        snippets += "undeclared" to "extend $kind ${type.name} @compatUndeclared"
-        firstMember(type)?.let { snippets += "repeat" to "extend $kind ${type.name} $it" }
+        addDirective("undeclared", "compatUndeclared", "@compatUndeclared")
+        firstMember(type)?.let { (name, member) -> add("repeat", "extend $kind ${type.name} $member", setOf(type.name), setOf(name)) }
         for (directive in directives) {
+            val name = directive.name
             if (LOCATIONS.getValue(kind) !in directive.directiveLocations.map { it.name }) {
-                snippets += "location" to "extend $kind ${type.name} @${directive.name}"
+                addDirective("location", name, "@$name")
                 continue
             }
             for (argument in directive.inputValueDefinitions) {
                 for (literal in wrongLiterals(argument.type)) {
-                    snippets += "argval" to "extend $kind ${type.name} @${directive.name}(${argument.name}: $literal)"
+                    addDirective("argval", name, "@$name(${argument.name}: $literal)")
                 }
             }
             if (!directive.isRepeatable && directive.inputValueDefinitions.none { it.type is NonNullType && it.defaultValue == null }) {
-                snippets += "repeat-directive" to "extend $kind ${type.name} @${directive.name} @${directive.name}"
+                addDirective("repeat-directive", name, "@$name @$name")
             }
         }
     }
     return snippets
 }
 
-private fun firstMember(type: TypeDefinition<*>): String? = when (type) {
-    is EnumTypeDefinition -> type.enumValueDefinitions.firstOrNull()?.let { "{ ${it.name} }" }
-    is UnionTypeDefinition -> type.memberTypes.firstOrNull()?.let { "= ${(it as TypeName).name}" }
-    is ObjectTypeDefinition -> type.fieldDefinitions.firstOrNull()?.let { "{ ${AstPrinter.printAst(it).oneLine()} }" }
-    is InterfaceTypeDefinition -> type.fieldDefinitions.firstOrNull()?.let { "{ ${AstPrinter.printAst(it).oneLine()} }" }
-    is InputObjectTypeDefinition -> type.inputValueDefinitions.firstOrNull()?.let { "{ ${AstPrinter.printAst(it).oneLine()} }" }
+private fun firstMember(type: TypeDefinition<*>): Pair<String, String>? = when (type) {
+    is EnumTypeDefinition -> type.enumValueDefinitions.firstOrNull()?.let { it.name to "{ ${it.name} }" }
+    is UnionTypeDefinition -> type.memberTypes.firstOrNull()?.let { (it as TypeName).name!! to "= ${it.name}" }
+    is ObjectTypeDefinition -> type.fieldDefinitions.firstOrNull()?.let { it.name to "{ ${AstPrinter.printAst(it).oneLine()} }" }
+    is InterfaceTypeDefinition -> type.fieldDefinitions.firstOrNull()?.let { it.name to "{ ${AstPrinter.printAst(it).oneLine()} }" }
+    is InputObjectTypeDefinition -> type.inputValueDefinitions.firstOrNull()?.let { it.name to "{ ${AstPrinter.printAst(it).oneLine()} }" }
     else -> null
 }
 
