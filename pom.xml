@@ -20,6 +20,7 @@
         <graphql-java.version>26.1</graphql-java.version>
         <reactive-streams.version>1.0.4</reactive-streams.version>
 
+        <failIfNoTests>true</failIfNoTests>
         <useReleaseProfile>false</useReleaseProfile>
         <project.scm.id>github</project.scm.id>
     </properties>
@@ -245,7 +246,6 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.6.1</version>
                 <configuration>
-                    <failIfNoTests>true</failIfNoTests>
                     <includes>
                         <include>**/*</include>
                     </includes>
