@@ -1,0 +1,10 @@
+query {
+    search {
+        __typename
+        ... on Article { title }
+        ... on Video { seconds }
+    }
+    colors
+    shades
+    count(filter: { term: "launched", limit: 5 })
+}

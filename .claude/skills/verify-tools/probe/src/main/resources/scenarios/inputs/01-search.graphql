@@ -1,0 +1,4 @@
+query Search {
+    defaults: search(term: "dune")
+    explicit: search(term: "dune", limit: 2, genres: [SCIENCE, HISTORY])
+}

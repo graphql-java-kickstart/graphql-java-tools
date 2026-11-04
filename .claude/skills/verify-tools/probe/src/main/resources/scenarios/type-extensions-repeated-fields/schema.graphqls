@@ -1,0 +1,72 @@
+type Query {
+    typeAndExtension: TypeAndExtension
+    twoExtensions: TwoExtensions
+    oneDefinition: OneDefinition
+    echo(
+        typeAndExtension: InputTypeAndExtension
+        twoExtensions: InputTwoExtensions
+        oneDefinition: InputOneDefinition
+    ): String
+}
+
+type TypeAndExtension {
+    "From the type"
+    name: String
+}
+
+extend type TypeAndExtension {
+    "From the extension"
+    name: String
+}
+
+type TwoExtensions {
+    id: ID
+}
+
+extend type TwoExtensions {
+    "From the first extension"
+    name: String
+}
+
+extend type TwoExtensions {
+    "From the second extension"
+    name: String
+}
+
+type OneDefinition {
+    "The first"
+    name: String
+    "The second"
+    name: String
+}
+
+input InputTypeAndExtension {
+    "From the type"
+    id: ID
+}
+
+extend input InputTypeAndExtension {
+    "From the extension"
+    id: ID
+}
+
+input InputTwoExtensions {
+    term: String
+}
+
+extend input InputTwoExtensions {
+    "From the first extension"
+    id: ID
+}
+
+extend input InputTwoExtensions {
+    "From the second extension"
+    id: ID
+}
+
+input InputOneDefinition {
+    "The first"
+    id: ID
+    "The second"
+    id: ID
+}

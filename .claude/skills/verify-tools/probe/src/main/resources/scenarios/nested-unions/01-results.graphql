@@ -1,0 +1,9 @@
+query Results {
+    results {
+        __typename
+        ... on Book { title }
+        ... on Media {
+            ... on Movie { title }
+        }
+    }
+}

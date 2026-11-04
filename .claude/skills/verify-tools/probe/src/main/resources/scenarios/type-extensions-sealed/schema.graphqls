@@ -1,0 +1,30 @@
+type Query {
+    pets: [Pet!]!
+    animals: [Animal!]!
+}
+
+union Pet = Dog
+
+extend union Pet = Cat
+
+type Dog {
+    name: String
+}
+
+type Cat {
+    lives: Int
+}
+
+interface Animal {
+    name: String
+}
+
+type Cow implements Animal {
+    name: String
+}
+
+type Horse {
+    name: String
+}
+
+extend type Horse implements Animal

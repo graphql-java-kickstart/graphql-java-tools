@@ -1,0 +1,41 @@
+package scenarios
+
+import graphql.kickstart.tools.GraphQLMutationResolver
+import graphql.kickstart.tools.GraphQLQueryResolver
+import graphql.kickstart.tools.SchemaParser
+
+/**
+ * Builds the schema with `parseSchemaObjects().toReadOnlySchema()` instead of `makeExecutableSchema()`, so the mutation
+ * type is left out. Covers an interface, a union, a custom field directive and a directive applied to the schema.
+ */
+object ReadOnlySchema : Scenario {
+    override val name = "read-only-schema"
+
+    override fun parser() = SchemaParser.newParser()
+        .file("scenarios/read-only-schema/schema.graphqls")
+        .resolvers(ReadOnlyQuery(), ReadOnlyMutation())
+        .dictionary("Dog", ShelterDog::class.java)
+        .dictionary("Cat", ShelterCat::class.java)
+
+    override fun schema(parser: SchemaParser) = parser.parseSchemaObjects().toReadOnlySchema()
+}
+
+interface ShelterAnimal {
+    val name: String
+}
+
+data class ShelterDog(override val name: String, val barks: Boolean) : ShelterAnimal
+
+data class ShelterCat(override val name: String, val lives: Int) : ShelterAnimal
+
+private val animals: List<ShelterAnimal> = listOf(ShelterDog("Rex", true), ShelterCat("Tom", 9))
+
+class ReadOnlyQuery : GraphQLQueryResolver {
+    fun animal(name: String): ShelterAnimal? = animals.find { it.name == name }
+
+    fun pets(): List<Any> = animals
+}
+
+class ReadOnlyMutation : GraphQLMutationResolver {
+    fun adopt(name: String): ShelterAnimal = ShelterDog(name, false)
+}

@@ -1,0 +1,23 @@
+type Query {
+    payload: Payload!
+    payloads: [Payload!]!
+    payloadStrings: [String!]!
+    items: [Item]
+    itemNames: [String]
+    futureOfFuture: Item
+    futureOfTries: [Payload!]!
+    triesOfFutures: [Item!]!
+    loadedItems: [Item!]!
+    failedTryInList: [Payload!]
+    failedFutureInList: [Item]
+    plainItems: [Item!]!
+    futureOfItems: [Item!]!
+}
+
+type Payload {
+    data: String!
+}
+
+type Item {
+    id: ID!
+}

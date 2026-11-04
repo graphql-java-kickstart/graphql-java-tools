@@ -1,0 +1,6 @@
+query {
+    today
+    now
+    shift(from: "2020-01-01")
+    price
+}

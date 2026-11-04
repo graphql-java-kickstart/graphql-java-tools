@@ -1,0 +1,16 @@
+query {
+    article: node(id: "a1") {
+        __typename
+        id
+        createdAt
+        name
+        ... on Article { title }
+    }
+    video: node(id: "v1") {
+        __typename
+        id
+        createdAt
+        name
+        ... on Video { seconds }
+    }
+}

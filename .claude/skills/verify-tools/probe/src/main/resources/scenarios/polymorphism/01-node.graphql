@@ -1,0 +1,11 @@
+query Nodes {
+    novel: node(id: "n1") {
+        __typename
+        id
+        ... on Novel { title }
+    }
+    writer: node(id: "w1") {
+        __typename
+        ... on Writer { name }
+    }
+}

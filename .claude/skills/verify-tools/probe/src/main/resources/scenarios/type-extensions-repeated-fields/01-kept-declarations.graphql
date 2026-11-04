@@ -1,0 +1,10 @@
+query {
+    typeAndExtension { name }
+    twoExtensions { id name }
+    oneDefinition { name }
+    echo(
+        typeAndExtension: { id: "1" }
+        twoExtensions: { term: "t", id: "2" }
+        oneDefinition: { id: "3" }
+    )
+}

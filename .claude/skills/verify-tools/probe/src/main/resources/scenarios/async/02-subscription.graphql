@@ -1,0 +1,3 @@
+subscription Ticks {
+    ticks(count: 3)
+}

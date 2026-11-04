@@ -1,0 +1,1 @@
+{"filter": {"name": "root", "and": [{"name": "a"}, {"not": {"name": "b"}}], "child": {"depth": 3, "parent": {"name": "up"}, "siblings": [[{"depth": 4}], []]}}}

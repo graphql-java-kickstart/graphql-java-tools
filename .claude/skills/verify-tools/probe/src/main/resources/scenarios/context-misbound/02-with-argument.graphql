@@ -1,0 +1,3 @@
+query {
+    users(first: 1) { name }
+}

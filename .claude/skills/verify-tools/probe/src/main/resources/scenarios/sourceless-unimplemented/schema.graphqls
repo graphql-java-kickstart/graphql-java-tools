@@ -1,0 +1,13 @@
+type Query {
+    folder: Folder!
+}
+
+type Folder {
+    images: [Image!]!
+}
+
+type Image {
+    name: String!
+    imageBlob: String!
+    preview: String
+}

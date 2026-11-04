@@ -1,0 +1,3 @@
+query {
+    count(filter: { term: "a", limit: 1, offset: 2 })
+}

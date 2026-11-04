@@ -1,0 +1,73 @@
+directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
+directive @owner(team: String!) on OBJECT
+
+type Query {
+    node(id: ID!): Node
+    search: [SearchResult!]!
+    colors: [Color!]!
+    shades: [Shade!]!
+    count(filter: Filter!): Int!
+}
+
+interface Node @tag(name: "base") {
+    "The base id"
+    id: ID!
+    createdAt: String
+}
+
+extend interface Node @tag(name: "extension") {
+    "The extension id"
+    id: ID!
+    name: String
+}
+
+type Article implements Node @owner(team: "content") @tag(name: "base") {
+    id: ID!
+    createdAt: String
+    name: String
+    title: String
+}
+
+extend type Article @owner(team: "growth") @tag(name: "extension")
+
+type Video {
+    id: ID!
+    createdAt: String
+    name: String
+    seconds: Int
+}
+
+extend type Video implements Node
+
+union SearchResult @tag(name: "base") = Article
+
+extend union SearchResult @tag(name: "extension") = Video | Article
+
+enum Color @tag(name: "base") {
+    "The first red"
+    RED
+    BLUE
+}
+
+extend enum Color @tag(name: "extension") {
+    RED
+    GREEN
+}
+
+extend enum Shade { LIGHT }
+
+extend enum Shade { DARK }
+
+input Filter @tag(name: "base") {
+    term: String
+}
+
+extend input Filter @tag(name: "extension") {
+    limit: Int
+}
+
+type Note {
+    text: String
+}
+
+extend union Note = Article

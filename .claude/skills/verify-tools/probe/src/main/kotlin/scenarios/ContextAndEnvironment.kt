@@ -1,0 +1,59 @@
+package scenarios
+
+import graphql.ExecutionInput
+import graphql.GraphQLContext
+import graphql.kickstart.tools.GraphQLQueryResolver
+import graphql.kickstart.tools.GraphQLResolver
+import graphql.kickstart.tools.SchemaParser
+import graphql.kickstart.tools.SchemaParserOptions
+import graphql.schema.DataFetchingEnvironment
+
+/** Resolver methods that take the custom context class and DataFetchingEnvironment after the schema arguments. */
+object ContextAndEnvironment : Scenario {
+    override val name = "context-and-environment"
+
+    override fun parser() = SchemaParser.newParser()
+        .file("scenarios/context-and-environment/schema.graphqls")
+        .resolvers(ContextAndEnvironmentQuery(), UserResolver())
+        .options(SchemaParserOptions.newOptions().contextClass(AppContext::class).build())
+
+    override fun input(builder: ExecutionInput.Builder): ExecutionInput.Builder =
+        builder.graphQLContext(mapOf(AppContext::class.java to AppContext("oryan", "en-CA")))
+}
+
+/** A trailing parameter that is neither a context nor the environment. */
+object ContextAndEnvironmentInvalid : Scenario {
+    override val name = "context-and-environment-invalid"
+
+    override fun parser() = SchemaParser.newParser()
+        .schemaString("type Query { greeting(name: String!): String! }")
+        .resolvers(ContextAndEnvironmentInvalidQuery())
+        .options(SchemaParserOptions.newOptions().contextClass(AppContext::class).build())
+}
+
+data class AppContext(val user: String, val locale: String)
+
+class AppUser(val name: String)
+
+class ContextAndEnvironmentQuery : GraphQLQueryResolver {
+    fun greeting(name: String, context: AppContext, env: DataFetchingEnvironment) =
+        "${env.field.name}: hi $name, from ${context.user}"
+
+    fun farewell(name: String, env: DataFetchingEnvironment, context: AppContext) =
+        "${env.field.name}: bye $name, from ${context.user}"
+
+    fun user(context: AppContext) = AppUser(context.user)
+
+    fun environmentOnly(env: DataFetchingEnvironment) = env.field.name
+
+    fun contextOnly(context: AppContext) = context.locale
+}
+
+class UserResolver : GraphQLResolver<AppUser> {
+    fun locale(user: AppUser, context: GraphQLContext, env: DataFetchingEnvironment) =
+        "${env.field.name} of ${user.name}: ${context.get<AppContext>(AppContext::class.java)?.locale}"
+}
+
+class ContextAndEnvironmentInvalidQuery : GraphQLQueryResolver {
+    fun greeting(name: String, context: AppContext, extra: String) = "hi $name"
+}

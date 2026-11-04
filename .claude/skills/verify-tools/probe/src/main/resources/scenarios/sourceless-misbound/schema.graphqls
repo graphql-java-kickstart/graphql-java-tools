@@ -1,0 +1,12 @@
+type Query {
+    folder: Folder!
+}
+
+type Folder {
+    images: [Image!]!
+}
+
+type Image {
+    name: String!
+    thumbnail(size: Int): String
+}

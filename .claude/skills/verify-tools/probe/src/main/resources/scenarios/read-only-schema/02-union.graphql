@@ -1,0 +1,3 @@
+{
+    pets { __typename ... on Dog { name barks } ... on Cat { name lives } }
+}

@@ -1,0 +1,15 @@
+type Query {
+    results: [Result!]!
+}
+
+union Result = Book | Media
+
+union Media = Movie
+
+type Book {
+    title: String!
+}
+
+type Movie {
+    title: String!
+}

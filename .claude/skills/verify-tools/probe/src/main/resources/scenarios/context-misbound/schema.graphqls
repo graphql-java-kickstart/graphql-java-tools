@@ -1,0 +1,11 @@
+type Query {
+    users(first: Int): [User!]!
+    user: User!
+    contextArgument(name: String): String
+    greeting(name: String!): String!
+}
+
+type User {
+    name: String!
+    thumbnail(size: Int): String
+}

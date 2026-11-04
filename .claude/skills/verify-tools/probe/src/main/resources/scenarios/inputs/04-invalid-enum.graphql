@@ -1,0 +1,3 @@
+query InvalidEnum {
+    search(term: "x", genres: [POETRY])
+}
