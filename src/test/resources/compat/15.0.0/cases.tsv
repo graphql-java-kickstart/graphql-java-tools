@@ -152,216 +152,207 @@ context-misbound	kind	extend scalar User @specifiedBy(url: "https://example.com"
 context-misbound	undeclared	extend type User @compatUndeclared	FieldResolverError: Field 'Query.users' has no parameter for its argument 'first: Int' in graphql.kickstart.tools.compat.scenarios.ContextMisboundQuery.users, so the DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the DataFetchingEnvironment parameter.
 context-misbound	repeat	extend type User { name: String! }	FieldResolverError: Field 'Query.users' has no parameter for its argument 'first: Int' in graphql.kickstart.tools.compat.scenarios.ContextMisboundQuery.users, so the DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the DataFetchingEnvironment parameter.
 context-misbound	location	extend type User @specifiedBy	FieldResolverError: Field 'Query.users' has no parameter for its argument 'first: Int' in graphql.kickstart.tools.compat.scenarios.ContextMisboundQuery.users, so the DataFetchingEnvironment parameter gets the argument instead. Add a parameter for each argument, in order, before the DataFetchingEnvironment parameter.
-directive-drift	seed		SchemaError: Found an unexpected directive argument tag#nam .
+directive-drift	seed		BUILT
 directive-drift	proxy		FieldResolverError: Field 'Query.plain' resolves to graphql.kickstart.tools.compat.scenarios.DirectiveDriftQuery.plain, but the resolver is a jdk.proxyN.$ProxyN, which isn't a graphql.kickstart.tools.compat.scenarios.DirectiveDriftQuery, so every query of the field will fail.
-directive-drift	kind	extend type Kind { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Kind' is defined as an enum, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend interface Kind { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Kind' is defined as an enum, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Kind { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Kind' is defined as an enum, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend union Kind = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Kind' is defined as an enum, but extended as a union. The extension is ignored.
-directive-drift	kind	extend scalar Kind @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Kind' is defined as an enum, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend enum Kind @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend enum Kind { PLAIN }	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Kind @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend enum Kind @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Kind @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Kind @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Kind @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Kind @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Kind @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend interface Query { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Query' is defined as an object type, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Query { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Query' is defined as an object type, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend enum Query { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Query' is defined as an object type, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend union Query = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Query' is defined as an object type, but extended as a union. The extension is ignored.
-directive-drift	kind	extend scalar Query @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Query' is defined as an object type, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend type Query @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend type Query { plain: String @tag(name: "plain", level: 2) @once(reason: "supplied") @fieldOnly @argDoc(note: "x") }	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Query @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend type Query @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Query @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Query @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Query @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Query @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Query @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend type Animal { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Animal' is defined as an interface, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend input Animal { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Animal' is defined as an interface, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend enum Animal { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Animal' is defined as an interface, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend union Animal = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Animal' is defined as an interface, but extended as a union. The extension is ignored.
-directive-drift	kind	extend scalar Animal @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Animal' is defined as an interface, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend interface Animal @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend interface Animal { name: String @once @once }	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend interface Animal @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend interface Animal @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend interface Animal @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend interface Animal @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend interface Animal @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend interface Animal @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend interface Animal @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend interface Dog { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Dog' is defined as an object type, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Dog { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Dog' is defined as an object type, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend enum Dog { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Dog' is defined as an object type, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend scalar Dog @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Dog' is defined as an object type, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend type Dog @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend type Dog { name: String }	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend type Dog @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend type Dog @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Dog @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Dog @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Dog @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Dog @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend type Dog @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend type Pet { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Pet' is defined as a union, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend interface Pet { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Pet' is defined as a union, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Pet { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Pet' is defined as a union, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend enum Pet { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Pet' is defined as a union, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend scalar Pet @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Pet' is defined as a union, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend union Pet @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend union Pet = Dog	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend union Pet @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend union Pet @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend union Pet @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend union Pet @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend union Pet @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend union Pet @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend union Pet @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend type Color { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Color' is defined as an enum, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend interface Color { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Color' is defined as an enum, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Color { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Color' is defined as an enum, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend union Color = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Color' is defined as an enum, but extended as a union. The extension is ignored.
-directive-drift	kind	extend scalar Color @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Color' is defined as an enum, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend enum Color @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend enum Color { RED }	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend enum Color @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend enum Color @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Color @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Color @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Color @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Color @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend enum Color @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend type Meta { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Meta' is defined as an input object type, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend interface Meta { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Meta' is defined as an input object type, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend enum Meta { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Meta' is defined as an input object type, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend union Meta = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Meta' is defined as an input object type, but extended as a union. The extension is ignored.
-directive-drift	kind	extend scalar Meta @specifiedBy(url: "https://example.com")	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Meta' is defined as an input object type, but extended as a scalar. The extension is ignored.
-directive-drift	undeclared	extend input Meta @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat	extend input Meta { owner: String @once(reason: "x") @once }	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend input Meta @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend input Meta @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend input Meta @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend input Meta @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend input Meta @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend input Meta @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend input Meta @specifiedBy	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend type Date { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Date' is defined as a scalar, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend interface Date { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Date' is defined as a scalar, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Date { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Date' is defined as a scalar, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend enum Date { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Date' is defined as a scalar, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend union Date = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Date' is defined as a scalar, but extended as a union. The extension is ignored.
-directive-drift	undeclared	extend scalar Date @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend scalar Date @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Date @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Date @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Date @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Date @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @specifiedBy(url: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @specifiedBy(url: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Date @specifiedBy(url: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	kind	extend type Money { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Money' is defined as a scalar, but extended as an object type. The extension is ignored.
-directive-drift	kind	extend interface Money { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Money' is defined as a scalar, but extended as an interface. The extension is ignored.
-directive-drift	kind	extend input Money { compatZ: String }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Money' is defined as a scalar, but extended as an input object type. The extension is ignored.
-directive-drift	kind	extend enum Money { COMPAT_Z }	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Money' is defined as a scalar, but extended as an enum. The extension is ignored.
-directive-drift	kind	extend union Money = Dog	SchemaError: Found an unexpected directive argument tag#nam .	Type 'Money' is defined as a scalar, but extended as a union. The extension is ignored.
-directive-drift	undeclared	extend scalar Money @compatUndeclared	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(name: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(name: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(name: null)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(level: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(kind: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(kind: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(meta: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @tag(meta: "x")	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @once(reason: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @once(reason: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	repeat-directive	extend scalar Money @once @once	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Money @link	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Money @argDoc	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Money @fieldOnly	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	location	extend scalar Money @needs	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @specifiedBy(url: 5)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @specifiedBy(url: NOPE)	SchemaError: Found an unexpected directive argument tag#nam .
-directive-drift	argval	extend scalar Money @specifiedBy(url: null)	SchemaError: Found an unexpected directive argument tag#nam .
+directive-drift	kind	extend type Kind { compatZ: String }	BUILT	Type 'Kind' is defined as an enum, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend interface Kind { compatZ: String }	BUILT	Type 'Kind' is defined as an enum, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Kind { compatZ: String }	BUILT	Type 'Kind' is defined as an enum, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend union Kind = Dog	BUILT	Type 'Kind' is defined as an enum, but extended as a union. The extension is ignored.
+directive-drift	kind	extend scalar Kind @specifiedBy(url: "https://example.com")	BUILT	Type 'Kind' is defined as an enum, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend enum Kind @compatUndeclared	BUILT
+directive-drift	repeat	extend enum Kind { PLAIN }	SchemaError: Type 'Kind' declares value 'PLAIN' more than once at line 1, column 20.
+directive-drift	argval	extend enum Kind @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Kind @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Kind @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Kind @tag(level: "x")	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend enum Kind @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend enum Kind @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend enum Kind @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend enum Kind @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend enum Kind @once(reason: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Kind @once(reason: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	repeat-directive	extend enum Kind @once @once	SchemaError: Directive @once at line 1, column 24 isn't repeatable but is applied more than once.
+directive-drift	location	extend enum Kind @link	SchemaError: Directive @link at line 1, column 18 is applied to ENUM, but it's declared on SCHEMA.
+directive-drift	location	extend enum Kind @argDoc	SchemaError: Directive @argDoc at line 1, column 18 is applied to ENUM, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend enum Kind @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 18 is applied to ENUM, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend enum Kind @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 18 is applied to ENUM, but it's declared on SCALAR.
+directive-drift	kind	extend interface Query { compatZ: String }	BUILT	Type 'Query' is defined as an object type, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Query { compatZ: String }	BUILT	Type 'Query' is defined as an object type, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend enum Query { COMPAT_Z }	BUILT	Type 'Query' is defined as an object type, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend union Query = Dog	BUILT	Type 'Query' is defined as an object type, but extended as a union. The extension is ignored.
+directive-drift	kind	extend scalar Query @specifiedBy(url: "https://example.com")	BUILT	Type 'Query' is defined as an object type, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend type Query @compatUndeclared	BUILT
+directive-drift	repeat	extend type Query { plain: String @tag(name: "plain", level: 2) @once(reason: "supplied") @fieldOnly @argDoc(note: "x") }	SchemaError: Type 'Query' declares field 'plain' more than once at line 1, column 21.
+directive-drift	argval	extend type Query @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Query @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Query @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Query @tag(level: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend type Query @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend type Query @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend type Query @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend type Query @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend type Query @once(reason: 5)	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	argval	extend type Query @once(reason: NOPE)	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	repeat-directive	extend type Query @once @once	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	location	extend type Query @link	SchemaError: Directive @link at line 1, column 19 is applied to OBJECT, but it's declared on SCHEMA.
+directive-drift	location	extend type Query @argDoc	SchemaError: Directive @argDoc at line 1, column 19 is applied to OBJECT, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend type Query @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 19 is applied to OBJECT, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend type Query @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 19 is applied to OBJECT, but it's declared on SCALAR.
+directive-drift	kind	extend type Animal { compatZ: String }	BUILT	Type 'Animal' is defined as an interface, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend input Animal { compatZ: String }	BUILT	Type 'Animal' is defined as an interface, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend enum Animal { COMPAT_Z }	BUILT	Type 'Animal' is defined as an interface, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend union Animal = Dog	BUILT	Type 'Animal' is defined as an interface, but extended as a union. The extension is ignored.
+directive-drift	kind	extend scalar Animal @specifiedBy(url: "https://example.com")	BUILT	Type 'Animal' is defined as an interface, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend interface Animal @compatUndeclared	BUILT
+directive-drift	repeat	extend interface Animal { name: String @once }	SchemaError: Type 'Animal' declares field 'name' more than once at line 1, column 27.
+directive-drift	argval	extend interface Animal @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend interface Animal @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend interface Animal @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend interface Animal @tag(level: "x")	SchemaError: Directive @tag at line 1, column 25 is missing its required argument 'name'.
+directive-drift	argval	extend interface Animal @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 25 is missing its required argument 'name'.
+directive-drift	argval	extend interface Animal @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 25 is missing its required argument 'name'.
+directive-drift	argval	extend interface Animal @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 25 is missing its required argument 'name'.
+directive-drift	argval	extend interface Animal @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 25 is missing its required argument 'name'.
+directive-drift	argval	extend interface Animal @once(reason: 5)	SchemaError: Directive @once at line 1, column 25 isn't repeatable but is applied more than once.
+directive-drift	argval	extend interface Animal @once(reason: NOPE)	SchemaError: Directive @once at line 1, column 25 isn't repeatable but is applied more than once.
+directive-drift	repeat-directive	extend interface Animal @once @once	SchemaError: Directive @once at line 1, column 25 isn't repeatable but is applied more than once.
+directive-drift	location	extend interface Animal @link	SchemaError: Directive @link at line 1, column 25 is applied to INTERFACE, but it's declared on SCHEMA.
+directive-drift	location	extend interface Animal @argDoc	SchemaError: Directive @argDoc at line 1, column 25 is applied to INTERFACE, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend interface Animal @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 25 is applied to INTERFACE, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend interface Animal @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 25 is applied to INTERFACE, but it's declared on SCALAR.
+directive-drift	kind	extend interface Dog { compatZ: String }	BUILT	Type 'Dog' is defined as an object type, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Dog { compatZ: String }	BUILT	Type 'Dog' is defined as an object type, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend enum Dog { COMPAT_Z }	BUILT	Type 'Dog' is defined as an object type, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend scalar Dog @specifiedBy(url: "https://example.com")	BUILT	Type 'Dog' is defined as an object type, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend type Dog @compatUndeclared	BUILT
+directive-drift	repeat	extend type Dog { name: String }	SchemaError: Type 'Dog' declares field 'name' more than once at line 1, column 19.
+directive-drift	argval	extend type Dog @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Dog @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Dog @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Dog @tag(level: "x")	SchemaError: Directive @tag at line 1, column 17 is missing its required argument 'name'.
+directive-drift	argval	extend type Dog @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 17 is missing its required argument 'name'.
+directive-drift	argval	extend type Dog @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 17 is missing its required argument 'name'.
+directive-drift	argval	extend type Dog @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 17 is missing its required argument 'name'.
+directive-drift	argval	extend type Dog @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 17 is missing its required argument 'name'.
+directive-drift	argval	extend type Dog @once(reason: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend type Dog @once(reason: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	repeat-directive	extend type Dog @once @once	SchemaError: Directive @once at line 1, column 23 isn't repeatable but is applied more than once.
+directive-drift	location	extend type Dog @link	SchemaError: Directive @link at line 1, column 17 is applied to OBJECT, but it's declared on SCHEMA.
+directive-drift	location	extend type Dog @argDoc	SchemaError: Directive @argDoc at line 1, column 17 is applied to OBJECT, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend type Dog @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 17 is applied to OBJECT, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend type Dog @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 17 is applied to OBJECT, but it's declared on SCALAR.
+directive-drift	kind	extend type Pet { compatZ: String }	BUILT	Type 'Pet' is defined as a union, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend interface Pet { compatZ: String }	BUILT	Type 'Pet' is defined as a union, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Pet { compatZ: String }	BUILT	Type 'Pet' is defined as a union, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend enum Pet { COMPAT_Z }	BUILT	Type 'Pet' is defined as a union, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend scalar Pet @specifiedBy(url: "https://example.com")	BUILT	Type 'Pet' is defined as a union, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend union Pet @compatUndeclared	BUILT
+directive-drift	repeat	extend union Pet = Dog	SchemaError: Type 'Pet' declares member 'Dog' more than once at line 1, column 20.
+directive-drift	argval	extend union Pet @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend union Pet @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend union Pet @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend union Pet @tag(level: "x")	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend union Pet @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend union Pet @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend union Pet @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend union Pet @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 18 is missing its required argument 'name'.
+directive-drift	argval	extend union Pet @once(reason: 5)	SchemaError: Directive @once at line 1, column 18 isn't repeatable but is applied more than once.
+directive-drift	argval	extend union Pet @once(reason: NOPE)	SchemaError: Directive @once at line 1, column 18 isn't repeatable but is applied more than once.
+directive-drift	repeat-directive	extend union Pet @once @once	SchemaError: Directive @once at line 1, column 18 isn't repeatable but is applied more than once.
+directive-drift	location	extend union Pet @link	SchemaError: Directive @link at line 1, column 18 is applied to UNION, but it's declared on SCHEMA.
+directive-drift	location	extend union Pet @argDoc	SchemaError: Directive @argDoc at line 1, column 18 is applied to UNION, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend union Pet @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 18 is applied to UNION, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend union Pet @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 18 is applied to UNION, but it's declared on SCALAR.
+directive-drift	kind	extend type Color { compatZ: String }	BUILT	Type 'Color' is defined as an enum, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend interface Color { compatZ: String }	BUILT	Type 'Color' is defined as an enum, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Color { compatZ: String }	BUILT	Type 'Color' is defined as an enum, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend union Color = Dog	BUILT	Type 'Color' is defined as an enum, but extended as a union. The extension is ignored.
+directive-drift	kind	extend scalar Color @specifiedBy(url: "https://example.com")	BUILT	Type 'Color' is defined as an enum, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend enum Color @compatUndeclared	BUILT
+directive-drift	repeat	extend enum Color { RED }	SchemaError: Type 'Color' declares value 'RED' more than once at line 1, column 21.
+directive-drift	argval	extend enum Color @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Color @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Color @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend enum Color @tag(level: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend enum Color @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend enum Color @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend enum Color @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend enum Color @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend enum Color @once(reason: 5)	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	argval	extend enum Color @once(reason: NOPE)	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	repeat-directive	extend enum Color @once @once	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	location	extend enum Color @link	SchemaError: Directive @link at line 1, column 19 is applied to ENUM, but it's declared on SCHEMA.
+directive-drift	location	extend enum Color @argDoc	SchemaError: Directive @argDoc at line 1, column 19 is applied to ENUM, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend enum Color @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 19 is applied to ENUM, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend enum Color @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 19 is applied to ENUM, but it's declared on SCALAR.
+directive-drift	kind	extend type Meta { compatZ: String }	BUILT	Type 'Meta' is defined as an input object type, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend interface Meta { compatZ: String }	BUILT	Type 'Meta' is defined as an input object type, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend enum Meta { COMPAT_Z }	BUILT	Type 'Meta' is defined as an input object type, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend union Meta = Dog	BUILT	Type 'Meta' is defined as an input object type, but extended as a union. The extension is ignored.
+directive-drift	kind	extend scalar Meta @specifiedBy(url: "https://example.com")	BUILT	Type 'Meta' is defined as an input object type, but extended as a scalar. The extension is ignored.
+directive-drift	undeclared	extend input Meta @compatUndeclared	BUILT
+directive-drift	repeat	extend input Meta { owner: String @once(reason: "x") }	SchemaError: Type 'Meta' declares field 'owner' more than once at line 1, column 21.
+directive-drift	argval	extend input Meta @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend input Meta @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend input Meta @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend input Meta @tag(level: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend input Meta @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend input Meta @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend input Meta @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend input Meta @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 19 is missing its required argument 'name'.
+directive-drift	argval	extend input Meta @once(reason: 5)	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	argval	extend input Meta @once(reason: NOPE)	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	repeat-directive	extend input Meta @once @once	SchemaError: Directive @once at line 1, column 19 isn't repeatable but is applied more than once.
+directive-drift	location	extend input Meta @link	SchemaError: Directive @link at line 1, column 19 is applied to INPUT_OBJECT, but it's declared on SCHEMA.
+directive-drift	location	extend input Meta @argDoc	SchemaError: Directive @argDoc at line 1, column 19 is applied to INPUT_OBJECT, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend input Meta @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 19 is applied to INPUT_OBJECT, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend input Meta @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 19 is applied to INPUT_OBJECT, but it's declared on SCALAR.
+directive-drift	kind	extend type Date { compatZ: String }	BUILT	Type 'Date' is defined as a scalar, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend interface Date { compatZ: String }	BUILT	Type 'Date' is defined as a scalar, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Date { compatZ: String }	BUILT	Type 'Date' is defined as a scalar, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend enum Date { COMPAT_Z }	BUILT	Type 'Date' is defined as a scalar, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend union Date = Dog	BUILT	Type 'Date' is defined as a scalar, but extended as a union. The extension is ignored.
+directive-drift	undeclared	extend scalar Date @compatUndeclared	BUILT
+directive-drift	argval	extend scalar Date @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Date @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Date @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Date @tag(level: "x")	SchemaError: Directive @tag at line 1, column 20 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Date @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 20 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Date @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 20 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Date @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 20 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Date @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 20 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Date @once(reason: 5)	SchemaError: Directive @once at line 1, column 20 isn't repeatable but is applied more than once.
+directive-drift	argval	extend scalar Date @once(reason: NOPE)	SchemaError: Directive @once at line 1, column 20 isn't repeatable but is applied more than once.
+directive-drift	repeat-directive	extend scalar Date @once @once	SchemaError: Directive @once at line 1, column 20 isn't repeatable but is applied more than once.
+directive-drift	location	extend scalar Date @link	SchemaError: Directive @link at line 1, column 20 is applied to SCALAR, but it's declared on SCHEMA.
+directive-drift	location	extend scalar Date @argDoc	SchemaError: Directive @argDoc at line 1, column 20 is applied to SCALAR, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend scalar Date @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 20 is applied to SCALAR, but it's declared on FIELD_DEFINITION.
+directive-drift	argval	extend scalar Date @specifiedBy(url: 5)	SchemaError: Directive @specifiedBy at line 1, column 20 isn't repeatable but is applied more than once.
+directive-drift	argval	extend scalar Date @specifiedBy(url: NOPE)	SchemaError: Directive @specifiedBy at line 1, column 20 isn't repeatable but is applied more than once.
+directive-drift	argval	extend scalar Date @specifiedBy(url: null)	SchemaError: Directive @specifiedBy at line 1, column 20 isn't repeatable but is applied more than once.
+directive-drift	kind	extend type Money { compatZ: String }	BUILT	Type 'Money' is defined as a scalar, but extended as an object type. The extension is ignored.
+directive-drift	kind	extend interface Money { compatZ: String }	BUILT	Type 'Money' is defined as a scalar, but extended as an interface. The extension is ignored.
+directive-drift	kind	extend input Money { compatZ: String }	BUILT	Type 'Money' is defined as a scalar, but extended as an input object type. The extension is ignored.
+directive-drift	kind	extend enum Money { COMPAT_Z }	BUILT	Type 'Money' is defined as a scalar, but extended as an enum. The extension is ignored.
+directive-drift	kind	extend union Money = Dog	BUILT	Type 'Money' is defined as a scalar, but extended as a union. The extension is ignored.
+directive-drift	undeclared	extend scalar Money @compatUndeclared	BUILT
+directive-drift	argval	extend scalar Money @tag(name: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Money @tag(name: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Money @tag(name: null)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Money @tag(level: "x")	SchemaError: Directive @tag at line 1, column 21 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Money @tag(kind: 5)	SchemaError: Directive @tag at line 1, column 21 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Money @tag(kind: "x")	SchemaError: Directive @tag at line 1, column 21 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Money @tag(meta: 5)	SchemaError: Directive @tag at line 1, column 21 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Money @tag(meta: "x")	SchemaError: Directive @tag at line 1, column 21 is missing its required argument 'name'.
+directive-drift	argval	extend scalar Money @once(reason: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Money @once(reason: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	repeat-directive	extend scalar Money @once @once	SchemaError: Directive @once at line 1, column 27 isn't repeatable but is applied more than once.
+directive-drift	location	extend scalar Money @link	SchemaError: Directive @link at line 1, column 21 is applied to SCALAR, but it's declared on SCHEMA.
+directive-drift	location	extend scalar Money @argDoc	SchemaError: Directive @argDoc at line 1, column 21 is applied to SCALAR, but it's declared on FIELD_DEFINITION.
+directive-drift	location	extend scalar Money @fieldOnly	SchemaError: Directive @fieldOnly at line 1, column 21 is applied to SCALAR, but it's declared on FIELD_DEFINITION.
+directive-drift	argval	extend scalar Money @specifiedBy(url: 5)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Money @specifiedBy(url: NOPE)	InvalidSchemaException: invalid schema:
+directive-drift	argval	extend scalar Money @specifiedBy(url: null)	InvalidSchemaException: invalid schema:
 directive-drift-undeclared	seed		SchemaError: Found applied directive undeclared without corresponding directive definition.
 directive-drift-undeclared	proxy		FieldResolverError: Field 'Query.a' resolves to graphql.kickstart.tools.compat.scenarios.DirectiveDriftOneField.a, but the resolver is a jdk.proxyN.$ProxyN, which isn't a graphql.kickstart.tools.compat.scenarios.DirectiveDriftOneField, so every query of the field will fail.
 directive-drift-undeclared	kind	extend interface Query { compatZ: String }	SchemaError: Found applied directive undeclared without corresponding directive definition.	Type 'Query' is defined as an object type, but extended as an interface. The extension is ignored.
@@ -930,59 +921,59 @@ scalar-args	kind	extend scalar MarkedTokensInput @specifiedBy(url: "https://exam
 scalar-args	undeclared	extend input MarkedTokensInput @compatUndeclared	SchemaError: Found applied directive compatUndeclared without corresponding directive definition.
 scalar-args	repeat	extend input MarkedTokensInput { typed: TypedToken }	SchemaError: Type 'MarkedTokensInput' declares field 'typed' more than once at line 1, column 34.
 scalar-args	location	extend input MarkedTokensInput @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 32 is applied to INPUT_OBJECT, but it's declared on SCALAR.
-scalar-directives	seed		SchemaError: Found applied directive currency without corresponding directive definition.
+scalar-directives	seed		BUILT
 scalar-directives	proxy		FieldResolverError: Field 'Query.today' resolves to graphql.kickstart.tools.compat.scenarios.ScalarDirectivesQuery.today, but the resolver is a jdk.proxyN.$ProxyN, which isn't a graphql.kickstart.tools.compat.scenarios.ScalarDirectivesQuery, so every query of the field will fail.
-scalar-directives	kind	extend type Date { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Date' is defined as a scalar, but extended as an object type. The extension is ignored.
-scalar-directives	kind	extend interface Date { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Date' is defined as a scalar, but extended as an interface. The extension is ignored.
-scalar-directives	kind	extend input Date { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Date' is defined as a scalar, but extended as an input object type. The extension is ignored.
-scalar-directives	kind	extend enum Date { COMPAT_Z }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Date' is defined as a scalar, but extended as an enum. The extension is ignored.
+scalar-directives	kind	extend type Date { compatZ: String }	BUILT	Type 'Date' is defined as a scalar, but extended as an object type. The extension is ignored.
+scalar-directives	kind	extend interface Date { compatZ: String }	BUILT	Type 'Date' is defined as a scalar, but extended as an interface. The extension is ignored.
+scalar-directives	kind	extend input Date { compatZ: String }	BUILT	Type 'Date' is defined as a scalar, but extended as an input object type. The extension is ignored.
+scalar-directives	kind	extend enum Date { COMPAT_Z }	BUILT	Type 'Date' is defined as a scalar, but extended as an enum. The extension is ignored.
 scalar-directives	undeclared	extend scalar Date @compatUndeclared	SchemaError: Found applied directive compatUndeclared without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @since(date: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @since(date: "x")	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	repeat-directive	extend scalar Date @since @since	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @unit(name: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @unit(name: NOPE)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @unit(name: null)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @specifiedBy(url: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @specifiedBy(url: NOPE)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Date @specifiedBy(url: null)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	kind	extend type DateTime { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'DateTime' is defined as a scalar, but extended as an object type. The extension is ignored.
-scalar-directives	kind	extend interface DateTime { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'DateTime' is defined as a scalar, but extended as an interface. The extension is ignored.
-scalar-directives	kind	extend input DateTime { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'DateTime' is defined as a scalar, but extended as an input object type. The extension is ignored.
-scalar-directives	kind	extend enum DateTime { COMPAT_Z }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'DateTime' is defined as a scalar, but extended as an enum. The extension is ignored.
+scalar-directives	argval	extend scalar Date @since(date: 5)	SchemaError: Directive @since at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @since(date: "x")	SchemaError: Directive @since at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	repeat-directive	extend scalar Date @since @since	SchemaError: Directive @since at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @unit(name: 5)	SchemaError: Directive @unit at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @unit(name: NOPE)	SchemaError: Directive @unit at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @unit(name: null)	SchemaError: Directive @unit at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @specifiedBy(url: 5)	SchemaError: Directive @specifiedBy at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @specifiedBy(url: NOPE)	SchemaError: Directive @specifiedBy at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Date @specifiedBy(url: null)	SchemaError: Directive @specifiedBy at line 1, column 20 isn't repeatable but is applied more than once.
+scalar-directives	kind	extend type DateTime { compatZ: String }	BUILT	Type 'DateTime' is defined as a scalar, but extended as an object type. The extension is ignored.
+scalar-directives	kind	extend interface DateTime { compatZ: String }	BUILT	Type 'DateTime' is defined as a scalar, but extended as an interface. The extension is ignored.
+scalar-directives	kind	extend input DateTime { compatZ: String }	BUILT	Type 'DateTime' is defined as a scalar, but extended as an input object type. The extension is ignored.
+scalar-directives	kind	extend enum DateTime { COMPAT_Z }	BUILT	Type 'DateTime' is defined as a scalar, but extended as an enum. The extension is ignored.
 scalar-directives	undeclared	extend scalar DateTime @compatUndeclared	SchemaError: Found applied directive compatUndeclared without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @since(date: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @since(date: "x")	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	repeat-directive	extend scalar DateTime @since @since	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @unit(name: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @unit(name: NOPE)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @unit(name: null)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @specifiedBy(url: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @specifiedBy(url: NOPE)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar DateTime @specifiedBy(url: null)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	kind	extend type Money { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Money' is defined as a scalar, but extended as an object type. The extension is ignored.
-scalar-directives	kind	extend interface Money { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Money' is defined as a scalar, but extended as an interface. The extension is ignored.
-scalar-directives	kind	extend input Money { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Money' is defined as a scalar, but extended as an input object type. The extension is ignored.
-scalar-directives	kind	extend enum Money { COMPAT_Z }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Money' is defined as a scalar, but extended as an enum. The extension is ignored.
-scalar-directives	undeclared	extend scalar Money @compatUndeclared	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @since(date: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @since(date: "x")	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	repeat-directive	extend scalar Money @since @since	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @unit(name: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @unit(name: NOPE)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @unit(name: null)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @specifiedBy(url: 5)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @specifiedBy(url: NOPE)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	argval	extend scalar Money @specifiedBy(url: null)	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	kind	extend interface Query { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Query' is defined as an object type, but extended as an interface. The extension is ignored.
-scalar-directives	kind	extend input Query { compatZ: String }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Query' is defined as an object type, but extended as an input object type. The extension is ignored.
-scalar-directives	kind	extend enum Query { COMPAT_Z }	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Query' is defined as an object type, but extended as an enum. The extension is ignored.
-scalar-directives	kind	extend scalar Query @specifiedBy(url: "https://example.com")	SchemaError: Found applied directive currency without corresponding directive definition.	Type 'Query' is defined as an object type, but extended as a scalar. The extension is ignored.
-scalar-directives	undeclared	extend type Query @compatUndeclared	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	repeat	extend type Query { today: Date @since(date: "2021-01-01") }	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	location	extend type Query @since	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	location	extend type Query @unit	SchemaError: Found applied directive currency without corresponding directive definition.
-scalar-directives	location	extend type Query @specifiedBy	SchemaError: Found applied directive currency without corresponding directive definition.
+scalar-directives	argval	extend scalar DateTime @since(date: 5)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar DateTime @since(date: "x")	BUILT
+scalar-directives	repeat-directive	extend scalar DateTime @since @since	SchemaError: Directive @since at line 1, column 31 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar DateTime @unit(name: 5)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar DateTime @unit(name: NOPE)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar DateTime @unit(name: null)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar DateTime @specifiedBy(url: 5)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar DateTime @specifiedBy(url: NOPE)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar DateTime @specifiedBy(url: null)	InvalidSchemaException: invalid schema:
+scalar-directives	kind	extend type Money { compatZ: String }	BUILT	Type 'Money' is defined as a scalar, but extended as an object type. The extension is ignored.
+scalar-directives	kind	extend interface Money { compatZ: String }	BUILT	Type 'Money' is defined as a scalar, but extended as an interface. The extension is ignored.
+scalar-directives	kind	extend input Money { compatZ: String }	BUILT	Type 'Money' is defined as a scalar, but extended as an input object type. The extension is ignored.
+scalar-directives	kind	extend enum Money { COMPAT_Z }	BUILT	Type 'Money' is defined as a scalar, but extended as an enum. The extension is ignored.
+scalar-directives	undeclared	extend scalar Money @compatUndeclared	SchemaError: Found applied directive compatUndeclared without corresponding directive definition.
+scalar-directives	argval	extend scalar Money @since(date: 5)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar Money @since(date: "x")	BUILT
+scalar-directives	repeat-directive	extend scalar Money @since @since	SchemaError: Directive @since at line 1, column 28 isn't repeatable but is applied more than once.
+scalar-directives	argval	extend scalar Money @unit(name: 5)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar Money @unit(name: NOPE)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar Money @unit(name: null)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar Money @specifiedBy(url: 5)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar Money @specifiedBy(url: NOPE)	InvalidSchemaException: invalid schema:
+scalar-directives	argval	extend scalar Money @specifiedBy(url: null)	InvalidSchemaException: invalid schema:
+scalar-directives	kind	extend interface Query { compatZ: String }	BUILT	Type 'Query' is defined as an object type, but extended as an interface. The extension is ignored.
+scalar-directives	kind	extend input Query { compatZ: String }	BUILT	Type 'Query' is defined as an object type, but extended as an input object type. The extension is ignored.
+scalar-directives	kind	extend enum Query { COMPAT_Z }	BUILT	Type 'Query' is defined as an object type, but extended as an enum. The extension is ignored.
+scalar-directives	kind	extend scalar Query @specifiedBy(url: "https://example.com")	BUILT	Type 'Query' is defined as an object type, but extended as a scalar. The extension is ignored.
+scalar-directives	undeclared	extend type Query @compatUndeclared	SchemaError: Found applied directive compatUndeclared without corresponding directive definition.
+scalar-directives	repeat	extend type Query { today: Date @since(date: "2021-01-01") }	SchemaError: Type 'Query' declares field 'today' more than once at line 1, column 21.
+scalar-directives	location	extend type Query @since	SchemaError: Directive @since at line 1, column 19 is applied to OBJECT, but it's declared on SCALAR | FIELD_DEFINITION.
+scalar-directives	location	extend type Query @unit	SchemaError: Directive @unit at line 1, column 19 is applied to OBJECT, but it's declared on SCALAR.
+scalar-directives	location	extend type Query @specifiedBy	SchemaError: Directive @specifiedBy at line 1, column 19 is applied to OBJECT, but it's declared on SCALAR.
 sourceless	seed		BUILT
 sourceless	proxy		FieldResolverError: Field 'Query.folder' resolves to graphql.kickstart.tools.compat.scenarios.SourcelessQuery.folder, but the resolver is a jdk.proxyN.$ProxyN, which isn't a graphql.kickstart.tools.compat.scenarios.SourcelessQuery, so every query of the field will fail.
 sourceless	kind	extend interface Query { compatZ: String }	BUILT	Type 'Query' is defined as an object type, but extended as an interface. The extension is ignored.

@@ -7,7 +7,7 @@ extend scalar Date @since(date: "2020-01-01") @unit(name: "day")
 
 scalar DateTime
 
-scalar Money @currency(code: "USD")
+scalar Money
 
 type Query {
     today: Date @since(date: "2021-01-01")

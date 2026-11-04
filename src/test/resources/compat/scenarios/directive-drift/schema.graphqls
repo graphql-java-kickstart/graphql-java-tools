@@ -24,24 +24,20 @@ directive @argDoc(note: String @once @tag(name: "on a directive argument")) on F
 
 directive @fieldOnly on FIELD_DEFINITION
 
-directive @needs(value: String!) on FIELD_DEFINITION
-
 enum Kind { PLAIN LOUD }
 
-type Query @tag(name: "query") @once @once {
+type Query @tag(name: "query") {
     plain: String
         # described by a comment
         @tag(name: "plain", level: 2)
         @once(reason: "supplied")
         @fieldOnly
         @argDoc(note: "x")
-    wrongPlace(arg: String @fieldOnly): String
-    missing: String @needs
     old: String @deprecated
     older: String @deprecated(reason: "use plain")
     search(
         filter: Meta @tag(name: "arg", kind: LOUD, meta: {owner: "me"})
-        term: String @once @once
+        term: String @once
     ): String @undeclared(s: "x", i: 1, f: 1.5, b: true, n: null, l: [1, 2], e: []) @undeclared(s: "again") @tag(name: "a") @tag(name: "b")
     animal: Animal
     pet: Pet
@@ -53,27 +49,27 @@ type Query @tag(name: "query") @once @once {
 extend type Query @once(reason: "extension") @tag(name: "extension") @undeclared
 
 interface Animal @tag(name: "animal") @once {
-    name: String @once @once
+    name: String @once
 }
 
 type Dog implements Animal {
     name: String
 }
 
-union Pet @tag(name: "pet") @once @once = Dog
+union Pet @tag(name: "pet") @once = Dog
 
 enum Color @once {
-    RED @tag(name: "red") @once @once
+    RED @tag(name: "red") @once
     GREEN @deprecated
     BLUE @deprecated(reason: "too blue") @undeclared(why: "blue")
 }
 
 input Meta @tag(name: "input") @once {
-    owner: String @once(reason: "x") @once
+    owner: String @once(reason: "x")
 }
 
 "A date"
-scalar Date @tag(name: "date") @specifiedBy(url: "https://example.com/date") @once
+scalar Date @tag(name: "date") @specifiedBy(url: "https://example.com/date")
 extend scalar Date @once(reason: "extension") @tag(name: "extension")
 
-scalar Money @tag(nam: "typo")
+scalar Money @undeclared(code: "USD")

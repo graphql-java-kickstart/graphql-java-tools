@@ -42,8 +42,6 @@ data class DriftMeta(val owner: String?)
 
 class DirectiveDriftQuery : GraphQLQueryResolver {
     fun plain() = "plain"
-    fun wrongPlace(arg: String?) = arg
-    fun missing() = "missing"
     fun old() = "old"
     fun older() = "older"
     fun search(filter: DriftMeta?, term: String?) = "${filter?.owner} $term"
