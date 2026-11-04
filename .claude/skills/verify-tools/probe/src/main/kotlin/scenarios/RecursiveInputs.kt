@@ -3,7 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/** Input objects that reference themselves and each other through lists and non-null types, and directive arguments of input object, enum and list types. */
 object RecursiveInputs : Scenario {
     override val name = "recursive-inputs"
 

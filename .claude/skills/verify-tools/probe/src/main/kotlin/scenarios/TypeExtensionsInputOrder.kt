@@ -5,7 +5,6 @@ import graphql.kickstart.tools.SchemaParser
 import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLSchema
 
-/** An input object whose extensions come before and after the type in the SDL. inspect.txt lists the fields in schema order. */
 object TypeExtensionsInputOrder : Scenario {
     override val name = "type-extensions-input-order"
 

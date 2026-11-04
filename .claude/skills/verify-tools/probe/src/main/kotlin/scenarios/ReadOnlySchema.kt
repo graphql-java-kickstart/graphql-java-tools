@@ -4,10 +4,6 @@ import graphql.kickstart.tools.GraphQLMutationResolver
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/**
- * Builds the schema with `parseSchemaObjects().toReadOnlySchema()` instead of `makeExecutableSchema()`, so the mutation
- * type is left out. Covers an interface, a union, a custom field directive and a directive applied to the schema.
- */
 object ReadOnlySchema : Scenario {
     override val name = "read-only-schema"
 

@@ -8,10 +8,6 @@ import graphql.schema.GraphQLScalarType
 import graphql.schema.GraphQLSchema
 import probe.dumpDirectives
 
-/**
- * Every place a directive can be applied, with repeated non-repeatable, undeclared, defaulted and described arguments,
- * extensions, and a scalar whose directive has an unknown argument. inspect.txt lists the applied and legacy directives.
- */
 object DirectiveDrift : Scenario {
     override val name = "directive-drift"
 
@@ -25,7 +21,6 @@ object DirectiveDrift : Scenario {
     override fun inspect(schema: GraphQLSchema) = dumpDirectives(schema)
 }
 
-/** An undeclared directive without allowUndeclaredDirectives. */
 object DirectiveDriftUndeclared : Scenario {
     override val name = "directive-drift-undeclared"
 

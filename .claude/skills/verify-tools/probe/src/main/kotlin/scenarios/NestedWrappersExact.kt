@@ -15,11 +15,6 @@ import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.Future
 import java.util.concurrent.FutureTask
 
-/**
- * Nested wrappers unwrapped exactly where the schema build matched them (issue 905): a custom scalar's futures and wrappers, a
- * plain Future in a list (also from a wrapper's transformer and a suspend function), a wrapper only a schemaWrapper introduces,
- * and a subclass registered as a wrapper of its own.
- */
 object NestedWrappersExact : Scenario {
     override val name = "nested-wrappers-exact"
 

@@ -7,7 +7,6 @@ import graphql.kickstart.tools.SchemaParserOptions
 import graphql.schema.DataFetchingEnvironment
 import java.util.Optional
 
-/** Scalar, list, enum and input object arguments, SDL default values, DataFetchingEnvironment and omitted vs null. */
 object Inputs : Scenario {
     override val name = "inputs"
 
@@ -29,8 +28,6 @@ class InputsQuery : GraphQLQueryResolver {
     fun search(term: String, limit: Int, genres: List<Genre>?, env: DataFetchingEnvironment): String =
         "term=$term limit=$limit genres=$genres field=${env.field.name}"
 
-    /** null when the argument was omitted, Optional.empty() when it was passed as null. */
-    @Suppress("OptionalAssignedToNull")
     fun nickname(value: Optional<String>?): String = when {
         value == null -> "omitted"
         value.isEmpty -> "explicit null"

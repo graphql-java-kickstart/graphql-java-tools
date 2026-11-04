@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Drives graphql-java-tools the way a consuming app does: installs the current directory's checkout into a private local
-# Maven repository, compiles the probe project in probe/ against it, builds a scenario's schema and runs its operations.
-# See SKILL.md for the commands. Evidence goes to $TMPDIR/verify-tools/evidence/ and survives `clean`.
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,7 +18,6 @@ pom_value() { sed -n "s:.*<$1>\(.*\)</$1>.*:\1:p" "$REPO/pom.xml" | head -1; }
 TOOLS_VERSION="$(pom_value version)"
 KOTLIN_VERSION="$(pom_value kotlin.version)"
 
-# Identifies the library sources: HEAD plus any uncommitted change to pom.xml or src/, tracked or not
 fingerprint() {
   {
     git -C "$REPO" rev-parse HEAD
@@ -126,7 +122,6 @@ cmd_run() {
   evidence=$base
   build="$WORK/probe-target${gj:+-gj$gj}"
   mkdir -p "$EVIDENCE_ROOT"
-  # Another checkout can start the same scenario in the same second
   until mkdir "$evidence" 2>/dev/null; do
     n=$((n + 1))
     evidence="$base-$n"

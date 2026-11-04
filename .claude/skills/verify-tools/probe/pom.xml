@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- A consumer of graphql-java-tools, run by ../probe.sh. Not part of the library build. -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -9,7 +8,6 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- probe.sh passes all of these -->
         <tools.version>UNSET</tools.version>
         <kotlin.version>2.3.10</kotlin.version>
         <probe.build.dir>${project.basedir}/target</probe.build.dir>
@@ -21,7 +19,6 @@
             <artifactId>graphql-java-tools</artifactId>
             <version>${tools.version}</version>
         </dependency>
-        <!-- prints the results; declared here since graphql-java-tools 15 brings Jackson 3 instead of 2 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -45,7 +42,6 @@
     </dependencies>
 
     <profiles>
-        <!-- Activated by probe.sh run with a graphql-java version: run against a different graphql-java than the one the library was built with -->
         <profile>
             <id>graphql-java-override</id>
             <activation>

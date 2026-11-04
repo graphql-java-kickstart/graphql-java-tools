@@ -6,10 +6,6 @@ import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLSchema
 
-/**
- * Object and input types that declare a field twice, between a type and its extension, between two extensions and inside
- * one definition. They build, and inspect.txt lists the description of the declaration the schema kept.
- */
 object TypeExtensionsRepeatedFields : Scenario {
     override val name = "type-extensions-repeated-fields"
 

@@ -3,10 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/**
- * Extensions of every kind of type: fields, values, members, interfaces and directives merged into the type, repeats that
- * keep the first one with a warning, extensions without a type, and an extension of a different kind than its type.
- */
 object TypeExtensions : Scenario {
     override val name = "type-extensions"
 

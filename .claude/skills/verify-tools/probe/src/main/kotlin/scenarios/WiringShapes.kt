@@ -6,7 +6,6 @@ import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 
-/** Directive wirings on a recursive input (#875) and on types that refer to each other: interface, union, enum, self-reference. */
 object WiringShapes : Scenario {
     override val name = "wiring-shapes"
 
@@ -36,7 +35,6 @@ class WiringShapesQuery : GraphQLQueryResolver {
     fun someone(): Any = WiringPerson("grace")
 }
 
-// records the type the wiring sees in the field's description
 class InspectWiring : SchemaDirectiveWiring {
     override fun onInputObjectField(environment: SchemaDirectiveWiringEnvironment<GraphQLInputObjectField>): GraphQLInputObjectField {
         val type = GraphQLTypeUtil.unwrapAllAs<GraphQLNamedType>(environment.element.type)

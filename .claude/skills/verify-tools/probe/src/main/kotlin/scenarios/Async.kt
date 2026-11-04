@@ -9,7 +9,6 @@ import kotlinx.coroutines.reactive.publish
 import org.reactivestreams.Publisher
 import java.util.concurrent.CompletableFuture
 
-/** CompletableFuture and suspend resolvers, a suspend field resolver on a nested type, and a Publisher subscription. */
 object Async : Scenario {
     override val name = "async"
 

@@ -3,7 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/** Directives applied at a location their definition doesn't list, without a required argument, or twice when not repeatable. */
 object DirectivesInvalid : Scenario {
     override val name = "directives-invalid"
 

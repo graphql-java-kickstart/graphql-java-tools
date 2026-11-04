@@ -3,7 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/** A query resolver inheriting a method whose parameter is its superclass's type variable. */
 object GenericInputResolver : Scenario {
     override val name = "generic-input-resolver"
 

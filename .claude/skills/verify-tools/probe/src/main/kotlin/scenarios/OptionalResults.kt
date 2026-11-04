@@ -6,11 +6,6 @@ import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 import java.util.Optional
 
-/**
- * A DataFetcherResult inside an Optional: its data, its errors, an empty Optional, the same object type returned another way,
- * a list, and DataFetcherResult nested in itself under an Optional, which the build rejects like
- * DataFetcherResult<DataFetcherResult<T>>.
- */
 object OptionalResults : Scenario {
     override val name = "optional-results"
 

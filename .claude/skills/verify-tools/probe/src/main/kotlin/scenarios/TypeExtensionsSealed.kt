@@ -3,10 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/**
- * A union member added by `extend union` and an interface implementor added by `extend type X implements Y`, with no
- * dictionary. Their classes can only be found among the subclasses of the sealed class or interface the fields return.
- */
 object TypeExtensionsSealed : Scenario {
     override val name = "type-extensions-sealed"
 

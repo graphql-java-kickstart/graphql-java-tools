@@ -3,10 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/**
- * Interface and union fields whose resolvers return a supertype, so the concrete classes are only known through the
- * dictionary. `Writer` is backed by a class with a different name.
- */
 object Polymorphism : Scenario {
     override val name = "polymorphism"
 

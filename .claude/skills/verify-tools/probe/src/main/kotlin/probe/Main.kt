@@ -1,5 +1,6 @@
 package probe
 
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import graphql.ExecutionInput
@@ -17,13 +18,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
-/**
- * Builds the scenario's schema through the public API of the graphql-java-tools jar on the classpath, then runs every
- * `.graphql` file under `scenarios/<name>/` against it. Everything it observes goes to the output directory.
- *
- * Exit codes: 0 schema built and all operations ran (operations may still have GraphQL errors, see summary.txt),
- * 2 schema build threw, 64 bad arguments.
- */
 fun main(args: Array<String>) {
     if (args.size != 2) usage("expected <scenario> <outDir>")
     val scenario = SCENARIOS.find { it.name == args[0] } ?: usage("unknown scenario '${args[0]}'")
@@ -59,8 +53,7 @@ fun main(args: Array<String>) {
     for (operation in operationFiles(scenario.operations)) {
         val name = operation.nameWithoutExtension
         val variablesFile = File(operation.parentFile, "$name.variables.json")
-        @Suppress("UNCHECKED_CAST")
-        val variables = if (variablesFile.exists()) json.readValue(variablesFile, Map::class.java) as Map<String, Any?> else emptyMap()
+        val variables = if (variablesFile.exists()) json.readValue(variablesFile, object : TypeReference<Map<String, Any?>>() {}) else emptyMap()
         val input = scenario.input(ExecutionInput.newExecutionInput().query(operation.readText()).variables(variables)).build()
 
         val result = try {
@@ -70,9 +63,7 @@ fun main(args: Array<String>) {
             report("operation $name: THREW $e")
             continue
         }
-        // A subscription's data is a Publisher of results
-        @Suppress("UNCHECKED_CAST")
-        val publisher = result.getData<Any>() as? Publisher<ExecutionResult>
+        val publisher = result.getData<Any>() as? Publisher<*>
         val written = LinkedHashMap<String, Any?>()
         var eventCount = ""
         if (publisher != null) {
@@ -105,14 +96,13 @@ private fun operationFiles(scenario: String): List<File> {
     return File(dir.toURI()).listFiles { file -> file.extension == "graphql" }!!.sortedBy { it.name }
 }
 
-/** Subscribes the way a transport would and collects every event until completion, for up to 10 seconds. */
-private fun collect(publisher: Publisher<ExecutionResult>): List<Map<String, Any?>> {
+private fun collect(publisher: Publisher<*>): List<Map<String, Any?>> {
     val events = mutableListOf<Map<String, Any?>>()
     val done = CountDownLatch(1)
-    publisher.subscribe(object : Subscriber<ExecutionResult> {
+    publisher.subscribe(object : Subscriber<Any?> {
         override fun onSubscribe(subscription: Subscription) = subscription.request(Long.MAX_VALUE)
-        override fun onNext(event: ExecutionResult) {
-            synchronized(events) { events.add(event.toSpecification()) }
+        override fun onNext(event: Any?) {
+            synchronized(events) { events.add((event as ExecutionResult).toSpecification()) }
         }
         override fun onError(error: Throwable) {
             synchronized(events) { events.add(mapOf("publisherError" to error.toString())) }

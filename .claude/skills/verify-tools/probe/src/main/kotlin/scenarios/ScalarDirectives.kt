@@ -7,7 +7,6 @@ import graphql.schema.GraphQLScalarType
 import graphql.schema.idl.SchemaDirectiveWiring
 import graphql.schema.idl.SchemaDirectiveWiringEnvironment
 
-/** Directives and @specifiedBy on scalars from the SDL, on an extension and on the provided scalar, plus an undeclared one. */
 object ScalarDirectives : Scenario {
     override val name = "scalar-directives"
 
@@ -26,7 +25,6 @@ object ScalarDirectives : Scenario {
     private fun string(name: String) = GraphQLScalarType.newScalar().name(name).coercing(Scalars.GraphQLString.coercing).build()
 }
 
-/** Appends the directive and the value of [argument] that the wiring sees to the scalar's description. */
 class ArgumentWiring(private val argument: String) : SchemaDirectiveWiring {
     override fun onScalar(environment: SchemaDirectiveWiringEnvironment<GraphQLScalarType>): GraphQLScalarType {
         val directive = environment.appliedDirective

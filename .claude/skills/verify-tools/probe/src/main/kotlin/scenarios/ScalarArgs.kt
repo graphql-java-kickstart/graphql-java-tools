@@ -14,10 +14,6 @@ import graphql.schema.GraphQLScalarType
 import java.util.Locale
 import java.util.Optional
 
-/**
- * Scalar arguments: a custom scalar Jackson can't build, a Kotlin scalar class without visible properties in an input object,
- * the same written with a type id or an object id, ID converted to Long, and nested lists of strings.
- */
 object ScalarArgs : Scenario {
     override val name = "scalar-args"
 
@@ -27,7 +23,6 @@ object ScalarArgs : Scenario {
         .resolvers(ScalarArgsQuery())
 }
 
-// no default constructor and no creator, so only the scalar's coercing can make one
 class Tag private constructor(val value: String) {
     companion object {
         fun of(value: String) = Tag(value)
@@ -44,7 +39,6 @@ private val tagScalar = GraphQLScalarType.newScalar()
     })
     .build()
 
-// Jackson writes it as {} and can read {} back as a new instance holding "default"
 class ScalarArgsToken(private val value: String = "default") {
     override fun toString() = value
 }

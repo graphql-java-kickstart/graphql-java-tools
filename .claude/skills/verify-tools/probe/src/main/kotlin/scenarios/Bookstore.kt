@@ -12,7 +12,6 @@ import graphql.schema.GraphQLScalarType
 import java.time.LocalDate
 import java.util.Locale
 
-/** Root resolver, a GraphQLResolver for a nested type, data class properties, an is-getter and a custom scalar. */
 object Bookstore : Scenario {
     override val name = "bookstore"
 
@@ -22,7 +21,6 @@ object Bookstore : Scenario {
         .scalars(dateScalar)
 }
 
-/** The same schema plus a field no resolver or class implements. */
 object BookstoreMissingResolver : Scenario {
     override val name = "bookstore-missing-resolver"
 

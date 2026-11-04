@@ -3,9 +3,6 @@ package scenarios
 import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 
-/**
- * A union that is only a member of another union. No field returns `Media`.
- */
 object NestedUnions : Scenario {
     override val name = "nested-unions"
 

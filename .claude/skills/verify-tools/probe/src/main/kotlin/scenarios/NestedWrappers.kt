@@ -13,7 +13,6 @@ import org.dataloader.DataLoaderRegistry
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 
-/** Generic wrappers and futures nested inside lists and inside other futures (issue 254). */
 object NestedWrappers : Scenario {
     override val name = "nested-wrappers"
 
@@ -31,7 +30,6 @@ object NestedWrappers : Scenario {
     private val tryWrapper = SchemaParserOptions.GenericWrapper.withTransformer(Try::class, 0, { t -> t.get() })
 }
 
-/** The same resolvers, run by an app whose own graphql-java ValueUnboxer already unwraps Try and joins futures. */
 object NestedWrappersUnboxer : Scenario by NestedWrappers {
     override val name = "nested-wrappers-unboxer"
 
@@ -91,7 +89,6 @@ class NestedWrappersQuery : GraphQLQueryResolver {
     fun futureOfItems(): CompletableFuture<List<NestedItem>> = completedFuture(plainItems())
 }
 
-/** Suspend functions returning lists of an open class, which Kotlin reflection types as List<? extends Foo>. */
 object NestedWrappersSuspend : Scenario {
     override val name = "nested-wrappers-suspend"
 

@@ -9,7 +9,6 @@ import graphql.kickstart.tools.SchemaParser
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.schema.DataFetchingEnvironment
 
-/** Resolver methods that leave out the source object and take the environment or a context last (issue 304). */
 object Sourceless : Scenario {
     override val name = "sourceless"
 
@@ -22,7 +21,6 @@ object Sourceless : Scenario {
         builder.graphQLContext(mapOf(AppContext::class.java to AppContext("oryan", "en-CA"), "owner" to "ada"))
 }
 
-/** A data class getter and a with-source method that share a name with a sourceless method. */
 object SourcelessShadowed : Scenario {
     override val name = "sourceless-shadowed"
 
@@ -31,7 +29,6 @@ object SourcelessShadowed : Scenario {
         .resolvers(SourcelessQuery(), SourcelessFolderResolver(), ShadowedImageResolver())
 }
 
-/** A helper on the resolver that looks like a sourceless method for a field the app leaves unimplemented. */
 object SourcelessUnimplemented : Scenario {
     override val name = "sourceless-unimplemented"
 
@@ -41,7 +38,6 @@ object SourcelessUnimplemented : Scenario {
         .options(SchemaParserOptions.newOptions().allowUnimplementedResolvers(true).build())
 }
 
-/** Sourceless methods whose environment or context parameter would take the place of a schema argument. */
 object SourcelessMisbound : Scenario {
     override val name = "sourceless-misbound"
 

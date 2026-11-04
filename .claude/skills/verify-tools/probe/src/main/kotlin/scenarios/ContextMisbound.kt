@@ -7,7 +7,6 @@ import graphql.kickstart.tools.SchemaParser
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.schema.DataFetchingEnvironment
 
-/** Resolver methods whose environment or context parameter takes the place of a schema argument. */
 object ContextMisbound : Scenario {
     override val name = "context-misbound"
 

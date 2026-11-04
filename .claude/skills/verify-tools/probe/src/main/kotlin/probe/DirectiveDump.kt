@@ -14,7 +14,6 @@ import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLTypeUtil
 import graphql.schema.InputValueWithState
 
-/** Lists the applied and the legacy directives of every element that can carry them, in a stable order. */
 fun dumpDirectives(schema: GraphQLSchema): String = buildString {
     @Suppress("DEPRECATION")
     section("schema", schema.schemaAppliedDirectives, schema.schemaDirectives)

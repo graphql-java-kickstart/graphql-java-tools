@@ -8,7 +8,6 @@ import graphql.kickstart.tools.SchemaParser
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.schema.DataFetchingEnvironment
 
-/** Resolver methods that take the custom context class and DataFetchingEnvironment after the schema arguments. */
 object ContextAndEnvironment : Scenario {
     override val name = "context-and-environment"
 
@@ -21,7 +20,6 @@ object ContextAndEnvironment : Scenario {
         builder.graphQLContext(mapOf(AppContext::class.java to AppContext("oryan", "en-CA")))
 }
 
-/** A trailing parameter that is neither a context nor the environment. */
 object ContextAndEnvironmentInvalid : Scenario {
     override val name = "context-and-environment-invalid"
 

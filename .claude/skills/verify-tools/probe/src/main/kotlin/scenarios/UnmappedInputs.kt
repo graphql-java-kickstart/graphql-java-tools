@@ -5,7 +5,6 @@ import graphql.kickstart.tools.GraphQLQueryResolver
 import graphql.kickstart.tools.SchemaParser
 import java.util.Optional
 
-/** Input classes with an Optional property: one ignores a field on purpose, the other misspells one. */
 object UnmappedInputs : Scenario {
     override val name = "unmapped-inputs"
 

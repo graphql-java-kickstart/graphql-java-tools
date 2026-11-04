@@ -6,7 +6,6 @@ import graphql.kickstart.tools.SchemaParser
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.schema.DataFetcher
 
-/** A missing resolver provider standing in for a field nothing implements. */
 object Options : Scenario {
     override val name = "options"
 
