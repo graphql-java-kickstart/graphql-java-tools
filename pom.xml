@@ -243,8 +243,9 @@
                     </dependency>
                 </dependencies>
                 <configuration>
+                    <failIfNoTests>true</failIfNoTests>
                     <includes>
-                        <include>**/*Test.*</include>
+                        <include>**/*</include>
                     </includes>
                 </configuration>
             </plugin>
