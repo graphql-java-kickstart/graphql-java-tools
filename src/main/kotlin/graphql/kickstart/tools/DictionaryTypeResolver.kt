@@ -3,7 +3,6 @@ package graphql.kickstart.tools
 import graphql.TypeResolutionEnvironment
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
-import graphql.language.TypeDefinition
 import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLUnionType
@@ -14,7 +13,7 @@ import java.lang.reflect.ParameterizedType
  * @author Andrew Potter
  */
 internal abstract class DictionaryTypeResolver(
-        private val dictionary: Map<JavaType, TypeDefinition<*>>
+        private val dictionary: Map<JavaType, MergedType<*>>
 ) : TypeResolver {
     // Raw class of each parameterized entry, e.g. Box for Box<String>, unless several entries share it
     private val rawClassDictionary by lazy {
@@ -25,7 +24,7 @@ internal abstract class DictionaryTypeResolver(
             .toMap()
     }
 
-    private fun <T> getTypeDefinition(clazz: Class<T>): TypeDefinition<*>? {
+    private fun <T> getTypeDefinition(clazz: Class<T>): MergedType<*>? {
         return dictionary[clazz]
             ?: (if (clazz.superclass == null) null else getTypeDefinition(clazz.superclass))
             ?: clazz.interfaces.mapNotNull { getTypeDefinition(it) }.firstOrNull()
@@ -45,7 +44,7 @@ internal abstract class DictionaryTypeResolver(
 }
 
 internal class InterfaceTypeResolver(
-    dictionary: Map<JavaType, TypeDefinition<*>>,
+    dictionary: Map<JavaType, MergedType<*>>,
     private val thisInterface: GraphQLInterfaceType
 ) : DictionaryTypeResolver(
         dictionary
@@ -54,7 +53,7 @@ internal class InterfaceTypeResolver(
 }
 
 internal class UnionTypeResolver(
-    dictionary: Map<JavaType, TypeDefinition<*>>,
+    dictionary: Map<JavaType, MergedType<*>>,
     private val thisUnion: GraphQLUnionType
 ) : DictionaryTypeResolver(
         dictionary

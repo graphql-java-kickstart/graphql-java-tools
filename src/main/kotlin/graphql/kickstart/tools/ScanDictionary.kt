@@ -2,7 +2,6 @@ package graphql.kickstart.tools
 
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
-import graphql.kickstart.tools.util.withExtensions
 import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import org.slf4j.Logger
@@ -13,16 +12,14 @@ import java.lang.reflect.Method
 internal class ScanDictionary(
     private val options: SchemaParserOptions,
     private val log: Logger,
-    private val typeExtensions: TypeExtensions,
-    private val definitionsByName: Map<String, TypeDefinition<*>>,
+    private val typesByName: Map<String, MergedType<*>>,
     private val typeClassMatcher: TypeClassMatcher,
     private val initialDictionary: Map<String, InitialDictionaryEntry>,
-    private val enqueue: (ObjectTypeDefinition, JavaType) -> Unit,
-    private val handleFoundScalarType: (ScalarTypeDefinition) -> Unit,
-    private val dictionary: MutableMap<TypeDefinition<*>, DictionaryEntry> = mutableMapOf(),
-) : Map<TypeDefinition<*>, ScanDictionary.EntryView> by dictionary {
-    private val interfaceDefinitionsByName = definitionsByName.values.filterIsInstance<InterfaceTypeDefinition>().associateBy { it.name }
-    private val enumsWithoutClass = mutableMapOf<EnumTypeDefinition, String>()
+    private val enqueue: (MergedType.Object, JavaType) -> Unit,
+    private val handleFoundScalarType: (MergedType.Scalar) -> Unit,
+    private val dictionary: MutableMap<MergedType<*>, DictionaryEntry> = mutableMapOf(),
+) : Map<MergedType<*>, ScanDictionary.EntryView> by dictionary {
+    private val enumsWithoutClass = mutableMapOf<MergedType.Enum, String>()
 
     fun handleFoundType(match: TypeClassMatcher.Match) = when (match) {
         is TypeClassMatcher.ScalarMatch -> handleFoundScalarType(match.type)
@@ -32,7 +29,7 @@ internal class ScanDictionary(
     /**
      * Enter a found type into the dictionary if it doesn't exist yet, add a reference pointing back to where it was discovered.
      */
-    fun handleFoundType(type: TypeDefinition<*>, javaType: JavaType?, reference: Reference) {
+    fun handleFoundType(type: MergedType<*>, javaType: JavaType?, reference: Reference) {
         val realEntry = dictionary.getOrPut(type) { DictionaryEntry() }
         var typeWasSet = false
 
@@ -62,14 +59,15 @@ internal class ScanDictionary(
     /**
      * Handle a newly found type, adding it to the list of actually used types and putting it in the scanning queue if it's an object type.
      */
-    private fun handleNewType(graphQLType: TypeDefinition<*>, javaType: JavaType) {
+    private fun handleNewType(graphQLType: MergedType<*>, javaType: JavaType) {
         when (graphQLType) {
-            is ObjectTypeDefinition -> {
+            is MergedType.Object -> {
                 enqueue(graphQLType, javaType)
                 scanInterfacesOfType(graphQLType)
             }
 
-            is InputObjectTypeDefinition -> handleInputObjectFields(graphQLType, javaType)
+            is MergedType.Input -> handleInputObjectFields(graphQLType, javaType)
+            else -> {}
         }
     }
 
@@ -77,10 +75,9 @@ internal class ScanDictionary(
      * Finds the types of the input object's fields through the properties of its class. A null [javaType] means the input object
      * has no known class, e.g. because it's only reachable through a Map.
      */
-    private fun handleInputObjectFields(graphQLType: InputObjectTypeDefinition, javaType: JavaType?) {
+    private fun handleInputObjectFields(graphQLType: MergedType.Input, javaType: JavaType?) {
         val clazz = javaType?.unwrap()
-        graphQLType.withExtensions(typeExtensions)
-            .flatMap { it.inputValueDefinitions }
+        graphQLType.fields
             .forEach { inputValueDefinition ->
                 val inputGraphQLType = inputValueDefinition.type.unwrap()
                 if (ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(inputGraphQLType.name)) {
@@ -108,10 +105,10 @@ internal class ScanDictionary(
      * Without a Java property for an input field its type can still be built, as long as it doesn't need a class of its own.
      * At runtime the value is whatever the input object's class (or the Map) deserializes it into.
      */
-    private fun handleInputValueWithoutJavaType(graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, inputGraphQLType: TypeName, clazz: Class<*>?) {
-        when (val definition = definitionsByName[inputGraphQLType.name]) {
-            is ScalarTypeDefinition -> handleFoundScalarType(definition)
-            is InputObjectTypeDefinition -> {
+    private fun handleInputValueWithoutJavaType(graphQLType: MergedType.Input, inputValueDefinition: InputValueDefinition, inputGraphQLType: TypeName, clazz: Class<*>?) {
+        when (val definition = typesByName[inputGraphQLType.name]) {
+            is MergedType.Scalar -> handleFoundScalarType(definition)
+            is MergedType.Input -> {
                 val isNewType = !dictionary.containsKey(definition)
                 // registered without a class, so a class found for it later still gets set and scanned
                 handleFoundType(definition, null, InputObjectReference(inputValueDefinition))
@@ -120,7 +117,7 @@ internal class ScanDictionary(
                 }
             }
             // the enum class may still be found through another field, so this is only reported once scanning is done
-            is EnumTypeDefinition -> enumsWithoutClass.putIfAbsent(definition, enumWithoutClassMessage(definition, graphQLType, inputValueDefinition, clazz))
+            is MergedType.Enum -> enumsWithoutClass.putIfAbsent(definition, enumWithoutClassMessage(definition, graphQLType, inputValueDefinition, clazz))
             // undefined types and output types are reported by the SchemaParser
             else -> {}
         }
@@ -133,7 +130,7 @@ internal class ScanDictionary(
     private fun isLibraryClass(clazz: Class<*>) =
         listOf("java.", "kotlin.", JACKSON_PACKAGE_PREFIX).any { clazz.name.startsWith(it) }
 
-    private fun enumWithoutClassMessage(enumType: EnumTypeDefinition, graphQLType: InputObjectTypeDefinition, inputValueDefinition: InputValueDefinition, clazz: Class<*>?): String {
+    private fun enumWithoutClassMessage(enumType: MergedType.Enum, graphQLType: MergedType.Input, inputValueDefinition: InputValueDefinition, clazz: Class<*>?): String {
         val field = inputValueDefinition.name
         val reason = when {
             clazz == null -> "no class was found for input type '${graphQLType.name}'"
@@ -150,10 +147,10 @@ internal class ScanDictionary(
             ?.let { throw SchemaClassScannerError(it.value) }
     }
 
-    fun scanInterfacesOfType(graphQLType: ObjectTypeDefinition) {
-        graphQLType.withExtensions(typeExtensions).flatMap { it.implements }.forEach {
+    fun scanInterfacesOfType(graphQLType: MergedType.Object) {
+        graphQLType.interfaces.forEach {
             if (it is TypeName) {
-                handleFoundType(interfaceDefinitionsByName[it.name]
+                handleFoundType(typesByName[it.name] as? MergedType.Interface
                     ?: throw SchemaClassScannerError("Object type ${graphQLType.name} declared interface ${it.name}, but no interface with that name was found in the schema!"), null, InterfaceReference(graphQLType))
             }
         }
@@ -238,11 +235,11 @@ internal class ScanDictionary(
         override fun getDescription() = "unused type"
     }
 
-    private class InterfaceReference(private val type: ObjectTypeDefinition) : Reference() {
+    private class InterfaceReference(private val type: MergedType.Object) : Reference() {
         override fun getDescription() = "interface declarations of ${type.name}"
     }
 
-    class UnionMemberReference(private val union: UnionTypeDefinition) : Reference() {
+    class UnionMemberReference(private val union: MergedType.Union) : Reference() {
         override fun getDescription() = "member of union ${union.name}"
     }
 

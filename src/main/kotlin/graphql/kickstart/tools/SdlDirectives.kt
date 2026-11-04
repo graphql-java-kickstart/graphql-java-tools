@@ -28,9 +28,6 @@ internal class SdlDirectives(
         createDirectives()
     }
 
-    fun directivesOf(definition: TypeDefinition<*>, extensions: List<TypeDefinition<*>>): List<Directive> =
-        definition.directives + extensions.flatMap { it.directives }
-
     fun failOnProblems() {
         if (problems.isNotEmpty()) throw SchemaError(problems.joinToString("\n"))
     }

@@ -6,7 +6,6 @@ import graphql.kickstart.tools.util.GraphQLLangType
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.isSubtypeOf
 import graphql.language.*
-import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.TypeUtil
 import java.lang.reflect.ParameterizedType
 import java.util.*
@@ -14,32 +13,30 @@ import java.util.*
 /**
  * @author Andrew Potter
  */
-internal class TypeClassMatcher(private val definitionsByName: Map<String, TypeDefinition<*>>) {
+internal class TypeClassMatcher(private val definitions: MergedDefinitions) {
 
     fun match(potentialMatch: PotentialMatch): Match {
         val unwrapping = potentialMatch.unwrapping
         return when (val graphQLType = unwrapping.graphQLType) {
             is TypeName -> {
-                val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[graphQLType.name]
-                    ?: definitionsByName[graphQLType.name]
+                val typeDefinition = definitions.resolve(graphQLType.name)
                     ?: throw potentialMatch.error("No ${TypeDefinition::class.java.simpleName} for type name ${graphQLType.name}")
-                if (typeDefinition is ScalarTypeDefinition) {
+                if (typeDefinition is MergedType.Scalar) {
                     ScalarMatch(typeDefinition)
                 } else {
                     ValidMatch(typeDefinition, unwrapping.javaType, potentialMatch.reference)
                 }
             }
 
-            is TypeDefinition<*> -> ValidMatch(graphQLType, unwrapping.javaType, potentialMatch.reference)
             else -> throw potentialMatch.error("Unknown type: ${unwrapping.javaType.javaClass.name}")
         }
     }
 
     internal sealed interface Match
 
-    internal data class ScalarMatch(val type: ScalarTypeDefinition) : Match
+    internal data class ScalarMatch(val type: MergedType.Scalar) : Match
 
-    internal data class ValidMatch(val type: TypeDefinition<*>, val javaType: JavaType, val reference: ScanDictionary.Reference) : Match
+    internal data class ValidMatch(val type: MergedType<*>, val javaType: JavaType, val reference: ScanDictionary.Reference) : Match
 
     internal enum class Location(val prettyName: String) {
         RETURN_TYPE("return type"),
