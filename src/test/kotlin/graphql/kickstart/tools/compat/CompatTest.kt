@@ -35,12 +35,12 @@ class CompatTest {
         val accepted = acceptedFile.readLines().filter { it.isNotBlank() }.map { Regex(it.substringBefore('\t')) }
         val major = version.major > release.major
 
-        fun repeatsSeedBreak(key: CaseKey) =
-            key != key.seed && released[key.seed]?.built == true && outcomes[key.seed]?.error == outcomes.getValue(key).error
+        fun repeatsSeedBreak(key: CaseKey) = key != key.seed && outcomes[key.seed]?.error == outcomes.getValue(key).error
         fun warnedOnRelease(key: CaseKey) =
-            (released.getValue(key).warnings - if (key == key.seed) emptySet() else released[key.seed]?.warnings.orEmpty().toSet()).isNotEmpty()
+            (released.getValue(key).warnings - if (key == key.seed) emptySet() else released.getValue(key.seed).warnings.toSet()).isNotEmpty()
 
-        val broke = released.keys.filter { released.getValue(it).built && outcomes[it]?.built == false }
+        // a variant of a seed that threw on the release can build only by hiding the seed's own error
+        val broke = released.keys.filter { released[it.seed]?.built == true && released.getValue(it).built && outcomes[it]?.built == false }
             .filterNot(::repeatsSeedBreak)
             .filterNot { key -> accepted.any { it.containsMatchIn(key.toString()) } }
             .filterNot { major && warnedOnRelease(it) }
