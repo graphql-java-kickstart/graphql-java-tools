@@ -6,15 +6,16 @@ resolver classes. Published to Maven Central. Kotlin, with a few Java files, tar
 ## Layout
 
 - `src/main/kotlin/graphql/kickstart/tools`: `SchemaParser` and its builder and options, `SchemaClassScanner` (matches schema
-  types to classes), `resolver/` (field resolvers and data fetchers), `directive/`, `relay/`, `util/`
-- `src/test/kotlin`: JUnit tests, one class per feature or issue. `EndToEndTest` and `EndToEndSpecHelper` hold the shared schema
-  and resolvers
+  types to classes), `resolver/` (field resolvers and data fetchers), `directive/`, `relay/`, `proxy/` (finds the class
+  behind a Spring, Guice, Weld or Javassist proxied resolver), `util/`
+- `src/test/kotlin`: JUnit tests, one class per feature. A test for an issue goes into the class for its feature.
+  `EndToEndTest` and `EndToEndSpecHelper` hold the shared schema and resolvers
 - `.claude/skills/verify-tools`: the probe that checks a change from a consuming app's side
 
 ## Build and test
 
 ```bash
-mvn verify
+mvn clean verify
 ```
 
 Compiler warnings fail the build. CI runs `mvn verify` on JDK 17, 21 and 25. A newer local JDK can pass code that fails on
@@ -60,7 +61,8 @@ No check can enforce these, so each one names the mistake it prevents.
   proved scalars pass through unchanged, and none of them did.
 - **Add a variant to the existing test class and its shared fixtures.** Write one test per behavior and cover variants with
   a table or a generated matrix, as `NestedGenericWrapperTest` does. Failure: a directive change added a test and
-  fixtures per variant, and a later commit folded seven of those tests into one (`f8c7be76`).
+  fixtures per variant. A later commit folded five of the failure tests into one `assertSchemaError` test and dropped two
+  that repeated other tests (`f8c7be76`).
 - **Run verify-tools on refactors and warning changes too.** A change called "a refactor" or "only the wording" still
   changes what an app's schema build does, and the unit tests don't build through the public API alone. Failure: an agent
   skipped the probe on a scanner rewrite because it was a refactor.
@@ -70,8 +72,9 @@ No check can enforce these, so each one names the mistake it prevents.
 
 ## Rule table
 
-Each rule comes from a mistake agents made in this repo more than once. The second column names what fails when the rule
-is broken. "docs only" means nothing does yet, so the rule depends on you reading it.
+Each rule comes from a mistake made in this repo more than once, mostly by agents and in a few cases by older human code.
+The second column names what enforces the rule: a check that fails the build, or code or config that keeps the mistake from
+happening. "docs only" means nothing does yet, so the rule depends on you reading it.
 
 | Rule | Enforced by |
 |---|---|
@@ -99,11 +102,12 @@ is broken. "docs only" means nothing does yet, so the rule depends on you readin
 | The first commit of a fix tests the neighbouring shapes, not just the reported one | docs only |
 | The build passes on JDK 17, the lowest supported version | CI on JDK 17, 21 and 25 |
 | Run verify-tools before you push a schema-building change | docs only |
-| The packaged jar matches the pom's module and Java target | docs only |
+| The packaged jar holds `module-info.class`, its non-static `requires` resolve from the runtime dependencies, and every class targets the pom's `java.version` | docs only |
 | Compiler warnings fail the build | `-Werror` and `failOnWarning` in `pom.xml` |
 | Check every claim in a PR body or release note at the current head | docs only |
 | Keep a comment only for a non-obvious why, with no history and no issue numbers outside a TODO | docs only |
 | Build only what was asked | docs only |
+| A build you trust starts from an empty `target/`, so no class from an earlier build ships | `clean` in `probe.sh install`, docs only for your own `mvn` runs |
 | Agent worktrees and local settings stay out of commits | `.gitignore` |
 | Agent rules live in one committed file | This file. `CLAUDE.md` imports it |
 | Invalid input that used to build logs a WARN until the next major | docs only |
