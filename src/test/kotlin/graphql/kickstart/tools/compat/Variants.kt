@@ -27,7 +27,7 @@ data class CaseKey(val scenario: String, val operator: String, val snippet: Stri
 
 /**
  * [warnNames] is what a release's WARN has to name to count as a warning about this case: one name out of each set. Seed
- * and proxy cases have none, because only their error says what broke.
+ * and proxy cases have none, because only their error says what broke, so the WARNs have to name what the error quotes.
  */
 class Variant(val key: CaseKey, val warnNames: List<Set<String>>, val build: () -> Unit)
 

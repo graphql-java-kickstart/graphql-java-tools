@@ -43,8 +43,9 @@ class CompatTest {
         fun repeatsSeedBreak(key: CaseKey) = key != key.seed && outcomes[key.seed]?.error == outcomes.getValue(key).error
         fun warnedOnRelease(key: CaseKey): Boolean {
             val ownWarnings = released.getValue(key).warnings - if (key == key.seed) emptySet() else released.getValue(key.seed).warnings.toSet()
-            val names = warnNames.getValue(key).ifEmpty { namesIn(outcomes.getValue(key).error!!) }
-            return ownWarnings.any { warning -> names.all { alternatives -> alternatives.any { warning.names(it) } } }
+            val names = warnNames.getValue(key)
+            if (names.isEmpty()) return namesIn(outcomes.getValue(key).error!!).all { name -> ownWarnings.any { it.names(name) } }
+            return ownWarnings.any { warning -> names.all { alternatives -> alternatives.any(warning::names) } }
         }
         fun isAccepted(key: CaseKey) = accepted.any { it.matches(key) }
 
@@ -128,9 +129,9 @@ private fun list(keys: List<CaseKey>, detail: (CaseKey) -> String? = { null }) =
     keys.take(SHOWN).joinToString("\n") { key -> "  $key" + detail(key)?.let { "\n      $it" }.orEmpty() } +
         if (keys.size > SHOWN) "\n  and ${keys.size - SHOWN} more" else ""
 
-// an error without a snippet to name the type and item names them itself, in quotes, or not at all
-private fun namesIn(error: String): List<Set<String>> =
-    Regex("(?<!\\w)'([^']+)'(?!\\w)").findAll(error).map { setOf(it.groupValues[1]) }.toList().ifEmpty { listOf(setOf(error.substringAfter(": "))) }
+// the library's errors quote the types and items they name; an error that quotes none has to be in a WARN whole
+private fun namesIn(error: String): List<String> =
+    Regex("(?<!\\w)'([^']+)'(?!\\w)").findAll(error).map { it.groupValues[1] }.toList().ifEmpty { listOf(error.substringAfter(": ")) }
 
 private fun String.names(name: String) = Regex("(?<!\\w)${Regex.escape(name)}(?!\\w)").containsMatchIn(this)
 
