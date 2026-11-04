@@ -45,6 +45,10 @@ class CommentConventionsTest {
         assertEquals(listOf("history", "history"), rules("// converted, as it did before this check"))
         assertEquals(listOf("history"), rules("// to keep those schemas building"))
         assertEquals(listOf("history"), rules("// so those schemas keep building"))
+        assertEquals(listOf("history"), rules("// keeps building old schemas"))
+        assertEquals(listOf("history"), rules("// so schemas keep building"))
+        assertEquals(listOf("history"), rules("// the old behavior was to throw here"))
+        assertEquals(listOf("history"), rules("// restores the previous behaviour"))
         assertEquals(listOf("history"), rules("// this check is no longer needed"))
         assertEquals(listOf("version"), rules("/** @since 15.0 */"))
         assertEquals(listOf("version"), rules("// since 1.2.0 the parser"))
@@ -56,6 +60,7 @@ class CommentConventionsTest {
         listOf(
             "// returns the list unchanged",
             "// the previously resolved type wins",
+            "// the cache used to build the type in the scanner",
             "// no longer than 80 characters",
             "// the result is now cached for the next call",
             "// so the loop keeps working on an empty map",
@@ -111,6 +116,9 @@ internal object CommentLint {
         """\b(?:as|like|than) before\b""",
         """\bkeeps? (?:those|these|such|existing|old) (?:\w+ )?(?:building|working)\b""",
         """\b(?:those|these|such|existing|old) schemas? (?:still|keeps?) (?:builds?|building|works?|working)\b""",
+        """\bkeeps? building (?:\w+ )?schemas?\b""",
+        """\bschemas? keeps? building\b""",
+        """\b(?:old|previous) behaviou?r\b""",
     )
 
     private val rules = listOf(
