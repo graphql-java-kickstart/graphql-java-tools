@@ -196,4 +196,28 @@ class SchemaParserDictionaryTest {
         assertEquals(error.message, "Class in supplied dictionary '${ThirdItem::class.java.name}' specified type names 'A', 'B', " +
             "but only input object types can share a class!")
     }
+
+    @Test
+    fun `dictionary names need a type definition, which an object or input extension alone isn't`() {
+        fun parser(extension: String) = SchemaParser.newParser()
+            .schemaString("type Query { id: ID }\n$extension")
+            .resolvers(object : GraphQLQueryResolver {
+                fun id(): String = "1"
+            })
+            .dictionary("Item", ThirdItem::class)
+            .build()
+
+        listOf("extend type Item { id: Int }", "extend input Item { id: Int }").forEach { extension ->
+            val error = assertThrows(SchemaClassScannerError::class.java) { parser(extension) }
+
+            assertEquals(error.message, "Class in supplied dictionary '${ThirdItem::class.java.name}' specified type name 'Item', " +
+                "but a type definition with that name was not found!")
+        }
+
+        val (_, warnings) = withWarnings { parser("extend union Item = Query") }
+        assertEquals(warnings, listOf(
+            "Dictionary mapping was provided but never used, and can be safely deleted: \"Item\" -> ${ThirdItem::class.java.name}",
+            "Schema type was defined but can never be accessed, and can be safely deleted: Item"
+        ))
+    }
 }
