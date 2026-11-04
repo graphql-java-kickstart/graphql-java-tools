@@ -47,7 +47,9 @@ Bugfixes and small features stop at this skill.
 ## Releases
 
 Follow the [Releasing a version](https://github.com/graphql-java-kickstart/graphql-java-tools/wiki/Releasing-a-version) wiki
-page. `github-build.sh` and `.github/workflows/release.yml` do the version bump, tag and publish.
+page. `github-build.sh` and `.github/workflows/release.yml` do the version bump, tag and publish. After an X.0.0 release,
+delete the `<excludes>` under japicmp-maven-plugin in `pom.xml`. The version is X.0.1-SNAPSHOT by then and the API check
+fails while they remain.
 
 ## Rules that need judgment
 
@@ -86,7 +88,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | Argument conversion goes through one entry point | docs only |
 | An input field's Java type comes from the mapping Jackson uses, not from guessed getters | docs only |
 | Every recursive walk over the type graph handles cycles, and a test covers a cycle | docs only |
-| Public signatures stay binary compatible, data class `copy()` and `componentN` included | japicmp with `build/japicmp-kotlin-public.groovy` at `mvn verify`, excludes only at an X.0.0 version |
+| Public signatures stay binary compatible, data class `copy()` and `componentN` included | japicmp with `build/japicmp-kotlin-public.groovy` at `mvn verify`, which allows excludes and other narrowing options only at an X.0.0 version |
 | Remove the plumbing a change leaves unused | Compiler warnings for unused locals, docs only for the rest |
 | A new warning or build error names the type and the item and uses `SourceLocation.describe()` for its location | docs only |
 | A check keyed on a class name or an exception type has a test that fails when the dependency moves it | docs only |

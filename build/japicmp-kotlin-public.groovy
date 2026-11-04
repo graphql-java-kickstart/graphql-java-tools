@@ -6,6 +6,7 @@ import javassist.bytecode.InnerClassesAttribute
 import javassist.bytecode.annotation.ArrayMemberValue
 import javassist.bytecode.annotation.IntegerMemberValue
 import javassist.bytecode.annotation.StringMemberValue
+import japicmp.model.AccessModifier
 import kotlin.metadata.Attributes
 import kotlin.metadata.Visibility
 import kotlin.metadata.jvm.JvmExtensionsKt
@@ -105,20 +106,39 @@ def classSide = { CtClass ctClass ->
     side
 }
 
-// japicmp hands this script only the classes, so the excludes come from its options and the version from the pom.properties
+// japicmp passes every class of both jars, filtered only by its options, so no classes means the options filter out the
+// whole jar.
+if (jApiClasses.isEmpty()) {
+    throw new IllegalStateException("japicmp-maven-plugin compared no classes, so its <includes> or <excludes> leave out the " +
+        "whole jar and no break can fail the build. Remove them. A break planned for the next major gets an <exclude> naming " +
+        "that member, with the version set to that major's X.0.0-SNAPSHOT.")
+}
+
+// japicmp hands this script only the classes, so the options come from a class and the version from the pom.properties
 // maven-jar-plugin puts in the jar under comparison.
-def excludes = jApiClasses.isEmpty() ? [] : jApiClasses.first().@options.filters.excludes*.toString().unique()
-if (!excludes.isEmpty()) {
+def options = jApiClasses.first().@options
+def narrowing = [
+    '<excludes>'                              : options.filters.excludes*.toString().unique(),
+    '<includes>'                              : options.filters.includes*.toString().unique(),
+    '<overrideCompatibilityChangeParameters>': options.overrideCompatibilityChanges.collect {
+        "${it.compatibilityChange} binaryCompatible=${it.binaryCompatible}"
+    },
+    '<accessModifier>'                        : options.accessModifier == AccessModifier.PROTECTED ? [] : [options.accessModifier.name()],
+    '<includeSynthetic>'                      : options.includeSynthetic ? [] : ['false'],
+].findAll { name, values -> !values.isEmpty() }
+if (!narrowing.isEmpty()) {
     def newClass = jApiClasses.find { it.newClass.present }.newClass.get()
     def jar = ((JarURLConnection) newClass.classPool.find(newClass.name).openConnection()).jarFile
     def pomProperties = new Properties()
     pomProperties.load(jar.getInputStream(jar.entries().find { it.name.startsWith('META-INF/maven/') && it.name.endsWith('/pom.properties') }))
     def version = pomProperties.getProperty('version')
     if (!(version ==~ /\d+\.0\.0(-SNAPSHOT)?/)) {
-        throw new IllegalStateException("japicmp-maven-plugin has <excludes> at version ${version}, which compares against a " +
-            "release of the same major:\n" + excludes.collect { "  ${it}" }.join('\n') + "\nExcludes are only for breaks planned for the next major, " +
-            "with the version set to that major's X.0.0-SNAPSHOT. Remove them and keep the old signature as a @Deprecated overload " +
-            "instead. In Kotlin, @Deprecated(level = DeprecationLevel.HIDDEN) keeps it for compiled callers only.")
+        def major = version.substring(0, version.indexOf('.'))
+        throw new IllegalStateException("japicmp-maven-plugin narrows the API check at version ${version}, which is not an X.0.0 " +
+            "version:\n" + narrowing.collect { name, values -> "  ${name}: ${values.join(', ')}" }.join('\n') +
+            "\nOnly a major's X.0.0-SNAPSHOT may narrow it, for the breaks that major plans. If these belong to the ${major}.0.0 " +
+            "release that just shipped, delete them. Otherwise delete them and keep the old signature as a @Deprecated overload. " +
+            "In Kotlin, @Deprecated(level = DeprecationLevel.HIDDEN) keeps it for compiled callers only.")
     }
 }
 
