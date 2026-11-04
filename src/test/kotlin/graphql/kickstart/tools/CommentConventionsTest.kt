@@ -1,6 +1,7 @@
 package graphql.kickstart.tools
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
@@ -10,33 +11,75 @@ class CommentConventionsTest {
 
     @Test
     fun `comments carry no issue numbers, history or versions`() {
-        val violations = listOf(File("src/main"), File("src/test")).asSequence()
+        val sources = listOf(File("src/main"), File("src/test")).asSequence()
             .flatMap { it.walkTopDown() }
             .filter { it.isFile && it.extension in setOf("kt", "java") }
             .sortedBy { it.path }
-            .flatMap { CommentLint.check(it.path, it.readText(), LocalDate.now()) }
             .toList()
+        assertTrue("no .kt or .java files under ${File("src").absolutePath}, run the test from the project root", sources.isNotEmpty())
 
+        val violations = sources.flatMap { CommentLint.check(it.path, it.readText(), LocalDate.now()) }
         if (violations.isNotEmpty()) {
-            fail(violations.joinToString("\n", "${violations.size} comment(s) break the comment conventions:\n"))
+            val lines = violations.distinctBy { it.path to it.line }.size
+            fail(violations.joinToString("\n", "${violations.size} comment convention violation(s) on $lines line(s):\n"))
         }
     }
 
-    @Test
-    fun `lint matches whole comment blocks and honors only valid markers`() {
-        fun rules(source: String) = CommentLint.check("Example.kt", source, LocalDate.of(2026, 11, 4)).map { it.rule }
+    private val today = LocalDate.of(2026, 11, 4)
 
+    private fun check(source: String, path: String = "Example.kt") = CommentLint.check(path, source, today)
+
+    private fun rules(source: String, path: String = "Example.kt") = check(source, path).map { it.rule }
+
+    private fun markerFix(source: String) = check(source).single { it.rule == "lint-allow" }.fix
+
+    @Test
+    fun `lint flags issue numbers, history and versions in whole comment blocks`() {
         assertEquals(listOf("history"), rules("/* this used to\n * be slow */"))
         assertEquals(listOf("history"), rules("// this used to\n// be slow"))
         assertEquals(listOf("issue-number"), rules("// see #999"))
+        assertEquals(listOf("issue-number"), rules("// the enum and directive from issue #823"))
+        assertEquals(listOf("issue-number"), rules("// from https://github.com/o/r/issues/424"))
+        assertEquals(listOf("issue-number", "history"), rules("// built as the type before #552"))
+        assertEquals(listOf("history"), rules("// in the same order as before"))
+        assertEquals(listOf("history", "history"), rules("// converted, as it did before this check"))
+        assertEquals(listOf("history"), rules("// to keep those schemas building"))
+        assertEquals(listOf("history"), rules("// so those schemas keep building"))
+        assertEquals(listOf("history"), rules("// this check is no longer needed"))
         assertEquals(listOf("version"), rules("/** @since 15.0 */"))
-        assertEquals(emptyList<String>(), rules("// TODO reject in 16.0.0 (#999)"))
-        assertEquals(emptyList<String>(), rules("val s = \"// see #999\""))
-        assertEquals(emptyList<String>(), rules("// unchanged lint-allow history until 2026-12-01 by oryan: domain term"))
-        assertEquals(listOf("lint-allow", "history"), rules("// unchanged lint-allow history until 2026-11-03 by oryan: expired"))
-        assertEquals(listOf("lint-allow", "history"), rules("// unchanged lint-allow history until 2026-12-01 by oryan:"))
-        assertEquals(listOf("lint-allow", "history"), rules("// unchanged lint-allow history until 2027-06-01 by oryan: too late"))
-        assertEquals(listOf("history"), rules("// unchanged lint-allow version until 2026-12-01 by oryan: other rule"))
+        assertEquals(listOf("version"), rules("// since 1.2.0 the parser"))
+        assertTrue(check("// see #999 as before, since 1.2.0").all { "lint-allow" in it.fix })
+    }
+
+    @Test
+    fun `lint leaves ordinary prose, code and other languages' syntax alone`() {
+        listOf(
+            "// returns the list unchanged",
+            "// the previously resolved type wins",
+            "// no longer than 80 characters",
+            "// the result is now cached for the next call",
+            "// so the loop keeps working on an empty map",
+            "// step #1 builds the dictionary",
+            "// the border is #000000 and the text is #fff",
+            "// waits since 2.5 seconds have passed",
+            "// explains the lint-allow marker syntax for readers",
+            "// https://example.com/docs/#123",
+            "// TODO reject in 16.0.0 (#999)",
+            "val s = \"// see #999\"",
+        ).forEach { assertEquals(it, emptyList<String>(), rules(it)) }
+
+        assertEquals(listOf("issue-number"), rules("/* a /* b */\nString s = \"no longer needed\"; // see #13", "Example.java"))
+        assertEquals(listOf("issue-number"), rules("String s = \"\"\"\n  \\\"\"\" // #1\n  \"\"\"; // see #2", "Example.java"))
+    }
+
+    @Test
+    fun `lint honors only valid markers and says why a marker is invalid`() {
+        assertEquals(emptyList<String>(), rules("// as before lint-allow history until 2026-12-01 by oryan: domain term"))
+        assertEquals(listOf("history"), rules("// as before lint-allow version until 2026-12-01 by oryan: other rule"))
+        assertTrue(markerFix("// as before lint-allow history until 2026-11-03 by oryan: stale").contains("expired on 2026-11-03"))
+        assertTrue(markerFix("// as before lint-allow history until 2027-06-01 by oryan: too late").contains("more than 90 days"))
+        assertTrue(markerFix("// as before lint-allow history until 2026-12-01 by oryan:").contains("no reason"))
+        assertTrue(markerFix("// as before lint-allow histroy until 2026-12-01 by oryan: typo").contains("unknown rule `histroy`"))
     }
 }
 
@@ -46,31 +89,37 @@ internal object CommentLint {
         override fun toString() = "$path:$line [$rule] \"$match\" in: $lineText\n    fix: $fix"
     }
 
-    private class Rule(val id: String, val pattern: Regex, val fix: String)
-
+    private const val MARKER_MAX_DAYS = 90L
+    private const val MARKER_FORM = "lint-allow <rule> until YYYY-MM-DD by <name>: <reason>"
     private const val MOVE_TO_PR = "move the reason into the PR description"
+
+    private class Rule(val id: String, val pattern: Regex, advice: String) {
+        val fix = "$advice; for a false positive add `lint-allow $id until YYYY-MM-DD by <name>: <reason>` to the line, " +
+            "at most $MARKER_MAX_DAYS days out"
+    }
+
+    private val ordinalNouns = listOf("step", "phase", "stage", "item", "case", "rule", "row", "column", "line", "attempt", "round", "part", "pass", "example", "option")
 
     private val historyPhrases = listOf(
         """\bused to be\b""",
-        """\bunchanged\b""",
-        """\bpreviously\b""",
-        """\bno longer\b""",
-        """\bany ?more\b""",
-        """\bbefore (?:this|the|that) (?:change|check|fix|pr|commit)\b""",
+        """\bno longer (?:needed|necessary|required|supported|used|works?|fails?|throws?|returns?|builds?|breaks?|applies|happens|exists?|runs?)\b""",
+        """\banymore\b""",
+        """\bbefore (?:this|that) (?:change|check|fix|pr|commit)\b""",
+        """\bbefore the (?:fix|pr)\b""",
         """\b(?:before|after|until|since) #\d+""",
         """\bas (?:it|they) did\b""",
         """\b(?:as|like|than) before\b""",
-        """\bstill (?:builds?|works?|building|working)\b""",
-        """\bkeeps? (?:those |these |such |existing |old )?(?:schemas? )?(?:building|working)\b""",
-        """\bworkaround for\b""",
-        """\b(?:is|are|does|do|returns?|throws?) now\b""",
-        """\bnow (?:also |always |only )?(?:returns?|throws?|fails?|builds?|keeps?|logs?|warns?|works?|supports?)\b""",
+        """\bkeeps? (?:those|these|such|existing|old) (?:\w+ )?(?:building|working)\b""",
+        """\b(?:those|these|such|existing|old) schemas? (?:still|keeps?) (?:builds?|building|works?|working)\b""",
     )
 
     private val rules = listOf(
         Rule(
             "issue-number",
-            Regex("""(?<![\w&])#\d+\b|github\.com/\S+/(?:issues|pull)/\d+""", RegexOption.IGNORE_CASE),
+            Regex(
+                """(?<![\w&/])(?<!\b(?:${ordinalNouns.joinToString("|")}) )#\d{1,5}\b|github\.com/\S+/(?:issues|pull)/\d+""",
+                RegexOption.IGNORE_CASE
+            ),
             "$MOVE_TO_PR; an issue number belongs only in `// TODO <change> in X.0.0 (#N)`"
         ),
         Rule(
@@ -80,20 +129,17 @@ internal object CommentLint {
         ),
         Rule(
             "version",
-            Regex("""@since\b|\bsince (?:v|version )?\d+\.\d+""", RegexOption.IGNORE_CASE),
+            Regex("""@since\b|\bsince (?:v\d+(?:\.\d+)*|version \d+(?:\.\d+)*|\d+\.\d+\.\d+)\b""", RegexOption.IGNORE_CASE),
             "drop the version; history goes in the release notes"
         ),
     )
 
-    private const val MARKER_MAX_DAYS = 90L
-    private val marker = Regex("""lint-allow.*""")
-    private val validMarker = Regex("""lint-allow ([\w-]+) until (\d{4}-\d{2}-\d{2}) by [\w-]+: \S.*""")
-    private val markerFix = "reword the comment and drop the marker, or write `lint-allow <rule> until YYYY-MM-DD by <name>: " +
-        "<reason>` with a rule from ${rules.joinToString { it.id }} and a date at most $MARKER_MAX_DAYS days ahead"
+    private val marker = Regex("""lint-allow [\w-]+ until\b.*""")
+    private val markerParts = Regex("""lint-allow ([\w-]+) until (\S+) by [\w-]+: ?(.*)""")
     private val todoIssue = Regex("""\bTODO\b[^#]*?\bin \d+\.0\.0 (\(#\d+\))""")
 
     fun check(path: String, source: String, today: LocalDate): List<Violation> =
-        CommentLexer(source).blocks().flatMap { check(path, it, today) }
+        CommentLexer(source, kotlin = path.endsWith(".kt")).blocks().flatMap { check(path, it, today) }
 
     private fun check(path: String, block: List<Pair<Int, String>>, today: LocalDate): List<Violation> {
         val violations = mutableListOf<Violation>()
@@ -103,9 +149,14 @@ internal object CommentLint {
         block.forEach { (line, lineText) ->
             val found = marker.find(lineText)
             if (found != null) {
-                val rule = allowedRule(found.value, today)
-                if (rule == null) violations += Violation(path, line, "lint-allow", found.value, lineText, markerFix)
-                else allowed[line] = rule
+                val parts = markerParts.matchEntire(found.value)
+                val problem = markerProblem(parts, today)
+                if (problem == null) allowed[line] = parts!!.groupValues[1]
+                else violations += Violation(
+                    path, line, "lint-allow", found.value, lineText,
+                    "$problem; write `$MARKER_FORM` with a rule from ${rules.joinToString { it.id }} and a date at most " +
+                        "$MARKER_MAX_DAYS days out, or reword the comment and drop the marker"
+                )
             }
             if (text.isNotEmpty()) text.append(' ')
             lineStarts += text.length
@@ -124,16 +175,22 @@ internal object CommentLint {
         return violations.sortedBy { it.line }
     }
 
-    private fun allowedRule(marker: String, today: LocalDate): String? {
-        val match = validMarker.matchEntire(marker) ?: return null
-        val until = runCatching { LocalDate.parse(match.groupValues[2]) }.getOrNull() ?: return null
-        val rule = match.groupValues[1]
-        val inWindow = !until.isBefore(today) && !until.isAfter(today.plusDays(MARKER_MAX_DAYS))
-        return rule.takeIf { inWindow && rules.any { it.id == rule } }
+    private fun markerProblem(parts: MatchResult?, today: LocalDate): String? {
+        if (parts == null) return "the marker does not have the form `$MARKER_FORM`"
+        val (rule, date, reason) = parts.destructured
+        val until = runCatching { LocalDate.parse(date) }.getOrNull()
+        return when {
+            rules.none { it.id == rule } -> "unknown rule `$rule`"
+            until == null -> "`$date` is not a YYYY-MM-DD date"
+            until.isBefore(today) -> "the marker expired on $until"
+            until.isAfter(today.plusDays(MARKER_MAX_DAYS)) -> "$until is more than $MARKER_MAX_DAYS days out"
+            reason.isBlank() -> "the marker has no reason after `by <name>:`"
+            else -> null
+        }
     }
 }
 
-private class CommentLexer(private val source: String) {
+private class CommentLexer(private val source: String, private val kotlin: Boolean) {
     private var pos = 0
     private var line = 1
     private var lastLineCommentLine = -1
@@ -185,7 +242,7 @@ private class CommentLexer(private val source: String) {
         var depth = 1
         while (pos < source.length && depth > 0) {
             when {
-                peek("/*") -> { depth++; advance(2) }
+                kotlin && peek("/*") -> { depth++; advance(2) }
                 peek("*/") -> { depth--; advance(2) }
                 else -> advance()
             }
@@ -198,10 +255,14 @@ private class CommentLexer(private val source: String) {
     private fun rawString() {
         advance(3)
         while (pos < source.length && !peek("\"\"\"")) {
-            if (peek("\${")) { advance(2); code(insideTemplate = true) } else advance()
+            when {
+                !kotlin && peek("\\") -> advance(2)
+                kotlin && peek("\${") -> { advance(2); code(insideTemplate = true) }
+                else -> advance()
+            }
         }
         advance(3)
-        while (peek("\"")) advance()
+        while (kotlin && peek("\"")) advance()
     }
 
     private fun string() {
@@ -209,7 +270,7 @@ private class CommentLexer(private val source: String) {
         while (pos < source.length && !peek("\"") && !peek("\n")) {
             when {
                 peek("\\") -> advance(2)
-                peek("\${") -> { advance(2); code(insideTemplate = true) }
+                kotlin && peek("\${") -> { advance(2); code(insideTemplate = true) }
                 else -> advance()
             }
         }
