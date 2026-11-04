@@ -218,6 +218,16 @@
                         <arg>-Werror</arg>
                     </args>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-test-compile</id>
+                        <configuration>
+                            <args combine.children="append">
+                                <arg>-Xassertions=always-enable</arg>
+                            </args>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>
