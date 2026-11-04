@@ -18,20 +18,22 @@ and run another checkout's `probe.sh` from inside it.
 ```bash
 .claude/skills/verify-tools/probe.sh doctor                                 # checkout, branch, install state, lock
 .claude/skills/verify-tools/probe.sh list                                   # scenario names
+.claude/skills/verify-tools/probe.sh install                                # clean-build the checkout into the private repo
 .claude/skills/verify-tools/probe.sh run <scenario> [--graphql-java <ver>]  # build the schema, run every operation
 .claude/skills/verify-tools/probe.sh clean                                  # remove this checkout's work dir, keep evidence
 ```
 
 - `run` first installs the checkout into a private Maven repo under `$TMPDIR/verify-tools/work/<checkout>-<path hash>/` when
   the install is missing or stale, meaning HEAD or uncommitted `pom.xml`/`src/` changes differ from the last install. It
-  reads `~/.m2` but never writes it. The work dir is keyed on the checkout's path, so clones and worktrees run in parallel,
-  even when two share a folder name. If `doctor` shows the
-  lock held by a live pid, wait for that run.
+  reads `~/.m2` but never writes it. The install runs `mvn clean install`, so it empties the checkout's `target/`. Don't
+  run it while another build uses the same checkout. The work dir is keyed on the checkout's path, so clones and worktrees
+  run in parallel, even when two share a folder name. If `doctor` shows the lock held by a live pid, wait for that run.
 - It builds the schema from the scenario's `parser()`, prints it, then executes every `*.graphql` in
   `probe/src/main/resources/scenarios/<name>/` in name order, with `<op>.variables.json` as variables. It collects
   subscription events until the stream completes, for at most 10 seconds.
 - Exit `0`: the schema built and every operation ran, though operations can still return GraphQL errors. `2`: the build
-  threw. `1`: harness failure (install log or `maven.log`). `64`: bad usage.
+  threw. `1`: harness failure (install log or `maven.log`) or a held lock. `64`: bad usage, such as a missing or unknown
+  scenario.
 - `--graphql-java` swaps only the runtime graphql-java, like a user who pins another version. It doesn't recompile the
   library against it. `--skip-install` runs a stale install on purpose and doesn't count as proof.
 

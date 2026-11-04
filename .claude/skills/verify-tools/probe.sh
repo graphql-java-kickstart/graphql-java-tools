@@ -5,7 +5,10 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO="$(git -C "$SKILL_DIR" rev-parse --show-toplevel)"
 ROOT="${TMPDIR:-/tmp}"
 ROOT="${ROOT%/}/verify-tools"
-KEY="$(basename "$REPO")-$(printf '%s' "$REPO" | sha256sum | cut -c1-8)"
+
+sha256() { if command -v sha256sum > /dev/null; then sha256sum; else shasum -a 256; fi; }
+
+KEY="$(basename "$REPO")-$(printf '%s' "$REPO" | sha256 | cut -c1-8)"
 WORK="$ROOT/work/$KEY"
 M2="$WORK/m2"
 TAIL_M2="$HOME/.m2/repository"
@@ -13,6 +16,7 @@ EVIDENCE_ROOT="$ROOT/evidence"
 STAMP="$WORK/installed.stamp"
 
 die() { echo "probe: $*" >&2; exit 1; }
+usage_error() { echo "probe: $*" >&2; exit 64; }
 
 pom_value() { sed -n "s:.*<$1>\(.*\)</$1>.*:\1:p" "$REPO/pom.xml" | head -1; }
 TOOLS_VERSION="$(pom_value version)"
@@ -26,7 +30,7 @@ fingerprint() {
       echo "$file"
       cat "$REPO/$file"
     done
-  } | sha256sum | cut -c1-16
+  } | sha256 | cut -c1-16
 }
 
 installed_jar() { echo "$M2/io/github/graphql-java-kickstart/graphql-java-tools/$TOOLS_VERSION/graphql-java-tools-$TOOLS_VERSION.jar"; }
@@ -62,7 +66,7 @@ cmd_install() {
   fp="$(fingerprint)"
   log="$WORK/install.log"
   echo "probe: installing $TOOLS_VERSION from $REPO into $M2 (log: $log)"
-  if ! (cd "$REPO" && mvn_isolated install -DskipTests > "$log" 2>&1); then
+  if ! (cd "$REPO" && mvn_isolated clean install -DskipTests > "$log" 2>&1); then
     grep -E '^\[ERROR\]' "$log" | head -30 >&2 || true
     die "install failed, see $log"
   fi
@@ -99,12 +103,12 @@ cmd_run() {
     case "$1" in
       --graphql-java) gj="$2"; shift 2 ;;
       --skip-install) skip_install=true; shift ;;
-      -*) die "unknown option $1" ;;
-      *) [[ -z "$scenario" ]] || die "one scenario per run"; scenario="$1"; shift ;;
+      -*) usage_error "unknown option $1" ;;
+      *) [[ -z "$scenario" ]] || usage_error "one scenario per run"; scenario="$1"; shift ;;
     esac
   done
-  [[ -n "$scenario" ]] || die "usage: probe.sh run <scenario> [--graphql-java VERSION] [--skip-install]"
-  cmd_list | grep -qx "$scenario" || die "unknown scenario '$scenario', known: $(cmd_list | tr '\n' ' ')"
+  [[ -n "$scenario" ]] || usage_error "usage: probe.sh run <scenario> [--graphql-java VERSION] [--skip-install]"
+  cmd_list | grep -qx "$scenario" || usage_error "unknown scenario '$scenario', known: $(cmd_list | tr '\n' ' ')"
 
   lock
   local state
@@ -168,5 +172,5 @@ case "${1:-}" in
   list) cmd_list ;;
   run) shift; cmd_run "$@" ;;
   clean) cmd_clean ;;
-  *) echo "usage: probe.sh {doctor|list|install|run <scenario> [--graphql-java VERSION] [--skip-install]|clean}" >&2; exit 64 ;;
+  *) usage_error "usage: probe.sh {doctor|list|install|run <scenario> [--graphql-java VERSION] [--skip-install]|clean}" ;;
 esac
