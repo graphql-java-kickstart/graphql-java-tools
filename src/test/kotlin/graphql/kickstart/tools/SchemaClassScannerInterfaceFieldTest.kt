@@ -304,6 +304,46 @@ class SchemaClassScannerInterfaceFieldTest {
         assert(schema.getType("Entry") is GraphQLInterfaceType)
     }
 
+    @Test
+    fun `scanner handles interfaces used only by fields of interface extensions`() {
+        val schema = SchemaParser.newParser()
+            .schemaString(
+                """
+                type Query {
+                    container: Container
+                }
+
+                interface Container {
+                    id: ID
+                }
+
+                extend interface Container {
+                    entry: Entry
+                }
+
+                interface Entry {
+                    id: ID!
+                }
+
+                interface Draft implements Entry {
+                    id: ID!
+                }
+
+                type Box implements Container {
+                    id: ID
+                    entry: Draft
+                }
+                """)
+            .resolvers(InterfaceOnlyInterface())
+            .dictionary(InterfaceOnlyInterface.Box::class)
+            .build()
+            .makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        assertEquals((schema.getType("Container") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "entry"))
+        assert(schema.getType("Entry") is GraphQLInterfaceType)
+    }
+
     class InterfaceOnlyInterface : GraphQLQueryResolver {
         fun container(): Container? = null
 
@@ -311,7 +351,7 @@ class SchemaClassScannerInterfaceFieldTest {
 
         interface Draft
 
-        class Box(val entry: Draft?) : Container
+        class Box(val entry: Draft?, val id: String? = null) : Container
     }
 
     @Test
