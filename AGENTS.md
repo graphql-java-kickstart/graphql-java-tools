@@ -49,6 +49,11 @@ Bugfixes and small features stop at this skill.
 Follow the [Releasing a version](https://github.com/graphql-java-kickstart/graphql-java-tools/wiki/Releasing-a-version) wiki
 page. `github-build.sh` and `.github/workflows/release.yml` do the version bump, tag and publish.
 
+After the release is published, record what it builds, so `CompatTest` checks later changes against it. Check out the
+release tag in a worktree, run `mvn -B -ntp clean test -Dtest=CompatTest -Dcompat.capture`, and open a PR with the
+`src/test/resources/compat/<version>/` it writes: `cases.tsv` and an empty `accepted.txt`. A later break that the release
+notes list goes into that `accepted.txt` as a regex for the case, a tab, and the issue.
+
 ## Rules that need judgment
 
 No check can enforce these, so each one names the mistake it prevents.
@@ -110,4 +115,4 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | A build you trust starts from an empty `target/`, so no class from an earlier build ships | `clean` in `probe.sh install`, docs only for your own `mvn` runs |
 | Agent worktrees and local settings stay out of commits | `.gitignore` |
 | Agent rules live in one committed file | This file. `CLAUDE.md` imports it |
-| Invalid input that used to build logs a WARN until the next major | docs only |
+| Invalid input that used to build logs a WARN until the next major | `CompatTest`, against the last release's results in `src/test/resources/compat` |
