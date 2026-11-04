@@ -1,5 +1,7 @@
 package unwrapcheck;
 
+import graphql.kickstart.tools.GraphQLQueryResolver;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -11,6 +13,12 @@ public final class Fixtures {
     public static volatile Object nextReturnValue;
 
     private Fixtures() {
+    }
+
+    public static final class HolderQuery implements GraphQLQueryResolver {
+        public Object holder() {
+            return nextReturnValue;
+        }
     }
 
     public static final class Payload {

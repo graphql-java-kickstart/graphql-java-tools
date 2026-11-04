@@ -1,0 +1,5 @@
+^(property|map) \w+<.*Future<.*String>+$ # properties and Maps don't await a future below the top level, so a String field returns the future's toString with no error
+^(property|map) \w+<.*Future<.*(Payload|Object)>+$ # properties and Maps don't await a future below the top level, so an object or union field fails
+^(property|map) Future< # properties and Maps don't check a declared Future, so a FutureTask fails with "Expected source object" or returns its toString, not the "can't wait on" error
+^(property|map) .*\b(Page|Later|Try)< # properties and Maps don't run generic wrapper transformers, so the field fails or a String field returns the wrapper's toString
+^(property|map) ((\w+<){2,}|(List|Optional|DataFetcherResult)<)DataFetcherResult< # properties and Maps leave a DataFetcherResult below a list, an Optional or another DataFetcherResult to graphql-java, which only reads one at the top or under a top-level future
