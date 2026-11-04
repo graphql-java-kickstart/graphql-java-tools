@@ -293,7 +293,6 @@ class SchemaClassScannerDirectiveTest {
         assertEquals(error.message, message)
     }
 
-    // the enum and directive from issue #823
     private val linkDirective = """
         enum Purpose { SECURITY EXECUTION }
 

@@ -123,9 +123,6 @@ internal class SchemaClassScanner(
             handleDictionaryTypes(getAllObjectTypeMembersOfDiscoveredUnions()) { "Object type '${it.name}' is a member of a known union, but no class could be found for that type name.  Please pass a class for type '${it.name}' in the parser's dictionary." }
             if (scanQueue()) continue
 
-            // Look for unions and interfaces used only by interface fields last, so types that can be reached some other way
-            // are still discovered in the same order as before. With includeUnusedTypes the unused types loop below already
-            // picks these up one at a time, scanning in between, so leave that path unchanged.
             if (!options.includeUnusedTypes && handleInterfaceFieldTypes()) continue
 
             break
