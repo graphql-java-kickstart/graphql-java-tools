@@ -14,10 +14,7 @@ import java.io.File
 class CompatTest {
     @Test
     fun `cases that built on the last release still build`() {
-        // the tests run in the library's module, which neither reads logback's nor exports the scenarios to kotlin-reflect
-        val module = CompatTest::class.java.module
-        listOf("ch.qos.logback.classic", "ch.qos.logback.core").forEach { ModuleLayer.boot().findModule(it).ifPresent(module::addReads) }
-        ModuleLayer.boot().findModule("kotlin.reflect").ifPresent { module.addExports(Scenario::class.java.packageName, it) }
+        readLogbackAndExportScenariosToKotlinReflect()
         if (SCENARIOS.isEmpty()) return fail("No scenarios in ${Scenario::class.java.packageName}, so nothing is checked.")
         val variants = SCENARIOS.flatMap(::variants)
         val outcomes = runAll(variants)
@@ -37,14 +34,14 @@ class CompatTest {
         val acceptedFile = File(dir, "accepted.txt")
         val accepted = readAccepted(acceptedFile)
         val major = version.major > release.major
-        val warnNames = variants.associate { it.key to it.warnNames }
+        val warnMustNameOneOfEach = variants.associate { it.key to it.warnMustNameOneOfEach }
 
         fun builtWithItsSeedOnRelease(key: CaseKey) = released[key.seed]?.built == true && released.getValue(key).built
         fun repeatsSeedBreak(key: CaseKey) = key != key.seed && outcomes[key.seed]?.error == outcomes.getValue(key).error
         fun warnedOnRelease(key: CaseKey): Boolean {
             val ownWarnings = released.getValue(key).warnings - if (key == key.seed) emptySet() else released.getValue(key.seed).warnings.toSet()
-            val names = warnNames.getValue(key)
-            if (names.isEmpty()) return namesIn(outcomes.getValue(key).error!!).all { name -> ownWarnings.any { it.names(name) } }
+            val names = warnMustNameOneOfEach.getValue(key)
+            if (names.isEmpty()) return quotedNamesOrWholeMessage(outcomes.getValue(key).error!!).all { name -> ownWarnings.any { it.names(name) } }
             return ownWarnings.any { warning -> names.all { alternatives -> alternatives.any(warning::names) } }
         }
         fun isAccepted(key: CaseKey) = accepted.any { it.matches(key) }
@@ -129,11 +126,16 @@ private fun list(keys: List<CaseKey>, detail: (CaseKey) -> String? = { null }) =
     keys.take(SHOWN).joinToString("\n") { key -> "  $key" + detail(key)?.let { "\n      $it" }.orEmpty() } +
         if (keys.size > SHOWN) "\n  and ${keys.size - SHOWN} more" else ""
 
-// the library's errors quote the types and items they name; an error that quotes none has to be in a WARN whole
-private fun namesIn(error: String): List<String> =
+private fun quotedNamesOrWholeMessage(error: String): List<String> =
     Regex("(?<!\\w)'([^']+)'(?!\\w)").findAll(error).map { it.groupValues[1] }.toList().ifEmpty { listOf(error.substringAfter(": ")) }
 
 private fun String.names(name: String) = Regex("(?<!\\w)${Regex.escape(name)}(?!\\w)").containsMatchIn(this)
+
+private fun readLogbackAndExportScenariosToKotlinReflect() {
+    val module = CompatTest::class.java.module
+    listOf("ch.qos.logback.classic", "ch.qos.logback.core").forEach { ModuleLayer.boot().findModule(it).ifPresent(module::addReads) }
+    ModuleLayer.boot().findModule("kotlin.reflect").ifPresent { module.addExports(Scenario::class.java.packageName, it) }
+}
 
 private fun runAll(variants: List<Variant>): Map<CaseKey, Outcome> {
     val logger = LoggerFactory.getLogger("graphql.kickstart.tools") as Logger

@@ -25,26 +25,22 @@ data class CaseKey(val scenario: String, val operator: String, val snippet: Stri
     override fun toString() = listOf(scenario, operator, snippet).filter { it.isNotEmpty() }.joinToString(" | ")
 }
 
-/**
- * [warnNames] is what a release's WARN has to name to count as a warning about this case: one name out of each set. Seed
- * and proxy cases have none, because only their error says what broke, so the WARNs have to name what the error quotes.
- */
-class Variant(val key: CaseKey, val warnNames: List<Set<String>>, val build: () -> Unit)
+class Variant(val key: CaseKey, val warnMustNameOneOfEach: List<Set<String>>, val build: () -> Unit)
 
 fun variants(scenario: Scenario): List<Variant> {
     fun variant(
         operator: String,
         snippet: String = "",
-        warnNames: List<Set<String>> = emptyList(),
+        warnMustNameOneOfEach: List<Set<String>> = emptyList(),
         resolvers: () -> List<GraphQLResolver<*>> = { scenario.resolvers }
-    ) = Variant(CaseKey(scenario.name, operator, snippet), warnNames) {
+    ) = Variant(CaseKey(scenario.name, operator, snippet), warnMustNameOneOfEach) {
         val builder = scenario.parser(resolvers())
         if (snippet.isNotEmpty()) builder.schemaString(snippet)
         scenario.schema(builder.build())
     }
 
     return listOf(variant("seed"), variant("proxy") { scenario.resolvers.map { ProxyFactory(it).proxy as GraphQLResolver<*> } }) +
-        snippets(scenario).map { (key, warnNames) -> variant(key.first, key.second, warnNames) }
+        snippets(scenario).map { (key, warnMustNameOneOfEach) -> variant(key.first, key.second, warnMustNameOneOfEach) }
 }
 
 private val KINDS: Map<Class<*>, String> = mapOf(
@@ -70,12 +66,12 @@ private fun snippets(scenario: Scenario): Map<Pair<String, String>, List<Set<Str
 
     for (type in types) {
         val kind = KINDS.getValue(type.javaClass)
-        fun add(operator: String, snippet: String, vararg warnNames: Set<String>) = snippets.putIfAbsent(operator to snippet, warnNames.toList())
-        // a WARN about a directive in an extension may point at the application instead of naming the type
+        fun add(operator: String, snippet: String, vararg warnMustNameOneOfEach: Set<String>) =
+            snippets.putIfAbsent(operator to snippet, warnMustNameOneOfEach.toList())
         fun addDirective(operator: String, directive: String, applications: String) {
             val snippet = "extend $kind ${type.name} $applications"
-            val positions = Regex("@$directive\\b").findAll(snippet).map { "line 1, column ${it.range.first + 1}" }
-            add(operator, snippet, setOf(directive), setOf(type.name) + positions)
+            val applicationPositions = Regex("@$directive\\b").findAll(snippet).map { "line 1, column ${it.range.first + 1}" }
+            add(operator, snippet, setOf(directive), setOf(type.name) + applicationPositions)
         }
 
         for (other in KINDS.values - kind) {
