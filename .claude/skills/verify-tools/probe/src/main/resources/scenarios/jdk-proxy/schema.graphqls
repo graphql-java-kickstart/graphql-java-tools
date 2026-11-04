@@ -1,0 +1,5 @@
+type Query {
+    test: String
+    count: Int
+    total: Int
+}

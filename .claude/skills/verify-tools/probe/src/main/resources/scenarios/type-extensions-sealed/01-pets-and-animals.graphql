@@ -1,0 +1,11 @@
+query {
+    pets {
+        __typename
+        ... on Dog { name }
+        ... on Cat { lives }
+    }
+    animals {
+        __typename
+        name
+    }
+}

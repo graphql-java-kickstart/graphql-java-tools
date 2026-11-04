@@ -1,0 +1,7 @@
+query BookById($id: ID!) {
+    book(id: $id) {
+        title
+        author { id name }
+    }
+    missing: book(id: "nope") { title }
+}

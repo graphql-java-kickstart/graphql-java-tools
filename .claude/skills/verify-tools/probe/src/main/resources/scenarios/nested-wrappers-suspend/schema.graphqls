@@ -1,0 +1,9 @@
+type Query {
+    nullableItems: [Item]
+    nonNullItems: [Item!]!
+    typeVariableStrings: [String]
+}
+
+type Item {
+    id: ID!
+}

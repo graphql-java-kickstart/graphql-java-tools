@@ -3,3 +3,8 @@
 target/
 pom.xml.releaseBackup
 release.properties
+.mvn/jvm.config
+.local/
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/

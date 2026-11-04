@@ -1,0 +1,13 @@
+directive @uppercase on FIELD_DEFINITION
+directive @connection(for: String!) on FIELD_DEFINITION
+
+type Query {
+    motto: String! @uppercase
+    oldMotto: String! @deprecated(reason: "Use motto")
+    members(first: Int, after: String): MemberConnection @connection(for: "Member")
+}
+
+type Member {
+    id: ID!
+    name: String! @uppercase
+}

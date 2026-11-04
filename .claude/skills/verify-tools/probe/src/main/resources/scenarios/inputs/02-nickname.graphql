@@ -1,0 +1,5 @@
+query Nickname {
+    omitted: nickname
+    explicitNull: nickname(value: null)
+    given: nickname(value: "Bilbo")
+}

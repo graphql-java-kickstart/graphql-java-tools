@@ -1,0 +1,3 @@
+query {
+    trees(filter: { name: "a", children: [{ name: "b" }, { name: "c", children: [{ name: "d" }] }] })
+}

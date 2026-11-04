@@ -1,0 +1,15 @@
+type Query {
+    count(filter: Filter): Int!
+}
+
+extend input Filter {
+    limit: Int
+}
+
+input Filter {
+    term: String
+}
+
+extend input Filter {
+    offset: Int
+}

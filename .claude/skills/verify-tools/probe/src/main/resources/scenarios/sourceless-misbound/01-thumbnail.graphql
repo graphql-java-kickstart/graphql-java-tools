@@ -1,0 +1,3 @@
+query {
+    folder { images { name thumbnail(size: 64) } }
+}

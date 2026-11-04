@@ -1,0 +1,7 @@
+query {
+    greeting(name: "ada")
+    farewell(name: "ada")
+    user { name locale }
+    environmentOnly
+    contextOnly
+}

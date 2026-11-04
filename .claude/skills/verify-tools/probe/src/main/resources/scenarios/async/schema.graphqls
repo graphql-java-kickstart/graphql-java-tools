@@ -1,0 +1,14 @@
+type Query {
+    future: String!
+    suspended: String!
+    shipments: [Shipment!]!
+}
+
+type Shipment {
+    id: ID!
+    status: String!
+}
+
+type Subscription {
+    ticks(count: Int!): Int!
+}
