@@ -29,7 +29,8 @@ the field resolves its data and the query keeps its errors. An empty `Optional` 
 ## Gotchas
 
 - Before the fix (master 3f022b91) `optional-results` still exits `0`. `01` has
-  `data.optionalResult = {"data": "scenarios.OptionalResultsPayload@<hash>"}` with no error, and `02` has
+  `data.optionalResult = {"data": "graphql.kickstart.tools.compat.scenarios.OptionalResultsPayload@<hash>"}` with no
+  error, and `02` has
   `"DataFetcherResult{data=a, errors=[], localContext=null, extensions=null}"`. `optional-results-mixed` exits `2` with
   `Two different classes used for type Payload`, `optional-results-list` exits `2` with `Java class is not a List or generic
   type information was lost`, and `optional-results-nested` exits `0` with the same `Payload@<hash>` string.

@@ -24,7 +24,7 @@ Any other trailing parameter type fails the build with "No method found".
 - **Invalid.** `run context-and-environment-invalid`. Exit `2`.
   `build-error.txt` starts with `graphql.kickstart.tools.resolver.FieldResolverError: No method found ... (optionally
   followed by any of [interface graphql.schema.DataFetchingEnvironment, class graphql.GraphQLContext, class
-  scenarios.AppContext])`.
+  graphql.kickstart.tools.compat.scenarios.AppContext])`.
 - **Misbound.** `run context-misbound`. Exit `2`, no operations run, and `probe.log` is empty. `build-error.txt` starts
   with `graphql.kickstart.tools.resolver.FieldResolverError: Field 'Query.users' has no parameter for its argument
   'first: Int' in graphql.kickstart.tools.compat.scenarios.ContextMisboundQuery.users, so the DataFetchingEnvironment
@@ -43,8 +43,8 @@ Any other trailing parameter type fails the build with "No method found".
     operation is not implemented: Schema resolver not implemented"}`.
   - `run sourceless-misbound`: exit `2`. `thumbnail(GraphQLContext, env)` for `thumbnail(size: Int)` still fails the build.
     The signatures listed for `compat/scenarios/sourceless-misbound/schema.graphqls:11` end with
-    `scenarios.MisboundImageResolver.thumbnail(~size, <environment or context>)` and
-    `scenarios.MisboundImageResolver.getThumbnail(~size, <environment or context>)`.
+    `graphql.kickstart.tools.compat.scenarios.MisboundImageResolver.thumbnail(~size, <environment or context>)` and
+    `graphql.kickstart.tools.compat.scenarios.MisboundImageResolver.getThumbnail(~size, <environment or context>)`.
 
 ## Gotchas
 

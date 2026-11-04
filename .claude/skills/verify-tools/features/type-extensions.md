@@ -3,7 +3,9 @@
 `extend type`, `extend interface`, `extend union`, `extend enum`, `extend input` and `extend scalar` add to the type they
 extend: fields, interfaces, members, values and directives are merged into one graphql-java type, base first. Where a type
 and its extensions declare a field, enum value or union member twice, or apply a non-repeatable directive again, the build
-fails with a `SchemaError` that names the type, the item and its line. An extension of a different kind than its type is
+fails with a `SchemaError`. For a field, value or member it names the type, the item and its line. For a directive it names
+only the directive and its line, as in `Directive @once at line 1, column 25 isn't repeatable but is applied more than
+once.` An extension of a different kind than its type is
 ignored with a WARN. A union, enum, interface or scalar that only has extensions is built from them.
 
 ## Sub-features

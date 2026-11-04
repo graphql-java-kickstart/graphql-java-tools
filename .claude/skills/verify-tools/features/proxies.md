@@ -32,8 +32,8 @@ interfaces, so it can't call a field that resolves to the target's own method or
 
 - Before #913 (commit f4800425) `jdk-proxy` builds with exit `0`. `01-query.json` has
   `data = {"test": null, "count": null, "total": null}` and three errors, `object of type jdk.proxy2.$ProxyN is not an
-  instance of scenarios.ProxiedQuery` for `test` and `total`, and `Can not get final int field scenarios.ProxiedQuery.count`
-  for `count`. From #853 on, `probe.log` has one `SchemaClassScanner` WARN per field. Before it, `probe.log` is empty.
+  instance of graphql.kickstart.tools.compat.scenarios.ProxiedQuery` for `test` and `total`, and `Can not get final int
+  field graphql.kickstart.tools.compat.scenarios.ProxiedQuery.count` for `count`. From #853 on, `probe.log` has one `SchemaClassScanner` WARN per field. Before it, `probe.log` is empty.
 - The proxy number in `jdk.proxy2.$ProxyN` varies between runs.
 - CGLIB can't override `final` members, so the resolver and its members must be `open`. A final getter is called on the
   proxy itself and reads the proxy's empty field, like `count` does.
