@@ -33,4 +33,4 @@ warning per field that suggests class-based proxies, plus a getter for a field.
 - The proxy number in `jdk.proxy2.$ProxyN` varies between runs.
 - CGLIB can't override `final` members, so the resolver and its members must be `open`. A final getter is called on the
   proxy itself and reads the proxy's empty field, like `count` does.
-- The three scenarios share the schema and operations in `scenarios/jdk-proxy/`.
+- The three scenarios share the schema and operations in `compat/scenarios/jdk-proxy/`.

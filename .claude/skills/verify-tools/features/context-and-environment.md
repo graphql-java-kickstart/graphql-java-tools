@@ -44,7 +44,7 @@ Any other trailing parameter type fails the build with "No method found".
     throws, so `01-helper.json` is `{"threw": "java.util.concurrent.CompletionException: kotlin.NotImplementedError: An
     operation is not implemented: Schema resolver not implemented"}`.
   - `run sourceless-misbound`: exit `2`. `thumbnail(GraphQLContext, env)` for `thumbnail(size: Int)` still fails the build.
-    The signatures listed for `scenarios/sourceless-misbound/schema.graphqls:11` end with
+    The signatures listed for `compat/scenarios/sourceless-misbound/schema.graphqls:11` end with
     `scenarios.MisboundImageResolver.thumbnail(~size, <environment or context>)` and
     `scenarios.MisboundImageResolver.getThumbnail(~size, <environment or context>)`.
 

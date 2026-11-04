@@ -67,7 +67,7 @@ application, and fails for a directive with no definition unless `allowUndeclare
 - **Drift warnings.** `probe.log` of `directive-drift` has 12 `SchemaParser` WARNs. Six are `isn't repeatable but is applied
   more than once`, two are an extension of `Date` or `Query` applying `@once` again, two are `is missing its required
   argument` (`@tag` and `@needs`), one is `Directive @fieldOnly at line 38, column 28 in
-  scenarios/directive-drift/schema.graphqls is applied to ARGUMENT_DEFINITION, but it's declared on FIELD_DEFINITION.`, and
+  compat/scenarios/directive-drift/schema.graphqls is applied to ARGUMENT_DEFINITION, but it's declared on FIELD_DEFINITION.`, and
   one is `Scalar 'Money' is built without its directives from the schema: Found an unexpected directive argument tag#nam .`
   None names `@undeclared`, because `directive-drift` sets `allowUndeclaredDirectives(true)`.
 - **Undeclared.** `run directive-drift-undeclared`. Exit `2`. `summary.txt` has `schema build: FAILED
@@ -75,7 +75,7 @@ application, and fails for a directive with no definition unless `allowUndeclare
   and `build-error.txt` starts with the same message.
 - **Invalid applications.** `run directives-invalid`. Exit `0` and `errors=0`. `01-query.json` has
   `data.motto = "KEEP IT SIMPLE"`, so the misplaced `@uppercase` still wires. `probe.log` has exactly 5 `SchemaParser`
-  WARNs, each naming its line and column in `scenarios/directives-invalid/schema.graphqls`.
+  WARNs, each naming its line and column in `compat/scenarios/directives-invalid/schema.graphqls`.
   `Directive @uppercase at line 12, column 20 ... is applied to FIELD_DEFINITION, but it's declared on OBJECT.`
   `Directive @deprecated at line 17, column 13 ... is applied to OBJECT, but it's declared on FIELD_DEFINITION |
   ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION.`
