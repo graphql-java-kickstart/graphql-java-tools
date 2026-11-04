@@ -282,6 +282,71 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.4</version>
+                <executions>
+                    <execution>
+                        <id>check-jar</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <classpathScope>runtime</classpathScope>
+                            <arguments>
+                                <argument>${project.basedir}/build/JarCheck.java</argument>
+                                <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
+                                <argument>${java.version}</argument>
+                                <classpath/>
+                                <argument>graphql.kickstart.tools.SchemaParser</argument>
+                                <argument>graphql.kickstart.tools.proxy.GuiceAopProxyHandler</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- With no oldVersion, the baseline is the newest release below the pom version -->
+            <plugin>
+                <groupId>com.github.siom79.japicmp</groupId>
+                <artifactId>japicmp-maven-plugin</artifactId>
+                <version>0.26.5</version>
+                <configuration>
+                    <parameter>
+                        <oldVersionPattern>\d+\.\d+\.\d+</oldVersionPattern>
+                        <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                        <onlyModified>true</onlyModified>
+                        <!-- Otherwise every changed @kotlin.Metadata shows up in the report -->
+                        <noAnnotations>true</noAnnotations>
+                        <skipHtmlReport>true</skipHtmlReport>
+                        <skipXmlReport>true</skipXmlReport>
+                        <postAnalysisScript>${project.basedir}/build/japicmp-kotlin-public.groovy</postAnalysisScript>
+                    </parameter>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-metadata-jvm</artifactId>
+                        <version>${kotlin.version}</version>
+                    </dependency>
+                    <!-- The plugin's own Groovy can't read JDK 25 class files -->
+                    <dependency>
+                        <groupId>org.apache.groovy</groupId>
+                        <artifactId>groovy-jsr223</artifactId>
+                        <version>4.0.33</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>cmp</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
                 <version>0.12.0</version>
