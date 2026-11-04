@@ -1,0 +1,32 @@
+directive @inspect on INPUT_FIELD_DEFINITION
+directive @required on FIELD_DEFINITION
+directive @described on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT
+
+type Query {
+    trees(filter: TreeFilter): Int
+    person: Person
+    someone: Someone
+}
+
+input TreeFilter @described {
+    name: String
+    children: [TreeFilter!] @inspect
+}
+
+interface Named @described {
+    name: String
+}
+
+type Person implements Named @described {
+    name: String
+    friend: Person @required
+    state: State @required
+    someone: Someone
+}
+
+union Someone @described = Person
+
+enum State @described {
+    ALIVE
+    GONE
+}

@@ -1,0 +1,21 @@
+type Query {
+    ignored(input: IgnoredInput!): String
+    typo(input: TypoInput!): String
+}
+
+input IgnoredInput {
+    inner: InnerInput
+}
+
+input InnerInput {
+    name: String
+    legacy: String
+}
+
+input TypoInput {
+    item: ItemInput
+}
+
+input ItemInput {
+    name: String
+}

@@ -1,0 +1,12 @@
+type Query {
+    greeting(name: String!): String!
+    farewell(name: String!): String!
+    user: User!
+    environmentOnly: String!
+    contextOnly: String!
+}
+
+type User {
+    name: String!
+    locale: String!
+}

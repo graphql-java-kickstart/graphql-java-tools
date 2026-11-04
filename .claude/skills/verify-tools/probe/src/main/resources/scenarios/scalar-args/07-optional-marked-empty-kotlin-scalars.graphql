@@ -1,0 +1,4 @@
+{
+    optionalTypedToken(token: "optional")
+    optionalIdToken(token: "optional")
+}

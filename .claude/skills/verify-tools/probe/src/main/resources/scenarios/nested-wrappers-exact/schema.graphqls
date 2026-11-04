@@ -1,0 +1,15 @@
+scalar DateTime
+
+type Query {
+    dates: [DateTime]
+    triedDates: [DateTime!]!
+    plainFutureItems: [Item]
+    batchedItems: [Item!]!
+    boxedItems: [Item!]!
+    laterItems: [Item]
+    suspendPlainFutureItems: [Item]
+}
+
+type Item {
+    id: ID!
+}

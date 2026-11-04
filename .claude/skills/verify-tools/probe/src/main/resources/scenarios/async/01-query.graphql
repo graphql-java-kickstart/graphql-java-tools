@@ -1,0 +1,5 @@
+query Async {
+    future
+    suspended
+    shipments { id status }
+}

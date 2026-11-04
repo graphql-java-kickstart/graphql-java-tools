@@ -1,0 +1,6 @@
+query Introspect {
+    __schema {
+        directives { name args { name defaultValue type { kind name ofType { kind name ofType { kind name } } } } }
+        types { name inputFields { name type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } }
+    }
+}

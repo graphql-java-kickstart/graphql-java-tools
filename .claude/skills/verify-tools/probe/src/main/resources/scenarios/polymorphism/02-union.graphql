@@ -1,0 +1,7 @@
+query Search {
+    search(term: "s") {
+        __typename
+        ... on Novel { title }
+        ... on Writer { name }
+    }
+}

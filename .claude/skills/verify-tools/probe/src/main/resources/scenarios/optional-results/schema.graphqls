@@ -1,0 +1,9 @@
+type Query {
+    optionalResult: Payload
+    optionalResultName: String
+    emptyOptionalResult: Payload
+}
+
+type Payload {
+    data: String
+}

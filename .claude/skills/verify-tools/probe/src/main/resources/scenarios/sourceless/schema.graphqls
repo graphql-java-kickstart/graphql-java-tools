@@ -1,0 +1,18 @@
+type Query {
+    folder: Folder!
+}
+
+type Folder {
+    supportedFileTypes: [String!]!
+    images: [Image!]!
+}
+
+type Image {
+    name: String!
+    imageBlob: String!
+    thumbnail(size: Int!): String!
+    owner: String
+    locale: String!
+    signature: String!
+    caption: String!
+}

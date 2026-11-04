@@ -1,0 +1,9 @@
+query Books {
+    books {
+        id
+        title
+        published
+        inStock
+        author { name }
+    }
+}

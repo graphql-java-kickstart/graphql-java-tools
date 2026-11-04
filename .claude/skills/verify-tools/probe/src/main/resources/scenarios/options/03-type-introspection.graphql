@@ -1,0 +1,3 @@
+query TypeIntrospection {
+    __type(name: "Query") { name }
+}

@@ -1,0 +1,4 @@
+query {
+    contextArgument(name: "ada")
+    greeting(name: "ada")
+}

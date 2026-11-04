@@ -1,0 +1,3 @@
+query {
+    ignored(input: { inner: { name: "a", legacy: "x" } })
+}

@@ -1,0 +1,34 @@
+type Query {
+    search(term: String!, limit: Int = 10, genres: [Genre!]): String!
+    nickname(value: String): String!
+}
+
+type Mutation {
+    addBook(input: BookInput!): SavedBook!
+}
+
+enum Genre {
+    FICTION
+    SCIENCE
+    HISTORY
+}
+
+input BookInput {
+    title: String!
+    genre: Genre = FICTION
+    tags: [String!]
+    details: DetailsInput
+}
+
+input DetailsInput {
+    pages: Int!
+    language: String = "en"
+}
+
+type SavedBook {
+    title: String!
+    genre: Genre!
+    tags: [String!]!
+    pages: Int
+    language: String
+}

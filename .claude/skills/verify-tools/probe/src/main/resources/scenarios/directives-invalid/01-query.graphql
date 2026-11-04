@@ -1,0 +1,8 @@
+query Invalid {
+    motto
+    secret
+    members {
+        id
+        name
+    }
+}

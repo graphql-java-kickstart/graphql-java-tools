@@ -1,0 +1,3 @@
+query {
+    typo(input: { item: { name: "b" } })
+}

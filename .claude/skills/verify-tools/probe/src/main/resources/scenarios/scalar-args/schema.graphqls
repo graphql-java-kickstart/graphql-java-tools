@@ -1,0 +1,27 @@
+scalar Tag
+scalar Token
+scalar TypedToken
+scalar WrappedToken
+scalar IdToken
+
+type Query {
+    tag(tag: Tag!): String!
+    tags(tags: [Tag!]!): String!
+    id(id: ID!): String!
+    nestedSets(tags: [[String!]!]!): String!
+    nestedLists(tags: [[String!]!]!): String!
+    tokenInput(input: TokenInput!): String!
+    markedTokens(input: MarkedTokensInput!): String!
+    optionalTypedToken(token: TypedToken): String!
+    optionalIdToken(token: IdToken): String!
+}
+
+input TokenInput {
+    token: Token
+}
+
+input MarkedTokensInput {
+    typed: TypedToken
+    wrapped: WrappedToken
+    ids: [IdToken!]
+}

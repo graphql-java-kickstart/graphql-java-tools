@@ -1,0 +1,20 @@
+type Query {
+    node(id: ID!): Node
+    search(term: String!): [SearchResult!]!
+}
+
+interface Node {
+    id: ID!
+}
+
+type Novel implements Node {
+    id: ID!
+    title: String!
+}
+
+type Writer implements Node {
+    id: ID!
+    name: String!
+}
+
+union SearchResult = Novel | Writer

@@ -1,0 +1,3 @@
+{
+    animal(name: "Tom") { __typename name ... on Cat { lives } }
+}

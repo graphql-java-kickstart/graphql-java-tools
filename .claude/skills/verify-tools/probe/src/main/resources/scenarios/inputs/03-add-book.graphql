@@ -1,0 +1,14 @@
+mutation AddBook($input: BookInput!) {
+    addBook(input: $input) {
+        title
+        genre
+        tags
+        pages
+        language
+    }
+    defaults: addBook(input: { title: "Untitled" }) {
+        genre
+        tags
+        pages
+    }
+}

@@ -1,0 +1,20 @@
+directive @uppercase on OBJECT
+directive @auth(role: String!, scope: String = "all") on FIELD_DEFINITION
+directive @cached(ttl: Int) on FIELD_DEFINITION | SCHEMA
+
+schema @cached(ttl: 60) {
+    query: Query
+}
+
+extend schema @cached(ttl: 30)
+
+type Query {
+    motto: String! @uppercase
+    secret: String @auth
+    members: [Member!] @cached @cached(ttl: 10)
+}
+
+type Member @deprecated {
+    id: ID!
+    name: String!
+}

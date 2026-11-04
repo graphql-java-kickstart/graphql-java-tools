@@ -1,0 +1,9 @@
+query {
+    __schema {
+        types {
+            name
+            fields { name description }
+            inputFields { name description }
+        }
+    }
+}

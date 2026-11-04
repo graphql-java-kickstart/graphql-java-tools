@@ -1,0 +1,13 @@
+query {
+    __schema {
+        types {
+            name
+            kind
+            fields { name description }
+            interfaces { name }
+            possibleTypes { name }
+            enumValues { name description }
+            inputFields { name }
+        }
+    }
+}

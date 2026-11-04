@@ -1,0 +1,24 @@
+scalar Date
+
+type Query {
+    books: [Book!]!
+    book(id: ID!): Book
+}
+
+type Book {
+    id: ID!
+    title: String!
+    author: Author!
+    published: Date!
+    inStock: Boolean!
+}
+
+type Author {
+    id: ID!
+    name: String!
+}
+
+# Reachable from no root type: graphql-java-tools logs a warning and leaves it out of the schema
+type Review {
+    stars: Int!
+}

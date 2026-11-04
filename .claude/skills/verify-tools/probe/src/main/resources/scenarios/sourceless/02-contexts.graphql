@@ -1,0 +1,3 @@
+query {
+    folder { images { name owner locale signature } }
+}

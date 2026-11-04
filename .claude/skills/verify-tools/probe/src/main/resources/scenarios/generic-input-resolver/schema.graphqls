@@ -1,0 +1,8 @@
+type Query {
+    generic(input: GreetingInput!): String!
+    plain(input: GreetingInput!): String!
+}
+
+input GreetingInput {
+    name: String!
+}

@@ -1,0 +1,29 @@
+directive @tag(name: String!) on FIELD_DEFINITION
+directive @contact(name: String!) on SCHEMA
+
+extend schema @contact(name: "pets-team")
+
+type Query {
+    animal(name: String!): Animal
+    pets: [Pet!]!
+}
+
+type Mutation {
+    adopt(name: String!): Animal!
+}
+
+interface Animal {
+    name: String! @tag(name: "public")
+}
+
+type Dog implements Animal {
+    name: String! @tag(name: "public")
+    barks: Boolean!
+}
+
+type Cat implements Animal {
+    name: String! @tag(name: "public")
+    lives: Int!
+}
+
+union Pet = Dog | Cat

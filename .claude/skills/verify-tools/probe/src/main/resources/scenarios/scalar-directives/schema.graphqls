@@ -1,0 +1,17 @@
+directive @since(date: Date) on SCALAR | FIELD_DEFINITION
+directive @unit(name: String!) on SCALAR
+
+"A calendar date"
+scalar Date @specifiedBy(url: "https://example.com/date")
+extend scalar Date @since(date: "2020-01-01") @unit(name: "day")
+
+scalar DateTime
+
+scalar Money @currency(code: "USD")
+
+type Query {
+    today: Date @since(date: "2021-01-01")
+    now: DateTime
+    shift(from: Date): Date
+    price: Money
+}

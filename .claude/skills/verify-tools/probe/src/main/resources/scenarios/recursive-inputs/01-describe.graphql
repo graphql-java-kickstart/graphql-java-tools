@@ -1,0 +1,5 @@
+query Describe($filter: TreeFilter!) {
+    describe(filter: $filter)
+    literal: describe(filter: { name: "x", child: { depth: 1, siblings: [[{ depth: 2 }]] } })
+    names(first: 2)
+}

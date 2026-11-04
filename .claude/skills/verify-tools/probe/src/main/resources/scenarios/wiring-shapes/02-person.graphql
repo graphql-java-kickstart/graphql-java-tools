@@ -1,0 +1,4 @@
+query {
+    person { name friend { name } state someone { ... on Person { name } } }
+    someone { ... on Named { name } }
+}
