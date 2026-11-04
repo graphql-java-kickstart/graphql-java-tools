@@ -39,7 +39,7 @@ ignored with a WARN. A union, enum, interface or scalar that only has extensions
 - **Repeated fields.** `run type-extensions-repeated-fields`. Exit `2`, and `summary.txt` has `schema build: FAILED
   graphql.kickstart.tools.SchemaError: Type 'InputTypeAndExtension' declares field 'id' more than once at line 49,
   column 5 in compat/scenarios/type-extensions-repeated-fields/schema.graphqls.`
-- **Sealed.** `run type-extensions-sealed`. `01-pets-and-animals.json` has
+- **Sealed.** `run type-extensions-sealed`. Exit `0`. `01-pets-and-animals.json` has
   `pets = [{"__typename": "Dog", "name": "Rex"}, {"__typename": "Cat", "lives": 9}]` and `animals` with a `Cow` and a
   `Horse`, with no WARN in `probe.log`.
 
