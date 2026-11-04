@@ -6,6 +6,7 @@ import graphql.language.Definition
 import graphql.language.EnumTypeDefinition
 import graphql.language.FieldDefinition
 import graphql.language.InterfaceTypeDefinition
+import graphql.language.InterfaceTypeExtensionDefinition
 import graphql.language.ObjectTypeDefinition
 import graphql.language.ScalarTypeDefinition
 import graphql.language.TypeName
@@ -54,7 +55,7 @@ class TypeExtensionTest {
             $fooBarBaz
             """) {
             dictionary(Foo::class, Bar::class, Baz::class, Item::class)
-            scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+            scalars(date)
         }.makeExecutableSchema()
             .assertEveryFieldResolves()
 
@@ -94,6 +95,116 @@ class TypeExtensionTest {
         }
 
         assertEquals(data, mapOf("fooBar" to mapOf("__typename" to "Baz"), "color" to "GREEN", "node" to mapOf("id" to "1", "name" to "item")))
+    }
+
+    @Test
+    fun `every kind of type is built from its definition followed by its extensions`() {
+        val schema = parser(
+            """
+            directive @tag(name: String!) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+
+            type Query @tag(name: "Query") { node: Node }
+            extend type Query @tag(name: "Query extension") {
+                fooBar: FooBar
+                color: Color
+                search(filter: Filter): String
+                today: Date
+            }
+
+            interface Entity { id: ID! }
+            interface Node @tag(name: "Node") { id: ID! }
+            extend interface Node implements Entity @tag(name: "Node extension") { name: String }
+
+            type Item implements Node @tag(name: "Item") { id: ID! }
+            extend type Item implements Entity @tag(name: "Item extension") { name: String }
+
+            union FooBar @tag(name: "FooBar") = Foo
+            extend union FooBar @tag(name: "FooBar extension") = Bar | Baz
+
+            enum Color @tag(name: "Color") { RED }
+            extend enum Color @tag(name: "Color extension") { GREEN }
+
+            input Filter @tag(name: "Filter") { id: ID }
+            extend input Filter @tag(name: "Filter extension") { limit: Int inner: Inner and: Filter }
+            input Inner { id: ID }
+
+            scalar Date @tag(name: "Date")
+            extend scalar Date @tag(name: "Date extension") @specifiedBy(url: "https://example.com/date")
+
+            $fooBarBaz
+            """) {
+            dictionary(Foo::class, Bar::class, Baz::class, Item::class)
+            scalars(date)
+        }.makeExecutableSchema()
+            .assertEveryFieldResolves()
+
+        val types = listOf("Query", "Node", "Item", "FooBar", "Color", "Filter", "Date")
+        val printer = SchemaPrinter(SchemaPrinter.Options.defaultOptions().setComparators(GraphqlTypeComparatorRegistry.AS_IS_REGISTRY))
+        assertEquals(types.joinToString("\n") { printer.print(schema.getType(it)) }, """
+            |type Query @tag(name : "Query") @tag(name : "Query extension") {
+            |  node: Node
+            |  fooBar: FooBar
+            |  color: Color
+            |  search(filter: Filter): String
+            |  today: Date
+            |}
+            |
+            |interface Node implements Entity @tag(name : "Node") @tag(name : "Node extension") {
+            |  id: ID!
+            |  name: String
+            |}
+            |
+            |type Item implements Node & Entity @tag(name : "Item") @tag(name : "Item extension") {
+            |  id: ID!
+            |  name: String
+            |}
+            |
+            |union FooBar @tag(name : "FooBar") @tag(name : "FooBar extension") = Foo | Bar | Baz
+            |
+            |enum Color @tag(name : "Color") @tag(name : "Color extension") {
+            |  RED
+            |  GREEN
+            |}
+            |
+            |input Filter @tag(name : "Filter") @tag(name : "Filter extension") {
+            |  id: ID
+            |  limit: Int
+            |  inner: Inner
+            |  and: Filter
+            |}
+            |
+            |scalar Date @tag(name : "Date") @tag(name : "Date extension") @specifiedBy(url : "https://example.com/date")
+            |""".trimMargin())
+
+        assertEquals(types.associateWith { schema.definitionClasses(it) }, mapOf(
+            "Query" to listOf("ObjectTypeDefinition", "ObjectTypeExtensionDefinition"),
+            "Node" to listOf("InterfaceTypeDefinition", "InterfaceTypeExtensionDefinition"),
+            "Item" to listOf("ObjectTypeDefinition", "ObjectTypeExtensionDefinition"),
+            "FooBar" to listOf("UnionTypeDefinition", "UnionTypeExtensionDefinition"),
+            "Color" to listOf("EnumTypeDefinition", "EnumTypeExtensionDefinition"),
+            "Filter" to listOf("InputObjectTypeDefinition", "InputObjectTypeExtensionDefinition"),
+            "Date" to listOf("ScalarTypeDefinition", "ScalarTypeExtensionDefinition")
+        ))
+
+        val data = assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) {
+            """
+            query {
+                node { id name }
+                fooBar { __typename }
+                color
+                search(filter: { id: "1", limit: 2, and: { id: "2" } })
+                today
+            }
+            """
+        }
+
+        assertEquals(data, mapOf(
+            "node" to mapOf("id" to "1", "name" to "item"),
+            "fooBar" to mapOf("__typename" to "Baz"),
+            "color" to "GREEN",
+            "search" to "1 limit 2 and 2 limit null",
+            "today" to "2026-10-12"
+        ))
     }
 
     @Test
@@ -254,7 +365,7 @@ class TypeExtensionTest {
                 type Baz { baz: String }
                 """) {
                 dictionary(Item::class, Baz::class)
-                scalars(GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build())
+                scalars(date)
                 directive("tag", wiring)
                 directive("once", wiring)
             }.makeExecutableSchema()
@@ -365,13 +476,17 @@ class TypeExtensionTest {
     }
 
     @Test
-    fun `enums and unions that only have extensions are built from them`() {
+    fun `interfaces, unions, enums and scalars that only have extensions are built from the first one`() {
         val (schema, warnings) = withWarnings {
             parser(
                 """
+                directive @tag(name: String!) on SCALAR
+
                 type Query {
                     color: Color
                     fooBar: FooBar
+                    node: Node
+                    today: Date
                 }
 
                 extend enum Color {
@@ -383,9 +498,17 @@ class TypeExtensionTest {
                 extend union FooBar = Foo | Bar
                 extend union FooBar = Baz
 
+                extend interface Node { id: ID! }
+                extend interface Node { name: String }
+                type Item implements Node { id: ID! name: String }
+
+                extend scalar Date @tag(name: "Date extension")
+                extend scalar Date @specifiedBy(url: "https://example.com/date")
+
                 $fooBarBaz
                 """) {
-                dictionary(Foo::class, Bar::class, Baz::class)
+                dictionary(Foo::class, Bar::class, Baz::class, Item::class)
+                scalars(date)
             }.makeExecutableSchema()
         }
         schema.assertEveryFieldResolves()
@@ -393,9 +516,43 @@ class TypeExtensionTest {
         assertEquals(warnings, listOf())
 
         val color = schema.getType("Color") as GraphQLEnumType
+        val date = schema.getType("Date") as GraphQLScalarType
         assertEquals(color.values.map { it.name }, listOf("RED", "GREEN"))
         assertEquals(color.getValue("RED")?.description, "The first red")
         assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Foo", "Bar", "Baz"))
+        assertEquals((schema.getType("Node") as GraphQLInterfaceType).fieldDefinitions.map { it.name }, listOf("id", "name"))
+        assertEquals(date.appliedDirectives.map { it.name }, listOf("tag", "specifiedBy"))
+        assertEquals(date.specifiedByUrl, "https://example.com/date")
+
+        assertEquals(listOf("Color", "FooBar", "Node", "Date").associateWith { schema.definitionClasses(it) }, mapOf(
+            "Color" to listOf("EnumTypeExtensionDefinition", "EnumTypeExtensionDefinition"),
+            "FooBar" to listOf("UnionTypeExtensionDefinition", "UnionTypeExtensionDefinition"),
+            "Node" to listOf("InterfaceTypeExtensionDefinition", "InterfaceTypeExtensionDefinition"),
+            "Date" to listOf("ScalarTypeExtensionDefinition", "ScalarTypeExtensionDefinition")
+        ))
+    }
+
+    @Test
+    fun `object and input extensions without a definition don't define their type`() {
+        val (schema, warnings) = withWarnings {
+            parser(
+                """
+                type Query { today: String }
+                extend type Orphan { id: ID }
+                extend input OrphanInput { id: ID }
+                """).makeExecutableSchema()
+        }
+
+        assertEquals(warnings, listOf())
+        assertEquals(listOf("Orphan", "OrphanInput").map { schema.getType(it) }, listOf(null, null))
+
+        listOf(
+            "type Query { node: Node } extend type Node { id: ID! }" to "Node",
+            "type Query { search(filter: Filter): String } extend input Filter { id: ID }" to "Filter"
+        ).forEach { (sdl, name) ->
+            val message = assertThrows(SchemaClassScannerError::class.java) { parser(sdl) }.message.orEmpty()
+            assert(message.startsWith("Unable to match type definition ($name) for reference ") && message.endsWith(": No TypeDefinition for type name $name")) { message }
+        }
     }
 
     @Test
@@ -548,6 +705,79 @@ class TypeExtensionTest {
     }
 
     @Test
+    fun `a repeat in an extension is reported after scanner and Java enum errors and before missing enum values`() {
+        val cases = listOf(
+            Repeat(
+                """
+                |type Query { fooBar: FooBar }
+                |union FooBar = Foo | Bar
+                |extend union FooBar = Bar | Baz
+                |$fooBarBaz
+                """,
+                "SchemaClassScannerError: Object type 'Baz' is a member of a known union, but no class could be found for that type name.  Please pass a class for type 'Baz' in the parser's dictionary.",
+                Foo::class, Bar::class
+            ),
+            Repeat(
+                """
+                |type Query { shade: Shade }
+                |enum Shade { DARK }
+                |extend enum Shade { DARK }
+                """,
+                "SchemaError: Type 'Shade' is declared as an enum in the GraphQL schema but is not a Java enum!"
+            ),
+            Repeat(
+                """
+                |type Query { color: Color }
+                |enum Color { BLUE }
+                |extend enum Color { BLUE }
+                """,
+                "SchemaError: Type 'Color' declares value 'BLUE' more than once at line 3, column 21."
+            )
+        )
+
+        cases.forEach { repeat ->
+            val error = assertThrows(RuntimeException::class.java) {
+                parser(repeat.schema.trimMargin()) { dictionary(*repeat.dictionary) }.makeExecutableSchema()
+            }
+
+            assertEquals("${error.javaClass.simpleName}: ${error.message}", repeat.message)
+        }
+    }
+
+    @Test
+    fun `a repeat in an extension names the source of the extension`() {
+        val error = assertThrows(SchemaError::class.java) {
+            SchemaParser.newParser()
+                .schemaString("type Query { search(filter: Filter): String }\ninput Filter { id: ID }", "Base.graphqls")
+                .schemaString("extend input Filter {\n    id: ID\n}", "Extensions.graphqls")
+                .resolvers(Query())
+                .build()
+                .makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Filter' declares field 'id' more than once at line 2, column 5 in Extensions.graphqls.")
+    }
+
+    @Test
+    fun `a type error names the first use of a type reference in the definitions before the uses in extensions`() {
+        val filter = TypeName("Filter")
+        fun field(name: String) = FieldDefinition.newFieldDefinition().name(name).type(filter).build()
+        val error = assertThrows(SchemaError::class.java) {
+            parser("type Query { today: String }\ninterface Node { id: ID }\ninput Filter { id: ID }") {
+                options(SchemaParserOptions.newOptions().includeUnusedTypes(true).typeDefinitionFactory(object : TypeDefinitionFactory {
+                    override fun create(existing: MutableList<Definition<*>>) = listOf(
+                        InterfaceTypeExtensionDefinition.newInterfaceTypeExtensionDefinition().name("Node").definitions(listOf(field("fromExtension"))).build(),
+                        InterfaceTypeDefinition.newInterfaceTypeDefinition().name("Other").definitions(listOf(field("fromDefinition"))).build()
+                    )
+                }).build())
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Type 'Filter' used by field 'Other.fromDefinition' is an input object type, which can't be used as an output type. " +
+            "Output types are object types, interfaces, unions, enums and scalars.")
+    }
+
+    @Test
     fun `input object fields list those of the type before those of its extensions`() {
         val schema = parser(
             """
@@ -567,7 +797,13 @@ class TypeExtensionTest {
         val (schema, warnings) = withWarnings {
             parser(
                 """
-                type Query { node: Node }
+                type Query {
+                    node: Node
+                    fooBar: FooBar
+                    color: Color
+                    search(filter: Filter): String
+                    today: Date
+                }
 
                 interface Node { id: ID! }
                 extend type Node { name: String }
@@ -576,8 +812,23 @@ class TypeExtensionTest {
                 extend union Item = Foo
 
                 type Foo { foo: String }
+
+                union FooBar = Baz
+                extend enum FooBar { RED }
+
+                enum Color { RED GREEN }
+                extend input Color { id: ID }
+
+                input Filter { id: ID }
+                extend scalar Filter @specifiedBy(url: "https://example.com/filter")
+
+                scalar Date
+                extend interface Date { id: ID }
+
+                type Baz { baz: String }
                 """) {
-                dictionary(Item::class)
+                dictionary(Item::class, Baz::class)
+                scalars(date)
             }.makeExecutableSchema()
         }
         schema.assertEveryFieldResolves()
@@ -585,6 +836,10 @@ class TypeExtensionTest {
         assertEquals(warnings, listOf(
             "Type 'Node' is defined as an interface, but extended as an object type. The extension is ignored.",
             "Type 'Item' is defined as an object type, but extended as a union. The extension is ignored.",
+            "Type 'FooBar' is defined as a union, but extended as an enum. The extension is ignored.",
+            "Type 'Color' is defined as an enum, but extended as an input object type. The extension is ignored.",
+            "Type 'Filter' is defined as an input object type, but extended as a scalar. The extension is ignored.",
+            "Type 'Date' is defined as a scalar, but extended as an interface. The extension is ignored.",
             "Schema type was defined but can never be accessed, and can be safely deleted: Foo"
         ))
 
@@ -592,7 +847,34 @@ class TypeExtensionTest {
         val item = schema.getType("Item") as GraphQLObjectType
         assertEquals(node.fieldDefinitions.map { it.name }, listOf("id"))
         assertEquals(item.interfaces.map { it.name }, listOf("Node"))
-        assertEquals(node.extensionDefinitions.size + item.extensionDefinitions.size, 0)
+        assertEquals((schema.getType("FooBar") as GraphQLUnionType).types.map { it.name }, listOf("Baz"))
+        assertEquals((schema.getType("Color") as GraphQLEnumType).values.map { it.name }, listOf("RED", "GREEN"))
+        assertEquals((schema.getType("Filter") as GraphQLInputObjectType).fieldDefinitions.map { it.name }, listOf("id"))
+        assertEquals((schema.getType("Date") as GraphQLScalarType).specifiedByUrl, null)
+        assertEquals(listOf("Node", "Item", "FooBar", "Color", "Filter", "Date").map { schema.definitionClasses(it).size }, listOf(1, 1, 1, 1, 1, 1))
+    }
+
+    @Test
+    fun `a Map argument of an input object with an ignored scalar extension still gets the coerced values unconverted`() {
+        fun describe(extension: String): Map<String, Any> {
+            val schema = SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query { describe(filter: Filter!): String }
+                    input Filter { color: Color }
+                    enum Color { RED GREEN }
+                    $extension
+                    """)
+                .resolvers(MapQuery())
+                .dictionary(Color::class)
+                .build()
+                .makeExecutableSchema()
+
+            return assertNoGraphQlErrors(GraphQL.newGraphQL(schema).build()) { "query { describe(filter: { color: GREEN }) }" }
+        }
+
+        assertEquals(describe(""), mapOf("describe" to "color: String"))
+        assertEquals(describe("extend scalar Filter @specifiedBy(url: \"https://example.com/filter\")"), mapOf("describe" to "color: Color"))
     }
 
     @Test
@@ -642,7 +924,31 @@ class TypeExtensionTest {
         assertEquals(schema.getSchemaAppliedDirectives("link").map { it.getArgument("for")?.getValue<String>() }, listOf("EXECUTION"))
     }
 
+    @Test
+    fun `enums used by directives and by fields of interface extensions need a class`() {
+        val error = assertThrows(SchemaError::class.java) {
+            parser(
+                """
+                directive @link(for: Purpose) repeatable on SCHEMA
+                extend schema @link(for: SECURITY)
+
+                type Query { today: String }
+
+                interface Node { id: ID! }
+                extend interface Node { purpose: Purpose }
+
+                enum Purpose { SECURITY }
+                """) {
+                options(SchemaParserOptions.newOptions().includeUnusedTypes(true).build())
+            }.makeExecutableSchema()
+        }
+
+        assertEquals(error.message, "Expected enum with name 'Purpose' but found none!")
+    }
+
     private class Repeat(val schema: String, val message: String, vararg val dictionary: KClass<*>)
+
+    private val date = GraphQLScalarType.newScalar().name("Date").coercing(Scalars.GraphQLString.coercing).build()
 
     private val fooBarBaz = """
         type Foo { foo: String }
@@ -657,8 +963,9 @@ class TypeExtensionTest {
         fun fooBar(): FooBar = Baz("baz")
         fun color(): Color = Color.GREEN
         fun node(): Node = Item("1", "item")
-        fun search(filter: Filter?): String? = null
+        fun search(filter: Filter?): String? = generateSequence(filter) { it.and }.joinToString(" and ") { "${it.id} limit ${it.limit}" }
         fun today(): String = "2026-10-12"
+        fun shade(): Shade = Shade()
     }
 
     interface FooBar
@@ -673,11 +980,17 @@ class TypeExtensionTest {
 
     class Item(val id: String, val name: String?, val fooBar: Foo? = null) : Node
 
-    class Filter(val id: String?, val limit: Int? = null, val offset: Int? = null, val inner: Inner? = null)
+    class Filter(val id: String?, val limit: Int? = null, val offset: Int? = null, val inner: Inner? = null, val and: Filter? = null)
 
     class Inner(val id: String?)
 
     enum class Color { RED, GREEN }
+
+    class Shade
+
+    class MapQuery : GraphQLQueryResolver {
+        fun describe(filter: Map<String, Any?>): String = filter.entries.joinToString { "${it.key}: ${it.value?.javaClass?.simpleName}" }
+    }
 
     private class RecordingWiring : SchemaDirectiveWiring {
         val wired = mutableListOf<String>()
@@ -702,3 +1015,17 @@ class TypeExtensionTest {
 }
 
 private fun GraphQLAppliedDirective.describe() = "@$name(${getArgument("name")?.getValue<String>()})"
+
+private fun GraphQLSchema.definitionClasses(name: String): List<String?> {
+    val type = getType(name) as GraphQLNamedType
+    val extensions = when (type) {
+        is GraphQLObjectType -> type.extensionDefinitions
+        is GraphQLInterfaceType -> type.extensionDefinitions
+        is GraphQLUnionType -> type.extensionDefinitions
+        is GraphQLEnumType -> type.extensionDefinitions
+        is GraphQLInputObjectType -> type.extensionDefinitions
+        is GraphQLScalarType -> type.extensionDefinitions
+        else -> error("$name has no extensions")
+    }
+    return (listOf(type.definition) + extensions).map { it?.javaClass?.simpleName }
+}

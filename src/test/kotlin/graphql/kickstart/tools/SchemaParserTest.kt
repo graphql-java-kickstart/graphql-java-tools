@@ -3,6 +3,7 @@ package graphql.kickstart.tools
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.kickstart.tools.resolver.FieldResolverError
+import graphql.language.ObjectTypeDefinition
 import graphql.parser.InvalidSyntaxException
 import graphql.schema.*
 import graphql.schema.idl.SchemaDirectiveWiring
@@ -315,6 +316,84 @@ class SchemaParserTest {
 
         assertEquals(error.message, "Union 'Result' contains itself through Result -> Result at line 5, column 23.")
     }
+
+    @Test
+    fun `parser should throw descriptive exception when a union extension lists a union that contains it`() {
+        val error = assertThrows(SchemaError::class.java) {
+            unionParser(
+                """
+                |union Result = Book | Media
+                |union Media = Movie
+                |extend union Media = Result
+                """.trimMargin())
+        }
+
+        assertEquals(error.message, "Union 'Result' contains itself through Result -> Media -> Result at line 7, column 22.")
+    }
+
+    @Test
+    fun `parser lists a member once when nested unions reach it more than once`() {
+        val schema = unionParser(
+            """
+            |union Result = Left | Right
+            |union Left = Book
+            |extend union Left = Shared
+            |union Right = Shared
+            |union Shared = Movie
+            """.trimMargin())
+
+        assertEquals(listOf("Result", "Left", "Right").associateWith { name -> (schema.getType(name) as GraphQLUnionType).types.map { it.name } }, mapOf(
+            "Result" to listOf("Book", "Movie"),
+            "Left" to listOf("Book", "Movie"),
+            "Right" to listOf("Movie")
+        ))
+    }
+
+    @Test
+    fun `parser builds a type defined twice from its last definition, or from its first when only its interface reaches it`() {
+        val (throughField, fieldWarnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query { item: Item }
+                    type Item { id: ID }
+                    type Item { id: ID name: String }
+                    """)
+                .resolvers(TwiceDefinedQuery())
+                .build()
+        }
+
+        assertEquals(fieldWarnings, listOf())
+        assertEquals(throughField.getUnusedDefinitions(), setOf())
+        assertEquals((throughField.makeExecutableSchema().getType("Item") as GraphQLObjectType).fieldDefinitions.map { it.name }, listOf("id", "name"))
+
+        val (throughInterface, interfaceWarnings) = withWarnings {
+            SchemaParser.newParser()
+                .schemaString(
+                    """
+                    type Query { node: Node }
+                    interface Node { id: ID }
+                    type Item implements Node { id: ID }
+                    type Item implements Node { id: ID name: String }
+                    """)
+                .resolvers(TwiceDefinedQuery())
+                .dictionary("Item", TwiceDefined::class)
+                .build()
+        }
+
+        assertEquals(interfaceWarnings, listOf("Schema type was defined but can never be accessed, and can be safely deleted: Item"))
+        assertEquals(throughInterface.getUnusedDefinitions().map { it.name to (it as ObjectTypeDefinition).fieldDefinitions.map { field -> field.name } }, listOf("Item" to listOf("id", "name")))
+        assertEquals((throughInterface.makeExecutableSchema().getType("Item") as GraphQLObjectType).fieldDefinitions.map { it.name }, listOf("id"))
+    }
+
+    class TwiceDefinedQuery : GraphQLQueryResolver {
+        fun item(): TwiceDefined = TwiceDefined("1", "one")
+        fun node(): TwiceDefinedNode = TwiceDefined("1", "one")
+    }
+
+    interface TwiceDefinedNode
+
+    class TwiceDefined(val id: String, val name: String?) : TwiceDefinedNode
 
     private fun unionParser(unions: String) = SchemaParser.newParser()
         .schemaString(
