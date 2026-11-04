@@ -27,10 +27,6 @@ data class CaseKey(val scenario: String, val operator: String, val snippet: Stri
 
 class Variant(val key: CaseKey, val build: () -> Unit)
 
-/**
- * The scenario as it is, plus one invalid SDL snippet per grammar rule it can break, plus every resolver behind a JDK proxy.
- * The rules come from the SDL grammar, not from known bugs, so a new rejection of any of them shows up.
- */
 fun variants(scenario: Scenario): List<Variant> {
     fun variant(operator: String, snippet: String = "", resolvers: () -> List<GraphQLResolver<*>> = { scenario.resolvers }) =
         Variant(CaseKey(scenario.name, operator, snippet)) {

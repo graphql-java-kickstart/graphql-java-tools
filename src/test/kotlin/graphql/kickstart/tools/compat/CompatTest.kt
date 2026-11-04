@@ -11,10 +11,6 @@ import org.junit.Test
 import org.slf4j.LoggerFactory
 import java.io.File
 
-/**
- * Builds every scenario and its invalid variants, and fails when a case that built on the last release throws now.
- * `-Dcompat.capture` records this checkout's results as the capture for its pom version instead.
- */
 class CompatTest {
     @Test
     fun `cases that built on the last release still build`() {
@@ -35,12 +31,12 @@ class CompatTest {
         val accepted = acceptedFile.readLines().filter { it.isNotBlank() }.map { Regex(it.substringBefore('\t')) }
         val major = version.major > release.major
 
+        fun builtWithItsSeedOnRelease(key: CaseKey) = released[key.seed]?.built == true && released.getValue(key).built
         fun repeatsSeedBreak(key: CaseKey) = key != key.seed && outcomes[key.seed]?.error == outcomes.getValue(key).error
         fun warnedOnRelease(key: CaseKey) =
             (released.getValue(key).warnings - if (key == key.seed) emptySet() else released.getValue(key.seed).warnings.toSet()).isNotEmpty()
 
-        // a variant of a seed that threw on the release can build only by hiding the seed's own error
-        val broke = released.keys.filter { released[it.seed]?.built == true && released.getValue(it).built && outcomes[it]?.built == false }
+        val broke = released.keys.filter { builtWithItsSeedOnRelease(it) && outcomes[it]?.built == false }
             .filterNot(::repeatsSeedBreak)
             .filterNot { key -> accepted.any { it.containsMatchIn(key.toString()) } }
             .filterNot { major && warnedOnRelease(it) }
@@ -50,13 +46,13 @@ class CompatTest {
         val cases = broke.take(SHOWN).joinToString("\n") { "  $it\n      ${outcomes.getValue(it).error}" } +
             if (broke.size > SHOWN) "\n  and ${broke.size - SHOWN} more" else ""
         val byOperator = broke.groupingBy { it.operator }.eachCount().toSortedMap()
+        val deliberate = "A deliberate break that the release notes list goes into $acceptedFile as a regex for the case, a tab, and the issue."
         fail(
             if (major) {
                 """
                 |${broke.size} cases built on $release with no WARN of their own and throw now $byOperator.
                 |A major may reject only input that the last minor warned about. Log a WARN that names the type and the item in a
-                |${release.major}.x release first. A deliberate break that the release notes list goes into $acceptedFile as a
-                |regex for the case, a tab, and the issue.
+                |${release.major}.x release first. $deliberate
                 |$cases
                 """.trimMargin()
             } else {
@@ -64,8 +60,7 @@ class CompatTest {
                 |${broke.size} cases built on $release and throw now $byOperator.
                 |Invalid input that built on the last release keeps building until the next major (AGENTS.md, Compatibility).
                 |Instead of throwing, log a WARN that names the type and the item, open a GitHub issue with $target in its title,
-                |and leave `// TODO <change> in $target (#N)`. A deliberate break that the release notes list goes into
-                |$acceptedFile as a regex for the case, a tab, and the issue.
+                |and leave `// TODO <change> in $target (#N)`. $deliberate
                 |$cases
                 """.trimMargin()
             }
@@ -79,6 +74,7 @@ class Outcome(val error: String?, val warnings: List<String>) {
 
 private val CAPTURES = File("src/test/resources/compat")
 private const val SHOWN = 50
+
 private fun runAll(): Map<CaseKey, Outcome> {
     // the tests run in the library's module, which neither reads logback's nor exports the scenarios to kotlin-reflect
     val module = CompatTest::class.java.module
