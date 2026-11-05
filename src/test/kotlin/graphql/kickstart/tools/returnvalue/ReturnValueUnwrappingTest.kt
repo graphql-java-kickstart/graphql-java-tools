@@ -1,5 +1,6 @@
 package graphql.kickstart.tools.returnvalue
 
+import graphql.kickstart.tools.resolver.TypeShape
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -21,7 +22,10 @@ class ReturnValueUnwrappingTest {
             compile(classpath, dir, copy("Check.java", dir), copy("Fixtures.java", dir))
 
             val args = System.getProperty("unwrapping.args", "").split(" ").filter { it.isNotBlank() } +
-                listOf("--known", copy("known-findings.txt", dir).toString())
+                listOf(
+                    "--known", copy("known-findings.txt", dir).toString(),
+                    "--container-kinds", TypeShape.containerTypes.joinToString(",") { it.canonicalName }
+                )
             val report = ByteArrayOutputStream()
             val passed = URLClassLoader(arrayOf(dir.toUri().toURL()), javaClass.classLoader).use { loader ->
                 PrintStream(report, true, Charsets.UTF_8).use { out ->

@@ -89,6 +89,8 @@ internal class TypeShape private constructor(
     }
 
     companion object {
+        val containerTypes: List<Class<*>> get() = ContainerKind.entries.map { it.type }
+
         fun returnType(
             graphQLType: GraphQLLangType,
             declaredType: JavaType,

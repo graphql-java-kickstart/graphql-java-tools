@@ -312,6 +312,17 @@ public final class Check {
         int show = intArg(args, "--show", 15);
         long started = System.nanoTime();
 
+        Set<String> built = Arrays.stream(Container.values()).map(it -> it.javaName).collect(Collectors.toSet());
+        List<String> unchecked = Arrays.stream(stringArg(args, "--container-kinds").split(","))
+            .filter(it -> !built.contains(it))
+            .collect(Collectors.toList());
+        if (!unchecked.isEmpty()) {
+            out.println("MODEL ERROR: TypeShape.kt has a ContainerKind for these classes, but no Container in Check.java builds them, so a pass would prove nothing about them:");
+            unchecked.forEach(it -> out.println("  " + it));
+            out.println("Add a Container for each to Check.java with its value variants, and its plain value in build.");
+            return false;
+        }
+
         List<Case> cases = cases(depth);
         Map<String, Class<?>> resolvers = compile(cases, classpath);
 
