@@ -39,22 +39,23 @@ internal class MergedDefinitions(definitions: List<Definition<*>>) {
         .groupBy { it.name }
 
     // one type per definition, so a repeated definition of a name is a type of its own
-    private val typesBySource: Map<TypeDefinition<*>, MergedType<*>> = sources.mapNotNull { source -> merge(source)?.let { source to it } }.toMap()
+    // one type per definition, so a repeated definition of a name is a type of its own
+    private val typesBySource: List<Pair<TypeDefinition<*>, MergedType<*>>> = sources.mapNotNull { source -> merge(source)?.let { source to it } }
 
-    private val specificationScalars: Map<String, MergedType.Scalar> = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS
-        .mapValues { (name, definition) -> MergedType.Scalar(definition, extensionsByName[name].orEmpty().filterIsInstance<ScalarTypeExtensionDefinition>()) }
+    private val specificationScalars: List<Pair<ScalarTypeDefinition, MergedType.Scalar>> = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.values.map { definition ->
+        definition to MergedType.Scalar(definition, extensionsByName[definition.name].orEmpty().filterIsInstance<ScalarTypeExtensionDefinition>())
+    }
 
-    private val sourceOf: Map<MergedType<*>, TypeDefinition<*>> =
-        typesBySource.entries.associate { it.value to it.key } + specificationScalars.values.associateWith { ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.getValue(it.name) }
+    private val specificationScalarsByName: Map<String, MergedType.Scalar> = specificationScalars.associate { (_, type) -> type.name to type }
 
-    val byName: Map<String, MergedType<*>> = sourcesByName.mapNotNull { (name, source) -> typesBySource[source]?.let { name to it } }.toMap()
+    private val sourceOf: Map<MergedType<*>, TypeDefinition<*>> = (typesBySource + specificationScalars).associate { (source, type) -> type to source }
+
+    val byName: Map<String, MergedType<*>> = typesBySource.associate { (_, type) -> type.name to type }
 
     /**
      * Every object type definition, including repeated ones that [byName] doesn't return.
      */
-    val baseObjects: List<MergedType.Object> = typeDefinitions
-        .filter { it is ObjectTypeDefinition && it !is ObjectTypeExtensionDefinition }
-        .map { typesBySource.getValue(it) as MergedType.Object }
+    val baseObjects: List<MergedType.Object> = typesBySource.map { it.second }.filterIsInstance<MergedType.Object>()
 
     val ignoredExtensionWarnings: List<String> = typeDefinitions.filter(::extendsOtherKind).map { extension ->
         "Type '${extension.name}' is defined as ${sourcesByName.getValue(extension.name).kind()}, but extended as ${extension.kind()}. The extension is ignored."
@@ -63,7 +64,7 @@ internal class MergedDefinitions(definitions: List<Definition<*>>) {
     /**
      * Looks a name up like graphql-java, so the specification's scalars come first.
      */
-    fun resolve(name: String?): MergedType<*>? = specificationScalars[name] ?: byName[name]
+    fun resolve(name: String?): MergedType<*>? = specificationScalarsByName[name] ?: byName[name]
 
     fun definitionsOf(types: Set<MergedType<*>>): Set<TypeDefinition<*>> = types.mapNotNullTo(linkedSetOf()) { sourceOf[it] }
 
@@ -104,16 +105,16 @@ internal class MergedDefinitions(definitions: List<Definition<*>>) {
         val type = sourcesByName[definition.name]
         return definition is SDLExtensionDefinition && type != null && type.kind() != definition.kind()
     }
+}
 
-    private fun TypeDefinition<*>.kind(): String = when (this) {
-        is ObjectTypeDefinition -> "an object type"
-        is InterfaceTypeDefinition -> "an interface"
-        is UnionTypeDefinition -> "a union"
-        is EnumTypeDefinition -> "an enum"
-        is InputObjectTypeDefinition -> "an input object type"
-        is ScalarTypeDefinition -> "a scalar"
-        else -> javaClass.simpleName
-    }
+private fun TypeDefinition<*>.kind(): String = when (this) {
+    is ObjectTypeDefinition -> "an object type"
+    is InterfaceTypeDefinition -> "an interface"
+    is UnionTypeDefinition -> "a union"
+    is EnumTypeDefinition -> "an enum"
+    is InputObjectTypeDefinition -> "an input object type"
+    is ScalarTypeDefinition -> "a scalar"
+    else -> javaClass.simpleName
 }
 
 internal class TypeBuildContext(
@@ -134,6 +135,11 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
 
     val definitionClassName: String get() = definition.javaClass.simpleName
 
+    /**
+     * The kind as the library's messages name it, such as "an object type".
+     */
+    val kind: String get() = definition.kind()
+
     protected val directives: List<Directive> = definition.directives + extensions.flatMap { it.directives }
 
     protected abstract val location: DirectiveLocation
@@ -142,17 +148,14 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
 
     protected abstract fun newBuilder(context: TypeBuildContext): B
 
-    protected open fun fallbackDescription(context: TypeBuildContext): String? = null
-
     /**
      * Starts the graphql-java type with what every kind gets: the check for repeated declarations, the name, the definitions,
      * the description and the SDL directives. The caller adds the members.
      */
     fun prepare(context: TypeBuildContext): B {
         rejectRepeated()
-        val builder = newBuilder(context)
-            .name(name)
-            .description(getDocumentation(definition as AbstractNode<*>, context.options) ?: fallbackDescription(context))
+        val builder = newBuilder(context).name(name)
+        getDocumentation(definition as AbstractNode<*>, context.options)?.let { builder.description(it) }
         return with(context.directives) { builder.withSdlDirectives(directives, location) }
     }
 
@@ -252,8 +255,6 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
                 .specifiedByUrl(specifiedByUrl() ?: provided.specifiedByUrl)
                 .clearDirectives()
         }
-
-        override fun fallbackDescription(context: TypeBuildContext): String? = context.customScalars.getValue(name).description
 
         private fun specifiedByUrl(): String? =
             (directives.find { it.name == Directives.SpecifiedByDirective.name }?.getArgument("url")?.value as? StringValue)?.value

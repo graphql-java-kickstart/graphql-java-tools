@@ -8,7 +8,15 @@ import com.tngtech.archunit.core.domain.JavaConstructorCall
 import com.tngtech.archunit.core.domain.JavaConstructorReference
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import graphql.language.SDLExtensionDefinition
+import graphql.language.SchemaExtensionDefinition
 import graphql.language.TypeDefinition
+import graphql.schema.GraphQLEnumType
+import graphql.schema.GraphQLInputObjectType
+import graphql.schema.GraphQLInterfaceType
+import graphql.schema.GraphQLObjectType
+import graphql.schema.GraphQLScalarType
+import graphql.schema.GraphQLUnionType
 import org.junit.Test
 import java.nio.file.Paths
 
@@ -44,15 +52,13 @@ class DefinitionsBoundaryTest {
 
     private val extensionClass = object : DescribedPredicate<JavaClass>("are graphql-java type extension definitions") {
         override fun test(javaClass: JavaClass) =
-            javaClass.packageName == "graphql.language" &&
-                javaClass.simpleName.endsWith("ExtensionDefinition") &&
-                javaClass.simpleName != "SchemaExtensionDefinition"
+            javaClass.isAssignableTo(SDLExtensionDefinition::class.java) && !javaClass.isAssignableTo(SchemaExtensionDefinition::class.java)
     }
 
-    private val namedTypes = setOf(
-        "graphql.schema.GraphQLObjectType", "graphql.schema.GraphQLInterfaceType", "graphql.schema.GraphQLUnionType",
-        "graphql.schema.GraphQLEnumType", "graphql.schema.GraphQLInputObjectType", "graphql.schema.GraphQLScalarType",
-    )
+    private val namedTypes = listOf(
+        GraphQLObjectType::class, GraphQLInterfaceType::class, GraphQLUnionType::class,
+        GraphQLEnumType::class, GraphQLInputObjectType::class, GraphQLScalarType::class,
+    ).mapTo(hashSetOf()) { it.java.name }
     private val builderFactories = setOf("newObject", "newInterface", "newUnionType", "newEnum", "newInputObject", "newScalar")
 
     private val startsNamedTypeBuilder = object : DescribedPredicate<JavaAccess<*>>("starts a builder for a graphql-java named type") {

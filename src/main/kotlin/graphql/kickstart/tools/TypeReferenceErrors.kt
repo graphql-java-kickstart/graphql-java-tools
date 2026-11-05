@@ -14,12 +14,7 @@ internal class TypeReferenceErrors(
         val isInput = expectedType == GraphQLInputType::class
         val definition = unusedTypes.find { it.name == typeName.name }
             ?: types.find { it.name == typeName.name }
-        val outputOnlyKind = when (definition) {
-            is MergedType.Object -> "an object type"
-            is MergedType.Interface -> "an interface"
-            is MergedType.Union -> "a union"
-            else -> null
-        }
+        val outputOnlyKind = definition?.takeIf { it is MergedType.Object || it is MergedType.Interface || it is MergedType.Union }?.kind
 
         val problem = when {
             definition == null -> "is not defined in the schema."
