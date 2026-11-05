@@ -43,7 +43,7 @@ internal class SchemaClassScanner(
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
     private val directiveDefinitions = definitions.directiveDefinitions
     private val typesByName = definitions.byName
-    private val objectTypesByName = definitions.baseObjects.associateBy { it.name }
+    private val objectTypesByName = definitions.objectsWithRepeats.associateBy { it.name }
 
     private val fieldResolverScanner = FieldResolverScanner(options, definitions.scalarNames)
     private val typeClassMatcher = TypeClassMatcher(definitions)
@@ -305,7 +305,7 @@ internal class SchemaClassScanner(
 
     private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<MergedType.Object> {
         return dictionary.keys.filterIsInstance<MergedType.Interface>().map { iface ->
-            definitions.baseObjects.filter { obj ->
+            definitions.objectsWithRepeats.filter { obj ->
                 obj.interfaces.filterIsInstance<TypeName>().any { it.name == iface.name }
             }
         }.flatten().distinctBy { it.name }
@@ -316,7 +316,7 @@ internal class SchemaClassScanner(
         return dictionary.keys.filterIsInstance<MergedType.Union>().map { union ->
             union.members.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
                 objectTypesByName[it.name]
-                    ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: ${union.declarationOf(it)}")
+                    ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: ${union.declarationTextOf(it)}")
             }
         }.flatten().distinct()
     }

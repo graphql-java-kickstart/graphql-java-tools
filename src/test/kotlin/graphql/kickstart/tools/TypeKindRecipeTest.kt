@@ -7,9 +7,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import kotlin.reflect.KClass
 
-/**
- * Checks each step of MergedType.prepare on every kind of type, so a step that one kind skips fails here.
- */
 class TypeKindRecipeTest {
 
     private val kinds: Map<KClass<out MergedType<*>>, Kind> = mapOf(
@@ -49,11 +46,11 @@ class TypeKindRecipeTest {
             assertThrows(SchemaError::class.java) { parser(sdl + kind.repeat!!.extension).makeExecutableSchema() }.message
         }
 
-        // the extension is appended as the last line of the schema
+        val appendedExtensionLine = sdl.lines().size
         assertEquals(errors, repeating.map { kind ->
             val repeat = kind.repeat!!
             val column = repeat.extension.indexOf(repeat.member, repeat.extension.indexOf(kind.name) + kind.name.length) + 1
-            "Type '${kind.name}' declares ${repeat.noun} '${repeat.member}' more than once at line ${sdl.lines().size}, column $column."
+            "Type '${kind.name}' declares ${repeat.noun} '${repeat.member}' more than once at line $appendedExtensionLine, column $column."
         })
     }
 

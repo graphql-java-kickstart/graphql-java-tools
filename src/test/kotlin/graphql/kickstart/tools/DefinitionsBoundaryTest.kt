@@ -20,10 +20,6 @@ import graphql.schema.GraphQLUnionType
 import org.junit.Test
 import java.nio.file.Paths
 
-/**
- * Kotlin's internal is module-wide, so these rules keep the SDL type definitions and the named-type builders inside
- * MergedDefinitions.kt. They read the compiled classes, so aliases, wildcard imports, Java files and lambdas count too.
- */
 class DefinitionsBoundaryTest {
 
     companion object {
@@ -35,8 +31,7 @@ class DefinitionsBoundaryTest {
         override fun test(javaClass: JavaClass) = javaClass.source.flatMap { it.fileName }.orElse("") !in files
     }
 
-    // a factory gets and returns raw definitions by contract, and the scanner only sees its output merged
-    private val typeDefinitionFactory = object : DescribedPredicate<JavaClass>("implement TypeDefinitionFactory") {
+    private val getsRawDefinitionsByContract = object : DescribedPredicate<JavaClass>("implement TypeDefinitionFactory") {
         override fun test(javaClass: JavaClass) = javaClass.isAssignableTo(TypeDefinitionFactory::class.java)
     }
 
@@ -82,7 +77,7 @@ class DefinitionsBoundaryTest {
 
     @Test
     fun `only the merged definitions read the members and directives of SDL types`() {
-        noClasses().that(declaredOutside("MergedDefinitions.kt")).and(DescribedPredicate.not(typeDefinitionFactory))
+        noClasses().that(declaredOutside("MergedDefinitions.kt")).and(DescribedPredicate.not(getsRawDefinitionsByContract))
             .should().accessTargetWhere(readsTypeMembers)
             .because("each type is merged with its extensions once in MergedDefinitions.kt. Take a MergedType and read MergedType.fields, interfaces, members or values, and let MergedType.prepare apply the directives")
             .check(classes)
@@ -90,7 +85,7 @@ class DefinitionsBoundaryTest {
 
     @Test
     fun `only the merged definitions see type extension classes`() {
-        noClasses().that(declaredOutside("MergedDefinitions.kt")).and(DescribedPredicate.not(typeDefinitionFactory))
+        noClasses().that(declaredOutside("MergedDefinitions.kt")).and(DescribedPredicate.not(getsRawDefinitionsByContract))
             .should().dependOnClassesThat(extensionClass)
             .because("each type is merged with its extensions once in MergedDefinitions.kt. Take a MergedType instead of matching extension definitions")
             .check(classes)

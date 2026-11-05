@@ -9,21 +9,15 @@ import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.ScalarInfo
 
-/**
- * The SDL types of a schema, each merged with its extensions. Outside this file the scanner and the parser only see
- * [MergedType]s, so every reader of a type's fields, members, values or directives gets those of its extensions too.
- */
 internal class MergedDefinitions(definitions: List<Definition<*>>) {
     val directiveDefinitions: List<DirectiveDefinition> = definitions.filterIsInstance<DirectiveDefinition>()
     val rootInfo: RootTypeInfo = RootTypeInfo.fromSchemaDefinitions(definitions.filterIsInstance<SchemaDefinition>())
 
-    // includes the names of scalar extensions, even ignored ones
     val scalarNames: Set<String> = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.keys + definitions.filterIsInstance<ScalarTypeDefinition>().map { it.name }
 
     private val typeDefinitions = definitions.filterIsInstance<TypeDefinition<*>>()
     private val baseTypeNames = typeDefinitions.filter { it !is SDLExtensionDefinition }.map { it.name }.toSet()
 
-    // the first extension of an interface, union, enum or scalar without a definition stands in for it
     private val loneExtensions = typeDefinitions
         .filter { it is SDLExtensionDefinition && it !is ObjectTypeDefinition && it !is InputObjectTypeDefinition && it.name !in baseTypeNames }
         .distinctBy { it.name }
@@ -31,15 +25,12 @@ internal class MergedDefinitions(definitions: List<Definition<*>>) {
 
     private val sources = typeDefinitions.filter { it !is SDLExtensionDefinition || it in loneExtensions }
 
-    // the last definition of a name wins
     private val sourcesByName = sources.associateBy { it.name }
 
     private val extensionsByName = typeDefinitions
         .filter { it is SDLExtensionDefinition && it !in loneExtensions && !extendsOtherKind(it) }
         .groupBy { it.name }
 
-    // one type per definition, so a repeated definition of a name is a type of its own
-    // one type per definition, so a repeated definition of a name is a type of its own
     private val typesBySource: List<Pair<TypeDefinition<*>, MergedType<*>>> = sources.mapNotNull { source -> merge(source)?.let { source to it } }
 
     private val specificationScalars: List<Pair<ScalarTypeDefinition, MergedType.Scalar>> = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.values.map { definition ->
@@ -52,27 +43,17 @@ internal class MergedDefinitions(definitions: List<Definition<*>>) {
 
     val byName: Map<String, MergedType<*>> = typesBySource.associate { (_, type) -> type.name to type }
 
-    /**
-     * Every object type definition, including repeated ones that [byName] doesn't return.
-     */
-    val baseObjects: List<MergedType.Object> = typesBySource.map { it.second }.filterIsInstance<MergedType.Object>()
+    val objectsWithRepeats: List<MergedType.Object> = typesBySource.map { it.second }.filterIsInstance<MergedType.Object>()
 
     val ignoredExtensionWarnings: List<String> = typeDefinitions.filter(::extendsOtherKind).map { extension ->
         "Type '${extension.name}' is defined as ${sourcesByName.getValue(extension.name).kind()}, but extended as ${extension.kind()}. The extension is ignored."
     }
 
-    /**
-     * Looks a name up like graphql-java, so the specification's scalars come first.
-     */
     fun resolve(name: String?): MergedType<*>? = specificationScalarsByName[name] ?: byName[name]
 
     fun definitionsOf(types: Set<MergedType<*>>): Set<TypeDefinition<*>> = types.mapNotNullTo(linkedSetOf()) { sourceOf[it] }
 
-    /**
-     * Finds the field, argument or input field whose type is [typeName] itself, not another reference to the same name. The
-     * definitions of [types] are searched first, then the directive definitions, then every extension.
-     */
-    fun findUsage(typeName: TypeName, types: Collection<MergedType<*>>): String? =
+    fun findUsage(reference: TypeName, types: Collection<MergedType<*>>): String? =
         (types.mapNotNull { sourceOf[it] } + directiveDefinitions + extensionsByName.values.flatten()).asSequence().flatMap { definition ->
             when (definition) {
                 is ObjectTypeDefinition -> fieldUsages(definition.name, definition.fieldDefinitions)
@@ -81,7 +62,7 @@ internal class MergedDefinitions(definitions: List<Definition<*>>) {
                 is DirectiveDefinition -> definition.inputValueDefinitions.map { "argument '${it.name}' of directive '@${definition.name}'" to it.type }
                 else -> emptyList()
             }
-        }.find { (_, type) -> type.unwrap() === typeName }?.first
+        }.find { (_, type) -> type.unwrap() === reference }?.first
 
     private fun fieldUsages(typeName: String, fields: List<FieldDefinition>): List<Pair<String, Type<*>>> = fields.flatMap { field ->
         listOf("field '$typeName.${field.name}'" to field.type) +
@@ -123,10 +104,6 @@ internal class TypeBuildContext(
     val customScalars: CustomScalarMap,
 )
 
-/**
- * An SDL type merged with its extensions: the members of the type come first, then those of each extension in the order
- * they're declared. Only this file sees the definitions themselves.
- */
 internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>>(
     private val definition: TypeDefinition<*>,
     extensions: List<TypeDefinition<*>>,
@@ -135,10 +112,7 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
 
     val definitionClassName: String get() = definition.javaClass.simpleName
 
-    /**
-     * The kind as the library's messages name it, such as "an object type".
-     */
-    val kind: String get() = definition.kind()
+    val kindPhrase: String get() = definition.kind()
 
     protected val directives: List<Directive> = definition.directives + extensions.flatMap { it.directives }
 
@@ -148,10 +122,6 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
 
     protected abstract fun newBuilder(context: TypeBuildContext): B
 
-    /**
-     * Starts the graphql-java type with what every kind gets: the check for repeated declarations, the name, the definitions,
-     * the description and the SDL directives. The caller adds the members.
-     */
     fun prepare(context: TypeBuildContext): B {
         rejectRepeated()
         val builder = newBuilder(context).name(name)
@@ -210,10 +180,7 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
         override fun newBuilder(context: TypeBuildContext): GraphQLUnionType.Builder =
             GraphQLUnionType.newUnionType().definition(definition).extensionDefinitions(extensions)
 
-        /**
-         * The toString of the definition or extension that lists [member].
-         */
-        fun declarationOf(member: Type<*>): String =
+        fun declarationTextOf(member: Type<*>): String =
             (listOf(definition) + extensions).first { declaration -> declaration.memberTypes.any { it === member } }.toString()
     }
 
