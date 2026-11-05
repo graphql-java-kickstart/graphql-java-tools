@@ -2,7 +2,6 @@ package graphql.kickstart.tools.util
 
 import graphql.kickstart.tools.GraphQLResolver
 import graphql.kickstart.tools.SchemaParserOptions
-import graphql.kickstart.tools.TypeExtensions
 import graphql.language.*
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.idl.TypeUtil
@@ -27,13 +26,6 @@ internal typealias JavaMethod = Method
 internal typealias GraphQLLangType = Type<*>
 
 internal fun Type<*>.unwrap(): TypeName = TypeUtil.unwrapAll(this)
-
-internal inline fun <reified T : TypeDefinition<*>> TypeExtensions.extensionsOf(name: String): List<T> =
-    this[name].orEmpty().filterIsInstance<T>()
-
-// Every extension class is a subclass of its type's class, e.g. UnionTypeExtensionDefinition of UnionTypeDefinition.
-internal inline fun <reified T : TypeDefinition<*>> T.withExtensions(typeExtensions: TypeExtensions): List<T> =
-    listOf(this) + typeExtensions.extensionsOf<T>(name)
 
 internal fun JavaType.unwrap(): Class<out Any> =
     if (this is ParameterizedType) {

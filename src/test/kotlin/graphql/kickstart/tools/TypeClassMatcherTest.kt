@@ -28,13 +28,11 @@ class TypeClassMatcherTest {
         private val customType: Type<*> = TypeName("CustomType")
         private val unwrappedCustomType: Type<*> = TypeName("UnwrappedGenericCustomType")
 
-        private val customDefinition: TypeDefinition<*> = ObjectTypeDefinition("CustomType")
-        private val unwrappedCustomDefinition: TypeDefinition<*> = ObjectTypeDefinition("UnwrappedGenericCustomType")
+        private val definitions = MergedDefinitions(listOf(ObjectTypeDefinition("CustomType"), ObjectTypeDefinition("UnwrappedGenericCustomType")))
+        private val customDefinition: MergedType<*> = definitions.byName.getValue("CustomType")
+        private val unwrappedCustomDefinition: MergedType<*> = definitions.byName.getValue("UnwrappedGenericCustomType")
 
-        private val matcher: TypeClassMatcher = TypeClassMatcher(mapOf(
-            "CustomType" to customDefinition,
-            "UnwrappedGenericCustomType" to unwrappedCustomDefinition
-        ))
+        private val matcher: TypeClassMatcher = TypeClassMatcher(definitions)
 
         private val options: SchemaParserOptions = SchemaParserOptions.newOptions().genericWrappers(
             GenericWrapper(

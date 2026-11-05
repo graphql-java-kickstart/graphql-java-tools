@@ -228,7 +228,7 @@ class NestedGenericWrapperTest {
     @Test
     fun `resolves every return type the matcher accepts`() {
         val options = SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper).build()
-        val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload"), "Leaf" to ScalarTypeDefinition("Leaf")))
+        val matcher = TypeClassMatcher(MergedDefinitions(listOf(ObjectTypeDefinition("Payload"), ScalarTypeDefinition("Leaf"))))
         val method = Query::class.java.getMethod("listOfWrapped")
         val graphQLTypes = listOf(TypeName("Payload"), TypeName("Leaf")).flatMap { listOf(it, NonNullType(it), ListType(it), NonNullType(ListType(NonNullType(it))), ListType(ListType(it))) }
         val containers = listOf(List::class.java, CompletableFuture::class.java, Try::class.java, Page::class.java, DataFetcherResult::class.java, Optional::class.java, Future::class.java)
@@ -270,7 +270,7 @@ class NestedGenericWrapperTest {
 
     @Test
     fun `rejects a DataFetcherResult or an Optional twice in one value`() {
-        val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload")))
+        val matcher = TypeClassMatcher(MergedDefinitions(listOf(ObjectTypeDefinition("Payload"))))
         val method = Query::class.java.getMethod("listOfWrapped")
         val result = DataFetcherResult::class.java
         val optional = Optional::class.java

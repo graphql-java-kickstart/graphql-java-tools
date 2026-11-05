@@ -26,14 +26,14 @@ import java.lang.reflect.Modifier
  */
 internal class SchemaClassScanner(
     initialDictionary: Map<String, Class<*>>,
-    allDefinitions: List<Definition<*>>,
+    private val definitions: MergedDefinitions,
     resolvers: List<GraphQLResolver<*>>,
     private val scalars: CustomScalarMap,
     private val options: SchemaParserOptions
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    private val rootInfo = RootTypeInfo.fromSchemaDefinitions(allDefinitions.filterIsInstance<SchemaDefinition>())
+    private val rootInfo = definitions.rootInfo
 
     private val queryResolvers = resolvers.filterIsInstance<GraphQLQueryResolver>()
     private val mutationResolvers = resolvers.filterIsInstance<GraphQLMutationResolver>()
@@ -42,54 +42,32 @@ internal class SchemaClassScanner(
     private val resolverInfos = resolvers.asSequence().minus(queryResolvers).minus(mutationResolvers).minus(subscriptionResolvers).map { NormalResolverInfo(it, options) }.toList()
 
     private val initialDictionary = initialDictionary.mapValues { InitialDictionaryEntry(it.value) }
-    private val directiveDefinitions = allDefinitions.filterIsInstance<DirectiveDefinition>()
-    private val scalarDefinitions = allDefinitions.filterIsInstance<ScalarTypeDefinition>()
+    private val directiveDefinitions = definitions.directiveDefinitions
+    private val typesByName = definitions.byName
+    private val objectTypesByName = definitions.objectsWithRepeats.associateBy { it.name }
 
-    private val typeDefinitions = allDefinitions.filterIsInstance<TypeDefinition<*>>()
-    private val baseTypeNames = typeDefinitions.filter { it !is SDLExtensionDefinition }.map { it.name }.toSet()
-
-    private val loneExtensions = typeDefinitions
-        .filter { it is SDLExtensionDefinition && it !is ObjectTypeDefinition && it !is InputObjectTypeDefinition && it.name !in baseTypeNames }
-        .distinctBy { it.name }
-
-    private val definitionsByName = typeDefinitions.filter { it !is SDLExtensionDefinition || it in loneExtensions }.associateBy { it.name }
-    private val typeExtensions: TypeExtensions = typeDefinitions
-        .filter { it is SDLExtensionDefinition && it !in loneExtensions && !extendsOtherKind(it) }
-        .groupBy { it.name }
-    private val objectDefinitions = allDefinitions.filterIsInstance<ObjectTypeDefinition>().filter { it !is ObjectTypeExtensionDefinition }
-    private val objectDefinitionsByName = objectDefinitions.associateBy { it.name }
-
-    private val scalarNames = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.keys + scalarDefinitions.map { it.name }
-    private val fieldResolverScanner = FieldResolverScanner(options, scalarNames)
-    private val typeClassMatcher = TypeClassMatcher(definitionsByName)
-    private val unvalidatedTypes = mutableSetOf<TypeDefinition<*>>()
+    private val fieldResolverScanner = FieldResolverScanner(options, definitions.scalarNames)
+    private val typeClassMatcher = TypeClassMatcher(definitions)
+    private val unvalidatedTypes = mutableSetOf<MergedType<*>>()
     private val queue = linkedSetOf<QueueItem>()
-    private val dictionary = ScanDictionary(options, log, typeExtensions, definitionsByName, typeClassMatcher, this.initialDictionary, ::enqueue, ::handleFoundScalarType)
-    private val sealedSubclassMatcher = SealedSubclassMatcher(dictionary, typeExtensions)
+    private val dictionary = ScanDictionary(options, log, typesByName, typeClassMatcher, this.initialDictionary, ::enqueue, ::handleFoundScalarType)
+    private val sealedSubclassMatcher = SealedSubclassMatcher(dictionary)
 
-    private val fieldResolversByType = mutableMapOf<ObjectTypeDefinition, MutableMap<FieldDefinition, FieldResolver>>()
+    private val fieldResolversByType = mutableMapOf<MergedType.Object, MutableMap<FieldDefinition, FieldResolver>>()
     private val notCallableOnResolver = mutableListOf<NotCallableOnResolver>()
 
     init {
         initialDictionary.forEach { (name, clazz) ->
-            if (!definitionsByName.containsKey(name)) {
+            if (!typesByName.containsKey(name)) {
                 throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type name '$name', but a type definition with that name was not found!")
             }
         }
 
-        typeDefinitions.filter { extendsOtherKind(it) }.forEach { extension ->
-            val definition = definitionsByName.getValue(extension.name)
-            log.warn("Type '${extension.name}' is defined as ${definition.kind()}, but extended as ${extension.kind()}. The extension is ignored.")
-        }
+        definitions.ignoredExtensionWarnings.forEach { log.warn(it) }
 
-        initialDictionary
-            .filterKeys { definitionsByName[it] !is InputObjectTypeDefinition }
-            .entries.groupBy({ it.value }, { it.key })
-            .forEach { (clazz, names) ->
-                if (names.size > 1) {
-                    throw SchemaClassScannerError("Class in supplied dictionary '${clazz.name}' specified type names ${names.joinToString { "'$it'" }}, but only input object types can share a class!")
-                }
-            }
+        TypeClassDictionary.requireOnlyInputTypesShareAClass(initialDictionary.mapKeys { typesByName.getValue(it.key) }) { clazz, types ->
+            "Class in supplied dictionary '${clazz.name}' specified type names ${types.joinToString { "'${it.name}'" }}, but only input object types can share a class!"
+        }
 
         if (options.allowUnimplementedResolvers) {
             log.warn("Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved to query time instead of schema creation time.  Make sure this is turned off in production.")
@@ -102,7 +80,7 @@ internal class SchemaClassScanner(
     fun scanForClasses(): ScannedSchemaObjects {
 
         // Figure out what query, mutation and subscription types are called
-        val rootTypeHolder = RootTypesHolder(options, rootInfo, definitionsByName, queryResolvers, mutationResolvers, subscriptionResolvers)
+        val rootTypeHolder = RootTypesHolder(options, rootInfo, typesByName, queryResolvers, mutationResolvers, subscriptionResolvers)
 
         handleRootType(rootTypeHolder.query)
         handleRootType(rootTypeHolder.mutation)
@@ -135,7 +113,7 @@ internal class SchemaClassScanner(
         if (options.includeUnusedTypes) {
             // One type at a time, since scanning it can discover other unused types along with their classes
             while (true) {
-                val unusedDefinition = (definitionsByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
+                val unusedDefinition = (typesByName.values - (dictionary.keys.toSet() + unvalidatedTypes))
                     .filter { definition -> definition.name != "PageInfo" }
                     .firstOrNull { canIncludeUnusedType(it) }
                     ?: break
@@ -150,19 +128,19 @@ internal class SchemaClassScanner(
         return validateAndCreateResult(rootTypeHolder)
     }
 
-    private fun canIncludeUnusedType(definition: TypeDefinition<*>): Boolean = when (definition) {
-        is ObjectTypeDefinition, is InterfaceTypeDefinition, is UnionTypeDefinition -> true
+    private fun canIncludeUnusedType(definition: MergedType<*>): Boolean = when (definition) {
+        is MergedType.Object, is MergedType.Interface, is MergedType.Union -> true
         // Enums can't be built without a class, so the ones missing from the dictionary are only reported as unused
-        is EnumTypeDefinition -> initialDictionary.containsKey(definition.name)
+        is MergedType.Enum -> initialDictionary.containsKey(definition.name)
         else -> false
     }
 
-    private fun handleUnusedType(type: TypeDefinition<*>) {
+    private fun handleUnusedType(type: MergedType<*>) {
         val initialEntry = initialDictionary[type.name]
         when {
             initialEntry != null -> dictionary.handleFoundType(type, initialEntry.get(), DictionaryReference())
             // Interfaces and unions are resolved through the classes of their implementations, so they don't need one
-            type is InterfaceTypeDefinition || type is UnionTypeDefinition -> dictionary.handleFoundType(type, null, UnusedTypeReference())
+            type is MergedType.Interface || type is MergedType.Union -> dictionary.handleFoundType(type, null, UnusedTypeReference())
             else -> throw SchemaClassScannerError("Object type '${type.name}' is unused and includeUnusedTypes is true. Please pass a class for type '${type.name}' in the parser's dictionary.")
         }
     }
@@ -203,15 +181,15 @@ internal class SchemaClassScanner(
 
     private fun handleDirectiveInput(inputType: Type<*>) {
         val inputTypeName = inputType.unwrap().name
-        val typeDefinition = ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS[inputTypeName]
-            ?: definitionsByName[inputTypeName]
+        val typeDefinition = definitions.resolve(inputTypeName)
             ?: error("No ${TypeDefinition::class.java.simpleName} for type name $inputTypeName")
         when (typeDefinition) {
-            is ScalarTypeDefinition -> handleFoundScalarType(typeDefinition)
-            is EnumTypeDefinition -> handleDirectiveEnum(typeDefinition)
-            is InputObjectTypeDefinition -> handleDictionaryTypes(listOf(typeDefinition)) {
+            is MergedType.Scalar -> handleFoundScalarType(typeDefinition)
+            is MergedType.Enum -> handleDirectiveEnum(typeDefinition)
+            is MergedType.Input -> handleDictionaryTypes(listOf(typeDefinition)) {
                 "Input object type '${it.name}' is used in a directive, but no class could be found for that type name. Please pass a class for type '${it.name}' in the parser's dictionary."
             }
+            else -> {}
         }
     }
 
@@ -220,7 +198,7 @@ internal class SchemaClassScanner(
      * it goes into [unvalidatedTypes] and, unless a field uses it too, is built with its value names as values, see
      * [validateAndCreateResult].
      */
-    private fun handleDirectiveEnum(type: EnumTypeDefinition) {
+    private fun handleDirectiveEnum(type: MergedType.Enum) {
         if (dictionary.containsKey(type)) {
             return
         }
@@ -234,17 +212,16 @@ internal class SchemaClassScanner(
     }
 
     /**
-     * The names of the types used by the fields, arguments and input fields of [definitions], including fields added by extensions.
+     * The names of the types used by the fields, arguments and input fields of [types].
      */
-    private fun typeNamesUsedByFields(definitions: Set<TypeDefinition<*>>): Set<String> {
-        return definitions
-            .flatMap { it.withExtensions(typeExtensions) }
-            .flatMap { definition ->
-                when (definition) {
-                    is ImplementingTypeDefinition<*> -> definition.fieldDefinitions.flatMap { field ->
+    private fun typeNamesUsedByFields(types: Set<MergedType<*>>): Set<String> {
+        return types
+            .flatMap { type ->
+                when (type) {
+                    is MergedType.Implementing -> type.fields.flatMap { field ->
                         field.inputValueDefinitions.map { it.type } + field.type
                     }
-                    is InputObjectTypeDefinition -> definition.inputValueDefinitions.map { it.type }
+                    is MergedType.Input -> type.fields.map { it.type }
                     else -> emptyList()
                 }
             }
@@ -272,12 +249,12 @@ internal class SchemaClassScanner(
                     it.value.javaType != null
                         && it.value.typeClass() != Any::class.java
                         && !Map::class.java.isAssignableFrom(it.value.typeClass())
-                        && it.key !is InputObjectTypeDefinition
-                        && it.key !is UnionTypeDefinition
+                        && it.key !is MergedType.Input
+                        && it.key !is MergedType.Union
                 }.mapValues { it.value.javaType!! }
         )
         // SchemaParser builds the scalars, this only checks that each one was provided
-        val scalars = observedDefinitions.filterIsInstance<ScalarTypeDefinition>()
+        val scalars = observedDefinitions.filterIsInstance<MergedType.Scalar>()
             .filter {
                 // Filter for any defined scalars OR scalars that aren't defined but also aren't standard
                 scalars.containsKey(it.name) || !ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS.containsKey(it.name)
@@ -286,7 +263,7 @@ internal class SchemaClassScanner(
                     ?: throw SchemaClassScannerError("Expected a user-defined GraphQL scalar type with name '${definition.name}' but found none!"))
             }
 
-        val unusedDefinitions = (definitionsByName.values - observedDefinitions).toSet()
+        val unusedDefinitions = (typesByName.values - observedDefinitions).toSet()
         unusedDefinitions
             .filter { definition -> definition.name != "PageInfo" }
             .forEach { definition ->
@@ -305,15 +282,13 @@ internal class SchemaClassScanner(
         validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
         validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
 
-        val definitions = observedDefinitions + directiveDefinitions
-
         // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
         // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
         // to a Map or an unimplemented field's argument.
         val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
-        val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<EnumTypeDefinition>().filter { it.name !in typeNamesUsedByFields }.toSet()
+        val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<MergedType.Enum>().filter { it.name !in typeNamesUsedByFields }.toSet()
 
-        return ScannedSchemaObjects(dictionary, definitions, typeExtensions, scalars, rootInfo, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
+        return ScannedSchemaObjects(dictionary, definitions, observedDefinitions, scalars, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
     private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
@@ -329,22 +304,20 @@ internal class SchemaClassScanner(
         }
     }
 
-    private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<ObjectTypeDefinition> {
-        return dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().map { iface ->
-            objectDefinitions.filter { obj ->
-                obj.withExtensions(typeExtensions).flatMap { it.implements }.filterIsInstance<TypeName>().any { it.name == iface.name }
+    private fun getAllObjectTypesImplementingDiscoveredInterfaces(): List<MergedType.Object> {
+        return dictionary.keys.filterIsInstance<MergedType.Interface>().map { iface ->
+            definitions.objectsWithRepeats.filter { obj ->
+                obj.interfaces.filterIsInstance<TypeName>().any { it.name == iface.name }
             }
         }.flatten().distinctBy { it.name }
     }
 
-    private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<ObjectTypeDefinition> {
-        val unionTypeNames = dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union -> union.name }.toSet()
-        return dictionary.keys.filterIsInstance<UnionTypeDefinition>().map { union ->
-            union.withExtensions(typeExtensions).flatMap { definition ->
-                definition.memberTypes.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
-                    objectDefinitionsByName[it.name]
-                        ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: $definition")
-                }
+    private fun getAllObjectTypeMembersOfDiscoveredUnions(): List<MergedType.Object> {
+        val unionTypeNames = dictionary.keys.filterIsInstance<MergedType.Union>().map { union -> union.name }.toSet()
+        return dictionary.keys.filterIsInstance<MergedType.Union>().map { union ->
+            union.members.filterIsInstance<TypeName>().filter { !unionTypeNames.contains(it.name) }.map {
+                objectTypesByName[it.name]
+                    ?: throw SchemaClassScannerError("No object type found with name '${it.name}' for union: ${union.declarationTextOf(it)}")
             }
         }.flatten().distinct()
     }
@@ -353,10 +326,10 @@ internal class SchemaClassScanner(
      * Unions can list other unions as members. Returns whether any new unions were found.
      */
     private fun handleNestedUnions(): Boolean {
-        val newUnions = dictionary.keys.filterIsInstance<UnionTypeDefinition>().flatMap { union ->
-            union.withExtensions(typeExtensions).flatMap { it.memberTypes }.filterIsInstance<TypeName>()
-                .map { definitionsByName[it.name] }
-                .filterIsInstance<UnionTypeDefinition>()
+        val newUnions = dictionary.keys.filterIsInstance<MergedType.Union>().flatMap { union ->
+            union.members.filterIsInstance<TypeName>()
+                .map { typesByName[it.name] }
+                .filterIsInstance<MergedType.Union>()
                 .filter { !dictionary.containsKey(it) }
                 .map { it to UnionMemberReference(union) }
         }
@@ -370,10 +343,10 @@ internal class SchemaClassScanner(
      * union or interface may not be reachable from any object field. Returns whether any new types were found.
      */
     private fun handleInterfaceFieldTypes(): Boolean {
-        val newTypes = dictionary.keys.filterIsInstance<InterfaceTypeDefinition>().flatMap { iface ->
-            iface.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.mapNotNull { field ->
-                val type = definitionsByName[field.type.unwrap().name]
-                if ((type is UnionTypeDefinition || type is InterfaceTypeDefinition) && !dictionary.containsKey(type)) {
+        val newTypes = dictionary.keys.filterIsInstance<MergedType.Interface>().flatMap { iface ->
+            iface.fields.mapNotNull { field ->
+                val type = typesByName[field.type.unwrap().name]
+                if ((type is MergedType.Union || type is MergedType.Interface) && !dictionary.containsKey(type)) {
                     type to FieldTypeReference("${iface.name}.${field.name}")
                 } else {
                     null
@@ -385,8 +358,8 @@ internal class SchemaClassScanner(
         return newTypes.isNotEmpty()
     }
 
-    private fun handleDictionaryTypes(types: List<TypeDefinition<*>>, failureMessage: (TypeDefinition<*>) -> String) {
-        val typesWithoutClass = mutableListOf<TypeDefinition<*>>()
+    private fun handleDictionaryTypes(types: List<MergedType<*>>, failureMessage: (MergedType<*>) -> String) {
+        val typesWithoutClass = mutableListOf<MergedType<*>>()
         types.forEach { type ->
             val dictionaryContainsType = dictionary.filter { it.key.name == type.name }.isNotEmpty()
             if (!unvalidatedTypes.contains(type) && !dictionaryContainsType) {
@@ -399,7 +372,7 @@ internal class SchemaClassScanner(
             }
         }
 
-        val sealedMatches = typesWithoutClass.filterIsInstance<ObjectTypeDefinition>().mapNotNull { sealedSubclassMatcher.sealedSubclassMatches(it).singleOrNull() }
+        val sealedMatches = typesWithoutClass.filterIsInstance<MergedType.Object>().mapNotNull { sealedSubclassMatcher.sealedSubclassMatches(it).singleOrNull() }
         if (sealedMatches.isEmpty()) {
             typesWithoutClass.firstOrNull()?.let { throw SchemaClassScannerError(failureMessage(it) + sealedSubclassMatcher.sealedSubclassHint(it)) }
         }
@@ -449,8 +422,8 @@ internal class SchemaClassScanner(
     private fun isResolverForSupertype(resolverInfo: NormalResolverInfo, dataClass: Class<*>) =
         resolverInfo.dataClassType != Any::class.java && resolverInfo.dataClassType.isAssignableFrom(dataClass)
 
-    private fun scanResolverInfoForPotentialMatches(type: ObjectTypeDefinition, resolverInfo: ResolverInfo) {
-        type.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }.forEach { field ->
+    private fun scanResolverInfoForPotentialMatches(type: MergedType.Object, resolverInfo: ResolverInfo) {
+        type.fields.forEach { field ->
             val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
             collectIfNotCallableOnResolver(type, fieldResolver)
 
@@ -463,7 +436,7 @@ internal class SchemaClassScanner(
         }
     }
 
-    private fun collectIfNotCallableOnResolver(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+    private fun collectIfNotCallableOnResolver(type: MergedType.Object, fieldResolver: FieldResolver) {
         val source = fieldResolver.search.source ?: return
         val member: Member = when (fieldResolver) {
             is MethodFieldResolver -> fieldResolver.method
@@ -493,7 +466,7 @@ internal class SchemaClassScanner(
         )
     }
 
-    private fun requireParameterForEachArgument(type: ObjectTypeDefinition, fieldResolver: FieldResolver) {
+    private fun requireParameterForEachArgument(type: MergedType.Object, fieldResolver: FieldResolver) {
         if (fieldResolver !is MethodFieldResolver) {
             return
         }
@@ -513,37 +486,22 @@ internal class SchemaClassScanner(
         }
     }
 
-    private fun handleFoundScalarType(type: ScalarTypeDefinition) {
+    private fun handleFoundScalarType(type: MergedType.Scalar) {
         unvalidatedTypes.add(type)
     }
 
-    private fun extendsOtherKind(definition: TypeDefinition<*>): Boolean {
-        val type = definitionsByName[definition.name]
-        return definition is SDLExtensionDefinition && type != null && type.kind() != definition.kind()
-    }
-
-    private fun TypeDefinition<*>.kind(): String = when (this) {
-        is ObjectTypeDefinition -> "an object type"
-        is InterfaceTypeDefinition -> "an interface"
-        is UnionTypeDefinition -> "a union"
-        is EnumTypeDefinition -> "an enum"
-        is InputObjectTypeDefinition -> "an input object type"
-        is ScalarTypeDefinition -> "a scalar"
-        else -> javaClass.simpleName
-    }
-
-    private fun enqueue(graphQLType: ObjectTypeDefinition, javaType: JavaType) {
+    private fun enqueue(graphQLType: MergedType.Object, javaType: JavaType) {
         queue.add(QueueItem(graphQLType, javaType))
     }
 
-    private data class QueueItem(val type: ObjectTypeDefinition, val clazz: JavaType)
+    private data class QueueItem(val type: MergedType.Object, val clazz: JavaType)
 
     private data class NotCallableOnResolver(val message: String, val isField: Boolean)
 
     private class RootTypesHolder(
         options: SchemaParserOptions,
         rootInfo: RootTypeInfo,
-        definitionsByName: Map<String, TypeDefinition<*>>,
+        typesByName: Map<String, MergedType<*>>,
         queryResolvers: List<GraphQLQueryResolver>,
         mutationResolvers: List<GraphQLMutationResolver>,
         subscriptionResolvers: List<GraphQLSubscriptionResolver>
@@ -552,9 +510,9 @@ internal class SchemaClassScanner(
         private val mutationName = rootInfo.getMutationName()
         private val subscriptionName = rootInfo.getSubscriptionName()
 
-        private val queryDefinition = definitionsByName[queryName]
-        private val mutationDefinition = definitionsByName[mutationName]
-        private val subscriptionDefinition = definitionsByName[subscriptionName]
+        private val queryDefinition = typesByName[queryName]
+        private val mutationDefinition = typesByName[mutationName]
+        private val subscriptionDefinition = typesByName[subscriptionName]
 
         private val queryResolverInfo = RootResolverInfo(queryResolvers, options)
         private val mutationResolverInfo = RootResolverInfo(mutationResolvers, options)
@@ -564,7 +522,7 @@ internal class SchemaClassScanner(
         val mutation = createRootType("mutation", mutationDefinition, mutationName, rootInfo.isMutationRequired(), mutationResolvers, GraphQLMutationResolver::class.java, mutationResolverInfo)
         val subscription = createRootType("subscription", subscriptionDefinition, subscriptionName, rootInfo.isSubscriptionRequired(), subscriptionResolvers, GraphQLSubscriptionResolver::class.java, subscriptionResolverInfo)
 
-        private fun createRootType(name: String, type: TypeDefinition<*>?, typeName: String, required: Boolean, resolvers: List<GraphQLRootResolver>, resolverInterface: Class<*>, resolverInfo: RootResolverInfo): RootType? {
+        private fun createRootType(name: String, type: MergedType<*>?, typeName: String, required: Boolean, resolvers: List<GraphQLRootResolver>, resolverInterface: Class<*>, resolverInfo: RootResolverInfo): RootType? {
             if (type == null) {
                 if (required) {
                     throw SchemaClassScannerError("Type definition for root $name type '$typeName' not found!")
@@ -573,8 +531,8 @@ internal class SchemaClassScanner(
                 return null
             }
 
-            if (type !is ObjectTypeDefinition) {
-                throw SchemaClassScannerError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${type.javaClass.simpleName}")
+            if (type !is MergedType.Object) {
+                throw SchemaClassScannerError("Expected root query type's type to be ${ObjectTypeDefinition::class.java.simpleName}, but it was ${type.definitionClassName}")
             }
 
             // Find query resolver class
@@ -586,7 +544,7 @@ internal class SchemaClassScanner(
         }
     }
 
-    internal class RootType(val name: String, val type: ObjectTypeDefinition, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
+    internal class RootType(val name: String, val type: MergedType.Object, val resolvers: List<GraphQLRootResolver>, val resolverInterface: Class<*>, val resolverInfo: RootResolverInfo)
 }
 
 internal class SchemaClassScannerError(message: String, throwable: Throwable? = null) : RuntimeException(message, throwable)

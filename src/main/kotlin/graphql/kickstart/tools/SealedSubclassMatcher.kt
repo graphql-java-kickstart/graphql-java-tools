@@ -3,21 +3,15 @@ package graphql.kickstart.tools
 import graphql.kickstart.tools.ScanDictionary.SealedSubclassReference
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
-import graphql.kickstart.tools.util.withExtensions
-import graphql.language.InterfaceTypeDefinition
-import graphql.language.ObjectTypeDefinition
-import graphql.language.TypeDefinition
 import graphql.language.TypeName
-import graphql.language.UnionTypeDefinition
 import org.apache.commons.lang3.reflect.TypeUtils
 import java.lang.reflect.ParameterizedType
 
 internal class SealedSubclassMatcher(
-    private val dictionary: Map<TypeDefinition<*>, ScanDictionary.EntryView>,
-    private val typeExtensions: TypeExtensions,
+    private val dictionary: Map<MergedType<*>, ScanDictionary.EntryView>,
 ) {
-    fun sealedSubclassHint(type: TypeDefinition<*>): String {
-        if (type !is ObjectTypeDefinition) {
+    fun sealedSubclassHint(type: MergedType<*>): String {
+        if (type !is MergedType.Object) {
             return ""
         }
 
@@ -35,7 +29,7 @@ internal class SealedSubclassMatcher(
         }
     }
 
-    fun sealedSubclassMatches(type: ObjectTypeDefinition): List<TypeClassMatcher.ValidMatch> =
+    fun sealedSubclassMatches(type: MergedType.Object): List<TypeClassMatcher.ValidMatch> =
         sealedTypesOf(type)
             .flatMap { sealedType ->
                 sealedSubclasses(sealedType.unwrap())
@@ -44,12 +38,12 @@ internal class SealedSubclassMatcher(
             }
             .distinctBy { it.javaType.unwrap() }
 
-    private fun sealedTypesOf(type: ObjectTypeDefinition): List<JavaType> =
+    private fun sealedTypesOf(type: MergedType.Object): List<JavaType> =
         dictionary
             .filterKeys { definition ->
                 when (definition) {
-                    is UnionTypeDefinition -> definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.filterIsInstance<TypeName>().any { it.name == type.name }
-                    is InterfaceTypeDefinition -> type.withExtensions(typeExtensions).flatMap { it.implements }.filterIsInstance<TypeName>().any { it.name == definition.name }
+                    is MergedType.Union -> definition.members.filterIsInstance<TypeName>().any { it.name == type.name }
+                    is MergedType.Interface -> type.interfaces.filterIsInstance<TypeName>().any { it.name == definition.name }
                     else -> false
                 }
             }

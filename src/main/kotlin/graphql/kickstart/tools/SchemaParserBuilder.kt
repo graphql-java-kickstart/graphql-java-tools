@@ -163,7 +163,7 @@ class SchemaParserBuilder {
         val definitions = appendDynamicDefinitions(parseDefinitions())
         val customScalars = scalars.associateBy { it.name }
 
-        return SchemaClassScanner(dictionary.toMap(), definitions, resolvers, customScalars, options)
+        return SchemaClassScanner(dictionary.toMap(), MergedDefinitions(definitions), resolvers, customScalars, options)
             .scanForClasses()
     }
 
