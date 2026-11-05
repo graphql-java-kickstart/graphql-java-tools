@@ -83,7 +83,8 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | A resolver method's return value is unwrapped by one rule that the schema build and the data fetcher share | docs only |
 | A resolver method's parameter layout, type variables and source are decided once, at schema build | docs only |
 | One output has one builder. Don't add a second path that builds the same thing | docs only |
-| Read an SDL type's members merged with its extensions, never from the raw definition | docs only |
+| Read an SDL type's members merged with its extensions, never from the raw definition | `MergedType` in `MergedDefinitions.kt` and `DefinitionsBoundaryTest` |
+| Every kind of SDL type starts its graphql-java type from the same recipe | `MergedType.prepare`, `DefinitionsBoundaryTest` and `TypeKindRecipeTest` |
 | Reuse an existing structure before you add a parallel one | docs only |
 | Argument conversion goes through one entry point | docs only |
 | An input field's Java type comes from the mapping Jackson uses, not from guessed getters | docs only |
