@@ -4,7 +4,6 @@ import graphql.GraphQLContext
 import graphql.kickstart.tools.*
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.coroutineScope
-import graphql.kickstart.tools.util.futureValueType
 import graphql.kickstart.tools.util.isSuspendFunction
 import graphql.kickstart.tools.util.parameterCountWithoutContinuation
 import graphql.kickstart.tools.util.typeArgument
@@ -18,12 +17,10 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import org.apache.commons.lang3.reflect.TypeUtils
-import org.reactivestreams.Publisher
 import tools.jackson.databind.ObjectMapper
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.*
-import java.util.concurrent.Future
 import java.util.function.Supplier
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.reflect.jvm.javaType
@@ -70,7 +67,7 @@ internal class MethodFieldResolver(
                 ?: throw ResolverError("Missing method type at position ${this.getJavaMethodParameterIndex(index)}, this is most likely a bug with graphql-java-tools")
 
             val isNonNull = definition.type is NonNullType
-            val isOptional = this.typeResolver.getRawClass(parameterType) == Optional::class.java
+            val isOptional = TypeUtils.getRawType(parameterType, search.type) == Optional::class.java
             val argumentConverter = ArgumentConverter(mapper, parameterType)
             val parameterClass = parameterType.unwrap()
             val isConcreteScalar = isConcreteScalarType(definition.type, parameterType)
@@ -117,11 +114,7 @@ internal class MethodFieldResolver(
             }
         }
 
-        // the class the return type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
-        // Object (e.g. for a union) can't tell them apart, so then every future of a method whose return type is Future is checked
-        val valueClass = (TypeUtils.getRawType(getResolvedReturnType(), null) ?: Any::class.java)
-            .takeUnless { it == Any::class.java && TypeUtils.getRawType(returnType, null) == Future::class.java }
-        val unwrapper = ReturnValueUnwrapper.create(method, returnValueMatch.unwrapping, valueClass, isSuspendFunction, search.isSubscription, options.genericWrappers)
+        val unwrapper = TypeShape.Unwrapper(returnShape, method, isSuspendFunction)
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
@@ -148,36 +141,24 @@ internal class MethodFieldResolver(
         }
     }
 
-    override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        return field.inputValueDefinitions.mapIndexed { i, inputDefinition ->
-            TypeClassMatcher.PotentialMatch.parameterType(inputDefinition.type, getMethodParameterType(i)!!, typeResolver, ScanDictionary.MethodParameterReference(method, i))
-        } + listOf(returnValueMatch)
+    // each shape is walked only when the scanner gets to it, so an earlier match's dictionary error is reported first
+    override fun scanForMatches(): Sequence<TypeShape> = sequence {
+        field.inputValueDefinitions.forEachIndexed { i, inputDefinition ->
+            yield(TypeShape.parameterType(inputDefinition.type, getMethodParameterType(i)!!, search.type, options, ScanDictionary.MethodParameterReference(method, i)))
+        }
+        yield(returnShape)
     }
 
-    // generic wrappers only match their exact type, so a Publisher implementation (e.g. Flux), or a future of one,
-    // is matched as a plain Publisher of its events
-    private fun JavaType.asPublisher(): JavaType =
-        (futureValueType() ?: this).typeArgument(Publisher::class.java)
-            ?.let { TypeUtils.parameterize(Publisher::class.java, it) }
-            ?: this
-
-    // the declared return type with type variables resolved, e.g. Future<Item> for get(): T in a subclass of Base<Future<Item>>
-    private val returnType: JavaType by lazy {
+    private val returnShape by lazy {
         val declaredType = try {
             method.kotlinFunction?.returnType?.javaType ?: method.genericReturnType
         } catch (e: InternalError) {
             method.genericReturnType
         }
-        typeResolver.resolveTypeVariables(declaredType)
+        // with type variables resolved, e.g. Future<Item> for get(): T in a subclass of Base<Future<Item>>
+        val returnType = resolveTypeVariables(declaredType, search.type)
+        TypeShape.returnType(field.type, returnType, search.isSubscription, search.type, options, ScanDictionary.ReturnValueReference(method))
     }
-
-    private val returnValueMatch by lazy {
-        TypeClassMatcher.PotentialMatch.returnValue(field.type, matchedReturnType(), typeResolver, ScanDictionary.ReturnValueReference(method))
-    }
-
-    private fun matchedReturnType(): JavaType = if (search.isSubscription) returnType.asPublisher() else returnType
-
-    private fun getResolvedReturnType(): JavaType = typeResolver.resolve(matchedReturnType())
 
     private fun getJavaMethodParameterIndex(index: Int) = index + search.firstArgumentIndex
 
@@ -186,7 +167,7 @@ internal class MethodFieldResolver(
         val parameters = method.parameterTypes
 
         return if (parameters.size > methodIndex) {
-            typeResolver.resolveTypeVariables(method.genericParameterTypes[methodIndex])
+            resolveTypeVariables(method.genericParameterTypes[methodIndex], search.type)
         } else {
             null
         }
@@ -201,7 +182,7 @@ internal class MethodFieldResolverDataFetcher(
     private val args: List<ArgumentPlaceholder>,
     private val options: SchemaParserOptions,
     private val isSuspendFunction: Boolean,
-    private val unwrapper: ReturnValueUnwrapper
+    private val unwrapper: TypeShape.Unwrapper
 ) : DataFetcher<Any> {
 
     override fun get(environment: DataFetchingEnvironment): Any? {
@@ -235,7 +216,7 @@ internal class MethodFieldResolverDataFetcher(
 internal class LightMethodFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
     private val method: Method,
-    private val unwrapper: ReturnValueUnwrapper
+    private val unwrapper: TypeShape.Unwrapper
 ) : LightDataFetcher<Any?> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {

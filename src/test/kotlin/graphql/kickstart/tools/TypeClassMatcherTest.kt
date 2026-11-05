@@ -50,11 +50,9 @@ class TypeClassMatcherTest {
         private val scanner: FieldResolverScanner = FieldResolverScanner(options, GRAPHQL_SCALARS.keys)
         private val resolver = RootResolverInfo(listOf(QueryMethods()), options)
 
-        private fun createPotentialMatch(methodName: String, graphQLType: Type<*>): TypeClassMatcher.PotentialMatch {
-            return scanner.findFieldResolver(FieldDefinition(methodName, graphQLType), resolver)
-                .scanForMatches()
-                .find { it.location == TypeClassMatcher.Location.RETURN_TYPE }!!
-        }
+        // a method without parameters only has its return type to match
+        private fun matchReturnType(methodName: String, graphQLType: Type<*>): TypeClassMatcher.Match =
+            matcher.match(scanner.findFieldResolver(FieldDefinition(methodName, graphQLType), resolver).scanForMatches().single())
 
         private fun list(other: Type<*> = customType): Type<*> = ListType(other)
         private fun nonNull(other: Type<*> = customType): Type<*> = NonNullType(other)
@@ -65,7 +63,7 @@ class TypeClassMatcherTest {
 
         @Test
         fun `matcher verifies that nested return type matches graphql definition for method`() {
-            val match = matcher.match(createPotentialMatch(methodName, type))
+            val match = matchReturnType(methodName, type)
             match as TypeClassMatcher.ValidMatch
             assertEquals(match.type, customDefinition)
             assertEquals(match.javaType, CustomType::class.java)
@@ -100,7 +98,7 @@ class TypeClassMatcherTest {
 
         @Test(expected = SchemaClassScannerError::class)
         fun `matcher verifies that nested return type doesn't match graphql definition for method`() {
-            matcher.match(createPotentialMatch(methodName, type))
+            matchReturnType(methodName, type)
         }
 
         companion object {
@@ -120,7 +118,7 @@ class TypeClassMatcherTest {
 
         @Test(expected = SchemaClassScannerError::class)
         fun `matcher verifies return value optionals are used incorrectly for method`() {
-            matcher.match(createPotentialMatch(methodName, type))
+            matchReturnType(methodName, type)
         }
 
         companion object {
@@ -139,7 +137,7 @@ class TypeClassMatcherTest {
     class Suit4 {
         @Test
         fun `matcher allows unwrapped parameterized types as root types`() {
-            val match = matcher.match(createPotentialMatch("genericCustomUnwrappedType", unwrappedCustomType))
+            val match = matchReturnType("genericCustomUnwrappedType", unwrappedCustomType)
             match as TypeClassMatcher.ValidMatch
             assertEquals(match.type, unwrappedCustomDefinition)
             val javatype = match.javaType as ParameterizedTypeImpl

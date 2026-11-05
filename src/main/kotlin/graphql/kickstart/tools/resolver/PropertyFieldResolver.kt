@@ -2,7 +2,6 @@ package graphql.kickstart.tools.resolver
 
 import graphql.kickstart.tools.ScanDictionary
 import graphql.kickstart.tools.SchemaParserOptions
-import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -25,12 +24,14 @@ internal class PropertyFieldResolver(
         return PropertyFieldResolverDataFetcher(createSourceResolver(), property)
     }
 
-    override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        return listOf(
-            TypeClassMatcher.PotentialMatch.returnValue(
+    override fun scanForMatches(): Sequence<TypeShape> {
+        return sequenceOf(
+            TypeShape.returnType(
                 field.type,
                 property.genericType,
-                typeResolver,
+                isSubscription = false,
+                search.type,
+                options,
                 ScanDictionary.FieldTypeReference(property.toString())
             )
         )

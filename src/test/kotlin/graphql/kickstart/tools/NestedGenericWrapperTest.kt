@@ -9,7 +9,7 @@ import graphql.execution.DataFetcherResult
 import graphql.Scalars
 import graphql.execution.DefaultValueUnboxer
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
-import graphql.kickstart.tools.resolver.ReturnValueUnwrapper
+import graphql.kickstart.tools.resolver.TypeShape
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
 import graphql.kickstart.tools.util.unwrap
 import graphql.language.AstPrinter
@@ -228,7 +228,6 @@ class NestedGenericWrapperTest {
     @Test
     fun `resolves every return type the matcher accepts`() {
         val options = SchemaParserOptions.newOptions().genericWrappers(tryWrapper, pageWrapper).build()
-        val typeResolver = GenericTypeResolver(Query::class.java, options)
         val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload"), "Leaf" to ScalarTypeDefinition("Leaf")))
         val method = Query::class.java.getMethod("listOfWrapped")
         val graphQLTypes = listOf(TypeName("Payload"), TypeName("Leaf")).flatMap { listOf(it, NonNullType(it), ListType(it), NonNullType(ListType(NonNullType(it))), ListType(ListType(it))) }
@@ -238,23 +237,20 @@ class NestedGenericWrapperTest {
         val accepted = graphQLTypes.flatMap { graphQLType ->
             val shapesOfTheSameListDepth = shapes.filter { shape -> shape.count { it == List::class.java || it == Page::class.java } == graphQLType.listDepth() }
             shapesOfTheSameListDepth.flatMap { shape -> listOf(false, true).map { shape to javaType(shape, leaf(graphQLType).javaClass, wildcardElements = it) } }.mapNotNull { (shape, javaType) ->
-                val potentialMatch = TypeClassMatcher.PotentialMatch.returnValue(graphQLType, javaType, typeResolver, ScanDictionary.ReturnValueReference(method))
                 try {
-                    matcher.match(potentialMatch)
-                    shape to potentialMatch
+                    val typeShape = TypeShape.returnType(graphQLType, javaType, isSubscription = false, Query::class.java, options, ScanDictionary.ReturnValueReference(method))
+                    matcher.match(typeShape)
+                    Accepted(shape, graphQLType, javaType, typeShape)
                 } catch (e: SchemaClassScannerError) {
                     null
                 }
             }
         }
-        val failures = accepted.mapNotNull { (shape, potentialMatch) ->
-            val graphQLType = potentialMatch.graphQLType
-            if (potentialMatch.unwrapping.javaType != leaf(graphQLType).javaClass) {
-                return@mapNotNull "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: bound to ${TypeUtils.toString(potentialMatch.unwrapping.javaType)}"
+        val failures = accepted.mapNotNull { (shape, graphQLType, javaType, typeShape) ->
+            if (typeShape.leafJavaType != leaf(graphQLType).javaClass) {
+                return@mapNotNull "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: bound to ${TypeUtils.toString(typeShape.leafJavaType)}"
             }
-            val unwrapper = ReturnValueUnwrapper.create(
-                method, potentialMatch.unwrapping, TypeUtils.getRawType(typeResolver.resolve(potentialMatch.javaType), null), isSuspendFunction = false, isSubscription = false, options.genericWrappers
-            )
+            val unwrapper = TypeShape.Unwrapper(typeShape, method, isSuspendFunction = false)
             val value = value(shape, leaf(graphQLType))
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
                 .execute(if (leaf(graphQLType) is Payload) "query { field { data } }" else "query { field }")
@@ -263,16 +259,17 @@ class NestedGenericWrapperTest {
             } else {
                 result.errors.isEmpty() && result.getData<Any>() == mapOf("field" to expected(graphQLType))
             }
-            "${TypeUtils.toString(potentialMatch.javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}".takeUnless { resolved }
+            "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: ${result.errors.map { it.message }} ${result.getData<Any>()}".takeUnless { resolved }
         }
 
-        assertTrue(accepted.count { (_, potentialMatch) -> leaf(potentialMatch.graphQLType) is FutureLeaf } > graphQLTypes.size)
+        assertTrue(accepted.count { leaf(it.graphQLType) is FutureLeaf } > graphQLTypes.size)
         assertEquals(failures, listOf<String>())
     }
 
+    private data class Accepted(val shape: List<Class<*>>, val graphQLType: Type<*>, val javaType: java.lang.reflect.Type, val typeShape: TypeShape)
+
     @Test
     fun `rejects a DataFetcherResult or an Optional twice in one value`() {
-        val typeResolver = GenericTypeResolver(Query::class.java, SchemaParserOptions.newOptions().build())
         val matcher = TypeClassMatcher(mapOf("Payload" to ObjectTypeDefinition("Payload")))
         val method = Query::class.java.getMethod("listOfWrapped")
         val result = DataFetcherResult::class.java
@@ -284,9 +281,9 @@ class NestedGenericWrapperTest {
         )
 
         val messages = rejections.map { (shape, _) ->
-            val potentialMatch = TypeClassMatcher.PotentialMatch.returnValue(TypeName("Payload"), javaType(shape, Payload::class.java, wildcardElements = false), typeResolver, ScanDictionary.ReturnValueReference(method))
             try {
-                matcher.match(potentialMatch)
+                val javaType = javaType(shape, Payload::class.java, wildcardElements = false)
+                matcher.match(TypeShape.returnType(TypeName("Payload"), javaType, isSubscription = false, Query::class.java, SchemaParserOptions.newOptions().build(), ScanDictionary.ReturnValueReference(method)))
                 "accepted"
             } catch (e: SchemaClassScannerError) {
                 e.message.orEmpty().substringAfterLast("): ")

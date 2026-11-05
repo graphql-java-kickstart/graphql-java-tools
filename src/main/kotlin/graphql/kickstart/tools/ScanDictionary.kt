@@ -1,5 +1,6 @@
 package graphql.kickstart.tools
 
+import graphql.kickstart.tools.resolver.TypeShape
 import graphql.kickstart.tools.util.JavaType
 import graphql.kickstart.tools.util.unwrap
 import graphql.kickstart.tools.util.withExtensions
@@ -94,11 +95,12 @@ internal class ScanDictionary(
                     return@forEach
                 }
 
-                handleFoundType(typeClassMatcher.match(TypeClassMatcher.PotentialMatch.parameterType(
+                handleFoundType(typeClassMatcher.match(TypeShape.parameterType(
                     // a class from the dictionary is for the unwrapped type, not for its list or non-null wrapper
                     if (propertyType != null) inputValueDefinition.type else inputGraphQLType,
                     inputValueJavaType,
-                    GenericTypeResolver(javaType ?: inputValueJavaType, options),
+                    javaType ?: inputValueJavaType,
+                    options,
                     InputObjectReference(inputValueDefinition)
                 )))
             }

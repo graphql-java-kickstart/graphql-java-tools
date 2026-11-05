@@ -15,6 +15,7 @@ import graphql.language.*
 import graphql.schema.idl.ScalarInfo
 import graphql.schema.idl.TypeUtil
 import org.apache.commons.lang3.ClassUtils
+import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.lang.reflect.Member
@@ -455,8 +456,8 @@ internal class SchemaClassScanner(
 
             fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
 
-            fieldResolver.scanForMatches().forEach { potentialMatch ->
-                dictionary.handleFoundType(typeClassMatcher.match(potentialMatch))
+            fieldResolver.scanForMatches().forEach { shape ->
+                dictionary.handleFoundType(typeClassMatcher.match(shape))
             }
             requireParameterForEachArgument(type, fieldResolver)
         }
@@ -498,7 +499,7 @@ internal class SchemaClassScanner(
         }
 
         fieldResolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
-            val parameter = fieldResolver.getMethodParameterType(index)?.let(fieldResolver.typeResolver::getRawClass) ?: return@forEachIndexed
+            val parameter = fieldResolver.getMethodParameterType(index)?.let { TypeUtils.getRawType(it, fieldResolver.search.type) } ?: return@forEachIndexed
             if (!fieldResolverScanner.isContextParameter(parameter, argument)) {
                 return@forEachIndexed
             }
