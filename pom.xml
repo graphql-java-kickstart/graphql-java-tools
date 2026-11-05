@@ -284,6 +284,83 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Ant's <fail> makes the jar check's reason Maven's last error line, with no stack trace -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>check-jar</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <property name="runtime.classpath" refid="maven.runtime.classpath"/>
+                                <java sourcefile="${project.basedir}/build/JarCheck.java" fork="true" resultproperty="jar-check.result"
+                                      errorproperty="jar-check.error">
+                                    <arg value="${project.build.directory}/${project.build.finalName}.jar"/>
+                                    <arg value="${java.version}"/>
+                                    <arg value="${runtime.classpath}"/>
+                                    <arg value="graphql.kickstart.tools.SchemaParser"/>
+                                    <arg value="graphql.kickstart.tools.proxy.GuiceAopProxyHandler"/>
+                                </java>
+                                <fail message="${jar-check.error}">
+                                    <condition>
+                                        <not>
+                                            <equals arg1="${jar-check.result}" arg2="0"/>
+                                        </not>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- With no oldVersion, the baseline is the newest release below the pom version -->
+            <plugin>
+                <groupId>com.github.siom79.japicmp</groupId>
+                <artifactId>japicmp-maven-plugin</artifactId>
+                <version>0.26.5</version>
+                <configuration>
+                    <parameter>
+                        <oldVersionPattern>\d+\.\d+\.\d+</oldVersionPattern>
+                        <ignoreMissingOldVersion>false</ignoreMissingOldVersion>
+                        <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                        <!-- The script keeps the synthetic members compiled Kotlin callers link to and drops the rest -->
+                        <includeSynthetic>true</includeSynthetic>
+                        <onlyModified>true</onlyModified>
+                        <!-- Otherwise every changed @kotlin.Metadata shows up in the report -->
+                        <noAnnotations>true</noAnnotations>
+                        <skipHtmlReport>true</skipHtmlReport>
+                        <skipXmlReport>true</skipXmlReport>
+                        <postAnalysisScript>${project.basedir}/build/japicmp-kotlin-public.groovy</postAnalysisScript>
+                    </parameter>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-metadata-jvm</artifactId>
+                        <version>${kotlin.version}</version>
+                    </dependency>
+                    <!-- The plugin's own Groovy can't read JDK 25 class files -->
+                    <dependency>
+                        <groupId>org.apache.groovy</groupId>
+                        <artifactId>groovy-jsr223</artifactId>
+                        <version>4.0.33</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>cmp</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
