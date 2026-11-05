@@ -47,7 +47,9 @@ Bugfixes and small features stop at this skill.
 ## Releases
 
 Follow the [Releasing a version](https://github.com/graphql-java-kickstart/graphql-java-tools/wiki/Releasing-a-version) wiki
-page. `github-build.sh` and `.github/workflows/release.yml` do the version bump, tag and publish.
+page. `github-build.sh` and `.github/workflows/release.yml` do the version bump, tag and publish. After an X.0.0 release,
+delete the `<excludes>` under japicmp-maven-plugin in `pom.xml`. The version is X.0.1-SNAPSHOT by then and the API check
+fails while they remain.
 
 ## Rules that need judgment
 
@@ -87,7 +89,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | Argument conversion goes through one entry point | docs only |
 | An input field's Java type comes from the mapping Jackson uses, not from guessed getters | docs only |
 | Every recursive walk over the type graph handles cycles, and a test covers a cycle | docs only |
-| Public signatures stay binary compatible, data class `copy()` and `componentN` included | docs only |
+| Public signatures stay binary compatible, data class `copy()` and `componentN` included | japicmp with `build/japicmp-kotlin-public.groovy` at `mvn verify`, which allows excludes and other narrowing options only at an X.0.0 version |
 | Remove the plumbing a change leaves unused | Compiler warnings for unused locals, docs only for the rest |
 | A new warning or build error names the type and the item and uses `SourceLocation.describe()` for its location | docs only |
 | A check keyed on a class name or an exception type has a test that fails when the dependency moves it | docs only |
@@ -103,7 +105,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | The first commit of a fix tests the neighbouring shapes, not just the reported one | docs only |
 | The build passes on JDK 17, the lowest supported version | CI on JDK 17, 21 and 25 |
 | Run verify-tools before you push a schema-building change | docs only |
-| The packaged jar holds `module-info.class`, its non-static `requires` resolve from the runtime dependencies, and every class targets the pom's `java.version` | docs only |
+| The packaged jar holds `module-info.class`, its non-static `requires` resolve from the runtime dependencies, and every class targets the pom's `java.version` | `build/JarCheck.java` at `mvn verify` |
 | Compiler warnings fail the build | `-Werror` and `failOnWarning` in `pom.xml` |
 | Check every claim in a PR body or release note at the current head | docs only |
 | Keep a comment only for a non-obvious why, with no history and no issue numbers outside a TODO | docs only |
