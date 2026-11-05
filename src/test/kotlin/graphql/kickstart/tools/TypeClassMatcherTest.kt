@@ -50,7 +50,6 @@ class TypeClassMatcherTest {
         private val scanner: FieldResolverScanner = FieldResolverScanner(options, GRAPHQL_SCALARS.keys)
         private val resolver = RootResolverInfo(listOf(QueryMethods()), options)
 
-        // a method without parameters only has its return type to match
         private fun matchReturnType(methodName: String, graphQLType: Type<*>): TypeClassMatcher.Match =
             matcher.match(scanner.findFieldResolver(FieldDefinition(methodName, graphQLType), resolver).scanForMatches().single())
 

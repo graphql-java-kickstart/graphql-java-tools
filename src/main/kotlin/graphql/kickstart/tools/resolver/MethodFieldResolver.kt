@@ -155,9 +155,7 @@ internal class MethodFieldResolver(
         } catch (e: InternalError) {
             method.genericReturnType
         }
-        // with type variables resolved, e.g. Future<Item> for get(): T in a subclass of Base<Future<Item>>
-        val returnType = resolveTypeVariables(declaredType, search.type)
-        TypeShape.returnType(field.type, returnType, search.isSubscription, search.type, options, ScanDictionary.ReturnValueReference(method))
+        TypeShape.returnType(field.type, resolveTypeVariables(declaredType, search.type), search.isSubscription, search.type, options, ScanDictionary.ReturnValueReference(method))
     }
 
     private fun getJavaMethodParameterIndex(index: Int) = index + search.firstArgumentIndex

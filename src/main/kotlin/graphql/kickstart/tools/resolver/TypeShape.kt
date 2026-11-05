@@ -31,10 +31,7 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
 import java.util.function.Supplier
 
-/**
- * A declared Java type walked once against the GraphQL type it resolves. The walk yields the leaf that the dictionary binds the
- * GraphQL type's name to, together with the layers that a resolver's value is unwrapped through, so the two can't disagree.
- */
+// the leaf the dictionary binds and the layers a value is unwrapped through come from one walk, so they can't disagree
 internal class TypeShape private constructor(
     private val graphQLType: GraphQLLangType,
     private val javaType: JavaType,
@@ -43,14 +40,13 @@ internal class TypeShape private constructor(
     val leafJavaType: JavaType,
     private val layers: List<Layer>,
     private val declaredType: JavaType,
-    private val outermostType: JavaType,
+    private val unwrappedRootType: JavaType,
     private val isSubscription: Boolean,
     private val wrappers: GenericWrappers
 ) {
 
     fun error(msg: String) = matchError(graphQLType, reference, javaType, msg)
 
-    /** What a resolver method's value of a return type becomes before graphql-java gets it. */
     class Unwrapper(shape: TypeShape, method: Method, isSuspendFunction: Boolean) {
         private val wrappers = shape.wrappers
         private val awaitable: Awaitable
@@ -60,7 +56,7 @@ internal class TypeShape private constructor(
         init {
             // the class the return type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
             // Object (e.g. for a union) can't tell them apart, so then every future of a method whose return type is Future is checked
-            val valueClass = (TypeUtils.getRawType(shape.outermostType, null) ?: Any::class.java)
+            val valueClass = (TypeUtils.getRawType(shape.unwrappedRootType, null) ?: Any::class.java)
                 .takeUnless { it == Any::class.java && TypeUtils.getRawType(shape.declaredType, null) == Future::class.java }
             awaitable = Awaitable(method, valueClass, isSuspendFunction)
             val outermost = shape.layers.firstOrNull() as? Layer.Wrapper
@@ -74,7 +70,7 @@ internal class TypeShape private constructor(
         }
 
         fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
-            val wrapper = wrappers.of(value)
+            val wrapper = wrappers.ofValue(value)
             val transformed = if (wrapper == null) value else wrapper.transformer(value, environmentSupplier.get())
             val unwrapped = awaitable.requireOutermost(transformed)
             return if (isOutermostFuture || wrapper?.transformerReturnsCompletionStage == true) {
@@ -104,7 +100,7 @@ internal class TypeShape private constructor(
             val javaType = if (isSubscription) declaredType.asPublisher() else declaredType
             val walk = Walk(graphQLType, javaType, containingType, GenericWrappers(options.genericWrappers), reference, Position.RETURN_TYPE)
             val (leafGraphQLType, leafJavaType) = walk.leaf()
-            return TypeShape(graphQLType, javaType, reference, leafGraphQLType, leafJavaType, walk.layers, declaredType, walk.outermostType, isSubscription, walk.wrappers)
+            return TypeShape(graphQLType, javaType, reference, leafGraphQLType, leafJavaType, walk.layers, declaredType, walk.unwrappedRootType, isSubscription, walk.wrappers)
         }
 
         fun parameterType(
@@ -116,16 +112,12 @@ internal class TypeShape private constructor(
         ): TypeShape {
             val walk = Walk(graphQLType, javaType, containingType, GenericWrappers(options.genericWrappers), reference, Position.PARAMETER_TYPE)
             val (leafGraphQLType, leafJavaType) = walk.leaf()
-            return TypeShape(graphQLType, javaType, reference, leafGraphQLType, leafJavaType, walk.layers, javaType, walk.outermostType, false, walk.wrappers)
+            return TypeShape(graphQLType, javaType, reference, leafGraphQLType, leafJavaType, walk.layers, javaType, walk.unwrappedRootType, false, walk.wrappers)
         }
     }
 }
 
-/**
- * Resolves the type variables in a type as declared in the source (a method's return or parameter type, or a field's type)
- * relative to the containing type, e.g. `T` of `AbstractItem<T>.getId()` becomes `Long` for `class Item : AbstractItem<Long>()`.
- * Generic wrappers, wildcards and primitives stay as they are.
- */
+// unlike the walk, keeps generic wrappers, wildcards and primitives, which argument conversion needs
 internal fun resolveTypeVariables(type: JavaType, containingType: JavaType, resolving: Set<TypeVariable<*>> = emptySet()): JavaType {
     return when (type) {
         is ParameterizedType -> {
@@ -150,7 +142,6 @@ internal fun resolveTypeVariables(type: JavaType, containingType: JavaType, reso
                 // only a variable leaked from a raw type can be bound to a type containing itself (e.g. T -> List<T>),
                 // erase it like the raw type does instead of expanding it forever
                 type in resolving -> TypeUtils.getRawType(type.bounds.first(), null) ?: Any::class.java
-                // the containing type binds the variables of all its supertypes
                 genericDeclaration is Class<*> -> generateSequence(containingType) { (it as? ParameterizedType)?.ownerType }
                     // an inner class can also use the variables of its outer class, those are bound by its owner type (e.g. Connection<Owner>.Entry)
                     .firstNotNullOfOrNull { TypeUtils.getTypeArguments(it, genericDeclaration)?.get(type) }
@@ -179,28 +170,27 @@ private class Walk(
 ) {
     val layers = mutableListOf<Layer>()
 
-    /** The type once the generic wrappers around it are stripped. */
-    lateinit var outermostType: JavaType
+    lateinit var unwrappedRootType: JavaType
         private set
 
     fun leaf(): Pair<GraphQLLangType, JavaType> = walk(graphQLType, javaType, root = true)
 
     private fun walk(graphQLType: GraphQLLangType, javaType: JavaType, root: Boolean): Pair<GraphQLLangType, JavaType> {
-        var realType = stripWrappers(javaType)
+        var realType = matchedType(javaType)
         if (root) {
-            outermostType = realType
+            unwrappedRootType = realType
         }
         val contained = mutableSetOf<ContainerKind>()
 
         while (true) {
             val type = realType as? ParameterizedType ?: break
             val kind = ContainerKind.entries.find { type.isSubtypeOf(it.type) } ?: break
-            kind.misplaced(position, root)?.let { throw mismatch(it) }
+            kind.placementError(position, root)?.let { throw mismatch(it) }
             if (!contained.add(kind)) {
                 throw mismatch("${kind.type.name} cannot be nested within itself")
             }
             layers += kind
-            realType = stripWrappers(type.actualTypeArguments.first())
+            realType = matchedType(type.actualTypeArguments.first())
         }
 
         return when (graphQLType) {
@@ -227,17 +217,10 @@ private class Walk(
         }
     }
 
-    /**
-     * Turns a type as declared into the type the GraphQL type is matched against:
-     * - type variables are resolved relative to the containing type
-     * - generic wrappers are replaced by their wrapped type, e.g. `CompletableFuture<Foo>` becomes `Foo`
-     * - wildcards are replaced by their upper bound, e.g. `? extends Foo` becomes `Foo`
-     * - primitives are replaced by their boxed class, e.g. `int` becomes `Integer`
-     */
-    private fun stripWrappers(javaType: JavaType): JavaType {
+    private fun matchedType(javaType: JavaType): JavaType {
         return when (val type = resolveTypeVariables(javaType, containingType)) {
             is ParameterizedType -> {
-                val wrapper = wrappers.declaredBy(type) ?: return type
+                val wrapper = wrappers.ofDeclaredType(type) ?: return type
 
                 val typeArguments = type.actualTypeArguments
                 if (typeArguments.size <= wrapper.index) {
@@ -245,13 +228,13 @@ private class Walk(
                 }
 
                 layers += Layer.Wrapper(wrapper)
-                stripWrappers(wrapper.schemaWrapper.invoke(typeArguments[wrapper.index]))
+                matchedType(wrapper.schemaWrapper.invoke(typeArguments[wrapper.index]))
             }
             is TypeVariable<*> -> error("Could not resolve type variable '${TypeUtils.toLongString(type)}' relative to ${TypeUtils.toString(containingType)}")
             // Kotlin reflection gives a suspend function returning List<Foo> the type List<? extends Foo> when Foo is open.
             // A type variable bound stays as it is, since a method's own variable can't be resolved and a scalar doesn't need it
             is WildcardType -> when (val bound = type.upperBounds.firstOrNull() ?: error("Unable to unwrap type, wildcard has no upper bound: $type")) {
-                is ParameterizedType -> stripWrappers(bound)
+                is ParameterizedType -> matchedType(bound)
                 else -> bound
             }
             is Class<*> -> if (type.isPrimitive) Primitives.wrap(type) else type
@@ -272,16 +255,13 @@ private fun JavaType.asPublisher(): JavaType =
         ?.let { TypeUtils.parameterize(Publisher::class.java, it) }
         ?: this
 
-/**
- * The generic wrappers, picked two ways. A declared type is unwrapped by the first wrapper registered for exactly its raw type,
- * so a Flux isn't unwrapped by a Publisher wrapper. A value is transformed by the most specific wrapper it's an instance of,
- * so a CompletableFuture returned for a declared Future gets a CompletableFuture wrapper.
- */
+// The two rules differ on purpose: making the build pick by instance would unwrap a Flux as a Publisher, and making the fetch
+// pick by declared type would stop a CompletableFuture returned for a declared Future from getting its own wrapper
 private class GenericWrappers(private val wrappers: List<GenericWrapper>) {
 
-    fun declaredBy(type: ParameterizedType): GenericWrapper? = wrappers.find { it.type == type.rawType }
+    fun ofDeclaredType(type: ParameterizedType): GenericWrapper? = wrappers.find { it.type == type.rawType }
 
-    fun of(value: Any): GenericWrapper? {
+    fun ofValue(value: Any): GenericWrapper? {
         // the JIT doesn't optimize away the sequence below on this call path, so values that aren't wrappers, which is
         // most of them, return before it's allocated
         if (wrappers.none { it.type.isInstance(value) }) {
@@ -311,26 +291,24 @@ private sealed interface Layer {
     object Elements : Layer
 }
 
-/** The containers graphql-java knows by class, peeled from a type in any order below its generic wrappers. */
 private enum class ContainerKind(val type: Class<*>, val canBeNonNull: Boolean) : Layer {
     DATA_FETCHER_RESULT(DataFetcherResult::class.java, canBeNonNull = true) {
-        override fun misplaced(position: Position, root: Boolean) =
+        override fun placementError(position: Position, root: Boolean) =
             if (position != Position.RETURN_TYPE) "${type.name} can only be used as a return type" else null
 
         override fun step(next: Step?, inner: Layer?): Step? = next?.let(::DataOf)
     },
     OPTIONAL(Optional::class.java, canBeNonNull = false) {
-        override fun misplaced(position: Position, root: Boolean) =
+        override fun placementError(position: Position, root: Boolean) =
             if (position == Position.RETURN_TYPE && !root) "${type.name} can only be used at the top level of a return type" else null
 
         // graphql-java reads a DataFetcherResult and then an Optional in its data, so an Optional around one is ours to unwrap
         override fun step(next: Step?, inner: Layer?): Step? = if (next != null || inner == DATA_FETCHER_RESULT) ValueOf(next) else null
     };
 
-    /** Why this container can't be at this place in a type, or null when it can. */
-    abstract fun misplaced(position: Position, root: Boolean): String?
+    abstract fun placementError(position: Position, root: Boolean): String?
 
-    /** What happens to a value of this container, given the step for what it holds. null leaves the value to graphql-java. */
+    // null leaves the value to graphql-java
     abstract fun step(next: Step?, inner: Layer?): Step?
 }
 

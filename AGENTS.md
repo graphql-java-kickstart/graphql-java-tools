@@ -90,7 +90,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 
 | Rule | Enforced by |
 |---|---|
-| A resolver method's return value is unwrapped by one rule that the schema build and the data fetcher share | docs only |
+| A resolver method's return value is unwrapped by one rule that the schema build and the data fetcher share | `TypeShape`, whose one walk yields both the class the schema build matches and the layers the data fetcher unwraps. A container kind can't be added without its placement rule and its value step, since both are abstract on the enum |
 | A resolver method's parameter layout, type variables and source are decided once, at schema build | docs only |
 | A change to how resolvers are found, bound or unwrapped keeps what a method, a property and a Map field return | `ResolverCompatibilityTest` and the bounded check in `ReturnValueUnwrappingTest`. Each lists exactly today's property and Map gaps as known findings, and fails when one is fixed until it's removed, or when a new failure would hide under one |
 | One output has one builder. Don't add a second path that builds the same thing | docs only |
