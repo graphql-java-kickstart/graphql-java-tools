@@ -24,7 +24,7 @@ import java.util.concurrent.FutureTask
 class ResolverCompatibilityTest {
 
     @Test
-    fun `property and Map fields return what a method returns, apart from the known findings`() {
+    fun `@JvmField and typed Map fields return what a method returns apart from the known findings, and untyped Map fields hand graphql-java the value as it is`() {
         val wrong = Kind.entries.flatMap { kind ->
             shapes.mapNotNull { shape ->
                 val got = holderField(kind, shape)
@@ -97,7 +97,7 @@ class ResolverCompatibilityTest {
     }
 
     @Test
-    fun `omitted arguments reach primitive parameters as their default and type variables as their bound class`() {
+    fun `omitted arguments reach primitive parameters as their default, and a type variable parameter gets a value of its resolved type argument`() {
         val result = execute(
             "type Query { primitives(i: Int, b: Boolean, d: Float, boxed: Int): String echo(value: Int!): String }",
             "{ primitives echo(value: 3) }",

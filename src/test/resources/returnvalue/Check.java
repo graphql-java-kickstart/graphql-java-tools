@@ -51,6 +51,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -261,6 +262,23 @@ public final class Check {
         }
     }
 
+    static final class KnownFinding {
+        final int returnTypes;
+        final Pattern pattern;
+        final String description;
+        final Set<String> covered = new LinkedHashSet<>();
+
+        KnownFinding(int returnTypes, Pattern pattern, String description) {
+            this.returnTypes = returnTypes;
+            this.pattern = pattern;
+            this.description = description;
+        }
+    }
+
+    private static final int DEPTH = 3;
+    private static final int BUDGET = 2;
+    private static final int PROPERTY_BUDGET = 1;
+    private static final String KNOWN_FILE = "src/test/resources/returnvalue/known-findings.txt";
     private static final String BLOCKED = "the data fetcher blocked until they completed";
 
     private static volatile Object oracleValue;
@@ -288,9 +306,10 @@ public final class Check {
     );
 
     public static boolean check(String[] args, String classpath, PrintStream out) throws Exception {
-        int depth = intArg(args, "--depth", 3);
-        int budget = intArg(args, "--budget", 2);
-        int propertyBudget = intArg(args, "--property-budget", 1);
+        int depth = intArg(args, "--depth", DEPTH);
+        int budget = intArg(args, "--budget", BUDGET);
+        int propertyBudget = intArg(args, "--property-budget", PROPERTY_BUDGET);
+        int show = intArg(args, "--show", 15);
         long started = System.nanoTime();
 
         List<Case> cases = cases(depth);
@@ -300,6 +319,7 @@ public final class Check {
         int runs = 0;
         boolean blocked = false;
         Set<String> accepted = new LinkedHashSet<>();
+        Set<String> acceptedReturnTypes = new LinkedHashSet<>();
         Map<Case, List<Violation>> violations = new LinkedHashMap<>();
         for (Case testCase : cases) {
             Class<?> generated = resolvers.get(testCase.className);
@@ -315,6 +335,7 @@ public final class Check {
                 continue;
             }
             accepted.add(testCase.kind.label + " " + testCase.javaType() + " " + testCase.graphQLType());
+            acceptedReturnTypes.add(testCase.label());
             GraphQL actual = GraphQL.newGraphQL(schema).build();
             GraphQL oracle = GraphQL.newGraphQL(oracleSchema(schema, testCase.parentType())).build();
             Consumer<Object> returning = returning(testCase, generated, instance);
@@ -347,55 +368,96 @@ public final class Check {
             out.println("A data fetcher blocked on a pending future, so later return types ran with completed futures only.");
         }
 
-        Map<String, String> known = knownFindings(stringArg(args, "--known"));
-        Map<String, List<Case>> knownFailing = new LinkedHashMap<>();
-        known.keySet().forEach(pattern -> knownFailing.put(pattern, new ArrayList<>()));
+        Map<String, List<Violation>> failing = new LinkedHashMap<>();
+        violations.forEach((testCase, list) -> failing.computeIfAbsent(testCase.label(), it -> new ArrayList<>()).addAll(list));
+        List<KnownFinding> known = knownFindings(stringArg(args, "--known"));
         List<List<Violation>> unknown = new ArrayList<>();
-        violations.forEach((testCase, list) -> {
-            String pattern = known.keySet().stream().filter(it -> Pattern.compile(it).matcher(testCase.label()).find()).findFirst().orElse(null);
-            if (pattern == null) {
-                unknown.add(list);
-            } else {
-                knownFailing.get(pattern).add(testCase);
+        for (String returnType : acceptedReturnTypes) {
+            Optional<KnownFinding> finding = known.stream().filter(it -> it.pattern.matcher(returnType).find()).findFirst();
+            if (finding.isPresent()) {
+                finding.get().covered.add(returnType);
+            } else if (failing.containsKey(returnType)) {
+                unknown.add(failing.get(returnType));
             }
-        });
+        }
 
-        knownFailing.forEach((pattern, failing) -> {
-            if (!failing.isEmpty()) {
-                out.printf("%nKNOWN (%s): %d return types still fail, e.g.%n", known.get(pattern), failing.size());
-                print(out, violations.get(failing.get(0)).get(0), violations.get(failing.get(0)).size());
+        for (KnownFinding finding : known) {
+            List<String> stillFailing = finding.covered.stream().filter(failing::containsKey).collect(Collectors.toList());
+            if (!stillFailing.isEmpty()) {
+                out.printf("%nKNOWN (%s): %d return types still fail, e.g.%n", finding.description, stillFailing.size());
+                List<Violation> first = failing.get(stillFailing.get(0));
+                print(out, first.get(0), first.size());
             }
-        });
+        }
+        boolean passed = true;
         if (!unknown.isEmpty()) {
             int total = unknown.stream().mapToInt(List::size).sum();
             out.printf("%nFAIL: %d executions in %d return types gave graphql-java something other than the value the resolver returned.%n", total, unknown.size());
-            unknown.stream().limit(intArg(args, "--show", 15)).forEach(list -> print(out, list.get(0), list.size()));
-            return false;
+            unknown.stream().limit(show).forEach(list -> print(out, list.get(0), list.size()));
+            passed = false;
         }
         if (!missing.isEmpty() || runs == 0) {
             out.println("\nMODEL ERROR: the schema build rejected return types the check must exercise, so a pass would prove nothing:");
             missing.forEach(it -> out.println("  " + it));
-            return false;
+            passed = false;
         }
-        List<String> fixed = knownFailing.entrySet().stream().filter(it -> it.getValue().isEmpty()).map(it -> known.get(it.getKey())).collect(Collectors.toList());
-        if (!fixed.isEmpty()) {
-            out.println("\nSTALE: these known findings no longer fail. Delete their lines from src/test/resources/returnvalue/known-findings.txt so a regression shows up as FAIL:");
-            fixed.forEach(it -> out.println("  " + it));
-            return false;
+        if (depth == DEPTH && budget == BUDGET && propertyBudget == PROPERTY_BUDGET) {
+            passed &= knownFindingsAreExact(known, failing.keySet(), show, out);
         }
-        out.println(violations.isEmpty() ? "PASS" : "\nPASS apart from the known findings above");
-        return true;
+        if (passed) {
+            out.println(violations.isEmpty() ? "PASS" : "\nPASS apart from the known findings above");
+        }
+        return passed;
     }
 
-    private static Map<String, String> knownFindings(String path) throws Exception {
-        Map<String, String> known = new LinkedHashMap<>();
+    private static boolean knownFindingsAreExact(List<KnownFinding> known, Set<String> failing, int show, PrintStream out) {
+        List<String> stale = new ArrayList<>();
+        List<String> added = new ArrayList<>();
+        for (KnownFinding finding : known) {
+            int covered = finding.covered.size();
+            List<String> passing = finding.covered.stream().filter(it -> !failing.contains(it)).collect(Collectors.toList());
+            if (passing.size() == covered) {
+                stale.add("  " + finding.description + ": none of the " + covered + " return types it matches fail. Delete the line.");
+            } else if (!passing.isEmpty()) {
+                stale.add("  " + finding.description + ": " + passing.size() + " of the " + covered + " return types it matches pass. Narrow the line to the "
+                    + (covered - passing.size()) + " that fail and set its count to that:");
+                passing.stream().limit(show).forEach(it -> stale.add("    " + it));
+                if (passing.size() > show) {
+                    stale.add("    and " + (passing.size() - show) + " more, rerun with --show " + passing.size());
+                }
+            }
+            String counts = "  " + finding.description + ": the line records " + finding.returnTypes + " return types and matches " + covered + " that the schema build accepts.";
+            if (covered > finding.returnTypes) {
+                added.add(counts);
+            } else if (covered < finding.returnTypes) {
+                stale.add(counts + " Unless you just narrowed the line, the build now rejects a return type it used to accept. "
+                    + "Find it by diffing --rejected output against the last commit, then set the count to " + covered + ".");
+            }
+        }
+        if (!added.isEmpty()) {
+            out.println("\nNEW: known findings in " + KNOWN_FILE + " match more return types than they record, so a new failure would print as KNOWN, not FAIL. "
+                + "Unless you just widened a line, the build now accepts a return type it used to reject, and that return type fails. "
+                + "Find it by diffing --rejected output against the last commit, and treat it as a FAIL:");
+            added.forEach(out::println);
+        }
+        if (!stale.isEmpty()) {
+            out.println("\nSTALE: known findings in " + KNOWN_FILE + " no longer match exactly the return types that fail, so a regression in a fixed one would print as KNOWN, not FAIL:");
+            stale.forEach(out::println);
+        }
+        return added.isEmpty() && stale.isEmpty();
+    }
+
+    private static List<KnownFinding> knownFindings(String path) throws Exception {
+        Pattern format = Pattern.compile("(\\d+) (.+?) # (.+)");
+        List<KnownFinding> known = new ArrayList<>();
         for (String line : Files.readAllLines(Path.of(path))) {
             if (!line.isBlank() && !line.startsWith("#")) {
-                int separator = line.indexOf(" # ");
-                if (separator < 0) {
-                    throw new IllegalArgumentException("A known finding is \"<regex over the resolver kind and return type, such as property List<Future<String>>> # <what goes wrong>\", not: " + line);
+                Matcher parts = format.matcher(line.trim());
+                if (!parts.matches()) {
+                    throw new IllegalArgumentException("A known finding is \"<how many return types it matches> <regex over the resolver kind and return type, "
+                        + "such as property List<Future<String>>> # <what goes wrong>\", not: " + line);
                 }
-                known.put(line.substring(0, separator).trim(), line.substring(separator + 3).trim());
+                known.add(new KnownFinding(Integer.parseInt(parts.group(1)), Pattern.compile(parts.group(2)), parts.group(3)));
             }
         }
         return known;

@@ -72,13 +72,14 @@ as `-Dunwrapping.args`, and prints the report. On a failure it also prints the p
 | Exit | Meaning |
 |---|---|
 | 0 | `PASS`, or `PASS apart from the known findings above` |
-| 1 | `FAIL`: a return type that isn't a known finding breaks the property |
+| 1 | `FAIL`: a return type that isn't a known finding breaks the property. `NEW`: a known finding matches more accepted return types than its line records |
 | 2 | `MODEL ERROR`: the checkout or the check didn't compile, or the build rejected a return type the check must exercise, so a pass would prove nothing |
-| 3 | `STALE`: a known finding no longer fails. Delete its line from `known-findings.txt` |
+| 3 | `STALE`: a known finding matches a return type that no longer fails, or fewer accepted return types than its line records |
 
-Options: `--depth N`, `--budget N`, `--property-budget N`, `--show N` (counterexamples printed, default 15), and `--rejected`, which lists
+Options: `--depth N`, `--budget N`, `--property-budget N`, `--show N` (counterexamples and stale return types printed, default 15), and `--rejected`, which lists
 every combination the schema build rejected, with the build's error. A depth below 3 can't build the `mustAccept`
-return types, so it ends in `MODEL ERROR`.
+return types, so it ends in `MODEL ERROR`. `NEW` and `STALE` apply only at the default depth and budgets, because the
+counts in `known-findings.txt` are for those.
 
 ## Reading a counterexample
 
@@ -115,25 +116,30 @@ A real bug versus a modeling error:
 ## Known findings
 
 `src/test/resources/returnvalue/known-findings.txt` lists the return types that break the property at the sync commit, one per line as
-`<regex> # <what goes wrong>`. The regex is matched against the kind and the short return type, such as
+`<count> <regex> # <what goes wrong>`. The regex is matched against the kind and the short return type, such as
 `property List<CompletableFuture<String>>`, so a pattern without a kind covers all three. The first matching line wins.
-Matching return types still print as `KNOWN` with a counterexample on every run, and the check passes apart from them. A
-new break inside a known pattern is hidden, so after a change to the code a known finding covers, read its
-counterexample.
+Matching return types still print as `KNOWN` with a counterexample on every run, and the check passes apart from them.
+
+Each line must match only return types that fail, and exactly `<count>` of the return types the build accepts. A
+matched return type that passes makes the check `STALE` and names it, so a partial fix has to narrow the line, and a later
+regression in a fixed return type is a `FAIL`. A count that grows makes it `NEW`, because a return type the build used to
+reject now fails under the line. What stays hidden is a known return type that starts failing in a different way, so
+after a change to the code a known finding covers, read its counterexample.
 
 At the sync commit, methods have none. Properties and Maps hand their value to graphql-java as it is. graphql-java awaits
-only a top-level `CompletionStage`, reads a `DataFetcherResult` only at the top or inside that future, and unboxes any
-`Optional`. So every nested future,
-every generic wrapper, every `DataFetcherResult` graphql-java can't reach, and a `FutureTask` behind a declared `Future`
-fail for them. The five lines cover exactly those 2,850 return types. A String field gets the container's `toString`, such
-as `CompletableFuture@5a7cb161[Completed normally]`, with no error.
+only a top-level `CompletionStage`, reads a `DataFetcherResult` at the top, inside that future and as a list element, and
+unboxes any `Optional`, but not a `DataFetcherResult` inside one. So every nested future, every generic wrapper, a
+`DataFetcherResult` inside an `Optional`, and a `FutureTask` behind a declared `Future` fail for them. The five lines
+match exactly those 2,850 return types, and their counts add up to it. A String field gets the container's `toString`,
+such as `CompletableFuture@5a7cb161[Completed normally]`, with no error.
 
 The check found two method bugs when it was written, and both are fixed. One was a `DataFetcherResult` inside an
 `Optional` (#939). The other was a wrapper whose transformer returns a future, directly around a declared future (#938). A
 `withTransformer` registration keeps that #938 behavior, which is why `Later` is registered through
 `withCompletionStageTransformer`.
 
-When a fix lands, the check exits 3. Delete the line then, so that a regression shows up as `FAIL`.
+When a fix lands, the check exits 3 and names the return types that pass. Narrow the line to the rest and set its count,
+or delete it when none fail, so that a regression shows up as `FAIL`.
 
 ## What this does not cover
 

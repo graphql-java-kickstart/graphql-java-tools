@@ -82,7 +82,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 |---|---|
 | A resolver method's return value is unwrapped by one rule that the schema build and the data fetcher share | docs only |
 | A resolver method's parameter layout, type variables and source are decided once, at schema build | docs only |
-| A change to how resolvers are found, bound or unwrapped keeps what a method, a property and a Map field return | `ResolverCompatibilityTest` and the bounded check in `ReturnValueUnwrappingTest`. Each lists today's property and Map gaps as known findings, and fails once one is fixed until it's deleted |
+| A change to how resolvers are found, bound or unwrapped keeps what a method, a property and a Map field return | `ResolverCompatibilityTest` and the bounded check in `ReturnValueUnwrappingTest`. Each lists exactly today's property and Map gaps as known findings, and fails when one is fixed until it's removed, or when a new failure would hide under one |
 | One output has one builder. Don't add a second path that builds the same thing | docs only |
 | Read an SDL type's members merged with its extensions, never from the raw definition | docs only |
 | Reuse an existing structure before you add a parallel one | docs only |
