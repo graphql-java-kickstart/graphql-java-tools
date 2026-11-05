@@ -1,6 +1,7 @@
 package graphql.kickstart.tools;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 // Raw types can't be expressed in Kotlin, so these fixtures must stay in Java.
@@ -11,6 +12,14 @@ public class RawGenericFixtures {
         @SuppressWarnings({"rawtypes", "unused"})
         public Tree tree() {
             return new Tree<>("leaf");
+        }
+    }
+
+    public static class RawOptionalResolver implements GraphQLQueryResolver {
+
+        @SuppressWarnings({"rawtypes", "unused"})
+        public String raw(Optional value) {
+            return String.valueOf(value);
         }
     }
 

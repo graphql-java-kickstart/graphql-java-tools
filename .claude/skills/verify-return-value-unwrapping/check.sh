@@ -15,7 +15,7 @@ fi
 
 sed -n '/AssertionError: /,/^\tat /p' "$log" | sed -e '1s/.*AssertionError: //' -e '$d'
 echo "Maven log: $log"
-grep -q '^FAIL:' "$log" && exit 1
+grep -q -E '^(FAIL|NEW):' "$log" && exit 1
 grep -q 'MODEL ERROR:' "$log" && exit 2
 grep -q '^STALE:' "$log" && exit 3
 tail -40 "$log"

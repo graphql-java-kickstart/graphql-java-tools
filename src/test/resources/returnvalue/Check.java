@@ -30,10 +30,12 @@ import javax.tools.ToolProvider;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -48,6 +50,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -96,6 +100,22 @@ public final class Check {
         }
     }
 
+    enum Kind {
+        METHOD("method", List.of(Nullability.values()), List.of(Timing.values())),
+        PROPERTY("property", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER)),
+        MAP("map", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER));
+
+        final String label;
+        final List<Nullability> nullabilities;
+        final List<Timing> timings;
+
+        Kind(String label, List<Nullability> nullabilities, List<Timing> timings) {
+            this.label = label;
+            this.nullabilities = nullabilities;
+            this.timings = timings;
+        }
+    }
+
     enum Nullability {NULLABLE, NON_NULL}
 
     enum Variant {VALUE, NULL, EMPTY, FAILED, FUTURE_TASK, WITH_ERROR, FUTURE_ITEM}
@@ -115,12 +135,14 @@ public final class Check {
     static final class Case {
         final List<Container> shape;
         final Leaf leaf;
+        final Kind kind;
         final Nullability nullability;
         final String className;
 
-        Case(List<Container> shape, Leaf leaf, Nullability nullability, String className) {
+        Case(List<Container> shape, Leaf leaf, Kind kind, Nullability nullability, String className) {
             this.shape = shape;
             this.leaf = leaf;
+            this.kind = kind;
             this.nullability = nullability;
             this.className = className;
         }
@@ -147,8 +169,28 @@ public final class Check {
             return javaType().replace("unwrapcheck.Fixtures.", "").replaceAll("[a-z.]+\\.(?=[A-Z])", "");
         }
 
+        String label() {
+            return kind.label + " " + shortJavaType();
+        }
+
         String describe() {
-            return "public " + shortJavaType() + " field()  for  field: " + graphQLType();
+            switch (kind) {
+                case METHOD:
+                    return "public " + shortJavaType() + " field()  for  field: " + graphQLType();
+                case PROPERTY:
+                    return "public " + shortJavaType() + " field;  for  field: " + graphQLType();
+                default:
+                    return "extends HashMap<String, " + shortJavaType() + ">  for  Holder.field: " + graphQLType();
+            }
+        }
+
+        String parentType() {
+            return kind == Kind.MAP ? "Holder" : "Query";
+        }
+
+        String query() {
+            String field = "field" + leaf.selection;
+            return "query { " + (kind == Kind.MAP ? "holder { " + field + " }" : field) + " }";
         }
     }
 
@@ -220,6 +262,23 @@ public final class Check {
         }
     }
 
+    static final class KnownFinding {
+        final int returnTypes;
+        final Pattern pattern;
+        final String description;
+        final Set<String> covered = new LinkedHashSet<>();
+
+        KnownFinding(int returnTypes, Pattern pattern, String description) {
+            this.returnTypes = returnTypes;
+            this.pattern = pattern;
+            this.description = description;
+        }
+    }
+
+    private static final int DEPTH = 3;
+    private static final int BUDGET = 2;
+    private static final int PROPERTY_BUDGET = 1;
+    private static final String KNOWN_FILE = "src/test/resources/returnvalue/known-findings.txt";
     private static final String BLOCKED = "the data fetcher blocked until they completed";
 
     private static volatile Object oracleValue;
@@ -247,8 +306,10 @@ public final class Check {
     );
 
     public static boolean check(String[] args, String classpath, PrintStream out) throws Exception {
-        int depth = intArg(args, "--depth", 3);
-        int budget = intArg(args, "--budget", 2);
+        int depth = intArg(args, "--depth", DEPTH);
+        int budget = intArg(args, "--budget", BUDGET);
+        int propertyBudget = intArg(args, "--property-budget", PROPERTY_BUDGET);
+        int show = intArg(args, "--show", 15);
         long started = System.nanoTime();
 
         List<Case> cases = cases(depth);
@@ -258,11 +319,14 @@ public final class Check {
         int runs = 0;
         boolean blocked = false;
         Set<String> accepted = new LinkedHashSet<>();
+        Set<String> acceptedReturnTypes = new LinkedHashSet<>();
         Map<Case, List<Violation>> violations = new LinkedHashMap<>();
         for (Case testCase : cases) {
+            Class<?> generated = resolvers.get(testCase.className);
+            Object instance = generated.getDeclaredConstructor().newInstance();
             GraphQLSchema schema;
             try {
-                schema = schema(testCase, resolvers.get(testCase.className).getDeclaredConstructor().newInstance());
+                schema = schema(testCase, instance);
             } catch (RuntimeException e) {
                 rejected++;
                 if (flag(args, "--rejected")) {
@@ -270,16 +334,17 @@ public final class Check {
                 }
                 continue;
             }
-            accepted.add(testCase.javaType() + " " + testCase.graphQLType());
+            accepted.add(testCase.kind.label + " " + testCase.javaType() + " " + testCase.graphQLType());
+            acceptedReturnTypes.add(testCase.label());
             GraphQL actual = GraphQL.newGraphQL(schema).build();
-            GraphQL oracle = GraphQL.newGraphQL(oracleSchema(schema)).build();
-            String query = "query { field" + testCase.leaf.selection + " }";
-            List<Timing> timings = testCase.shape.stream().anyMatch(Container::isFuture) && !blocked ? List.of(Timing.values()) : List.of(Timing.DONE);
+            GraphQL oracle = GraphQL.newGraphQL(oracleSchema(schema, testCase.parentType())).build();
+            Consumer<Object> returning = returning(testCase, generated, instance);
+            List<Timing> timings = testCase.shape.stream().anyMatch(Container::isFuture) && !blocked ? testCase.kind.timings : List.of(Timing.DONE);
             plans:
-            for (Plan plan : plansWithinBudget(testCase, 0, budget)) {
+            for (Plan plan : plansWithinBudget(testCase, 0, testCase.kind == Kind.METHOD ? budget : propertyBudget)) {
                 for (Timing timing : timings) {
                     runs++;
-                    Violation violation = run(testCase, plan, timing, actual, oracle, query);
+                    Violation violation = run(testCase, plan, timing, actual, oracle, returning);
                     if (violation != null) {
                         violations.computeIfAbsent(testCase, c -> new ArrayList<>()).add(violation);
                         if (violation.actual.equals(BLOCKED)) {
@@ -291,62 +356,108 @@ public final class Check {
             }
         }
 
-        List<String> missing = mustAccept.stream().filter(it -> !accepted.contains(it)).collect(Collectors.toList());
-        out.printf("depth %d, budget %d: %d return types, %d rejected by the schema build, %d accepted, %d executions, %.1fs%n",
-            depth, budget, cases.size(), rejected, accepted.size(), runs, (System.nanoTime() - started) / 1e9);
+        List<String> missing = Arrays.stream(Kind.values())
+            .flatMap(kind -> mustAccept.stream()
+                .filter(it -> kind.nullabilities.contains(Nullability.NON_NULL) || !it.endsWith("!"))
+                .map(it -> kind.label + " " + it))
+            .filter(it -> !accepted.contains(it))
+            .collect(Collectors.toList());
+        out.printf("depth %d, budget %d (%d for properties and Maps): %d return types, %d rejected by the schema build, %d accepted, %d executions, %.1fs%n",
+            depth, budget, propertyBudget, cases.size(), rejected, accepted.size(), runs, (System.nanoTime() - started) / 1e9);
         if (blocked) {
             out.println("A data fetcher blocked on a pending future, so later return types ran with completed futures only.");
         }
 
-        Map<String, String> known = knownFindings(stringArg(args, "--known"));
-        Map<String, List<Case>> knownFailing = new LinkedHashMap<>();
-        known.keySet().forEach(pattern -> knownFailing.put(pattern, new ArrayList<>()));
+        Map<String, List<Violation>> failing = new LinkedHashMap<>();
+        violations.forEach((testCase, list) -> failing.computeIfAbsent(testCase.label(), it -> new ArrayList<>()).addAll(list));
+        List<KnownFinding> known = knownFindings(stringArg(args, "--known"));
         List<List<Violation>> unknown = new ArrayList<>();
-        violations.forEach((testCase, list) -> {
-            String pattern = known.keySet().stream().filter(it -> Pattern.compile(it).matcher(testCase.shortJavaType()).find()).findFirst().orElse(null);
-            if (pattern == null) {
-                unknown.add(list);
-            } else {
-                knownFailing.get(pattern).add(testCase);
+        for (String returnType : acceptedReturnTypes) {
+            Optional<KnownFinding> finding = known.stream().filter(it -> it.pattern.matcher(returnType).find()).findFirst();
+            if (finding.isPresent()) {
+                finding.get().covered.add(returnType);
+            } else if (failing.containsKey(returnType)) {
+                unknown.add(failing.get(returnType));
             }
-        });
+        }
 
-        knownFailing.forEach((pattern, failing) -> {
-            if (!failing.isEmpty()) {
-                out.printf("%nKNOWN (%s): %d return types still fail, e.g.%n", known.get(pattern), failing.size());
-                print(out, violations.get(failing.get(0)).get(0), violations.get(failing.get(0)).size());
+        for (KnownFinding finding : known) {
+            List<String> stillFailing = finding.covered.stream().filter(failing::containsKey).collect(Collectors.toList());
+            if (!stillFailing.isEmpty()) {
+                out.printf("%nKNOWN (%s): %d return types still fail, e.g.%n", finding.description, stillFailing.size());
+                List<Violation> first = failing.get(stillFailing.get(0));
+                print(out, first.get(0), first.size());
             }
-        });
+        }
+        boolean passed = true;
         if (!unknown.isEmpty()) {
             int total = unknown.stream().mapToInt(List::size).sum();
             out.printf("%nFAIL: %d executions in %d return types gave graphql-java something other than the value the resolver returned.%n", total, unknown.size());
-            unknown.stream().limit(intArg(args, "--show", 15)).forEach(list -> print(out, list.get(0), list.size()));
-            return false;
+            unknown.stream().limit(show).forEach(list -> print(out, list.get(0), list.size()));
+            passed = false;
         }
         if (!missing.isEmpty() || runs == 0) {
             out.println("\nMODEL ERROR: the schema build rejected return types the check must exercise, so a pass would prove nothing:");
             missing.forEach(it -> out.println("  " + it));
-            return false;
+            passed = false;
         }
-        List<String> fixed = knownFailing.entrySet().stream().filter(it -> it.getValue().isEmpty()).map(it -> known.get(it.getKey())).collect(Collectors.toList());
-        if (!fixed.isEmpty()) {
-            out.println("\nSTALE: these known findings no longer fail. Delete their lines from src/test/resources/returnvalue/known-findings.txt so a regression shows up as FAIL:");
-            fixed.forEach(it -> out.println("  " + it));
-            return false;
+        if (depth == DEPTH && budget == BUDGET && propertyBudget == PROPERTY_BUDGET) {
+            passed &= knownFindingsAreExact(known, failing.keySet(), show, out);
         }
-        out.println(violations.isEmpty() ? "PASS" : "\nPASS apart from the known findings above");
-        return true;
+        if (passed) {
+            out.println(violations.isEmpty() ? "PASS" : "\nPASS apart from the known findings above");
+        }
+        return passed;
     }
 
-    private static Map<String, String> knownFindings(String path) throws Exception {
-        Map<String, String> known = new LinkedHashMap<>();
+    private static boolean knownFindingsAreExact(List<KnownFinding> known, Set<String> failing, int show, PrintStream out) {
+        List<String> stale = new ArrayList<>();
+        List<String> added = new ArrayList<>();
+        for (KnownFinding finding : known) {
+            int covered = finding.covered.size();
+            List<String> passing = finding.covered.stream().filter(it -> !failing.contains(it)).collect(Collectors.toList());
+            if (passing.size() == covered) {
+                stale.add("  " + finding.description + ": none of the " + covered + " return types it matches fail. Delete the line.");
+            } else if (!passing.isEmpty()) {
+                stale.add("  " + finding.description + ": " + passing.size() + " of the " + covered + " return types it matches pass. Narrow the line to the "
+                    + (covered - passing.size()) + " that fail and set its count to that:");
+                passing.stream().limit(show).forEach(it -> stale.add("    " + it));
+                if (passing.size() > show) {
+                    stale.add("    and " + (passing.size() - show) + " more, rerun with --show " + passing.size());
+                }
+            }
+            String counts = "  " + finding.description + ": the line records " + finding.returnTypes + " return types and matches " + covered + " that the schema build accepts.";
+            if (covered > finding.returnTypes) {
+                added.add(counts);
+            } else if (covered < finding.returnTypes) {
+                stale.add(counts + " Unless you just narrowed the line, the build now rejects a return type it used to accept. "
+                    + "Find it by diffing --rejected output against the last commit, then set the count to " + covered + ".");
+            }
+        }
+        if (!added.isEmpty()) {
+            out.println("\nNEW: known findings in " + KNOWN_FILE + " match more return types than they record, so a new failure would print as KNOWN, not FAIL. "
+                + "Unless you just widened a line, the build now accepts a return type it used to reject, and that return type fails. "
+                + "Find it by diffing --rejected output against the last commit, and treat it as a FAIL:");
+            added.forEach(out::println);
+        }
+        if (!stale.isEmpty()) {
+            out.println("\nSTALE: known findings in " + KNOWN_FILE + " no longer match exactly the return types that fail, so a regression in a fixed one would print as KNOWN, not FAIL:");
+            stale.forEach(out::println);
+        }
+        return added.isEmpty() && stale.isEmpty();
+    }
+
+    private static List<KnownFinding> knownFindings(String path) throws Exception {
+        Pattern format = Pattern.compile("(\\d+) (.+?) # (.+)");
+        List<KnownFinding> known = new ArrayList<>();
         for (String line : Files.readAllLines(Path.of(path))) {
             if (!line.isBlank() && !line.startsWith("#")) {
-                int separator = line.indexOf(" # ");
-                if (separator < 0) {
-                    throw new IllegalArgumentException("A known finding is \"<regex over the return type as the check prints it> # <what goes wrong>\", not: " + line);
+                Matcher parts = format.matcher(line.trim());
+                if (!parts.matches()) {
+                    throw new IllegalArgumentException("A known finding is \"<how many return types it matches> <regex over the resolver kind and return type, "
+                        + "such as property List<Future<String>>> # <what goes wrong>\", not: " + line);
                 }
-                known.put(line.substring(0, separator).trim(), line.substring(separator + 3).trim());
+                known.add(new KnownFinding(Integer.parseInt(parts.group(1)), Pattern.compile(parts.group(2)), parts.group(3)));
             }
         }
         return known;
@@ -381,9 +492,11 @@ public final class Check {
         List<Case> cases = new ArrayList<>();
         for (int i = 0; i < shapes.size(); i++) {
             for (Leaf leaf : Leaf.values()) {
-                String className = "unwrapcheck.gen.R" + i + "_" + leaf.ordinal();
-                for (Nullability nullability : Nullability.values()) {
-                    cases.add(new Case(shapes.get(i), leaf, nullability, className));
+                for (Kind kind : Kind.values()) {
+                    String className = "unwrapcheck.gen.R" + i + "_" + leaf.ordinal() + "_" + kind.ordinal();
+                    for (Nullability nullability : kind.nullabilities) {
+                        cases.add(new Case(shapes.get(i), leaf, kind, nullability, className));
+                    }
                 }
             }
         }
@@ -514,7 +627,7 @@ public final class Check {
         return builder.build();
     }
 
-    static Violation run(Case testCase, Plan plan, Timing timing, GraphQL actual, GraphQL oracle, String query) {
+    static Violation run(Case testCase, Plan plan, Timing timing, GraphQL actual, GraphQL oracle, Consumer<Object> returning) {
         Context context = new Context(timing, testCase.className + ".field");
         Built built = build(testCase, plan, 0, context);
         if (timing == Timing.PENDING_REVERSED) {
@@ -522,7 +635,8 @@ public final class Check {
         }
 
         String got;
-        Fixtures.nextReturnValue = built.returned;
+        String query = testCase.query();
+        returning.accept(built.returned);
         java.util.concurrent.Future<CompletableFuture<ExecutionResult>> fetch = fetching.submit(() -> actual.executeAsync(ExecutionInput.newExecutionInput().query(query).build()));
         CompletableFuture<ExecutionResult> result;
         try {
@@ -555,9 +669,40 @@ public final class Check {
         return acceptable.contains(got) ? null : new Violation(testCase, built.text, timing, String.join("\n    or     ", acceptable), got);
     }
 
-    static GraphQLSchema schema(Case testCase, Object resolver) {
-        String sdl = "type Query { field: " + testCase.graphQLType() + " }\n";
-        SchemaParserBuilder parser = SchemaParser.newParser().resolvers((GraphQLResolver<?>) resolver).options(options);
+    static Consumer<Object> returning(Case testCase, Class<?> generated, Object instance) throws Exception {
+        switch (testCase.kind) {
+            case METHOD:
+                return value -> Fixtures.nextReturnValue = value;
+            case PROPERTY: {
+                Field field = generated.getField("field");
+                return value -> {
+                    try {
+                        field.set(instance, value);
+                    } catch (IllegalAccessException e) {
+                        throw new IllegalStateException(e);
+                    }
+                };
+            }
+            default:
+                return value -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> holder = (Map<String, Object>) instance;
+                    holder.put("field", value);
+                    Fixtures.nextReturnValue = holder;
+                };
+        }
+    }
+
+    static GraphQLSchema schema(Case testCase, Object generated) {
+        SchemaParserBuilder parser = SchemaParser.newParser().options(options);
+        String sdl;
+        if (testCase.kind == Kind.MAP) {
+            sdl = "type Query { holder: Holder }\ntype Holder { field: " + testCase.graphQLType() + " }\n";
+            parser.resolvers(new Fixtures.HolderQuery()).dictionary("Holder", generated.getClass());
+        } else {
+            sdl = "type Query { field: " + testCase.graphQLType() + " }\n";
+            parser.resolvers((GraphQLResolver<?>) generated);
+        }
         if (testCase.leaf != Leaf.STRING) {
             sdl += "type Payload { data: String }\n";
         }
@@ -568,7 +713,7 @@ public final class Check {
         return parser.schemaString(sdl).build().makeExecutableSchema();
     }
 
-    static GraphQLSchema oracleSchema(GraphQLSchema schema) {
+    static GraphQLSchema oracleSchema(GraphQLSchema schema, String parentType) {
         DataFetcher<Object> plain = environment -> {
             if (oracleFailure != null) {
                 throw new IllegalStateException(oracleFailure);
@@ -576,19 +721,30 @@ public final class Check {
             return oracleValue;
         };
         return schema.transform(builder -> builder.codeRegistry(
-            schema.getCodeRegistry().transform(registry -> registry.dataFetcher(FieldCoordinates.coordinates("Query", "field"), plain))));
+            schema.getCodeRegistry().transform(registry -> registry.dataFetcher(FieldCoordinates.coordinates(parentType, "field"), plain))));
     }
 
     static Map<String, Class<?>> compile(List<Case> cases, String classpath) throws Exception {
         Map<String, String> sources = new LinkedHashMap<>();
         for (Case testCase : cases) {
             String simpleName = testCase.className.substring(testCase.className.lastIndexOf('.') + 1);
-            sources.putIfAbsent(testCase.className,
-                "package unwrapcheck.gen;\n"
-                    + "public class " + simpleName + " implements graphql.kickstart.tools.GraphQLQueryResolver {\n"
-                    + "    @SuppressWarnings(\"unchecked\")\n"
-                    + "    public " + testCase.javaType() + " field() { return (" + testCase.javaType() + ") unwrapcheck.Fixtures.nextReturnValue; }\n"
-                    + "}\n");
+            String type = testCase.javaType();
+            String body;
+            switch (testCase.kind) {
+                case METHOD:
+                    body = " implements graphql.kickstart.tools.GraphQLQueryResolver {\n"
+                        + "    @SuppressWarnings(\"unchecked\")\n"
+                        + "    public " + type + " field() { return (" + type + ") unwrapcheck.Fixtures.nextReturnValue; }\n";
+                    break;
+                case PROPERTY:
+                    body = " implements graphql.kickstart.tools.GraphQLQueryResolver {\n"
+                        + "    public " + type + " field;\n";
+                    break;
+                default:
+                    body = " extends java.util.HashMap<String, " + type + "> {\n";
+                    break;
+            }
+            sources.putIfAbsent(testCase.className, "package unwrapcheck.gen;\npublic class " + simpleName + body + "}\n");
         }
 
         JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
