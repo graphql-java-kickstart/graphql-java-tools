@@ -208,7 +208,7 @@ internal sealed class MergedType<B : GraphqlDirectivesContainerTypeBuilder<B, B>
             GraphQLUnionType.newUnionType().definition(definition).extensionDefinitions(extensions)
 
         /**
-         * The definition or extension that lists [member], as the SDL prints it.
+         * The toString of the definition or extension that lists [member].
          */
         fun declarationOf(member: Type<*>): String =
             (listOf(definition) + extensions).first { declaration -> declaration.memberTypes.any { it === member } }.toString()
