@@ -44,10 +44,10 @@ from an explicit `null` (`Optional.empty()`).
   `Validation error (WrongType@[search])` and names `POETRY`.
 - **Unmapped input fields.** `run unmapped-inputs`. Exit `0`. `probe.log` has
   exactly one `UnmappedInputFieldChecker` WARN, starting `Input field 'ItemInput.name' has no matching property in
-  scenarios.ItemInput` and listing `Known properties: nmae`. There is no WARN for `InnerInput.legacy`.
-  `01-ignored.json` has `data.ignored = "a"`. `02-typo.json` has one error containing
-  `Unrecognized property "name" (class scenarios.ItemInput)` (`Unrecognized field` before Jackson 3, in 14.x), which shows
-  the reported field really fails.
+  graphql.kickstart.tools.compat.scenarios.ItemInput` and listing `Known properties: nmae`. There is no WARN for
+  `InnerInput.legacy`. `01-ignored.json` has `data.ignored = "a"`. `02-typo.json` has one error containing
+  `Unrecognized property "name" (class graphql.kickstart.tools.compat.scenarios.ItemInput)` (`Unrecognized field` before
+  Jackson 3, in 14.x), which shows the reported field really fails.
 - **Type variable parameters.** `run generic-input-resolver`. Exit `0`.
   `summary.txt` shows `errors=0` for both operations. `02-generic.json` has
   `data.generic = "generic got GreetingInput(name=a)"`, and `01-plain.json` has

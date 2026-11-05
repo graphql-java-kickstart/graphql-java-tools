@@ -14,6 +14,7 @@ M2="$WORK/m2"
 TAIL_M2="$HOME/.m2/repository"
 EVIDENCE_ROOT="$ROOT/evidence"
 STAMP="$WORK/installed.stamp"
+SCENARIOS="$SKILL_DIR/../../../src/test/kotlin/graphql/kickstart/tools/compat/scenarios"
 
 die() { echo "probe: $*" >&2; exit 1; }
 usage_error() { echo "probe: $*" >&2; exit 64; }
@@ -94,7 +95,7 @@ cmd_doctor() {
 }
 
 cmd_list() {
-  grep -h 'override val name = ' "$SKILL_DIR"/probe/src/main/kotlin/scenarios/*.kt | sed 's/.*= "\(.*\)"/\1/'
+  grep -h 'override val name = ' "$SCENARIOS"/*.kt | sed 's/.*= "\(.*\)"/\1/'
 }
 
 cmd_run() {
@@ -134,7 +135,7 @@ cmd_run() {
     "-Dprobe.build.dir=$build" "-Dmdep.outputFile=$build/classpath.txt")
   [[ -z "$gj" ]] || mvn_args+=("-Dgraphql-java.version=$gj")
   # resources:resources only copies, so an operation deleted from a scenario would keep running
-  rm -rf "$build"/classes/scenarios/*/
+  rm -rf "$build"/classes/compat/scenarios/*/
   if ! mvn_isolated "${mvn_args[@]}" compile dependency:build-classpath > "$evidence/maven.log" 2>&1; then
     grep -E '^\[ERROR\]|^e: ' "$evidence/maven.log" | head -30 >&2 || true
     die "probe compile failed, see $evidence/maven.log"

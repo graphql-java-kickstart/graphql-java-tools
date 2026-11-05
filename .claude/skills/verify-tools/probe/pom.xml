@@ -11,6 +11,7 @@
         <tools.version>UNSET</tools.version>
         <kotlin.version>2.3.10</kotlin.version>
         <probe.build.dir>${project.basedir}/target</probe.build.dir>
+        <checkout.dir>${project.basedir}/../../../..</checkout.dir>
     </properties>
 
     <dependencies>
@@ -64,6 +65,17 @@
     <build>
         <directory>${probe.build.dir}</directory>
         <sourceDirectory>src/main/kotlin</sourceDirectory>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${checkout.dir}/src/test/resources</directory>
+                <includes>
+                    <include>compat/scenarios/**</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
@@ -71,6 +83,10 @@
                 <version>${kotlin.version}</version>
                 <configuration>
                     <jvmTarget>11</jvmTarget>
+                    <sourceDirs>
+                        <sourceDir>src/main/kotlin</sourceDir>
+                        <sourceDir>${checkout.dir}/src/test/kotlin/graphql/kickstart/tools/compat/scenarios</sourceDir>
+                    </sourceDirs>
                 </configuration>
                 <executions>
                     <execution>

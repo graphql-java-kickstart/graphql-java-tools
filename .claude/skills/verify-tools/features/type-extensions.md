@@ -2,23 +2,23 @@
 
 `extend type`, `extend interface`, `extend union`, `extend enum`, `extend input` and `extend scalar` add to the type they
 extend: fields, interfaces, members, values and directives are merged into one graphql-java type, base first. Where a type
-declares an enum value, interface field or union member twice, or an extension applies a non-repeatable directive again,
-the first one is kept and a WARN is logged. An object or input field declared twice keeps the last declaration, the type's
-own for an input since its extensions are applied first, and logs a WARN that names that declaration. An extension of a different kind than its type is ignored with a WARN. A union,
-enum, interface or scalar that only has extensions is built from them.
+and its extensions declare a field, enum value or union member twice, or apply a non-repeatable directive again, the build
+fails with a `SchemaError`. For a field, value or member it names the type, the item and its line. For a directive it names
+only the directive and its line, as in `Directive @once at line 1, column 25 isn't repeatable but is applied more than
+once.` An extension of a different kind than its type is
+ignored with a WARN. A union, enum, interface or scalar that only has extensions is built from them.
 
 ## Sub-features
 
 - `ext-interface-fields` merges the fields of `extend interface`, keeping the base `id` and its description.
 - `ext-implements` makes `extend type Video implements Node` take effect.
 - `ext-union-members` merges the members of `extend union`.
-- `ext-enum-values` merges the values of `extend enum`, keeping the base description of a repeated value.
+- `ext-enum-values` merges the values of `extend enum`, keeping the base description.
 - `ext-lone-enum` builds an enum that only has extensions, from all of them.
 - `ext-directives` applies the directives of every extension after those of the type.
-- `ext-non-repeatable` keeps the first of a non-repeatable directive that an extension applies again, with a WARN.
-- `ext-repeats` warns about a repeated interface field, union member and enum value.
-- `ext-repeated-fields` warns about an object or input field declared twice, between a type and its extension, between
-  two extensions and inside one definition, and keeps the last declaration, the type's own for an input.
+- `ext-repeats` fails the build on a field, enum value or union member declared twice, or a non-repeatable directive
+  applied twice, across a type and its extensions. `type-extensions-repeated-fields` shows it for fields, and the
+  `repeat` and `repeat-directive` cases of `CompatTest` cover every scenario type.
 - `ext-other-kind` ignores `extend union Note` of `type Note` with a WARN.
 - `ext-sealed` finds the class of a union member added by `extend union`, and of an implementor added by
   `extend type X implements Y`, among the subclasses of a sealed class or interface.
@@ -36,20 +36,12 @@ enum, interface or scalar that only has extensions is built from them.
   "The first red".
 - **Directives.** `schema.graphqls` has `@tag(name : "base") @tag(name : "extension")` on `Node`, `SearchResult`, `Color`,
   `Filter` and `Article`, and `Article` has `@owner(team : "content")` once, before its `@tag`s.
-- **Warnings.** `probe.log` has one WARN each for `Type 'Note' is defined as an object type, but extended as a union`,
-  `@owner isn't repeatable`, `Type 'Node' declares field 'id'`, `Type 'SearchResult' declares member 'Article'` and
-  `Type 'Color' declares value 'RED'`.
-- **Repeated fields.** `run type-extensions-repeated-fields`. Exit `0`, `errors=0` for both operations, and the same
-  schema, operation results and `inspect.txt` as master. `01-kept-declarations.json` has `typeAndExtension.name = "a"`,
-  `twoExtensions = {"id": "b", "name": "c"}`, `oneDefinition.name = "d"` and `echo = "1,t,2,3"`. `inspect.txt` has
-  `TypeAndExtension.name: From the extension`, `TwoExtensions.name: From the second extension`,
-  `OneDefinition.name: The second`, `InputTypeAndExtension.id: From the type`,
-  `InputTwoExtensions.id: From the second extension` and `InputOneDefinition.id: The second`. `probe.log` has exactly six
-  WARNs, one per type, each `Type '<name>' declares field '<field>' more than once, only the one at line <n>, column 5 in
-  scenarios/type-extensions-repeated-fields/schema.graphqls is kept.` with lines 18 (`TypeAndExtension`), 32
-  (`TwoExtensions`), 39 (`OneDefinition`), 44 (`InputTypeAndExtension`), 63 (`InputTwoExtensions`) and 70
-  (`InputOneDefinition`). On master `probe.log` is empty.
-- **Sealed.** `run type-extensions-sealed`. `01-pets-and-animals.json` has
+- **Warnings.** `probe.log` has `Type 'Note' is defined as an object type, but extended as a union. The extension is
+  ignored.` and `Schema type was defined but can never be accessed, and can be safely deleted: Note`, and nothing else.
+- **Repeated fields.** `run type-extensions-repeated-fields`. Exit `2`, and `summary.txt` has `schema build: FAILED
+  graphql.kickstart.tools.SchemaError: Type 'InputTypeAndExtension' declares field 'id' more than once at line 49,
+  column 5 in compat/scenarios/type-extensions-repeated-fields/schema.graphqls.`
+- **Sealed.** `run type-extensions-sealed`. Exit `0`. `01-pets-and-animals.json` has
   `pets = [{"__typename": "Dog", "name": "Rex"}, {"__typename": "Cat", "lives": 9}]` and `animals` with a `Cow` and a
   `Horse`, with no WARN in `probe.log`.
 

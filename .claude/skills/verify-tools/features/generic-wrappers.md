@@ -46,13 +46,14 @@ the lists, and combines the futures below the outermost value into one, so one f
 ## Gotchas
 
 - Before #903 (commit a4736c9a) `nested-wrappers` still exits `0`. `02`, `07`, `08` and `10` have an error per element,
-  `Expected source object to be an instance of '<class>' but instead got 'scenarios.Try$Success'`, and `04`, `06`, `09`
-  and `11` the same with `'java.util.concurrent.CompletableFuture'`. `03-payload-strings.json` has
+  `Expected source object to be an instance of '<class>' but instead got
+  'graphql.kickstart.tools.compat.scenarios.Try$Success'`, and `04`, `06`, `09` and `11` the same with
+  `'java.util.concurrent.CompletableFuture'`. `03-payload-strings.json` has
   `["Success(value=a)", "Success(value=b)"]` and `05-item-names.json` has
   `java.util.concurrent.CompletableFuture@<hash>[Completed normally]` strings, both with `errors=0`.
 - Before #903 `nested-wrappers-suspend` fails the build (exit `2`) with `SchemaClassScannerError: Two different classes used
-  for type Item`, naming `java.util.concurrent.CompletableFuture<scenarios.NestedItem>` for `nullableItems` and
-  `scenarios.NestedItem` for `nonNullItems`.
+  for type Item`, naming `java.util.concurrent.CompletableFuture<graphql.kickstart.tools.compat.scenarios.NestedItem>` for
+  `nullableItems` and `graphql.kickstart.tools.compat.scenarios.NestedItem` for `nonNullItems`.
 - Before #903 `nested-wrappers-unboxer` had `errors=0` for `01` to `09`, because the app's `ValueUnboxer` did the
   unwrapping. `10` and `11` were `THREW java.lang.IllegalStateException` in `summary.txt`, with `{"threw": ...}` in the
   JSON, because the failed element's exception left `execute`. Now they return `errors=1` like `nested-wrappers`.

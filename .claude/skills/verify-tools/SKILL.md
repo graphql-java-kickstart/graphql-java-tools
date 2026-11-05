@@ -28,8 +28,8 @@ and run another checkout's `probe.sh` from inside it.
   reads `~/.m2` but never writes it. The install runs `mvn clean install`, so it empties the checkout's `target/`. Don't
   run it while another build uses the same checkout. The work dir is keyed on the checkout's path, so clones and worktrees
   run in parallel, even when two share a folder name. If `doctor` shows the lock held by a live pid, wait for that run.
-- It builds the schema from the scenario's `parser()`, prints it, then executes every `*.graphql` in
-  `probe/src/main/resources/scenarios/<name>/` in name order, with `<op>.variables.json` as variables. It collects
+- It builds the schema from the scenario's files, resolvers and `configure`, prints it, then executes every `*.graphql` in
+  `src/test/resources/compat/scenarios/<name>/` in name order, with `<op>.variables.json` as variables. It collects
   subscription events until the stream completes, for at most 10 seconds.
 - Exit `0`: the schema built and every operation ran, though operations can still return GraphQL errors. `2`: the build
   threw. `1`: harness failure (install log or `maven.log`) or a held lock. `64`: bad usage, such as a missing or unknown
@@ -65,17 +65,21 @@ Proof standards:
 
 ## Adding a scenario
 
-1. Write the SDL as `probe/src/main/resources/scenarios/<name>/schema.graphqls` and load it with `.file(...)`, unless the
-   behavior is about `schemaString`.
-2. Add `object <Name> : Scenario` with `name` and `parser()` in `probe/src/main/kotlin/scenarios/<Name>.kt`. Being an
-   object in that package registers it. Classes share the package, so prefix resolver and data classes with the scenario.
-   Use only public API. If the probe needs `internal` or test classes, a user can't reach the behavior either, so report
-   that.
+Scenarios live in the library's tests, so `mvn verify` compiles them and `CompatTest` builds each one, plus invalid
+variants of it, against the last release's results.
+
+1. Write the SDL as `src/test/resources/compat/scenarios/<name>/schema.graphqls`.
+2. Add `object <Name> : Scenario` with `name`, `files` and `resolvers` in
+   `src/test/kotlin/graphql/kickstart/tools/compat/scenarios/<Name>.kt`, and override `configure(builder)` for scalars,
+   dictionary, directives or options. Being an object in that package registers it. Classes share the package, so prefix
+   resolver and data classes with the scenario. Use only public API and nothing from other test packages, since the probe
+   compiles this directory alone. If the probe needs `internal` or test classes, a user can't reach the behavior either,
+   so report that.
 3. Add operations as `NN-<what>.graphql`, plus `NN-<what>.variables.json` when they take variables. graphql-java rejects
    a second `__type` in one operation and still exits `0`, so read several types through `__schema { types { ... } }`.
 4. Override what the scenario needs. `operations` reuses another scenario's operation directory. `schema(parser)` takes
    another build path such as `toReadOnlySchema()`. `inspect(schema)` returns evidence the printer doesn't show, and
-   `probe.dumpDirectives(schema)` lists every element's applied and legacy directives. `graphQL(builder)` and
+   `dumpDirectives(schema)` lists every element's applied and legacy directives. `graphQL(builder)` and
    `input(builder)` add instrumentation, context or data loaders.
 5. A scenario that doesn't compile breaks every checkout's run, so finish it before running. Keep a scenario that proves
    a lasting feature and add its exact expected results to the matching file in `features/`. Delete a one-off
