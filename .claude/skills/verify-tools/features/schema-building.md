@@ -34,9 +34,11 @@ signature it tried. Types no root can reach get a warning and are dropped from t
   Review`. `schema.graphqls` has no `type Review`.
 - **Missing resolver.** `run bookstore-missing-resolver`. Exit `2`. `summary.txt`
   has `schema build: FAILED graphql.kickstart.tools.resolver.FieldResolverError: No method or field found as defined in
-  schema scenarios/bookstore-missing-resolver/extension.graphqls:2`. The 8 listed signatures start with
-  `scenarios.AuthorResolver.isbn(scenarios.Book)`, have `scenarios.Book.isbn` sixth, and end with
-  `scenarios.AuthorResolver.getIsbn(<environment or context>)`. `build-error.txt` has the stack trace.
+  schema compat/scenarios/bookstore-missing-resolver/extension.graphqls:2`. The 8 listed signatures start with
+  `graphql.kickstart.tools.compat.scenarios.AuthorResolver.isbn(graphql.kickstart.tools.compat.scenarios.Book)`, have
+  `graphql.kickstart.tools.compat.scenarios.Book.isbn` sixth, and end with
+  `graphql.kickstart.tools.compat.scenarios.AuthorResolver.getIsbn(<environment or context>)`. `build-error.txt` has the
+  stack trace.
 - **Read-only schema.** `run read-only-schema`. Exit `0` and all three operations
   have `errors=0`. `01-interface.json` has `data.animal = {"__typename": "Cat", "name": "Tom", "lives": 9}`,
   `02-union.json` lists `Dog` Rex then `Cat` Tom, and `03-no-mutation.json` has `mutationType: null`. `schema.graphqls`

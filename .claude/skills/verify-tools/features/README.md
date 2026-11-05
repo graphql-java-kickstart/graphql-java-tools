@@ -32,12 +32,12 @@ that waste or invalidate a run, and how the result looked before the fix).
 - [Schema parser options](./schema-options.md): `missingResolverDataFetcherProvider`
   (`options`).
 - [Type extensions](./type-extensions.md): fields, interfaces, members, values and directives of every kind of extension,
-  the repeat and kind-mismatch warnings, repeated object and input fields, and sealed subclasses found through
+  the repeat errors and the kind-mismatch warning, repeated object and input fields, and sealed subclasses found through
   extensions (`type-extensions`, `type-extensions-repeated-fields`, `type-extensions-sealed`).
-- [Proxied resolvers](./proxies.md): Spring JDK dynamic and CGLIB proxies, and the warning for fields a JDK proxy can't
+- [Proxied resolvers](./proxies.md): Spring JDK dynamic and CGLIB proxies, and the build error for fields a JDK proxy can't
   call (`jdk-proxy`, `jdk-proxy-cglib`, `jdk-proxy-plain`).
 - [Context and environment parameters](./context-and-environment.md): `contextClass`, `GraphQLContext` and
-  `DataFetchingEnvironment` after the schema arguments, in any order, the misbound-argument warning, and resolver methods
+  `DataFetchingEnvironment` after the schema arguments, in any order, the misbound-argument error, and resolver methods
   without the source parameter (`context-and-environment`, `context-and-environment-invalid`, `context-misbound`,
   `sourceless`, `sourceless-shadowed`, `sourceless-unimplemented`, `sourceless-misbound`).
 

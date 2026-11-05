@@ -51,6 +51,16 @@ page. `github-build.sh` and `.github/workflows/release.yml` do the version bump,
 delete the `<excludes>` under japicmp-maven-plugin in `pom.xml`. The version is X.0.1-SNAPSHOT by then and the API check
 fails while they remain.
 
+After the release is published, record what it builds, so `CompatTest` checks later changes against it. Check out the
+release tag in a worktree, run `mvn -B -ntp clean test -Dtest=CompatTest -Dcompat.capture`, and open a PR with the
+`src/test/resources/compat/<version>/` it writes: `cases.tsv` and an empty `accepted.txt`. A later break that the release
+notes list goes into that `accepted.txt` as one line: the case as `CompatTest` lists it, a tab, and why, naming the issue
+(`#N`) or the release notes (`X.Y.Z release notes`). Start the case with `re:` to give a regex instead, matching at most 20
+cases, all in one scenario. Capturing fails at a `-SNAPSHOT` version, and so does the test while a capture exists for a version
+the pom says isn't released yet, because a capture made on a branch hides the branch's breaks. A line that matches
+no failing case fails the test. So does a case that built on the release and isn't generated any more, because a scenario
+was renamed, removed or edited. Then capture the release again as the failure says, or list the case.
+
 ## Rules that need judgment
 
 No check can enforce these, so each one names the mistake it prevents.
@@ -113,4 +123,4 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | A build you trust starts from an empty `target/`, so no class from an earlier build ships | `clean` in `probe.sh install`, docs only for your own `mvn` runs |
 | Agent worktrees and local settings stay out of commits | `.gitignore` |
 | Agent rules live in one committed file | This file. `CLAUDE.md` imports it |
-| Invalid input that used to build logs a WARN until the next major | docs only |
+| Invalid input that built on the last release keeps building until the next major | `CompatTest`, against the last release's results in `src/test/resources/compat` |

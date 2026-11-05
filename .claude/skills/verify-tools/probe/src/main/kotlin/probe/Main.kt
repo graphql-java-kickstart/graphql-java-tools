@@ -7,12 +7,13 @@ import graphql.ExecutionInput
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.kickstart.tools.SchemaParser
+import graphql.kickstart.tools.compat.scenarios.SCENARIOS
+import graphql.kickstart.tools.compat.scenarios.parser
 import graphql.schema.GraphQLSchema
 import graphql.schema.idl.SchemaPrinter
 import org.reactivestreams.Publisher
 import org.reactivestreams.Subscriber
 import org.reactivestreams.Subscription
-import scenarios.SCENARIOS
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -91,7 +92,7 @@ private fun usage(problem: String): Nothing {
 private fun jarOf(clazz: Class<*>) = clazz.protectionDomain.codeSource?.location?.path ?: "unknown"
 
 private fun operationFiles(scenario: String): List<File> {
-    val dir = Thread.currentThread().contextClassLoader.getResource("scenarios/$scenario")
+    val dir = Thread.currentThread().contextClassLoader.getResource("compat/scenarios/$scenario")
         ?: return emptyList()
     return File(dir.toURI()).listFiles { file -> file.extension == "graphql" }!!.sortedBy { it.name }
 }
