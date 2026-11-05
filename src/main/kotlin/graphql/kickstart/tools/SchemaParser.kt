@@ -1,24 +1,15 @@
 package graphql.kickstart.tools
 
-import graphql.Directives
 import graphql.introspection.Introspection
 import graphql.introspection.Introspection.DirectiveLocation.ARGUMENT_DEFINITION
-import graphql.introspection.Introspection.DirectiveLocation.ENUM
 import graphql.introspection.Introspection.DirectiveLocation.ENUM_VALUE
 import graphql.introspection.Introspection.DirectiveLocation.FIELD_DEFINITION
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
-import graphql.introspection.Introspection.DirectiveLocation.INPUT_OBJECT
-import graphql.introspection.Introspection.DirectiveLocation.INTERFACE
-import graphql.introspection.Introspection.DirectiveLocation.OBJECT
-import graphql.introspection.Introspection.DirectiveLocation.SCALAR
-import graphql.introspection.Introspection.DirectiveLocation.UNION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
 import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.util.describe
-import graphql.kickstart.tools.util.extensionsOf
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.unwrap
-import graphql.kickstart.tools.util.withExtensions
 import graphql.language.*
 import graphql.schema.*
 import graphql.schema.idl.RuntimeWiring
@@ -45,21 +36,21 @@ class SchemaParser internal constructor(
 
     private val dictionary = scanResult.dictionary
     private val definitions = scanResult.definitions
-    private val typeExtensions = scanResult.typeExtensions
+    private val types = scanResult.types
     private val customScalars = scanResult.customScalars
-    private val rootInfo = scanResult.rootInfo
+    private val rootInfo = definitions.rootInfo
     private val fieldResolversByType = scanResult.fieldResolversByType
-    private val unusedDefinitions = scanResult.unusedDefinitions
+    private val unusedDefinitions = definitions.definitionsOf(scanResult.unusedTypes)
     private val directiveOnlyEnums = scanResult.directiveOnlyEnums
 
-    private val objectDefinitions = definitions.filterIsInstance<ObjectTypeDefinition>()
-    private val inputObjectDefinitions = definitions.filterIsInstance<InputObjectTypeDefinition>()
-    private val enumDefinitions = definitions.filterIsInstance<EnumTypeDefinition>()
-    private val interfaceDefinitions = definitions.filterIsInstance<InterfaceTypeDefinition>()
-    private val directiveDefinitions = definitions.filterIsInstance<DirectiveDefinition>()
+    private val objectDefinitions = types.filterIsInstance<MergedType.Object>()
+    private val inputObjectDefinitions = types.filterIsInstance<MergedType.Input>()
+    private val enumDefinitions = types.filterIsInstance<MergedType.Enum>()
+    private val interfaceDefinitions = types.filterIsInstance<MergedType.Interface>()
+    private val directiveDefinitions = definitions.directiveDefinitions
 
-    private val unionDefinitions = definitions.filterIsInstance<UnionTypeDefinition>()
-    private val scalarDefinitions = definitions.filterIsInstance<ScalarTypeDefinition>().filter { it.name in customScalars }.associateBy { it.name }
+    private val unionDefinitions = types.filterIsInstance<MergedType.Union>()
+    private val scalarDefinitions = types.filterIsInstance<MergedType.Scalar>().filter { it.name in customScalars }.associateBy { it.name }
 
     private val permittedTypesForObject: Set<String> = (objectDefinitions.map { it.name } +
         enumDefinitions.map { it.name } +
@@ -67,12 +58,13 @@ class SchemaParser internal constructor(
         unionDefinitions.map { it.name }).toSet()
     private val permittedTypesForInputObject: Set<String> =
         (inputObjectDefinitions.map { it.name } + enumDefinitions.map { it.name }).toSet()
-    private val typeReferenceErrors = TypeReferenceErrors(definitions, unusedDefinitions, typeExtensions)
+    private val typeReferenceErrors = TypeReferenceErrors(definitions, types, scanResult.unusedTypes)
 
     private val codeRegistryBuilder = GraphQLCodeRegistry.newCodeRegistry()
     private val directiveWiringHelper = DirectiveWiringHelper(runtimeWiring, codeRegistryBuilder)
 
     private lateinit var sdlDirectives: SdlDirectives
+    private lateinit var typeBuildContext: TypeBuildContext
 
     /**
      * Parses the given schema with respect to the given dictionary and returns GraphQL objects.
@@ -86,6 +78,7 @@ class SchemaParser internal constructor(
             // type references, so that an input object used by a directive applied to it doesn't contain itself
             determineType(GraphQLInputType::class, it, permittedTypesForInputObject) as GraphQLInputType
         }
+        typeBuildContext = TypeBuildContext(options, sdlDirectives, customScalars)
         val scalars = scalarDefinitions.values.map { createScalar(it) }
         inputObjectDefinitions.forEach {
             if (inputObjects.none { io -> io.name == it.name }) {
@@ -160,27 +153,17 @@ class SchemaParser internal constructor(
     @Suppress("unused")
     fun getUnusedDefinitions(): Set<TypeDefinition<*>> = unusedDefinitions
 
-    private fun createObject(objectDefinition: ObjectTypeDefinition, interfaces: List<GraphQLInterfaceType>, inputObjects: List<GraphQLInputObjectType>): GraphQLObjectType {
-        val name = objectDefinition.name
-        val extensions = typeExtensions.extensionsOf<ObjectTypeExtensionDefinition>(name)
-        val directives = sdlDirectives.directivesOf(objectDefinition, extensions)
-        val fieldDefinitions = objectDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
-        rejectRepeated(name, "field", fieldDefinitions)
-        val builder = GraphQLObjectType.newObject()
-            .name(name)
-            .definition(objectDefinition)
-            .extensionDefinitions(extensions)
-            .description(getDocumentation(objectDefinition, options))
-            .withSdlDirectives(directives, OBJECT)
+    private fun createObject(objectDefinition: MergedType.Object, interfaces: List<GraphQLInterfaceType>, inputObjects: List<GraphQLInputObjectType>): GraphQLObjectType {
+        val builder = objectDefinition.prepare(typeBuildContext)
             .apply {
-                objectDefinition.withExtensions(typeExtensions).flatMap { it.implements }.forEach { implementsDefinition ->
+                objectDefinition.interfaces.forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(interfaces.find { it.name == interfaceName }
                         ?: throw SchemaError("Expected interface type with name '$interfaceName' but found none!"))
                 }
             }
             .apply {
-                fieldDefinitions.forEach { fieldDefinition ->
+                objectDefinition.fields.forEach { fieldDefinition ->
                     field { field ->
                         createField(field, fieldDefinition, inputObjects)
                         codeRegistryBuilder.dataFetcher(
@@ -200,59 +183,38 @@ class SchemaParser internal constructor(
         return builder.build()
     }
 
-    private fun createInputObject(definition: InputObjectTypeDefinition, inputObjects: List<GraphQLInputObjectType>,
+    private fun createInputObject(definition: MergedType.Input, inputObjects: List<GraphQLInputObjectType>,
                                   inputObjectsInProgress: MutableSet<String>): GraphQLInputObjectType {
-        val extensionDefinitions = typeExtensions.extensionsOf<InputObjectTypeExtensionDefinition>(definition.name)
-        val directives = sdlDirectives.directivesOf(definition, extensionDefinitions)
-        val inputValueDefinitions = definition.withExtensions(typeExtensions).flatMap { it.inputValueDefinitions }
-        rejectRepeated(definition.name, "field", inputValueDefinitions)
-
+        val builder = definition.prepare(typeBuildContext)
         inputObjectsInProgress.add(definition.name)
 
-        val builder = GraphQLInputObjectType.newInputObject()
-            .name(definition.name)
-            .definition(definition)
-            .extensionDefinitions(extensionDefinitions)
-            .description(getDocumentation(definition, options))
-            .withSdlDirectives(directives, INPUT_OBJECT)
-            .apply {
-                inputValueDefinitions.forEach { fieldDefinition ->
-                    field(
-                        GraphQLInputObjectField.newInputObjectField()
-                            .name(fieldDefinition.name)
-                            .definition(fieldDefinition)
-                            .description(getDocumentation(fieldDefinition, options))
-                            .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
-                            .apply { sdlDirectives.getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
-                            .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
-                            .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
-                            .build()
-                    )
-                }
-            }
+        definition.fields.forEach { fieldDefinition ->
+            builder.field(
+                GraphQLInputObjectField.newInputObjectField()
+                    .name(fieldDefinition.name)
+                    .definition(fieldDefinition)
+                    .description(getDocumentation(fieldDefinition, options))
+                    .apply { fieldDefinition.defaultValue?.let { v -> defaultValueLiteral(v) } }
+                    .apply { sdlDirectives.getDeprecated(fieldDefinition.directives)?.let { deprecate(it) } }
+                    .type(determineInputType(fieldDefinition.type, inputObjects, inputObjectsInProgress))
+                    .withSdlDirectives(fieldDefinition.directives, INPUT_FIELD_DEFINITION)
+                    .build()
+            )
+        }
 
         return builder.build()
     }
 
-    private fun createEnumObject(definition: EnumTypeDefinition): GraphQLEnumType {
+    private fun createEnumObject(definition: MergedType.Enum): GraphQLEnumType {
         val name = definition.name
         // enums only used by directives can do without a class, see SchemaClassScanner.handleDirectiveEnum
         val enumClass = dictionary.classByType[definition]?.unwrap()
         if (enumClass == null && definition !in directiveOnlyEnums) throw SchemaError("Expected enum with name '$name' but found none!")
         if (enumClass != null && !enumClass.isEnum) throw SchemaError("Type '$name' is declared as an enum in the GraphQL schema but is not a Java enum!")
 
-        val extensions = typeExtensions.extensionsOf<EnumTypeExtensionDefinition>(name)
-        val directives = sdlDirectives.directivesOf(definition, extensions)
-        val values = definition.withExtensions(typeExtensions).flatMap { it.enumValueDefinitions }
-        rejectRepeated(name, "value", values)
-        val builder = GraphQLEnumType.newEnum()
-            .name(name)
-            .definition(definition)
-            .extensionDefinitions(extensions)
-            .description(getDocumentation(definition, options))
-            .withSdlDirectives(directives, ENUM)
+        val builder = definition.prepare(typeBuildContext)
             .apply {
-                values.forEach { valueDefinition ->
+                definition.values.forEach { valueDefinition ->
                     val enumName = valueDefinition.name
                     val enumValue = if (enumClass == null) {
                         enumName
@@ -277,41 +239,17 @@ class SchemaParser internal constructor(
         return builder.build()
     }
 
-    private fun createScalar(definition: ScalarTypeDefinition): GraphQLScalarType {
-        val name = definition.name
-        val provided = customScalars.getValue(name)
-        val extensions = typeExtensions.extensionsOf<ScalarTypeExtensionDefinition>(name)
-        val directives = sdlDirectives.directivesOf(definition, extensions)
-        val builder = GraphQLScalarType.newScalar(provided)
-            .definition(definition)
-            .extensionDefinitions(extensions)
-            .description(getDocumentation(definition, options) ?: provided.description)
-            .specifiedByUrl(getSpecifiedByUrl(directives) ?: provided.specifiedByUrl)
-            // like graphql-java, only the schema's directives are applied
-            .clearDirectives()
-            .withSdlDirectives(directives, SCALAR)
+    private fun createScalar(definition: MergedType.Scalar): GraphQLScalarType = definition.prepare(typeBuildContext).build()
 
-        return builder.build()
-    }
-
-    private fun createInterfaceObject(interfaceDefinition: InterfaceTypeDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
-        val extensions = typeExtensions.extensionsOf<InterfaceTypeExtensionDefinition>(interfaceDefinition.name)
-        val directives = sdlDirectives.directivesOf(interfaceDefinition, extensions)
-        val fieldDefinitions = interfaceDefinition.withExtensions(typeExtensions).flatMap { it.fieldDefinitions }
-        rejectRepeated(interfaceDefinition.name, "field", fieldDefinitions)
-        val builder = GraphQLInterfaceType.newInterface()
-            .name(interfaceDefinition.name)
-            .definition(interfaceDefinition)
-            .extensionDefinitions(extensions)
-            .description(getDocumentation(interfaceDefinition, options))
-            .withSdlDirectives(directives, INTERFACE)
+    private fun createInterfaceObject(interfaceDefinition: MergedType.Interface, inputObjects: List<GraphQLInputObjectType>): GraphQLInterfaceType {
+        val builder = interfaceDefinition.prepare(typeBuildContext)
             .apply {
-                fieldDefinitions.forEach { fieldDefinition ->
+                interfaceDefinition.fields.forEach { fieldDefinition ->
                     field { field -> createField(field, fieldDefinition, inputObjects) }
                 }
             }
             .apply {
-                interfaceDefinition.withExtensions(typeExtensions).flatMap { it.implements }.forEach { implementsDefinition ->
+                interfaceDefinition.interfaces.forEach { implementsDefinition ->
                     val interfaceName = (implementsDefinition as TypeName).name
                     withInterface(GraphQLTypeReference(interfaceName))
                 }
@@ -320,16 +258,8 @@ class SchemaParser internal constructor(
         return builder.build()
     }
 
-    private fun createUnionObject(definition: UnionTypeDefinition, types: List<GraphQLObjectType>): GraphQLUnionType {
-        val extensions = typeExtensions.extensionsOf<UnionTypeExtensionDefinition>(definition.name)
-        val directives = sdlDirectives.directivesOf(definition, extensions)
-        rejectRepeated(definition.name, "member", definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.map { it as TypeName })
-        val builder = GraphQLUnionType.newUnionType()
-            .name(definition.name)
-            .definition(definition)
-            .extensionDefinitions(extensions)
-            .description(getDocumentation(definition, options))
-            .withSdlDirectives(directives, UNION)
+    private fun createUnionObject(definition: MergedType.Union, types: List<GraphQLObjectType>): GraphQLUnionType {
+        val builder = definition.prepare(typeBuildContext)
             .apply {
                 getLeafUnionObjects(definition, types).forEach { possibleType(it) }
             }
@@ -338,18 +268,18 @@ class SchemaParser internal constructor(
     }
 
     private fun getLeafUnionObjects(
-        definition: UnionTypeDefinition,
+        definition: MergedType.Union,
         types: List<GraphQLObjectType>,
-        path: List<UnionTypeDefinition> = listOf(definition),
+        path: List<MergedType.Union> = listOf(definition),
     ): List<GraphQLObjectType> {
         val name = definition.name
         val leafObjects = mutableListOf<GraphQLObjectType>()
 
-        definition.withExtensions(typeExtensions).flatMap { it.memberTypes }.forEach {
+        definition.members.forEach {
             val typeName = (it as TypeName).name
 
             // Is this a nested union? If so, expand
-            val nestedUnion: UnionTypeDefinition? = unionDefinitions.find { otherDefinition -> typeName == otherDefinition.name }
+            val nestedUnion: MergedType.Union? = unionDefinitions.find { otherDefinition -> typeName == otherDefinition.name }
 
             if (nestedUnion != null) {
                 if (nestedUnion in path) {
@@ -363,12 +293,6 @@ class SchemaParser internal constructor(
             }
         }
         return leafObjects
-    }
-
-    private fun rejectRepeated(typeName: String, kind: String, declarations: List<NamedNode<*>>) {
-        val names = mutableSetOf<String?>()
-        val repeat = declarations.firstOrNull { !names.add(it.name) } ?: return
-        throw SchemaError("Type '$typeName' declares $kind '${repeat.name}' more than once${repeat.sourceLocation.describe()}.")
     }
 
     private fun createField(field: GraphQLFieldDefinition.Builder, fieldDefinition: FieldDefinition, inputObjects: List<GraphQLInputObjectType>): GraphQLFieldDefinition.Builder {
@@ -400,9 +324,6 @@ class SchemaParser internal constructor(
 
     private fun <B : GraphqlDirectivesContainerTypeBuilder<B, B>> B.withSdlDirectives(directives: List<Directive>, location: Introspection.DirectiveLocation): B =
         with(sdlDirectives) { withSdlDirectives(directives, location) }
-
-    private fun getSpecifiedByUrl(directives: List<Directive>): String? =
-        (directives.find { it.name == Directives.SpecifiedByDirective.name }?.getArgument("url")?.value as? StringValue)?.value
 
     // custom scalars are in the dictionary, so they're referenced by name like the other types
     private fun scalarType(name: String?): GraphQLInputType? =
