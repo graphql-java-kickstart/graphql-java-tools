@@ -55,7 +55,9 @@ After the release is published, record what it builds, so `CompatTest` checks la
 release tag in a worktree, run `mvn -B -ntp clean test -Dtest=CompatTest -Dcompat.capture`, and open a PR with the
 `src/test/resources/compat/<version>/` it writes: `cases.tsv` and an empty `accepted.txt`. A later break that the release
 notes list goes into that `accepted.txt` as one line: the case as `CompatTest` lists it, a tab, and why, naming the issue
-(`#N`) or the release notes (`X.Y.Z release notes`). Start the case with `re:` to give a regex instead. A line that matches
+(`#N`) or the release notes (`X.Y.Z release notes`). Start the case with `re:` to give a regex instead, matching at most 20
+cases, all in one scenario. Capturing fails at a `-SNAPSHOT` version, and so does the test while a capture exists for a version
+the pom says isn't released yet, because a capture made on a branch hides the branch's breaks. A line that matches
 no failing case fails the test. So does a case that built on the release and isn't generated any more, because a scenario
 was renamed, removed or edited. Then capture the release again as the failure says, or list the case.
 

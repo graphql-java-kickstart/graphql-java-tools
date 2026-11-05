@@ -18,21 +18,32 @@ class CompatTest {
         if (SCENARIOS.isEmpty()) return fail("No scenarios in ${Scenario::class.java.packageName}, so nothing is checked.")
         val variants = SCENARIOS.flatMap(::variants)
         val outcomes = runAll(variants)
-        val version = pomVersion()
+        val pom = PomVersion.read()
+        val version = pom.version
         if (System.getProperty("compat.capture") != null) {
+            if (!pom.isRelease) return fail(
+                "pom.xml is at ${pom.text}, so a capture would record this branch instead of a release. Captures are taken from " +
+                    "the release tag, as AGENTS.md describes under Releases. To capture a release again with the scenarios you have, " +
+                    "run `git checkout vX.Y.Z -- pom.xml src/main` first and `git checkout HEAD -- pom.xml src/main` after."
+            )
             val dir = File(CAPTURES, version.toString()).apply { mkdirs() }
             write(File(dir, "cases.tsv"), outcomes)
             File(dir, "accepted.txt").takeUnless { it.exists() }?.writeText("")
             return
         }
 
-        val (release, dir) = CAPTURES.listFiles().orEmpty().mapNotNull { file -> parseVersion(file.name)?.let { it to file } }
-            .filter { it.first <= version }.maxByOrNull { it.first }
-            ?: return fail("No capture in $CAPTURES at or below $version. Capture the last release as AGENTS.md describes under Releases.")
+        val captures = CAPTURES.listFiles().orEmpty().mapNotNull { file -> parseVersion(file.name)?.let { it to file } }
+        val unreleased = captures.filterNot { pom.couldBeReleased(it.first) }
+        if (unreleased.isNotEmpty()) return fail(
+            "${unreleased.joinToString { it.second.path }} can't hold a release, because pom.xml is at ${pom.text}. A capture made " +
+                "on a branch records the branch, so it hides any break. Delete it. Captures are taken from the release tag, as " +
+                "AGENTS.md describes under Releases."
+        )
+        val (release, dir) = captures.maxByOrNull { it.first }
+            ?: return fail("No capture in $CAPTURES. Capture the last release as AGENTS.md describes under Releases.")
         val released = read(File(dir, "cases.tsv"))
         if (released.isEmpty()) return fail("$dir/cases.tsv is empty, so nothing is checked. Capture $release as AGENTS.md describes under Releases.")
         val acceptedFile = File(dir, "accepted.txt")
-        val accepted = readAccepted(acceptedFile)
         val major = version.major > release.major
         val warnMustNameOneOfEach = variants.associate { it.key to it.warnMustNameOneOfEach }
 
@@ -44,9 +55,10 @@ class CompatTest {
             if (names.isEmpty()) return quotedNamesOrWholeMessage(outcomes.getValue(key).error!!).all { name -> ownWarnings.any { it.names(name) } }
             return ownWarnings.any { warning -> names.all { alternatives -> alternatives.any(warning::names) } }
         }
+        val protected = released.keys.filter(::builtWithItsSeedOnRelease)
+        val accepted = readAccepted(acceptedFile, protected)
         fun isAccepted(key: CaseKey) = accepted.any { it.matches(key) }
 
-        val protected = released.keys.filter(::builtWithItsSeedOnRelease)
         val missing = protected.filterNot(outcomes::containsKey)
         val broken = protected.filter { outcomes[it]?.built == false }.filterNot(::repeatsSeedBreak)
         val stale = accepted.filter { entry -> (missing + broken).none(entry::matches) }
@@ -101,9 +113,13 @@ private class Accepted(val line: Int, val case: String) {
 private val CAPTURES = File("src/test/resources/compat")
 private const val SHOWN = 50
 private const val PATTERN = "re:"
+
+// Fits one operator on one directive or type in one scenario. 14.3.0 applying directives on type extensions, the widest
+// deliberate break so far, needs at most 15 per line that way.
+private const val MAX_PER_PATTERN = 20
 private val REFERENCE = Regex("#\\d+|\\d+\\.\\d+\\.\\d+ release notes")
 
-private fun readAccepted(file: File): List<Accepted> {
+private fun readAccepted(file: File, protected: List<CaseKey>): List<Accepted> {
     val problems = mutableListOf<String>()
     val accepted = file.readLines().withIndex().filter { it.value.isNotBlank() }.mapNotNull { (index, text) ->
         val case = text.substringBefore('\t')
@@ -111,6 +127,13 @@ private fun readAccepted(file: File): List<Accepted> {
         val problem = when {
             !REFERENCE.containsMatchIn(reason) -> "needs a tab and a reason that names an issue (#N) or the release notes (\"X.Y.Z release notes\")"
             case.startsWith(PATTERN) && runCatching { Regex(case.removePrefix(PATTERN)) }.isFailure -> "starts with $PATTERN but isn't a valid regex"
+            case.startsWith(PATTERN) -> Accepted(index + 1, case).let { entry ->
+                val matched = protected.filter(entry::matches)
+                val scenarios = matched.map { it.scenario }.distinct()
+                if (scenarios.size <= 1 && matched.size <= MAX_PER_PATTERN) null
+                else "accepts ${matched.size} cases in ${scenarios.size} scenarios, and a $PATTERN line may accept at most " +
+                    "$MAX_PER_PATTERN, all in one scenario. List the cases, one per line, or one $PATTERN line per scenario"
+            }
             else -> null
         }
         problem?.let { problems += "  line ${index + 1} $it: $text" }
@@ -178,10 +201,17 @@ private fun read(file: File): Map<CaseKey, Outcome> = file.readLines().filter { 
     CaseKey(cells[0], cells[1], cells[2]) to Outcome(cells[3].takeUnless { it == "BUILT" }, cells.drop(4))
 }
 
-private fun pomVersion(): KotlinVersion {
-    val pom = File("pom.xml").readText()
-    val version = Regex("<artifactId>graphql-java-tools</artifactId>\\s*<version>([^<]+)</version>").find(pom)!!.groupValues[1]
-    return parseVersion(version.substringBefore('-'))!!
+private class PomVersion(val text: String) {
+    val version = parseVersion(text.substringBefore('-'))!!
+    val isRelease = '-' !in text
+
+    fun couldBeReleased(capture: KotlinVersion) = if (isRelease) capture <= version else capture < version
+
+    companion object {
+        fun read() = PomVersion(
+            Regex("<artifactId>graphql-java-tools</artifactId>\\s*<version>([^<]+)</version>").find(File("pom.xml").readText())!!.groupValues[1]
+        )
+    }
 }
 
 private fun parseVersion(text: String): KotlinVersion? =
