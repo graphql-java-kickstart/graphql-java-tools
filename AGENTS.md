@@ -5,9 +5,10 @@ resolver classes. Published to Maven Central. Kotlin, with a few Java files, tar
 
 ## Layout
 
-- `src/main/kotlin/graphql/kickstart/tools`: `SchemaParser` and its builder and options, `SchemaClassScanner` (matches schema
-  types to classes), `resolver/` (field resolvers and data fetchers), `directive/`, `relay/`, `proxy/` (finds the class
-  behind a Spring, Guice, Weld or Javassist proxied resolver), `util/`
+- `src/main/kotlin/graphql/kickstart/tools`: `SchemaParser` and its builder and options, `MergedDefinitions.kt` (merges each
+  SDL type with its extensions into a `MergedType`. Other code, apart from the Relay factory, reads SDL types only through
+  it), `SchemaClassScanner` (matches schema types to classes), `resolver/` (field resolvers and data fetchers), `directive/`,
+  `relay/`, `proxy/` (finds the class behind a Spring, Guice, Weld or Javassist proxied resolver), `util/`
 - `src/test/kotlin`: JUnit tests, one class per feature. A test for an issue goes into the class for its feature.
   `EndToEndTest` and `EndToEndSpecHelper` hold the shared schema and resolvers
 - `.claude/skills/verify-tools`: the probe that checks a change from a consuming app's side
@@ -94,7 +95,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | A resolver method's parameter layout, type variables and source are decided once, at schema build | docs only |
 | A change to how resolvers are found, bound or unwrapped keeps what a method, a property and a Map field return | `ResolverCompatibilityTest` and the bounded check in `ReturnValueUnwrappingTest`. Each lists exactly today's property and Map gaps as known findings, and fails when one is fixed until it's removed, or when a new failure would hide under one |
 | One output has one builder. Don't add a second path that builds the same thing | docs only |
-| Read an SDL type's members merged with its extensions, never from the raw definition | `MergedType` in `MergedDefinitions.kt` and `DefinitionsBoundaryTest` |
+| Read an SDL type's members merged with its extensions, never from the raw definition | `MergedType` in `MergedDefinitions.kt` and `DefinitionsBoundaryTest`, which fails on a raw member, directive or child-node read, an extension class, an SDL node walk or a `TypeDefinitionRegistry` call outside it. A read by reflection gets past it |
 | Every kind of SDL type starts its graphql-java type from the same recipe | `MergedType.prepare`, `DefinitionsBoundaryTest` and `TypeKindRecipeTest` |
 | Reuse an existing structure before you add a parallel one | docs only |
 | Argument conversion goes through one entry point | docs only |

@@ -4,6 +4,7 @@ import graphql.Scalars
 import graphql.language.Node
 import graphql.schema.*
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.reflect.KClass
 
@@ -23,7 +24,11 @@ class TypeKindRecipeTest {
         fun leaves(kind: KClass<out MergedType<*>>): List<KClass<out MergedType<*>>> =
             if (kind.isSealed) kind.sealedSubclasses.flatMap(::leaves) else listOf(kind)
 
-        assertEquals(kinds.keys, leaves(MergedType::class).toSet())
+        val missing = leaves(MergedType::class).filter { it !in kinds }.map { it.qualifiedName!!.removePrefix("graphql.kickstart.tools.") }
+        assertTrue(
+            "${missing.joinToString()} has no case. Add a Kind for it to kinds, and add to sdl a definition with a description and @a and an extension with @b",
+            missing.isEmpty(),
+        )
     }
 
     @Test
