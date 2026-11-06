@@ -107,8 +107,8 @@ A real bug versus a modeling error:
 - **Modeling error.** The check's own idea of the value is wrong. For example, a new container variant builds a value
   that its declared type doesn't allow, or the error message the check expects for a `FutureTask` (in `build`, case
   `FUTURE_TASK`) differs from a message the library changed on purpose. Confirm against the library's own tests in
-  `src/test/kotlin/graphql/kickstart/tools/NestedGenericWrapperTest.kt` before you edit the check. Properties and Maps
-  are expected to fail a `FutureTask` with the method's wording, naming the generated class and `field`.
+  `src/test/kotlin/graphql/kickstart/tools/NestedGenericWrapperTest.kt` before you edit the check. A property fails a
+  `FutureTask` as a `Resolver field` and a Map as a `Resolver map value`, each naming the generated class and `field`.
 - **`MODEL ERROR` about rejected return types.** A change made the build reject a return type in `mustAccept` in
   `Check.java`. That's either a regression in the build, which you report, or an intended change, after which you swap in
   another accepted return type of the same kind.
@@ -126,12 +126,8 @@ regression in a fixed return type is a `FAIL`. A count that grows makes it `NEW`
 reject now fails under the line. What stays hidden is a known return type that starts failing in a different way, so
 after a change to the code a known finding covers, read its counterexample.
 
-At the sync commit, methods have none. Properties and Maps hand their value to graphql-java as it is. graphql-java awaits
-only a top-level `CompletionStage`, reads a `DataFetcherResult` at the top, inside that future and as a list element, and
-unboxes any `Optional`, but not a `DataFetcherResult` inside one. So every nested future, every generic wrapper, a
-`DataFetcherResult` inside an `Optional`, and a `FutureTask` behind a declared `Future` fail for them. The five lines
-match exactly those 2,850 return types, and their counts add up to it. A String field gets the container's `toString`,
-such as `CompletableFuture@5a7cb161[Completed normally]`, with no error.
+At the sync commit the file is empty. Methods, properties and typed Maps unwrap their values through the same
+`TypeShape.Unwrapper`, and every return type the build accepts passes.
 
 The check found two method bugs when it was written, and both are fixed. One was a `DataFetcherResult` inside an
 `Optional` (#939). The other was a wrapper whose transformer returns a future, directly around a declared future (#938). A
@@ -151,13 +147,15 @@ or delete it when none fail, so that a regression shows up as `FAIL`.
   and DataLoader futures.
 - Lists of more than 2 elements, more than 2 non-default choices per value, more than 3 containers, and completion
   orders other than the two listed. A pass says nothing beyond those bounds.
-- Which return types the schema build should reject. The check only exercises what the build accepts.
+- Which return types the schema build should reject. The check only exercises what the build accepts. With no known
+  findings, a return type the build stops accepting fails the check only when it's in `mustAccept`, so after a change
+  to the build or to a resolver's `createDataFetcher`, diff `--rejected` output against the last commit.
 - Untyped Maps, whose value type is `Object`, properties with a getter (those run as methods), and properties and Maps on
   a type below the root other than `Holder`. `ResolverCompatibilityTest` pins untyped Maps and Kotlin `@JvmField`s.
 
 ## Coverage and sync
 
-Last confirmed to describe the code at commit `6d41328d` (2026-11-05). It covers:
+Last confirmed to describe the code at commit `63c1fa6e` (2026-11-05). It covers:
 
 | File | What |
 |---|---|
@@ -170,7 +168,7 @@ Last confirmed to describe the code at commit `6d41328d` (2026-11-05). It covers
 To see whether a change needs another look:
 
 ```bash
-git log --oneline 6d41328d..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
+git log --oneline 63c1fa6e..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
 ```
 
 Move the sync commit forward only after you've read those changes and confirmed that the containers, variants and
