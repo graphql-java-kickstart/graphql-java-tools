@@ -24,17 +24,12 @@ import java.util.concurrent.FutureTask
 class ResolverCompatibilityTest {
 
     @Test
-    fun `@JvmField and typed Map fields return what a method returns apart from the known findings, and untyped Map fields hand graphql-java the value as it is`() {
+    fun `@JvmField and typed Map fields return what a method returns, and untyped Map fields hand graphql-java the value as it is`() {
         val wrong = Kind.entries.flatMap { kind ->
             shapes.mapNotNull { shape ->
                 val got = holderField(kind, shape)
                 val expected = if (kind == Kind.UNTYPED_MAP) rawValueResults.getValue(shape.name) else shape.expected(kind)
-                val known = knownFindings[kind to shape.name]
-                when {
-                    got == (known ?: expected) -> null
-                    known != null && got == expected -> "$kind ${shape.name} now returns what a method returns. Delete its known finding."
-                    else -> "$kind ${shape.name}\n  expected: ${known ?: expected}\n  got:      $got"
-                }
+                "$kind ${shape.name}\n  expected: $expected\n  got:      $got".takeUnless { got == expected }
             }
         }
         if (wrong.isNotEmpty()) {
@@ -207,9 +202,9 @@ class ResolverCompatibilityTest {
     }
 
     @Test
-    fun `subscription events reach graphql-java as they are, so a future event prints as a string`() {
+    fun `subscription events of a method or a field reach graphql-java as they are, so a future or wrapped event prints as a string`() {
         val schema = SchemaParser.newParser()
-            .schemaString("type Query { unused: String } type Subscription { events: String futureEvents: String }")
+            .schemaString("type Query { unused: String } type Subscription { events: String futureEvents: String boxEvents: String }")
             .resolvers(
                 object : GraphQLQueryResolver {
                     fun unused(): String? = null
@@ -223,7 +218,9 @@ class ResolverCompatibilityTest {
                     fun futureEvents(): Publisher<CompletableFuture<String>> = publish {
                         send(completedFuture("a"))
                     }
-                })
+                },
+                SubscriptionFields())
+            .options(SchemaParserOptions.newOptions().genericWrappers(boxWrapper).build())
             .build()
             .makeExecutableSchema()
         val gql = GraphQL.newGraphQL(schema).build()
@@ -232,6 +229,7 @@ class ResolverCompatibilityTest {
 
         assertEquals(events("subscription { events }"), listOf("{events=a}", "{events=b}"))
         assertEquals(events("subscription { futureEvents }"), listOf("{futureEvents=CompletableFuture@...[Completed normally]}"))
+        assertEquals(events("subscription { boxEvents }"), listOf("{boxEvents=Box@...}"))
     }
 
     private fun execute(
@@ -273,11 +271,11 @@ class ResolverCompatibilityTest {
         .replace("${ResolverCompatibilityTest::class.java.name}$", "")
         .replace("java.util.concurrent.", "")
 
-    enum class Kind(val holder: (Shape) -> Any) {
-        METHOD({ MethodHolder() }),
-        JVM_FIELD({ JvmFieldHolder() }),
-        TYPED_MAP({ shape -> shape.typedMap(JvmFieldHolder()) }),
-        UNTYPED_MAP({ shape -> hashMapOf(shape.name to shape.value()) })
+    enum class Kind(val resolverKind: String, val holdCompletionStage: String, val holder: (Shape) -> Any) {
+        METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.", { MethodHolder() }),
+        JVM_FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead.", { JvmFieldHolder() }),
+        TYPED_MAP("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.", { shape -> shape.typedMap(JvmFieldHolder()) }),
+        UNTYPED_MAP("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.", { shape -> hashMapOf(shape.name to shape.value()) })
     }
 
     class Shape(val name: String, val type: String, private val expected: String, val typedMap: (JvmFieldHolder) -> Map<String, *>) {
@@ -285,7 +283,7 @@ class ResolverCompatibilityTest {
 
         fun value(): Any? = JvmFieldHolder::class.java.getField(name).get(JvmFieldHolder())
 
-        fun expected(kind: Kind) = expected.replace("HOLDER", kind.holder(this).javaClass.simpleName)
+        fun expected(kind: Kind) = expected.replace("HOLDER", kind.holder(this).javaClass.simpleName).replace("KIND", kind.resolverKind).replace("HOLD_COMPLETION_STAGE", kind.holdCompletionStage)
     }
 
     class Foo(val name: String)
@@ -302,6 +300,7 @@ class ResolverCompatibilityTest {
         @JvmField val listOfStringFutures: List<CompletableFuture<String>> = listOf(completedFuture("a"), completedFuture("b"))
         @JvmField val boxOfString: Box<String> = Box("a")
         @JvmField val listOfOptionals: List<Optional<String>> = listOf(Optional.of("a"), Optional.empty())
+        @JvmField val futureOfAny: CompletableFuture<Any> = completedFuture("a")
     }
 
     class MethodHolder {
@@ -318,6 +317,7 @@ class ResolverCompatibilityTest {
         fun listOfStringFutures() = values.listOfStringFutures
         fun boxOfString() = values.boxOfString
         fun listOfOptionals() = values.listOfOptionals
+        fun futureOfAny() = values.futureOfAny
     }
 
     class FutureMap : HashMap<String, CompletableFuture<Foo>>()
@@ -331,6 +331,7 @@ class ResolverCompatibilityTest {
     class ListOfStringFuturesMap : HashMap<String, List<CompletableFuture<String>>>()
     class BoxOfStringMap : HashMap<String, Box<String>>()
     class ListOfOptionalsMap : HashMap<String, List<Optional<String>>>()
+    class FutureOfAnyMap : HashMap<String, CompletableFuture<Any>>()
 
     open class Box<T>(val content: T)
 
@@ -370,6 +371,10 @@ class ResolverCompatibilityTest {
         suspend fun future(): CompletableFuture<String> = completedFuture("a")
     }
 
+    class SubscriptionFields : GraphQLSubscriptionResolver {
+        @JvmField val boxEvents: Publisher<Box<String>> = publish { send(Box("a")) }
+    }
+
     class Holder(val name: String) {
         @JvmField val tag = "t"
     }
@@ -389,15 +394,16 @@ class ResolverCompatibilityTest {
             Shape("result", "Foo", "{name=a}") { ResultMap().apply { put("result", it.result) } },
             Shape(
                 "plainFuture", "Foo",
-                "null\nerror: Exception while fetching data (/holder/plainFuture) : Resolver method 'HOLDER.plainFuture' resolved to a FutureTask, " +
-                    "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+                "null\nerror: Exception while fetching data (/holder/plainFuture) : Resolver KIND 'HOLDER.plainFuture' resolved to a FutureTask, " +
+                    "which graphql-java can't wait on. HOLD_COMPLETION_STAGE"
             ) { PlainFutureMap().apply { put("plainFuture", it.plainFuture) } },
             Shape("box", "Foo", "{name=a}") { BoxMap().apply { put("box", it.box) } },
             Shape("optionalResult", "Foo", "{name=a}") { OptionalResultMap().apply { put("optionalResult", it.optionalResult) } },
             Shape("listOfFutures", "[Foo]", "[{name=a}, {name=b}]") { ListOfFuturesMap().apply { put("listOfFutures", it.listOfFutures) } },
             Shape("listOfStringFutures", "[String]", "[a, b]") { ListOfStringFuturesMap().apply { put("listOfStringFutures", it.listOfStringFutures) } },
             Shape("boxOfString", "String", "a") { BoxOfStringMap().apply { put("boxOfString", it.boxOfString) } },
-            Shape("listOfOptionals", "[String]", "rejected: java.util.Optional can only be used at the top level of a return type") { ListOfOptionalsMap().apply { put("listOfOptionals", it.listOfOptionals) } }
+            Shape("listOfOptionals", "[String]", "rejected: java.util.Optional can only be used at the top level of a return type") { ListOfOptionalsMap().apply { put("listOfOptionals", it.listOfOptionals) } },
+            Shape("futureOfAny", "String", "a") { FutureOfAnyMap().apply { put("futureOfAny", it.futureOfAny) } }
         )
 
         private fun notFoo(path: String, got: String) =
@@ -414,12 +420,8 @@ class ResolverCompatibilityTest {
             "listOfFutures" to "[{name=null}, {name=null}]\n${notFoo("listOfFutures[0]", "CompletableFuture")}\n${notFoo("listOfFutures[1]", "CompletableFuture")}",
             "listOfStringFutures" to "[CompletableFuture@...[Completed normally], CompletableFuture@...[Completed normally]]",
             "boxOfString" to "Box@...",
-            "listOfOptionals" to "[a, null]"
+            "listOfOptionals" to "[a, null]",
+            "futureOfAny" to "a"
         )
-
-        val knownFindings = listOf(Kind.JVM_FIELD, Kind.TYPED_MAP).flatMap { kind ->
-            listOf("futureOfListOfFutures", "plainFuture", "box", "optionalResult", "listOfFutures", "listOfStringFutures", "boxOfString")
-                .map { (kind to it) to rawValueResults.getValue(it) }
-        }.toMap()
     }
 }

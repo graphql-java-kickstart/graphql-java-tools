@@ -9,6 +9,7 @@ import graphql.execution.DataFetcherResult
 import graphql.Scalars
 import graphql.execution.DefaultValueUnboxer
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
+import graphql.kickstart.tools.resolver.ResolverKind
 import graphql.kickstart.tools.resolver.TypeShape
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
 import graphql.kickstart.tools.util.unwrap
@@ -250,7 +251,7 @@ class NestedGenericWrapperTest {
             if (typeShape.leafJavaType != leaf(graphQLType).javaClass) {
                 return@mapNotNull "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: bound to ${TypeUtils.toString(typeShape.leafJavaType)}"
             }
-            val unwrapper = TypeShape.Unwrapper(typeShape, method, isSuspendFunction = false)
+            val unwrapper = TypeShape.Unwrapper(typeShape, ResolverKind.METHOD, method.name)
             val value = value(shape, leaf(graphQLType))
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
                 .execute(if (leaf(graphQLType) is Payload) "query { field { data } }" else "query { field }")

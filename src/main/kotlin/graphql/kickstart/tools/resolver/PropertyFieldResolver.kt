@@ -20,33 +20,28 @@ internal class PropertyFieldResolver(
     val property: Field
 ) : FieldResolver(field, search, options) {
 
-    override fun createDataFetcher(): DataFetcher<*> {
-        return PropertyFieldResolverDataFetcher(createSourceResolver(), property)
+    private val returnShape by lazy {
+        TypeShape.returnType(field.type, property.genericType, search.isSubscription, search.type, options, ScanDictionary.FieldTypeReference(property.toString()))
     }
 
-    override fun scanForMatches(): Sequence<TypeShape> {
-        return sequenceOf(
-            TypeShape.returnType(
-                field.type,
-                property.genericType,
-                isSubscription = false,
-                search.type,
-                options,
-                ScanDictionary.FieldTypeReference(property.toString())
-            )
-        )
+    override fun createDataFetcher(): DataFetcher<*> {
+        val unwrapper = TypeShape.Unwrapper(returnShape, ResolverKind.FIELD, "${property.declaringClass.name}.${property.name}")
+        return PropertyFieldResolverDataFetcher(createSourceResolver(), property, unwrapper)
     }
+
+    override fun scanForMatches(): Sequence<TypeShape> = sequenceOf(returnShape)
 
     override fun toString() = "PropertyFieldResolver{property=$property}"
 }
 
 internal class PropertyFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    private val field: Field
+    private val field: Field,
+    private val unwrapper: TypeShape.Unwrapper
 ) : LightDataFetcher<Any> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
-        return field.get(sourceResolver.resolve(null, sourceObject))
+        return field.get(sourceResolver.resolve(null, sourceObject))?.let { unwrapper.unwrap(it, environmentSupplier) }
     }
 
     override fun get(environment: DataFetchingEnvironment): Any? {

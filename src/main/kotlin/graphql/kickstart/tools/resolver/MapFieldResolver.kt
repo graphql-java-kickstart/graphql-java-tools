@@ -4,6 +4,7 @@ import com.fasterxml.classmate.TypeResolver
 import graphql.kickstart.tools.ScanDictionary
 import graphql.kickstart.tools.SchemaParserOptions
 import graphql.kickstart.tools.util.JavaType
+import graphql.kickstart.tools.util.unwrap
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -23,7 +24,7 @@ internal class MapFieldResolver(
     mapClass: JavaType
 ) : FieldResolver(field, search, options) {
 
-    private var mapGenericValue: JavaType = getMapGenericType(mapClass)
+    private val mapGenericValue: JavaType = getMapGenericType(mapClass)
 
     /**
      * Takes a type which implements Map and tries to find the
@@ -38,25 +39,32 @@ internal class MapFieldResolver(
         return typeParameters.elementAtOrElse(1) { Any::class.java }
     }
 
-    override fun createDataFetcher(): DataFetcher<*> {
-        return MapFieldResolverDataFetcher(createSourceResolver(), field.name)
+    private val returnShape by lazy {
+        TypeShape.returnType(field.type, mapGenericValue, search.isSubscription, search.type, options, ScanDictionary.FieldTypeReference(field.name))
     }
 
-    override fun scanForMatches(): Sequence<TypeShape> {
-        return sequenceOf(TypeShape.returnType(field.type, mapGenericValue, isSubscription = false, search.type, options, ScanDictionary.FieldTypeReference(field.name)))
+    private val hasTypedValues get() = resolveTypeVariables(mapGenericValue, search.type) != Any::class.java
+
+    override fun createDataFetcher(): DataFetcher<*> {
+        val unwrapper = if (hasTypedValues) TypeShape.Unwrapper(returnShape, ResolverKind.MAP_VALUE, "${search.type.unwrap().name}.${field.name}") else null
+        return MapFieldResolverDataFetcher(createSourceResolver(), field.name, unwrapper)
     }
+
+    override fun scanForMatches(): Sequence<TypeShape> = sequenceOf(returnShape)
 
     override fun toString() = "MapFieldResolver{key=${field.name}}"
 }
 
 internal class MapFieldResolverDataFetcher(
     private val sourceResolver: SourceResolver,
-    private val key: String
+    private val key: String,
+    private val unwrapper: TypeShape.Unwrapper?
 ) : LightDataFetcher<Any> {
 
     override fun get(fieldDefinition: GraphQLFieldDefinition, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
         if (sourceObject is Map<*, *>) {
-            return sourceObject[key]
+            val value = sourceObject[key]
+            return if (value == null || unwrapper == null) value else unwrapper.unwrap(value, environmentSupplier)
         } else {
             throw RuntimeException("MapFieldResolver attempt to fetch a field from an object instance that was not a map")
         }

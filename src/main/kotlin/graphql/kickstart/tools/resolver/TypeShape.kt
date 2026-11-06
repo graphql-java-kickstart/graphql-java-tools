@@ -21,7 +21,6 @@ import graphql.schema.idl.TypeUtil
 import kotlinx.coroutines.future.asDeferred
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
-import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.TypeVariable
 import java.lang.reflect.WildcardType
@@ -47,23 +46,23 @@ internal class TypeShape private constructor(
 
     fun error(msg: String) = matchError(graphQLType, reference, javaType, msg)
 
-    class Unwrapper(shape: TypeShape, method: Method, isSuspendFunction: Boolean) {
+    class Unwrapper(shape: TypeShape, resolverKind: ResolverKind, resolverName: String, isSuspendFunction: Boolean = false) {
         private val wrappers = shape.wrappers
         private val awaitable: Awaitable
         private val isOutermostFuture: Boolean
         private val nested: Step?
 
         init {
-            // the class the return type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
-            // Object (e.g. for a union) can't tell them apart, so then every future of a method whose return type is Future is checked
+            // the class the declared type unwraps to, so a value that happens to implement Future isn't mistaken for a wrapper.
+            // Object (e.g. for a union) can't tell them apart, so then every future of a value declared as Future is checked
             val valueClass = (TypeUtils.getRawType(shape.unwrappedRootType, null) ?: Any::class.java)
                 .takeUnless { it == Any::class.java && TypeUtils.getRawType(shape.declaredType, null) == Future::class.java }
-            awaitable = Awaitable(method, valueClass, isSuspendFunction)
+            awaitable = Awaitable(resolverKind, resolverName, valueClass, isSuspendFunction)
             val outermost = shape.layers.firstOrNull() as? Layer.Wrapper
             val belowOutermost = if (outermost == null) shape.layers else shape.layers.drop(1)
             val leafClass = TypeUtils.getRawType(shape.leafJavaType, null)
-            val awaits = Awaitable(method, leafClass?.takeUnless { it == Any::class.java }, isSuspendFunction)
-            val peels = Awaitable(method, leafClass, isSuspendFunction)
+            val awaits = Awaitable(resolverKind, resolverName, leafClass?.takeUnless { it == Any::class.java }, isSuspendFunction)
+            val peels = Awaitable(resolverKind, resolverName, leafClass, isSuspendFunction)
             isOutermostFuture = outermost?.isFuture == true
             // graphql-java completes a subscription's events one at a time
             nested = if (shape.isSubscription) null else steps(belowOutermost, awaits, peels)
@@ -102,7 +101,10 @@ internal class TypeShape private constructor(
             val javaType = if (isSubscription) declaredType.asPublisher() else declaredType
             val walk = Walk(graphQLType, javaType, containingType, GenericWrappers(options.genericWrappers), reference, Position.RETURN_TYPE)
             val (leafGraphQLType, leafJavaType) = walk.leaf()
-            return TypeShape(graphQLType, javaType, reference, leafGraphQLType, leafJavaType, walk.layers, declaredType, walk.unwrappedRootType, isSubscription, walk.wrappers)
+            return TypeShape(
+                graphQLType, javaType, reference, leafGraphQLType, leafJavaType, walk.layers, resolveTypeVariables(declaredType, containingType),
+                walk.unwrappedRootType, isSubscription, walk.wrappers
+            )
         }
 
         fun parameterType(
@@ -389,9 +391,20 @@ private fun List<Any?>.awaitAll(): Any {
 private fun Any?.asCompletionStage(): CompletionStage<Any?> =
     this as? CompletionStage<Any?> ?: CompletableFuture.completedFuture(this)
 
+internal enum class ResolverKind(val noun: String, val holdCompletionStage: String) {
+    METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."),
+    FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead."),
+    MAP_VALUE("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.")
+}
+
 // graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
 // that a suspend function completes with, would reach it as the field value
-private class Awaitable(private val method: Method, private val valueClass: Class<*>?, private val isSuspendFunction: Boolean) {
+private class Awaitable(
+    private val resolverKind: ResolverKind,
+    private val resolverName: String,
+    private val valueClass: Class<*>?,
+    private val isSuspendFunction: Boolean
+) {
 
     fun requireOutermost(value: Any?): Any? =
         if (value !is Future<*> || valueClass?.isInstance(value) == true || value is CompletionStage<*> && !isSuspendFunction) value else fail(value)
@@ -401,13 +414,10 @@ private class Awaitable(private val method: Method, private val valueClass: Clas
 
     private fun fail(value: Any): Nothing = throw ResolverError(
         if (isSuspendFunction) {
-            "Suspend function '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. Return its value instead."
+            "Suspend function '$resolverName' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. Return its value instead."
         } else {
-            "Resolver method '${method.resolverName}' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
-                "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."
+            "Resolver ${resolverKind.noun} '$resolverName' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
+                resolverKind.holdCompletionStage
         }
     )
 }
-
-private val Method.resolverName
-    get() = "${declaringClass.name}.$name"
