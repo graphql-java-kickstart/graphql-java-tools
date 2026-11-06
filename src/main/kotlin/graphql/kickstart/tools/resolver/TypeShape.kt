@@ -49,7 +49,7 @@ internal class TypeShape private constructor(
     fun error(msg: String) = matchError(graphQLType, reference, javaType, msg)
 
     class Unwrapper(shape: TypeShape, resolverKind: ResolverKind, resolverName: String, isSuspendFunction: Boolean = false) {
-        private val returnsValueAsIs = !resolverKind.unwrapsObjectValues && shape.declaredType == Any::class.java
+        private val returnsValueAsIs = !resolverKind.unwrapsUntypedValues && shape.declaredType == Any::class.java
         private val wrappers = shape.wrappers
         private val awaitable: Awaitable
         private val isOutermostFuture: Boolean

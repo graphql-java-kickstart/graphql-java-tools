@@ -361,14 +361,12 @@ internal class ResolverPlan private constructor(
     }
 }
 
-internal enum class ResolverKind(val noun: String, val holdCompletionStage: String, val unwrapsObjectValues: Boolean = true) {
+internal enum class ResolverKind(val noun: String, val holdCompletionStage: String, val unwrapsUntypedValues: Boolean = true) {
     METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."),
     FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead."),
-
-    // an untyped Map declares no value type, so unwrapping its values would mean inspecting each one at runtime
     MAP_VALUE(
         "map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.",
-        unwrapsObjectValues = false
+        unwrapsUntypedValues = false
     )
 }
 
@@ -543,7 +541,6 @@ private class MapMember(field: FieldDefinition, private val search: ResolverSear
     override fun toString() = "MapFieldResolver{key=$key}"
 }
 
-// the only data fetchers a member gets, so every resolver value goes through the unwrapper the scan matched for its field
 internal sealed class ResolverDataFetcher(protected val source: SourceResolver, protected val unwrapper: TypeShape.Unwrapper) : DataFetcher<Any?>
 
 internal class MethodFieldResolverDataFetcher(
@@ -581,9 +578,6 @@ internal class MethodFieldResolverDataFetcher(
     fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any = source.resolve(environment, null)
 }
 
-/**
- * [MethodFieldResolverDataFetcher] for a method without parameters, which graphql-java calls without building an environment.
- */
 internal class LightMethodFieldResolverDataFetcher(
     source: SourceResolver,
     private val method: Method,

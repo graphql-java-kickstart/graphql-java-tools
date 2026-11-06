@@ -1,6 +1,8 @@
 package graphql.kickstart.tools
 
 import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.base.DescribedPredicate.and
+import com.tngtech.archunit.base.DescribedPredicate.not
 import com.tngtech.archunit.core.domain.JavaAccess
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
@@ -52,18 +54,12 @@ class ResolverOwnershipTest {
         private val owningFiles = listOf(resolverPlanFile, typeShapeFile, argumentConverterFile)
     }
 
-    // A nested, anonymous or lambda class belongs to the class that encloses it. Neither the file name a class was compiled from
-    // nor a '$' in its name makes it one of these, since any file can declare either
     private class OwningFile(val fileName: String, vararg topLevelClasses: String) :
         DescribedPredicate<JavaClass>("are declared in $fileName") {
         val names = topLevelClasses.map { "${ResolverPlan::class.java.packageName}.$it" }.toSet()
 
-        override fun test(javaClass: JavaClass) = generateSequence(javaClass) { it.enclosingClass.orElse(null) }.last().name in names
+        override fun test(javaClass: JavaClass) = javaClass.topLevelClass().name in names
     }
-
-    private fun not(predicate: DescribedPredicate<JavaClass>) = DescribedPredicate.not(predicate)
-
-    private fun DescribedPredicate<JavaClass>.or(other: DescribedPredicate<JavaClass>) = DescribedPredicate.or(this, other)
 
     private class Calls(description: String, private val targets: Map<String, Set<String>>) : DescribedPredicate<JavaAccess<*>>(description) {
         override fun test(access: JavaAccess<*>) =
@@ -99,8 +95,9 @@ class ResolverOwnershipTest {
         )
     )
 
-    // an input object's field types come from its class's getters and fields, which ScanDictionary finds before any ResolverPlan exists
-    private val readsInputFieldTypes = object : DescribedPredicate<JavaAccess<*>>("is ScanDictionary.findInputValueTypeInType reading a member's type") {
+    private val readsInputFieldTypes = object : DescribedPredicate<JavaAccess<*>>(
+        "is ScanDictionary.findInputValueTypeInType reading an input object's getter or field type, which it needs before any ResolverPlan exists"
+    ) {
         private val reads = Calls(
             "reads a member's declared type",
             mapOf(Executable::class.java.name to setOf("getGenericReturnType", "getParameterCount"), Field::class.java.name to setOf("getGenericType"))
@@ -135,11 +132,13 @@ class ResolverOwnershipTest {
 
     @Test
     fun `each owning file lists exactly the top-level classes it declares`() {
-        val notCompiled = owningFiles.flatMap { file -> file.names.filter { !classes.contain(it) } }
-        assert(notCompiled.isEmpty()) { "ResolverOwnershipTest lists classes that weren't compiled: $notCompiled. Remove or rename them in its OwningFile lists" }
+        val misplaced = owningFiles.flatMap { file -> file.names.filter { !classes.contain(it) || classes.get(it).sourceFileName() != file.fileName } }
+        assert(misplaced.isEmpty()) {
+            "ResolverOwnershipTest lists classes that weren't compiled from their OwningFile: $misplaced. Move, remove or rename them in its OwningFile lists"
+        }
 
         val unlisted = owningFiles.flatMap { file ->
-            classes.filter { it.packageName == resolverPackage && !it.enclosingClass.isPresent && it.source.flatMap { source -> source.fileName }.orElse(null) == file.fileName }
+            classes.filter { it.packageName == resolverPackage && it.isTopLevelClass && it.sourceFileName() == file.fileName }
                 .map { it.name }
                 .filter { it !in file.names }
         }
@@ -147,13 +146,12 @@ class ResolverOwnershipTest {
             "These classes were compiled from a file named like an owning file but aren't in its OwningFile list in ResolverOwnershipTest: $unlisted. " +
                 "Add a class declared in that file to its list. Rename any other file, since only one file in $resolverPackage owns each name"
         }
-        assert(classes.contain(MEMBER)) { "expected $MEMBER, the member variants' base class in ResolverPlan.kt" }
     }
 
     @Test
     fun `only the resolver plan reflects on resolver members`() {
         noClasses().that(not(resolverPlanFile))
-            .should().accessTargetWhere(DescribedPredicate.and(memberReflection, DescribedPredicate.not(readsInputFieldTypes)))
+            .should().accessTargetWhere(and(memberReflection, not(readsInputFieldTypes)))
             .because("ResolverPlan.kt reads each field's member once, at schema build, and is the only place that invokes it. " +
                 "Read what you need from the ResolverPlan, such as its argument targets or type shapes, or add it there")
             .check(classes)
@@ -213,3 +211,7 @@ class ResolverOwnershipTest {
             .check(classes)
     }
 }
+
+private fun JavaClass.topLevelClass(): JavaClass = generateSequence(this) { it.enclosingClass.orElse(null) }.last()
+
+private fun JavaClass.sourceFileName(): String? = source.flatMap { it.fileName }.orElse(null)
