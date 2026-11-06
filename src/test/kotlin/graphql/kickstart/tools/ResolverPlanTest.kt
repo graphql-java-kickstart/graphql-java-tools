@@ -2,9 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.kickstart.tools.SchemaParserOptions.Companion.defaultOptions
 import graphql.kickstart.tools.resolver.FieldResolverError
-import graphql.kickstart.tools.resolver.FieldResolverScanner
-import graphql.kickstart.tools.resolver.MethodFieldResolver
-import graphql.kickstart.tools.resolver.PropertyFieldResolver
+import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.TypeName
@@ -15,91 +13,90 @@ import graphql.schema.DataFetchingEnvironment
 import org.junit.Test
 import java.util.*
 
-class FieldResolverScannerTest {
+class ResolverPlanTest {
 
     private val options = defaultOptions()
-    private val scanner = FieldResolverScanner(options, GRAPHQL_SCALARS.keys)
+    private val finder = ResolverPlan.Finder(options, GRAPHQL_SCALARS.keys)
+
+    private fun ResolverPlan.reference() = typeShapes().last().reference.toString()
 
     @Test
-    fun `scanner finds fields on multiple root types`() {
+    fun `finder finds fields on multiple root types`() {
         val resolver = RootResolverInfo(listOf(RootQuery1(), RootQuery2()), options)
 
-        val result1 = scanner.findFieldResolver(FieldDefinition("field1", TypeName("String")), resolver)
-        val result2 = scanner.findFieldResolver(FieldDefinition("field2", TypeName("String")), resolver)
+        val result1 = finder.find(FieldDefinition("field1", TypeName("String")), resolver)
+        val result2 = finder.find(FieldDefinition("field2", TypeName("String")), resolver)
 
         assertNotEquals(result1.search.source, result2.search.source)
     }
 
     @Test(expected = FieldResolverError::class)
-    fun `scanner throws exception when more than one resolver method is found`() {
+    fun `finder throws exception when more than one resolver method is found`() {
         val resolver = RootResolverInfo(listOf(RootQuery1(), DuplicateQuery()), options)
 
-        scanner.findFieldResolver(FieldDefinition("field1", TypeName("String")), resolver)
+        finder.find(FieldDefinition("field1", TypeName("String")), resolver)
     }
 
     @Test(expected = FieldResolverError::class)
-    fun `scanner throws exception when no resolver methods are found`() {
+    fun `finder throws exception when no resolver methods are found`() {
         val resolver = RootResolverInfo(listOf(), options)
 
-        scanner.findFieldResolver(FieldDefinition("field1", TypeName("String")), resolver)
+        finder.find(FieldDefinition("field1", TypeName("String")), resolver)
     }
 
     @Test
-    fun `scanner finds properties when no method is found`() {
+    fun `finder finds properties when no method is found`() {
         val resolver = RootResolverInfo(listOf(PropertyQuery()), options)
 
-        val name = scanner.findFieldResolver(FieldDefinition("name", TypeName("String")), resolver)
-        val version = scanner.findFieldResolver(FieldDefinition("version", TypeName("Integer")), resolver)
+        val name = finder.find(FieldDefinition("name", TypeName("String")), resolver)
+        val version = finder.find(FieldDefinition("version", TypeName("Integer")), resolver)
 
-        assert(name is PropertyFieldResolver)
-        assert(version is PropertyFieldResolver)
+        assertEquals(name.reference(), "type of field ${PropertyQuery::class.java.getDeclaredField("name")}")
+        assertEquals(version.reference(), "type of field ${ParentPropertyQuery::class.java.getDeclaredField("version")}")
     }
 
     @Test
-    fun `scanner finds generic return type`() {
+    fun `finder finds generic return type`() {
         val resolver = RootResolverInfo(listOf(GenericQuery()), options)
 
-        val users = scanner.findFieldResolver(FieldDefinition("users", TypeName("UserConnection")), resolver)
+        val users = finder.find(FieldDefinition("users", TypeName("UserConnection")), resolver)
 
-        assert(users is MethodFieldResolver)
+        assertEquals(users.reference(), "return type of method ${GenericQuery::class.java.getMethod("getUsers")}")
     }
 
     @Test
-    fun `scanner prefers concrete resolver`() {
+    fun `finder prefers concrete resolver`() {
         val resolver = DataClassResolverInfo(Kayak::class.java)
 
-        val meta = scanner.findFieldResolver(FieldDefinition("information", TypeName("VehicleInformation")), resolver)
+        val meta = finder.find(FieldDefinition("information", TypeName("VehicleInformation")), resolver)
 
-        assert(meta is MethodFieldResolver)
-        assertEquals((meta as MethodFieldResolver).method.returnType, BoatInformation::class.java)
+        assertEquals(meta.typeShapes().last().leafJavaType, BoatInformation::class.java)
     }
 
     @Test
-    fun `scanner finds field resolver method using camelCase for snake_cased field_name`() {
+    fun `finder finds field resolver method using camelCase for snake_cased field_name`() {
         val resolver = RootResolverInfo(listOf(CamelCaseQuery1()), options)
 
-        val meta = scanner.findFieldResolver(FieldDefinition("hull_type", TypeName("HullType")), resolver)
+        val meta = finder.find(FieldDefinition("hull_type", TypeName("HullType")), resolver)
 
-        assert(meta is MethodFieldResolver)
-        assertEquals((meta as MethodFieldResolver).method.returnType, HullType::class.java)
+        assertEquals(meta.reference(), "return type of method ${CamelCaseQuery1::class.java.getMethod("getHullType")}")
     }
 
     @Test
-    fun `scanner finds field resolver method using capitalize field_name in different locale`() {
+    fun `finder finds field resolver method using capitalize field_name in different locale`() {
         val default = Locale.getDefault()
         Locale.setDefault(Locale.forLanguageTag("tr-TR"))
 
         val resolverInfo = RootResolverInfo(listOf(CapitalizeQuery()), options)
-        val fieldResolver = scanner.findFieldResolver(FieldDefinition("id", TypeName("HullType")), resolverInfo)
+        val plan = finder.find(FieldDefinition("id", TypeName("HullType")), resolverInfo)
 
-        assert(fieldResolver is MethodFieldResolver)
-        assertEquals((fieldResolver as MethodFieldResolver).method.returnType, HullType::class.java)
+        assertEquals(plan.reference(), "return type of method ${CapitalizeQuery::class.java.getMethod("getId")}")
 
         Locale.setDefault(default)
     }
 
     @Test
-    fun `scanner ignores extension functions on root resolvers`() {
+    fun `finder ignores extension functions on root resolvers`() {
         val resolver = RootResolverInfo(listOf(UserQuery(), ExtensionQuery()), options)
         val field = FieldDefinition.newFieldDefinition()
             .name("user")
@@ -107,18 +104,17 @@ class FieldResolverScannerTest {
             .inputValueDefinition(InputValueDefinition("id", TypeName("ID")))
             .build()
 
-        val user = scanner.findFieldResolver(field, resolver)
+        val user = finder.find(field, resolver)
 
-        assert(user is MethodFieldResolver)
-        assertEquals((user as MethodFieldResolver).method.declaringClass, UserQuery::class.java)
+        assertEquals(user.reference(), "return type of method ${UserQuery::class.java.getMethod("user", String::class.java)}")
     }
 
     @Test
-    fun `scanner finds field resolver methods in priority order`() {
+    fun `finder finds field resolver methods in priority order`() {
         val resolverInfo = RootResolverInfo(listOf(PriorityQuery()), options)
 
         fun methodName(name: String, type: String) =
-            (scanner.findFieldResolver(FieldDefinition(name, TypeName(type)), resolverInfo) as MethodFieldResolver).method.name
+            finder.find(FieldDefinition(name, TypeName(type)), resolverInfo).reference().substringAfter("${PriorityQuery::class.java.name}.").substringBefore("(")
 
         assertEquals(methodName("name", "String"), "name")
         assertEquals(methodName("active", "Boolean"), "isActive")

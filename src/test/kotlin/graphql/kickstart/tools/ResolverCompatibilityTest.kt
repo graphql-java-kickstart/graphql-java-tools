@@ -6,6 +6,8 @@ import graphql.GraphQL
 import graphql.GraphQLContext
 import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
+import graphql.kickstart.tools.resolver.ExtraParameter
+import graphql.kickstart.tools.resolver.ResolverKind
 import graphql.schema.DataFetchingEnvironment
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
@@ -89,6 +91,54 @@ class ResolverCompatibilityTest {
                 "of the context class 'graphql.schema.DataFetchingEnvironment', but the GraphQLContext has no value for it. Put it in the GraphQLContext " +
                 "under the class key when building the ExecutionInput, for example graphQLContext(mapOf(DataFetchingEnvironment::class.java to context))."
         )
+    }
+
+    @Test
+    fun `every resolver kind serves a field`() {
+        ResolverKind.entries.forEach { kind ->
+            val holder: Any = when (kind) {
+                ResolverKind.METHOD -> NounMethodHolder(kind.noun)
+                ResolverKind.FIELD -> NounFieldHolder(kind.noun)
+                ResolverKind.MAP_VALUE -> hashMapOf("value" to kind.noun)
+            }
+            val schema = SchemaParser.newParser()
+                .schemaString("type Query { holder: Holder } type Holder { value: String }")
+                .resolvers(object : GraphQLQueryResolver {
+                    fun holder(): Any = holder
+                })
+                .dictionary("Holder", holder.javaClass)
+                .build()
+                .makeExecutableSchema()
+
+            assertEquals(GraphQL.newGraphQL(schema).build().execute("{ holder { value } }").render(), "{holder={value=${kind.noun}}}")
+        }
+    }
+
+    @Test
+    fun `every extra parameter binds after the arguments`() {
+        val options = SchemaParserOptions.newOptions().contextClass(AppContext::class).build()
+        val context = mapOf<Any, Any>(AppContext::class.java to AppContext("ann"), "key" to "k")
+
+        ExtraParameter.entries.forEach { parameter ->
+            val (resolver, expected) = when (parameter) {
+                ExtraParameter.ENVIRONMENT -> object : GraphQLQueryResolver {
+                    fun value(first: String, env: DataFetchingEnvironment) = "$first ${env.field.name}"
+                } to "x value"
+
+                ExtraParameter.GRAPHQL_CONTEXT -> object : GraphQLQueryResolver {
+                    fun value(first: String, context: GraphQLContext) = "$first ${context.get<String>("key")}"
+                } to "x k"
+
+                ExtraParameter.CONTEXT_CLASS -> object : GraphQLQueryResolver {
+                    fun value(first: String, context: AppContext) = "$first ${context.user}"
+                } to "x ann"
+            }
+
+            assertEquals(
+                execute("type Query { value(first: String!): String }", "{ value(first: \"x\") }", resolver, options = options, context = context),
+                "{value=$expected}"
+            )
+        }
     }
 
     @Test
@@ -348,6 +398,12 @@ class ResolverCompatibilityTest {
     class Both<T>(override val left: T, override val right: T) : Left<T>, Right<T>
 
     class AppContext(val user: String)
+
+    class NounMethodHolder(private val noun: String) {
+        fun value() = noun
+    }
+
+    class NounFieldHolder(@JvmField val value: String)
 
     class ContextResolver : GraphQLQueryResolver {
         fun extras(first: String, env: DataFetchingEnvironment, context: AppContext, graphQLContext: GraphQLContext, again: DataFetchingEnvironment) =

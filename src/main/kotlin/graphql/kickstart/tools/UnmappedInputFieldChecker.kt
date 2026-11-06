@@ -1,6 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.resolver.MethodFieldResolver
+import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.kickstart.tools.util.unwrap
 import graphql.schema.GraphQLInputObjectField
 import graphql.schema.GraphQLInputObjectType
@@ -32,14 +32,13 @@ internal class UnmappedInputFieldChecker(
 
     private val messages = linkedMapOf<Unmapped, String>()
 
-    fun check(objectType: String, resolver: MethodFieldResolver) {
-        resolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
-            val inputObject = inputObjects[argument.type.unwrap().name] ?: return@forEachIndexed
-            val usage = "argument '${argument.name}' of field '$objectType.${resolver.field.name}'"
+    fun check(objectType: String, plan: ResolverPlan) {
+        plan.argumentTargets.forEach { (argument, parameterType) ->
+            val inputObject = inputObjects[argument.type.unwrap().name] ?: return@forEach
+            val usage = "argument '${argument.name}' of field '$objectType.${plan.field.name}'"
 
             try {
-                val parameterType = resolver.getMethodParameterType(index) ?: return@forEachIndexed
-                val reads = StrictReads(resolver.objectMapper)
+                val reads = StrictReads(plan.objectMapper)
                 val deserializer = reads.context.findRootValueDeserializer(reads.mapper.typeFactory.constructType(parameterType))
                 checkFields(reads, deserializer, null, inputObject, usage)
             } catch (e: VirtualMachineError) {

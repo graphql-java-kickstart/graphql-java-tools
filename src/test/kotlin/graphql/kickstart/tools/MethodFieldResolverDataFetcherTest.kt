@@ -5,7 +5,7 @@ import graphql.GraphQLContext
 import graphql.execution.*
 import graphql.execution.instrumentation.SimplePerformantInstrumentation
 import graphql.kickstart.tools.resolver.FieldResolverError
-import graphql.kickstart.tools.resolver.FieldResolverScanner
+import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.language.FieldDefinition
 import graphql.language.InputValueDefinition
 import graphql.language.NonNullType
@@ -461,7 +461,7 @@ class MethodFieldResolverDataFetcherTest {
         } else {
             NormalResolverInfo(resolver, options)
         }
-        return FieldResolverScanner(options, GRAPHQL_SCALARS.keys).findFieldResolver(field, resolverInfo).createDataFetcher()
+        return ResolverPlan.Finder(options, GRAPHQL_SCALARS.keys).find(field, resolverInfo).dataFetcher()
     }
 
     private fun createEnvironment(
