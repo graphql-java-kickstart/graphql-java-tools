@@ -80,8 +80,9 @@ No check can enforce these, so each one names the mistake it prevents.
   changes what an app's schema build does, and the unit tests don't build through the public API alone. Failure: an agent
   skipped the probe on a scanner rewrite because it was a refactor.
 - **Keep a comment only for a non-obvious why.** No comment that repeats the code, narrates history, or carries an issue or
-  PR number outside a TODO. Failure: a comment explained what `determineType` returned, which the `namedType` default
-  already showed, and a follow-up commit deleted it (`7448f2c6`).
+  PR number outside a TODO. `CommentConventionsTest` catches issue numbers and the history phrases it lists. A comment that
+  repeats the code, or tells history in other words, gets past it. Failure: a comment explained what `determineType`
+  returned, which the `namedType` default already showed, and a follow-up commit deleted it (`7448f2c6`).
 
 ## Rule table
 
@@ -95,7 +96,7 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | A resolver method's parameter layout, type variables and source are decided once, at schema build | docs only |
 | A change to how resolvers are found, bound or unwrapped keeps what a method, a property and a Map field return | `ResolverCompatibilityTest`, which compares field and Map values with a method's, and the bounded check in `ReturnValueUnwrappingTest`, which compares all three with the plain value. Neither has known findings, so a value that differs on a return type they run fails the build. The bounded check also pins how many return types it generates, and for each kind how many the build rejects and how many executions run, so a change that stops running some fails until the same diff updates `pinnedCoverage`. It doesn't judge whether a newly rejected return type should build |
 | One output has one builder. Don't add a second path that builds the same thing | docs only |
-| Read an SDL type's members merged with its extensions, never from the raw definition | `MergedType` in `MergedDefinitions.kt` and `DefinitionsBoundaryTest`, which fails on a raw member, directive or child-node read, an extension class, an SDL node walk or a `TypeDefinitionRegistry` call outside it. A read by reflection gets past it |
+| Read an SDL type's members merged with its extensions, never from the raw definition | `MergedType` in `MergedDefinitions.kt` and `DefinitionsBoundaryTest`, which fails on a raw member, directive or child-node read, an extension class, an SDL node walk or a `TypeDefinitionRegistry` call outside it. A read by reflection gets past it. `TypeExtensionTest` builds and queries a schema with an extension of every kind, so a build that leaves an extension's fields, interfaces, members, values, input fields or directives out of the built type fails it, however the code read them |
 | Every kind of SDL type starts its graphql-java type from the same recipe | `MergedType.prepare`, `DefinitionsBoundaryTest` and `TypeKindRecipeTest` |
 | Reuse an existing structure before you add a parallel one | docs only |
 | Argument conversion goes through one entry point | docs only |
@@ -111,16 +112,17 @@ happening. "docs only" means nothing does yet, so the rule depends on you readin
 | Directive wirings decide which types become `GraphQLTypeReference` in one place | `TypeReferences` in `DirectiveWiringHelper` |
 | An object built once at schema build holds no per-request state | docs only |
 | Add a variant to the existing test class and its shared fixtures | docs only |
+| Every test class in `src/test` runs, and so do its assertions | surefire's `**/*` include, so a class runs whatever its name, and `failIfNoTests`, which fails a run that executes no tests. The Kotlin test compile's `-Xassertions=always-enable` makes `assert()`, which `TestUtils.assertEquals` uses, run without `-ea`. `-DfailIfNoTests=false` turns the empty-run check off, and a test that asserts nothing still passes |
 | A new test fails without the change it guards | docs only |
 | A fix keeps every shape that worked on the last release | docs only |
 | A test that builds a schema also queries its fields with `assertEveryFieldResolves` | docs only |
-| The first commit of a fix tests the neighbouring shapes, not just the reported one | docs only |
+| The first commit of a fix tests the neighbouring shapes, not just the reported one | For return values, the bounded check in `ReturnValueUnwrappingTest` at `mvn verify`, which builds every nesting of up to 3 containers around each leaf type, for methods, properties and Map fields. Docs only for other shapes |
 | The build passes on JDK 17, the lowest supported version | CI on JDK 17, 21 and 25 |
 | Run verify-tools before you push a schema-building change | docs only |
 | The packaged jar holds `module-info.class`, its non-static `requires` resolve from the runtime dependencies, and every class targets the pom's `java.version` | `build/JarCheck.java` at `mvn verify` |
 | Compiler warnings fail the build | `-Werror` and `failOnWarning` in `pom.xml` |
 | Check every claim in a PR body or release note at the current head | docs only |
-| Keep a comment only for a non-obvious why, with no history and no issue numbers outside a TODO | docs only |
+| Keep a comment only for a non-obvious why, with no history and no issue numbers outside a TODO | `CommentConventionsTest`, which reads each comment block in the `.kt` and `.java` files under `src/main` and `src/test` and fails on an issue number or issue link outside `// TODO <change> in X.0.0 (#N)`, a history phrase from its list, or a version such as `@since` or "since 1.2.0". `lint-allow <rule> until YYYY-MM-DD by <name>: <reason>` on the line skips that rule there, for at most 90 days. History in words the list doesn't have, and a comment that repeats the code, are docs only |
 | Build only what was asked | docs only |
 | A build you trust starts from an empty `target/`, so no class from an earlier build ships | `clean` in `probe.sh install`, docs only for your own `mvn` runs |
 | Agent worktrees and local settings stay out of commits | `.gitignore` |
