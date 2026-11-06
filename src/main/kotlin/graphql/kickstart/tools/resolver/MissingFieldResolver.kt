@@ -2,7 +2,6 @@ package graphql.kickstart.tools.resolver
 
 import graphql.kickstart.tools.MissingResolverInfo
 import graphql.kickstart.tools.SchemaParserOptions
-import graphql.kickstart.tools.TypeClassMatcher
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
 
@@ -13,6 +12,6 @@ internal class MissingFieldResolver(
 
     private val missingResolverDataFetcherProvider: MissingResolverDataFetcherProvider = options.missingResolverDataFetcherProvider
             ?: MissingResolverDataFetcherProvider { _, _ -> DataFetcher<Any> { TODO("Schema resolver not implemented") } }
-    override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> = listOf()
+    override fun scanForMatches(): Sequence<TypeShape> = emptySequence()
     override fun createDataFetcher(): DataFetcher<*> = missingResolverDataFetcherProvider.createDataFetcher(field, options)
 }

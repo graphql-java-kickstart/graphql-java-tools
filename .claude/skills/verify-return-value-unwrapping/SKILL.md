@@ -1,6 +1,6 @@
 ---
 name: verify-return-value-unwrapping
-description: Exhaustively check, up to a bound, that the value of a resolver method, public field or typed Map reaches graphql-java fully unwrapped. Futures are awaited, generic wrappers are transformed, Optional and DataFetcherResult are handled, and list order, nulls and failures are kept, for every return type nested up to 3 containers deep. Use it before pushing any change to ReturnValueUnwrapper, TypeClassMatcher's unwrapping, GenericTypeResolver.resolve, the data fetchers in MethodFieldResolver, PropertyFieldResolver or MapFieldResolver, or the GenericWrapper defaults, and whenever a bug report says graphql-java got a CompletableFuture, Optional or wrapper object as a field value.
+description: Exhaustively check, up to a bound, that the value of a resolver method, public field or typed Map reaches graphql-java fully unwrapped. Futures are awaited, generic wrappers are transformed, Optional and DataFetcherResult are handled, and list order, nulls and failures are kept, for every return type nested up to 3 containers deep. Use it before pushing any change to TypeShape (the type walk, ContainerKind, the generic wrapper rules or the Unwrapper), the data fetchers in MethodFieldResolver, PropertyFieldResolver or MapFieldResolver, or the GenericWrapper defaults, and whenever a bug report says graphql-java got a CompletableFuture, Optional or wrapper object as a field value.
 ---
 
 # Verify return value unwrapping
@@ -73,7 +73,7 @@ as `-Dunwrapping.args`, and prints the report. On a failure it also prints the p
 |---|---|
 | 0 | `PASS`, or `PASS apart from the known findings above` |
 | 1 | `FAIL`: a return type that isn't a known finding breaks the property. `NEW`: a known finding matches more accepted return types than its line records |
-| 2 | `MODEL ERROR`: the checkout or the check didn't compile, or the build rejected a return type the check must exercise, so a pass would prove nothing |
+| 2 | `MODEL ERROR`: the checkout or the check didn't compile, the build rejected a return type the check must exercise, or a `ContainerKind` in `TypeShape.kt` has no `Container` in `Check.java`, so a pass would prove nothing |
 | 3 | `STALE`: a known finding matches a return type that no longer fails, or fewer accepted return types than its line records |
 
 Options: `--depth N`, `--budget N`, `--property-budget N`, `--show N` (counterexamples and stale return types printed, default 15), and `--rejected`, which lists
@@ -157,14 +157,12 @@ or delete it when none fail, so that a regression shows up as `FAIL`.
 
 ## Coverage and sync
 
-Last confirmed to describe the code at commit `af9ba4ad` (agent-friendly, 2026-11-04). It covers:
+Last confirmed to describe the code at commit `6d41328d` (2026-11-05). It covers:
 
 | File | What |
 |---|---|
-| `src/main/kotlin/graphql/kickstart/tools/resolver/ReturnValueUnwrapper.kt` | all of it |
-| `src/main/kotlin/graphql/kickstart/tools/TypeClassMatcher.kt` | `PotentialMatch.unwrap`, `Unwrapped` |
-| `src/main/kotlin/graphql/kickstart/tools/GenericTypeResolver.kt` | `resolve`, `resolveTypeVariables` |
-| `src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt` | `createDataFetcher` (`valueClass`, the unwrapper), `returnType`, `returnValueMatch`, `LightMethodFieldResolverDataFetcher` |
+| `src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt` | all of it: the walk, `ContainerKind`, `GenericWrappers`, `resolveTypeVariables`, the `Unwrapper` and its steps |
+| `src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt` | `createDataFetcher` (the `TypeShape.Unwrapper`), `returnShape`, `LightMethodFieldResolverDataFetcher` |
 | `src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt` | `GenericWrapper` and the default wrappers in `build()` |
 | `src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt` | all of it |
 | `src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt` | all of it, for Map subclasses with a typed value |
@@ -172,10 +170,11 @@ Last confirmed to describe the code at commit `af9ba4ad` (agent-friendly, 2026-1
 To see whether a change needs another look:
 
 ```bash
-git log --oneline af9ba4ad..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/ReturnValueUnwrapper.kt src/main/kotlin/graphql/kickstart/tools/TypeClassMatcher.kt src/main/kotlin/graphql/kickstart/tools/GenericTypeResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
+git log --oneline 6d41328d..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
 ```
 
 Move the sync commit forward only after you've read those changes and confirmed that the containers, variants and
 expected values in `Check.java` still describe them. For example, a new default wrapper or a new kind of unwrapping
-step needs a new `Container` with its variants and its plain value in `build`. After an intended change, rerun the check,
+step needs a new `Container` with its variants and its plain value in `build`. A new `ContainerKind` ends in
+`MODEL ERROR` until it has one. After an intended change, rerun the check,
 and break the new code on purpose once in a scratch worktree to see the check fail before you trust its pass.

@@ -3,7 +3,6 @@ package graphql.kickstart.tools.resolver
 import com.fasterxml.classmate.TypeResolver
 import graphql.kickstart.tools.ScanDictionary
 import graphql.kickstart.tools.SchemaParserOptions
-import graphql.kickstart.tools.TypeClassMatcher
 import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.DataFetcher
@@ -43,8 +42,8 @@ internal class MapFieldResolver(
         return MapFieldResolverDataFetcher(createSourceResolver(), field.name)
     }
 
-    override fun scanForMatches(): List<TypeClassMatcher.PotentialMatch> {
-        return listOf(TypeClassMatcher.PotentialMatch.returnValue(field.type, mapGenericValue, typeResolver, ScanDictionary.FieldTypeReference(field.name)))
+    override fun scanForMatches(): Sequence<TypeShape> {
+        return sequenceOf(TypeShape.returnType(field.type, mapGenericValue, isSubscription = false, search.type, options, ScanDictionary.FieldTypeReference(field.name)))
     }
 
     override fun toString() = "MapFieldResolver{key=${field.name}}"
