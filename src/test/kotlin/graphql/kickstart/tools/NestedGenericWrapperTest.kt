@@ -250,7 +250,7 @@ class NestedGenericWrapperTest {
             if (typeShape.leafJavaType != leaf(graphQLType).javaClass) {
                 return@mapNotNull "${TypeUtils.toString(javaType)} as ${AstPrinter.printAst(graphQLType)}: bound to ${TypeUtils.toString(typeShape.leafJavaType)}"
             }
-            val unwrapper = TypeShape.Unwrapper(typeShape, method, isSuspendFunction = false)
+            val unwrapper = TypeShape.Unwrapper(typeShape, "method", method.name)
             val value = value(shape, leaf(graphQLType))
             val result = GraphQL.newGraphQL(fieldSchema(graphQLType) { environment -> unwrapper.unwrap(value) { environment } }).build()
                 .execute(if (leaf(graphQLType) is Payload) "query { field { data } }" else "query { field }")

@@ -101,16 +101,18 @@ public final class Check {
     }
 
     enum Kind {
-        METHOD("method", List.of(Nullability.values()), List.of(Timing.values())),
-        PROPERTY("property", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER)),
-        MAP("map", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER));
+        METHOD("method", "method", List.of(Nullability.values()), List.of(Timing.values())),
+        PROPERTY("property", "field", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER)),
+        MAP("map", "map value", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER));
 
         final String label;
+        final String resolverKind;
         final List<Nullability> nullabilities;
         final List<Timing> timings;
 
-        Kind(String label, List<Nullability> nullabilities, List<Timing> timings) {
+        Kind(String label, String resolverKind, List<Nullability> nullabilities, List<Timing> timings) {
             this.label = label;
+            this.resolverKind = resolverKind;
             this.nullabilities = nullabilities;
             this.timings = timings;
         }
@@ -220,14 +222,14 @@ public final class Check {
 
     static final class Context {
         final Timing timing;
-        final String method;
+        final String resolverName;
         final List<Runnable> completions = new ArrayList<>();
         final Set<String> failures = new LinkedHashSet<>();
         int nextId = 1;
 
-        Context(Timing timing, String method) {
+        Context(Timing timing, String resolverName) {
             this.timing = timing;
-            this.method = method;
+            this.resolverName = resolverName;
         }
 
         CompletableFuture<Object> future(Object value, String failure) {
@@ -590,8 +592,9 @@ public final class Check {
                 }
             }
             case FUTURE_TASK: {
-                context.failures.add("Resolver method '" + context.method + "' resolved to a " + FutureTask.class.getName() + ", which graphql-java can't wait on. "
-                    + "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.");
+                String kind = testCase.kind.resolverKind;
+                context.failures.add("Resolver " + kind + " '" + context.resolverName + "' resolved to a " + FutureTask.class.getName() + ", which graphql-java can't wait on. "
+                    + "Return a CompletionStage, such as a CompletableFuture, from the " + kind + " or its generic wrapper transformer instead.");
                 FutureTask<Object> task = new FutureTask<>(() -> null);
                 task.run();
                 return new Built(task, null, "FutureTask");

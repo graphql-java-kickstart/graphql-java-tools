@@ -114,7 +114,7 @@ internal class MethodFieldResolver(
             }
         }
 
-        val unwrapper = TypeShape.Unwrapper(returnShape, method, isSuspendFunction)
+        val unwrapper = TypeShape.Unwrapper(returnShape, "method", "${method.declaringClass.name}.${method.name}", isSuspendFunction)
 
         return if (numberOfParameters > 0 || isSuspendFunction) {
             // requires arguments and environment or is a suspend function
