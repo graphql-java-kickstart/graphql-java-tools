@@ -148,7 +148,8 @@ internal class ResolverPlan private constructor(
 
     class Finder(private val options: SchemaParserOptions, private val scalarNames: Set<String>) {
 
-        private val log = LoggerFactory.getLogger(javaClass)
+        // apps raise or silence these warnings by logger name in their logging config
+        private val log = LoggerFactory.getLogger("graphql.kickstart.tools.resolver.FieldResolverScanner")
 
         private val methodsByNameCache = mutableMapOf<Pair<Class<out Any>, Boolean>, Map<String, List<Method>>>()
 

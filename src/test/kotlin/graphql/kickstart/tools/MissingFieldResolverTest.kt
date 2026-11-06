@@ -30,8 +30,8 @@ class MissingFieldResolverTest {
     }
 
     @Test
-    fun `should warn about each missing field when unimplemented resolvers are allowed`() {
-        val (schema, warnings) = withWarnings {
+    fun `should warn about each missing field when unimplemented resolvers are allowed, from the loggers apps configure`() {
+        val (schema, events) = withWarningEvents {
             SchemaParser.newParser()
                 .schemaString(
                     """
@@ -51,10 +51,10 @@ class MissingFieldResolverTest {
         // missingField has no resolver, so querying it throws
         schema.assertEveryFieldResolves(except = setOf("Query.missingField"))
 
-        assertEquals(warnings, listOf(
-            "Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved " +
+        assertEquals(events.map { "${it.loggerName}: ${it.formattedMessage}" }, listOf(
+            "graphql.kickstart.tools.SchemaClassScanner: Option 'allowUnimplementedResolvers' should only be set to true during development, as it can cause schema errors to be moved " +
                 "to query time instead of schema creation time.  Make sure this is turned off in production.",
-            "Missing resolver for field: ${schema.queryType.getFieldDefinition("missingField").definition}"
+            "graphql.kickstart.tools.resolver.FieldResolverScanner: Missing resolver for field: ${schema.queryType.getFieldDefinition("missingField").definition}"
         ))
     }
 
