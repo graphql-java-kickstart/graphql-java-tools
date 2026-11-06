@@ -338,6 +338,17 @@ public final class Check {
             return false;
         }
 
+        Set<String> exercised = Arrays.stream(Kind.values()).map(it -> it.resolverKind).collect(Collectors.toSet());
+        List<String> unexercised = Arrays.stream(stringArg(args, "--resolver-kinds").split(","))
+            .filter(it -> !exercised.contains(it))
+            .collect(Collectors.toList());
+        if (!unexercised.isEmpty()) {
+            out.println("MODEL ERROR: ResolverPlan.kt has a ResolverKind with these nouns, but no Kind in Check.java resolves through them, so a pass would prove nothing about them:");
+            unexercised.forEach(it -> out.println("  " + it));
+            out.println("Add a Kind for each to Check.java with its holdCompletionStage text, and build its resolver in the switches over Kind.");
+            return false;
+        }
+
         List<Case> cases = cases(depth);
         Map<String, Class<?>> resolvers = compile(cases, classpath);
 

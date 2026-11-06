@@ -41,6 +41,11 @@ fun <T> assertNotNull(actual: T) {
 }
 
 fun <T> withWarnings(block: () -> T): Pair<T, List<String>> {
+    val (result, events) = withWarningEvents(block)
+    return result to events.map { it.formattedMessage }
+}
+
+fun <T> withWarningEvents(block: () -> T): Pair<T, List<ILoggingEvent>> {
     // the tests run in the library's module, which doesn't read logback's
     listOf("ch.qos.logback.classic", "ch.qos.logback.core").forEach { name ->
         ModuleLayer.boot().findModule(name).ifPresent { SchemaParser::class.java.module.addReads(it) }
@@ -50,7 +55,7 @@ fun <T> withWarnings(block: () -> T): Pair<T, List<String>> {
     logger.addAppender(appender)
     try {
         val result = block()
-        return result to appender.list.filter { it.level.isGreaterOrEqual(Level.WARN) }.map { it.formattedMessage }
+        return result to appender.list.filter { it.level.isGreaterOrEqual(Level.WARN) }
     } finally {
         logger.detachAppender(appender)
     }

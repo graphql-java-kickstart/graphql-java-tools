@@ -1,6 +1,6 @@
 ---
 name: verify-return-value-unwrapping
-description: Exhaustively check, up to a bound, that the value of a resolver method, a field with no matching getter or a typed Map reaches graphql-java fully unwrapped. Futures are awaited, generic wrappers are transformed, Optional and DataFetcherResult are handled, and list order, nulls and failures are kept, for every return type nested up to 3 containers deep. Use it before pushing any change to TypeShape (the type walk, ContainerKind, the generic wrapper rules or the Unwrapper), the data fetchers in MethodFieldResolver, PropertyFieldResolver or MapFieldResolver, or the GenericWrapper defaults, and whenever a bug report says graphql-java got a CompletableFuture, Optional or wrapper object as a field value.
+description: Exhaustively check, up to a bound, that the value of a resolver method, a field with no matching getter or a typed Map reaches graphql-java fully unwrapped. Futures are awaited, generic wrappers are transformed, Optional and DataFetcherResult are handled, and list order, nulls and failures are kept, for every return type nested up to 3 containers deep. Use it before pushing any change to TypeShape (the type walk, ContainerKind, the generic wrapper rules or the Unwrapper), the data fetchers in ResolverPlan, or the GenericWrapper defaults, and whenever a bug report says graphql-java got a CompletableFuture, Optional or wrapper object as a field value.
 ---
 
 # Verify return value unwrapping
@@ -38,11 +38,13 @@ and an all-non-null GraphQL type.
 
 Each return type runs as three kinds of resolver, each compiled as a Java class at runtime:
 
-| Kind | Generated resolver | Data fetcher |
+| Kind | Generated resolver | Member and data fetcher in `ResolverPlan.kt` |
 |---|---|---|
-| `method` | `public <type> field()` on the query resolver | `MethodFieldResolver` |
-| `property` | `public <type> field;` on the query resolver, which is also what a Kotlin `@JvmField` compiles to | `PropertyFieldResolver` |
-| `map` | `extends HashMap<String, <type>>`, bound to `type Holder` and returned by `Query.holder` | `MapFieldResolver` |
+| `method` | `public <type> field()` on the query resolver | `MethodMember`, `LightMethodFieldResolverDataFetcher` |
+| `property` | `public <type> field;` on the query resolver, which is also what a Kotlin `@JvmField` compiles to | `PropertyMember`, `PropertyFieldResolverDataFetcher` |
+| `map` | `extends HashMap<String, <type>>`, bound to `type Holder` and returned by `Query.holder` | `MapMember`, `MapFieldResolverDataFetcher` |
+
+Each kind's `resolverKind` is the noun of a `ResolverKind`, and a `ResolverKind` without a kind here ends in `MODEL ERROR`.
 
 The check builds each schema through the public `SchemaParser` API, which rejects about a fifth of the combinations, such as
 `Optional` below the top level. For every accepted one it executes the query once for each value that makes at most
@@ -73,7 +75,7 @@ as `-Dunwrapping.args`, and prints the report. On a failure it also prints the p
 |---|---|
 | 0 | `PASS`, or `PASS apart from the known findings above` |
 | 1 | `FAIL`: a return type that isn't a known finding breaks the property. `NEW`: a known finding matches more accepted return types than its line records |
-| 2 | `MODEL ERROR`: the checkout or the check didn't compile, the build rejected a return type the check must exercise, or a `ContainerKind` in `TypeShape.kt` has no `Container` in `Check.java`, so a pass would prove nothing |
+| 2 | `MODEL ERROR`: the checkout or the check didn't compile, the build rejected a return type the check must exercise, a `ContainerKind` in `TypeShape.kt` has no `Container` in `Check.java`, or a `ResolverKind` in `ResolverPlan.kt` has no `Kind`, so a pass would prove nothing |
 | 3 | `STALE`: a known finding matches a return type that no longer fails, or fewer accepted return types than its line records. Or the run's coverage differs from `pinnedCoverage` in `Check.java` |
 
 Options: `--depth N`, `--budget N`, `--property-budget N`, `--show N` (counterexamples and stale return types printed, default 15), and `--rejected`, which lists
@@ -154,7 +156,7 @@ or delete it when none fail, so that a regression shows up as `FAIL`.
 ## What this does not cover
 
 - Suspend functions, subscriptions and `Publisher`, arrays, and Kotlin-declared resolver methods. The generated resolvers
-  are Java methods without parameters, so only `LightMethodFieldResolverDataFetcher` runs, not
+  are Java methods without parameters, so only `LightMethodFieldResolverDataFetcher` in `ResolverPlan.kt` runs, not
   `MethodFieldResolverDataFetcher`.
 - Wrappers picked by a subclass of the value (`Box` and `SpecialBox` in `NestedGenericWrapperTest`), wrappers with a type
   argument index other than 0, custom `schemaWrapper`s other than the list one, transformers that return a `FutureTask`,
@@ -169,24 +171,22 @@ or delete it when none fail, so that a regression shows up as `FAIL`.
 
 ## Coverage and sync
 
-Last confirmed to describe the code at commit `5ce3d1db` (2026-11-05). It covers:
+Last confirmed to describe the code at commit `1b351934` (2026-11-05). It covers:
 
 | File | What |
 |---|---|
-| `src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt` | all of it: the walk, `ContainerKind`, `GenericWrappers`, `resolveTypeVariables`, the `Unwrapper` and its steps |
-| `src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt` | `createDataFetcher` (the `TypeShape.Unwrapper`), `returnShape`, `LightMethodFieldResolverDataFetcher` |
+| `src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt` | the walk, `ContainerKind`, `GenericWrappers`, `resolveTypeVariables`, the `Unwrapper` and its steps |
+| `src/main/kotlin/graphql/kickstart/tools/resolver/ResolverPlan.kt` | `dataFetcher` (the `TypeShape.Unwrapper` per member), `returnShape`, `ResolverKind`, the members' `declaredValueType`, and the `ResolverDataFetcher` subclasses |
 | `src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt` | `GenericWrapper` and the default wrappers in `build()` |
-| `src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt` | all of it |
-| `src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt` | all of it, for Map subclasses with a typed value |
 
 To see whether a change needs another look:
 
 ```bash
-git log --oneline 5ce3d1db..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
+git log --oneline 1b351934..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/ResolverPlan.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt
 ```
 
 Move the sync commit forward only after you've read those changes and confirmed that the containers, variants and
 expected values in `Check.java` still describe them. For example, a new default wrapper or a new kind of unwrapping
 step needs a new `Container` with its variants and its plain value in `build`. A new `ContainerKind` ends in
-`MODEL ERROR` until it has one. After an intended change, rerun the check,
+`MODEL ERROR` until it has one, and so does a new `ResolverKind` until `Check.java` has a `Kind` with its noun. After an intended change, rerun the check,
 and break the new code on purpose once in a scratch worktree to see the check fail before you trust its pass.

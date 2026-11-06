@@ -16,8 +16,10 @@ import graphql.kickstart.tools.util.isSubtypeOf
 import graphql.kickstart.tools.util.typeArgument
 import graphql.language.ListType
 import graphql.language.NonNullType
+import graphql.language.TypeName
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.idl.TypeUtil
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.future.asDeferred
 import org.apache.commons.lang3.reflect.TypeUtils
 import org.reactivestreams.Publisher
@@ -47,6 +49,7 @@ internal class TypeShape private constructor(
     fun error(msg: String) = matchError(graphQLType, reference, javaType, msg)
 
     class Unwrapper(shape: TypeShape, resolverKind: ResolverKind, resolverName: String, isSuspendFunction: Boolean = false) {
+        private val returnsValueAsIs = !resolverKind.unwrapsUntypedValues && shape.declaredType == Any::class.java
         private val wrappers = shape.wrappers
         private val awaitable: Awaitable
         private val isOutermostFuture: Boolean
@@ -69,6 +72,9 @@ internal class TypeShape private constructor(
         }
 
         fun unwrap(value: Any, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+            if (returnsValueAsIs) {
+                return value
+            }
             val wrapper = wrappers.ofValue(value)
             val transformed = if (wrapper == null) value else wrapper.transformer(value, environmentSupplier.get())
             val unwrapped = awaitable.requireOutermost(transformed)
@@ -259,6 +265,38 @@ private fun JavaType.asPublisher(): JavaType =
         ?.let { TypeUtils.parameterize(Publisher::class.java, it) }
         ?: this
 
+// picks the subscription method before its return type is walked, so it reads the erased type, where suspend functions and
+// unbounded type variables are Object and the actual return type is unknown
+internal fun returnsPublisher(erasedType: Class<*>, genericType: JavaType, wrappers: List<GenericWrapper>): Boolean =
+    erasedType == Any::class.java
+        || Publisher::class.java.isAssignableFrom(erasedType)
+        || returnsPublisherFuture(genericType)
+        || ReceiveChannel::class.java.isAssignableFrom(erasedType) && wrappers.any { it.type == erasedType && it.canTransformToPublisher() }
+
+private fun returnsPublisherFuture(genericType: JavaType) =
+    genericType.futureValueType()
+        ?.let { if (it is WildcardType) it.upperBounds.first() else it }
+        ?.let { TypeUtils.isAssignable(it, Publisher::class.java) } == true
+
+// lambdas are erased to return Object, so this only checks that the transformer can return a Publisher
+private fun GenericWrapper.canTransformToPublisher() =
+    transformer.javaClass.declaredMethods
+        .filter { it.name == "invoke" }
+        .any { it.returnType.isAssignableFrom(Publisher::class.java) }
+
+internal fun isOptionalParameter(parameterType: JavaType, containingType: JavaType): Boolean =
+    TypeUtils.getRawType(parameterType, containingType) == Optional::class.java
+
+internal fun isConcreteScalarType(type: GraphQLLangType, parameterType: JavaType, scalarNames: Set<String>): Boolean =
+    when (type) {
+        is ListType -> parameterType.typeArgument(List::class.java)
+            ?.let { isConcreteScalarType(type.type, it, scalarNames) } ?: false
+
+        is TypeName -> type.name in scalarNames && type.name != "ID"
+        is NonNullType -> isConcreteScalarType(type.type, parameterType, scalarNames)
+        else -> false
+    }
+
 // The two rules differ on purpose: making the build pick by instance would unwrap a Flux as a Publisher, and making the fetch
 // pick by declared type would stop a CompletableFuture returned for a declared Future from getting its own wrapper
 private class GenericWrappers(private val wrappers: List<GenericWrapper>) {
@@ -390,12 +428,6 @@ private fun List<Any?>.awaitAll(): Any {
 @Suppress("UNCHECKED_CAST")
 private fun Any?.asCompletionStage(): CompletionStage<Any?> =
     this as? CompletionStage<Any?> ?: CompletableFuture.completedFuture(this)
-
-internal enum class ResolverKind(val noun: String, val holdCompletionStage: String) {
-    METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."),
-    FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead."),
-    MAP_VALUE("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.")
-}
 
 // graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
 // that a suspend function completes with, would reach it as the field value

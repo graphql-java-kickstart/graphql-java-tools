@@ -1,6 +1,6 @@
 package graphql.kickstart.tools
 
-import graphql.kickstart.tools.resolver.FieldResolver
+import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.kickstart.tools.util.JavaType
 import graphql.language.FieldDefinition
 import graphql.schema.GraphQLScalarType
@@ -13,7 +13,7 @@ internal data class ScannedSchemaObjects(
     val definitions: MergedDefinitions,
     val types: Set<MergedType<*>>,
     val customScalars: CustomScalarMap,
-    val fieldResolversByType: Map<MergedType.Object, MutableMap<FieldDefinition, FieldResolver>>,
+    val resolverPlansByType: Map<MergedType.Object, Map<FieldDefinition, ResolverPlan>>,
     val unusedTypes: Set<MergedType<*>>,
     val directiveOnlyEnums: Set<MergedType.Enum>
 )

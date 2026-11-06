@@ -6,7 +6,6 @@ import graphql.introspection.Introspection.DirectiveLocation.ENUM_VALUE
 import graphql.introspection.Introspection.DirectiveLocation.FIELD_DEFINITION
 import graphql.introspection.Introspection.DirectiveLocation.INPUT_FIELD_DEFINITION
 import graphql.kickstart.tools.directive.DirectiveWiringHelper
-import graphql.kickstart.tools.resolver.MethodFieldResolver
 import graphql.kickstart.tools.util.describe
 import graphql.kickstart.tools.util.getDocumentation
 import graphql.kickstart.tools.util.unwrap
@@ -39,7 +38,7 @@ class SchemaParser internal constructor(
     private val types = scanResult.types
     private val customScalars = scanResult.customScalars
     private val rootInfo = definitions.rootInfo
-    private val fieldResolversByType = scanResult.fieldResolversByType
+    private val resolverPlansByType = scanResult.resolverPlansByType
     private val unusedDefinitions = definitions.definitionsOf(scanResult.unusedTypes)
     private val directiveOnlyEnums = scanResult.directiveOnlyEnums
 
@@ -120,7 +119,7 @@ class SchemaParser internal constructor(
             val wiredInputObjects = wiredObjects.dictionary.filterIsInstance<GraphQLInputObjectType>().associateBy { it.name }
             val checker = UnmappedInputFieldChecker(wiredInputObjects, options.unmappedInputFields)
             objectDefinitions.forEach { type ->
-                fieldResolversByType[type].orEmpty().values.filterIsInstance<MethodFieldResolver>().forEach { checker.check(type.name, it) }
+                resolverPlansByType[type].orEmpty().values.forEach { checker.check(type.name, it) }
             }
             checker.report()
         }
@@ -168,7 +167,7 @@ class SchemaParser internal constructor(
                         createField(field, fieldDefinition, inputObjects)
                         codeRegistryBuilder.dataFetcher(
                             FieldCoordinates.coordinates(objectDefinition.name, fieldDefinition.name),
-                            fieldResolversByType[objectDefinition]?.get(fieldDefinition)?.createDataFetcher()
+                            resolverPlansByType[objectDefinition]?.get(fieldDefinition)?.dataFetcher()
                                 ?: throw SchemaError("No resolver method found for object type '${objectDefinition.name}' and field '${fieldDefinition.name}', this is most likely a bug with graphql-java-tools")
                         )
 

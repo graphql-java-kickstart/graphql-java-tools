@@ -2,7 +2,7 @@ package graphql.kickstart.tools
 
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper.Companion.listCollectionWithTransformer
-import graphql.kickstart.tools.resolver.FieldResolverScanner
+import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.kickstart.tools.util.ParameterizedTypeImpl
 import graphql.language.*
 import graphql.language.Type
@@ -45,11 +45,11 @@ class TypeClassMatcherTest {
             ) { x -> x }
         ).build()
 
-        private val scanner: FieldResolverScanner = FieldResolverScanner(options, GRAPHQL_SCALARS.keys)
+        private val finder = ResolverPlan.Finder(options, GRAPHQL_SCALARS.keys)
         private val resolver = RootResolverInfo(listOf(QueryMethods()), options)
 
         private fun matchReturnType(methodName: String, graphQLType: Type<*>): TypeClassMatcher.Match =
-            matcher.match(scanner.findFieldResolver(FieldDefinition(methodName, graphQLType), resolver).scanForMatches().single())
+            matcher.match(finder.find(FieldDefinition(methodName, graphQLType), resolver).typeShapes().single())
 
         private fun list(other: Type<*> = customType): Type<*> = ListType(other)
         private fun nonNull(other: Type<*> = customType): Type<*> = NonNullType(other)

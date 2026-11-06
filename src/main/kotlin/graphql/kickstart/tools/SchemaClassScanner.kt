@@ -5,21 +5,13 @@ import graphql.kickstart.tools.ScanDictionary.FieldTypeReference
 import graphql.kickstart.tools.ScanDictionary.InitialDictionaryEntry
 import graphql.kickstart.tools.ScanDictionary.UnionMemberReference
 import graphql.kickstart.tools.ScanDictionary.UnusedTypeReference
-import graphql.kickstart.tools.resolver.FieldResolver
 import graphql.kickstart.tools.resolver.FieldResolverError
-import graphql.kickstart.tools.resolver.FieldResolverScanner
-import graphql.kickstart.tools.resolver.MethodFieldResolver
-import graphql.kickstart.tools.resolver.PropertyFieldResolver
+import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.kickstart.tools.util.*
 import graphql.language.*
 import graphql.schema.idl.ScalarInfo
-import graphql.schema.idl.TypeUtil
 import org.apache.commons.lang3.ClassUtils
-import org.apache.commons.lang3.reflect.TypeUtils
 import org.slf4j.LoggerFactory
-import java.lang.reflect.Field
-import java.lang.reflect.Member
-import java.lang.reflect.Modifier
 
 /**
  * @author Andrew Potter
@@ -46,15 +38,15 @@ internal class SchemaClassScanner(
     private val typesByName = definitions.byName
     private val objectTypesByName = definitions.objectsWithRepeats.associateBy { it.name }
 
-    private val fieldResolverScanner = FieldResolverScanner(options, definitions.scalarNames)
+    private val resolverPlans = ResolverPlan.Finder(options, definitions.scalarNames)
     private val typeClassMatcher = TypeClassMatcher(definitions)
     private val unvalidatedTypes = mutableSetOf<MergedType<*>>()
     private val queue = linkedSetOf<QueueItem>()
     private val dictionary = ScanDictionary(options, log, typesByName, typeClassMatcher, this.initialDictionary, ::enqueue, ::handleFoundScalarType)
     private val sealedSubclassMatcher = SealedSubclassMatcher(dictionary)
 
-    private val fieldResolversByType = mutableMapOf<MergedType.Object, MutableMap<FieldDefinition, FieldResolver>>()
-    private val notCallableOnResolver = mutableListOf<NotCallableOnResolver>()
+    private val resolverPlansByType = mutableMapOf<MergedType.Object, MutableMap<FieldDefinition, ResolverPlan>>()
+    private val notCallableOnResolver = mutableListOf<ResolverPlan.NotCallableOnResolver>()
 
     init {
         initialDictionary.forEach { (name, clazz) ->
@@ -270,17 +262,17 @@ internal class SchemaClassScanner(
                 log.warn("Schema type was defined but can never be accessed, and can be safely deleted: ${definition.name}")
             }
 
-        val fieldResolvers = fieldResolversByType.flatMap { entry -> entry.value.map { it.value } }
-        val observedNormalResolverInfos = fieldResolvers.map { it.resolverInfo }.filterIsInstance<NormalResolverInfo>().toSet()
-        val observedMultiResolverInfos = fieldResolvers.map { it.resolverInfo }.filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }.toSet()
+        val resolverPlans = resolverPlansByType.flatMap { entry -> entry.value.map { it.value } }
+        val observedNormalResolverInfos = resolverPlans.map { it.resolverInfo }.filterIsInstance<NormalResolverInfo>().toSet()
+        val observedMultiResolverInfos = resolverPlans.map { it.resolverInfo }.filterIsInstance<MultiResolverInfo>().flatMap { it.resolverInfoList }.toSet()
 
         (resolverInfos - observedNormalResolverInfos - observedMultiResolverInfos).forEach { resolverInfo ->
             log.warn("Resolver was provided but no methods on it were used in data fetchers, and can be safely deleted: ${resolverInfo.resolver}")
         }
 
-        validateRootResolversWereUsed(rootTypeHolder.query, fieldResolvers)
-        validateRootResolversWereUsed(rootTypeHolder.mutation, fieldResolvers)
-        validateRootResolversWereUsed(rootTypeHolder.subscription, fieldResolvers)
+        validateRootResolversWereUsed(rootTypeHolder.query, resolverPlans)
+        validateRootResolversWereUsed(rootTypeHolder.mutation, resolverPlans)
+        validateRootResolversWereUsed(rootTypeHolder.subscription, resolverPlans)
 
         // The enums in unvalidatedTypes come from directives without a class, so they can only be built when no field uses them.
         // A field hands the enum's values to user code even when the scanner found no class through it, e.g. an input field bound
@@ -288,15 +280,15 @@ internal class SchemaClassScanner(
         val typeNamesUsedByFields = typeNamesUsedByFields(observedDefinitions)
         val directiveOnlyEnums = unvalidatedTypes.filterIsInstance<MergedType.Enum>().filter { it.name !in typeNamesUsedByFields }.toSet()
 
-        return ScannedSchemaObjects(dictionary, definitions, observedDefinitions, scalars, fieldResolversByType.toMap(), unusedDefinitions, directiveOnlyEnums)
+        return ScannedSchemaObjects(dictionary, definitions, observedDefinitions, scalars, resolverPlansByType.toMap(), unusedDefinitions, directiveOnlyEnums)
     }
 
-    private fun validateRootResolversWereUsed(rootType: RootType?, fieldResolvers: List<FieldResolver>) {
+    private fun validateRootResolversWereUsed(rootType: RootType?, resolverPlans: List<ResolverPlan>) {
         if (rootType == null) {
             return
         }
 
-        val observedRootTypes = fieldResolvers.asSequence().filter { it.resolverInfo is RootResolverInfo && it.resolverInfo == rootType.resolverInfo }.map { it.search.type }.toSet()
+        val observedRootTypes = resolverPlans.asSequence().filter { it.resolverInfo is RootResolverInfo && it.resolverInfo == rootType.resolverInfo }.map { it.search.type }.toSet()
         rootType.resolvers.forEach { resolver ->
             if (rootType.resolverInfo.getRealResolverClass(resolver, options) !in observedRootTypes) {
                 log.warn("Root ${rootType.name} resolver was provided but no methods on it were used in data fetchers for GraphQL type '${rootType.type.name}'!  Either remove the ${rootType.resolverInterface.name} interface from the resolver or remove the resolver entirely: $resolver")
@@ -424,34 +416,16 @@ internal class SchemaClassScanner(
 
     private fun scanResolverInfoForPotentialMatches(type: MergedType.Object, resolverInfo: ResolverInfo) {
         type.fields.forEach { field ->
-            val fieldResolver = fieldResolverScanner.findFieldResolver(field, resolverInfo)
-            collectIfNotCallableOnResolver(type, fieldResolver)
+            val plan = resolverPlans.find(field, resolverInfo)
+            plan.notCallableOnResolver(type.name)?.let { notCallableOnResolver += it }
 
-            fieldResolversByType.getOrPut(type) { mutableMapOf() }[fieldResolver.field] = fieldResolver
+            resolverPlansByType.getOrPut(type) { mutableMapOf() }[plan.field] = plan
 
-            fieldResolver.scanForMatches().forEach { shape ->
+            plan.typeShapes().forEach { shape ->
                 dictionary.handleFoundType(typeClassMatcher.match(shape))
             }
-            requireParameterForEachArgument(type, fieldResolver)
+            plan.requireParameterForEachArgument(type.name)
         }
-    }
-
-    private fun collectIfNotCallableOnResolver(type: MergedType.Object, fieldResolver: FieldResolver) {
-        val source = fieldResolver.search.source ?: return
-        val member: Member = when (fieldResolver) {
-            is MethodFieldResolver -> fieldResolver.method
-            is PropertyFieldResolver -> fieldResolver.property
-            else -> return
-        }
-        if (Modifier.isStatic(member.modifiers) || member.declaringClass.isInstance(source)) {
-            return
-        }
-
-        notCallableOnResolver += NotCallableOnResolver(
-            "Field '${type.name}.${fieldResolver.field.name}' resolves to ${member.declaringClass.name}.${member.name}, but the resolver is a " +
-                "${source.javaClass.name}, which isn't a ${member.declaringClass.name}, so every query of the field will fail.",
-            member is Field
-        )
     }
 
     private fun throwIfNotCallableOnResolver() {
@@ -466,26 +440,6 @@ internal class SchemaClassScanner(
         )
     }
 
-    private fun requireParameterForEachArgument(type: MergedType.Object, fieldResolver: FieldResolver) {
-        if (fieldResolver !is MethodFieldResolver) {
-            return
-        }
-
-        fieldResolver.field.inputValueDefinitions.forEachIndexed { index, argument ->
-            val parameter = fieldResolver.getMethodParameterType(index)?.let { TypeUtils.getRawType(it, fieldResolver.search.type) } ?: return@forEachIndexed
-            if (!fieldResolverScanner.isContextParameter(parameter, argument)) {
-                return@forEachIndexed
-            }
-
-            val method = fieldResolver.method
-            throw FieldResolverError(
-                "Field '${type.name}.${fieldResolver.field.name}' has no parameter for its argument '${argument.name}: " +
-                    "${TypeUtil.simplePrint(argument.type)}' in ${method.declaringClass.name}.${method.name}, so the ${parameter.simpleName} " +
-                    "parameter gets the argument instead. Add a parameter for each argument, in order, before the ${parameter.simpleName} parameter."
-            )
-        }
-    }
-
     private fun handleFoundScalarType(type: MergedType.Scalar) {
         unvalidatedTypes.add(type)
     }
@@ -495,8 +449,6 @@ internal class SchemaClassScanner(
     }
 
     private data class QueueItem(val type: MergedType.Object, val clazz: JavaType)
-
-    private data class NotCallableOnResolver(val message: String, val isField: Boolean)
 
     private class RootTypesHolder(
         options: SchemaParserOptions,

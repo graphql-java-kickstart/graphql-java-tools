@@ -8,12 +8,9 @@ import graphql.schema.idl.TypeUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.apache.commons.lang3.reflect.TypeUtils
-import java.lang.reflect.Method
 import java.lang.reflect.ParameterizedType
-import java.lang.reflect.Proxy
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Future
-import kotlin.reflect.jvm.kotlinFunction
 
 /**
  * @author Andrew Potter
@@ -22,7 +19,6 @@ import kotlin.reflect.jvm.kotlinFunction
 internal typealias GraphQLRootResolver = GraphQLResolver<Void>
 
 internal typealias JavaType = java.lang.reflect.Type
-internal typealias JavaMethod = Method
 internal typealias GraphQLLangType = Type<*>
 
 internal fun Type<*>.unwrap(): TypeName = TypeUtil.unwrapAll(this)
@@ -60,26 +56,6 @@ internal fun DataFetchingEnvironment.coroutineScope(): CoroutineScope {
 
     return CoroutineScope(Dispatchers.Default)
 }
-
-internal val Class<*>.declaredNonProxyMethods: List<JavaMethod>
-    get() {
-        return when {
-            Proxy.isProxyClass(this) -> emptyList()
-            else -> this.declaredMethods.toList()
-        }
-    }
-
-internal fun JavaMethod.isSuspendFunction(): Boolean {
-    return try {
-        this.kotlinFunction?.isSuspend == true
-    } catch (e: InternalError) {
-        false
-    }
-}
-
-// the trailing Continuation of a suspend function isn't a resolver argument
-internal fun JavaMethod.parameterCountWithoutContinuation(): Int =
-    if (isSuspendFunction()) parameterCount - 1 else parameterCount
 
 internal fun getDocumentation(node: AbstractNode<*>, options: SchemaParserOptions): String? =
     when {
