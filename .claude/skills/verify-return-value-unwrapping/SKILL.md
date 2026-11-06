@@ -1,13 +1,13 @@
 ---
 name: verify-return-value-unwrapping
-description: Exhaustively check, up to a bound, that the value of a resolver method, public field or typed Map reaches graphql-java fully unwrapped. Futures are awaited, generic wrappers are transformed, Optional and DataFetcherResult are handled, and list order, nulls and failures are kept, for every return type nested up to 3 containers deep. Use it before pushing any change to TypeShape (the type walk, ContainerKind, the generic wrapper rules or the Unwrapper), the data fetchers in MethodFieldResolver, PropertyFieldResolver or MapFieldResolver, or the GenericWrapper defaults, and whenever a bug report says graphql-java got a CompletableFuture, Optional or wrapper object as a field value.
+description: Exhaustively check, up to a bound, that the value of a resolver method, a field with no matching getter or a typed Map reaches graphql-java fully unwrapped. Futures are awaited, generic wrappers are transformed, Optional and DataFetcherResult are handled, and list order, nulls and failures are kept, for every return type nested up to 3 containers deep. Use it before pushing any change to TypeShape (the type walk, ContainerKind, the generic wrapper rules or the Unwrapper), the data fetchers in MethodFieldResolver, PropertyFieldResolver or MapFieldResolver, or the GenericWrapper defaults, and whenever a bug report says graphql-java got a CompletableFuture, Optional or wrapper object as a field value.
 ---
 
 # Verify return value unwrapping
 
 ## The property
 
-A user writes a resolver method, a public field or a `Map` whose type nests containers, such as
+A user writes a resolver method, a field with no matching getter (of any visibility) or a `Map` whose type nests containers, such as
 `CompletableFuture<List<Try<Payload>>>`. If the schema build accepts it, then graphql-java must get
 exactly the value it returned, with every container removed. Futures are waited on and generic wrappers go
 through their transformers. List order and nulls are kept. A failed future or a throwing transformer fails the field.
@@ -74,12 +74,26 @@ as `-Dunwrapping.args`, and prints the report. On a failure it also prints the p
 | 0 | `PASS`, or `PASS apart from the known findings above` |
 | 1 | `FAIL`: a return type that isn't a known finding breaks the property. `NEW`: a known finding matches more accepted return types than its line records |
 | 2 | `MODEL ERROR`: the checkout or the check didn't compile, the build rejected a return type the check must exercise, or a `ContainerKind` in `TypeShape.kt` has no `Container` in `Check.java`, so a pass would prove nothing |
-| 3 | `STALE`: a known finding matches a return type that no longer fails, or fewer accepted return types than its line records |
+| 3 | `STALE`: a known finding matches a return type that no longer fails, or fewer accepted return types than its line records. Or the run's coverage differs from `pinnedCoverage` in `Check.java` |
 
 Options: `--depth N`, `--budget N`, `--property-budget N`, `--show N` (counterexamples and stale return types printed, default 15), and `--rejected`, which lists
 every combination the schema build rejected, with the build's error. A depth below 3 can't build the `mustAccept`
 return types, so it ends in `MODEL ERROR`. `NEW` and `STALE` apply only at the default depth and budgets, because the
-counts in `known-findings.txt` are for those.
+counts in `known-findings.txt` and `pinnedCoverage` are for those. A run with other bounds checks values only.
+
+## Pinned coverage
+
+`pinnedCoverage` in `Check.java` records how many return types the check generates, and for each kind how many of them
+the schema build rejects and how many executions run. A run at the default bounds whose counts differ is `STALE`, and the
+report prints the pinned and the new counts. Without the pin, a change that makes the build reject more return types,
+skips generating some shapes, or runs fewer values per return type would still print `PASS`, because nothing it stopped
+running can fail.
+
+When the counts move, diff `--rejected` output against the last commit to see which return types the build now rejects
+or accepts, and confirm the change is intended. A change to `Check.java` itself moves the counts with no change in
+`--rejected`. Then copy the counts the report prints into `pinnedCoverage` in the same diff, so a reviewer sees what the
+check stopped or started covering. A change that rejects one return type and accepts another of the same kind, with the
+same number of executions, keeps the counts and gets past the pin.
 
 ## Reading a counterexample
 
@@ -147,15 +161,15 @@ or delete it when none fail, so that a regression shows up as `FAIL`.
   and DataLoader futures.
 - Lists of more than 2 elements, more than 2 non-default choices per value, more than 3 containers, and completion
   orders other than the two listed. A pass says nothing beyond those bounds.
-- Which return types the schema build should reject. The check only exercises what the build accepts. With no known
-  findings, a return type the build stops accepting fails the check only when it's in `mustAccept`, so after a change
-  to the build or to a resolver's `createDataFetcher`, diff `--rejected` output against the last commit.
-- Untyped Maps, whose value type is `Object`, properties with a getter (those run as methods), and properties and Maps on
-  a type below the root other than `Holder`. `ResolverCompatibilityTest` pins untyped Maps and Kotlin `@JvmField`s.
+- Which return types the schema build should reject. The check only exercises what the build accepts. A change in how
+  many it rejects fails through `pinnedCoverage`, but the check doesn't judge whether the new count is right.
+- Untyped Maps, whose value type is `Object`, properties with a getter (those run as methods), non-public fields (the
+  generated ones are public, and the same data fetcher reads private ones), and properties and Maps on a type below the
+  root other than `Holder`. `ResolverCompatibilityTest` pins untyped Maps and Kotlin `@JvmField`s.
 
 ## Coverage and sync
 
-Last confirmed to describe the code at commit `63c1fa6e` (2026-11-05). It covers:
+Last confirmed to describe the code at commit `5ce3d1db` (2026-11-05). It covers:
 
 | File | What |
 |---|---|
@@ -168,7 +182,7 @@ Last confirmed to describe the code at commit `63c1fa6e` (2026-11-05). It covers
 To see whether a change needs another look:
 
 ```bash
-git log --oneline 63c1fa6e..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
+git log --oneline 5ce3d1db..HEAD -- src/main/kotlin/graphql/kickstart/tools/resolver/TypeShape.kt src/main/kotlin/graphql/kickstart/tools/resolver/MethodFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/SchemaParserOptions.kt src/main/kotlin/graphql/kickstart/tools/resolver/PropertyFieldResolver.kt src/main/kotlin/graphql/kickstart/tools/resolver/MapFieldResolver.kt
 ```
 
 Move the sync commit forward only after you've read those changes and confirmed that the containers, variants and
