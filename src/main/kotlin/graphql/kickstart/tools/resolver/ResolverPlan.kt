@@ -46,24 +46,18 @@ import kotlin.reflect.full.extensionReceiverParameter
 import kotlin.reflect.jvm.javaType
 import kotlin.reflect.jvm.kotlinFunction
 
-/**
- * How one object field is resolved: the Java member behind it, the type shapes the scan matches, and its data fetcher. Every
- * fact about the member's signature is read here once, so the scan, the data fetcher and the checks after the build can't
- * disagree about it.
- */
 internal class ResolverPlan private constructor(
     val field: FieldDefinition,
     val search: ResolverSearch,
     private val options: SchemaParserOptions,
-    // null when the field has no resolver and the options allow that
     private val member: Member?
 ) {
     val resolverInfo: ResolverInfo get() = search.resolverInfo
 
-    // provided at parse time, once per method field, so the user's provider doesn't run for a schema that fails to scan
+    // provided at parse time, so the user's provider doesn't run for a schema that fails to scan
     val objectMapper: ObjectMapper by lazy { options.objectMapperProvider.provide(field) }
 
-    val argumentTargets: List<ArgumentTarget> get() = (member as? MethodMember)?.arguments.orEmpty().map { ArgumentTarget(it.definition, it.type) }
+    val argumentTargets: List<ArgumentTarget> get() = (member as? MethodMember)?.arguments.orEmpty()
 
     private val returnShape by lazy {
         member?.let { TypeShape.returnType(field.type, it.declaredValueType, search.isSubscription, search.type, options, it.reference) }
@@ -71,7 +65,7 @@ internal class ResolverPlan private constructor(
 
     // each shape is walked only when the scanner gets to it, so an earlier match's dictionary error is reported first
     fun typeShapes(): Sequence<TypeShape> = sequence {
-        (member as? MethodMember)?.arguments?.forEach { yield(it.shape) }
+        (member as? MethodMember)?.let { yieldAll(it.parameterShapes()) }
         returnShape?.let { yield(it) }
     }
 
@@ -90,7 +84,7 @@ internal class ResolverPlan private constructor(
 
             is MapMember -> {
                 val unwrapper = if (member.hasTypedValues) TypeShape.Unwrapper(returnShape!!, ResolverKind.MAP_VALUE, member.name) else null
-                LightFetcher(source, MapMember.sourceResolver, member, unwrapper)
+                LightFetcher(source, MapMember.anyMap, member, unwrapper)
             }
         }
     }
@@ -101,14 +95,14 @@ internal class ResolverPlan private constructor(
             return SourceResolver { _, _ -> resolver }
         }
 
+        val type = search.type
         return SourceResolver { environment, sourceObject ->
-            // if source object is known, environment is null as an optimization (LightDataFetcher)
             val source = sourceObject
                 ?: environment?.getSource<Any>()
                 ?: throw ResolverError("Expected DataFetchingEnvironment and source object to not be null!")
 
-            if (!TypeUtils.isAssignable(source.javaClass, search.type)) {
-                throw ResolverError("Expected source object to be an instance of '${TypeUtils.getRawType(search.type, search.type).name}' but instead got '${source.javaClass.name}'")
+            if (!TypeUtils.isAssignable(source.javaClass, type)) {
+                throw ResolverError("Expected source object to be an instance of '${TypeUtils.getRawType(type, type).name}' but instead got '${source.javaClass.name}'")
             }
 
             source
@@ -152,10 +146,6 @@ internal class ResolverPlan private constructor(
 
     data class NotCallableOnResolver(val message: String, val isField: Boolean)
 
-    /**
-     * Finds the member behind each field. Root fields are searched on every root resolver, so it indexes each class's methods
-     * only once.
-     */
     class Finder(private val options: SchemaParserOptions, private val scalarNames: Set<String>) {
 
         private val log = LoggerFactory.getLogger(javaClass)
@@ -249,12 +239,6 @@ internal class ResolverPlan private constructor(
             val name = field.name
             val capitalizedName = name.replaceFirstChar(Char::titlecase)
 
-            // Check for the following one by one:
-            //   1. Method with exact field name
-            //   2. Method that returns a boolean with "is" style getter
-            //   3. Method with "get" style getter
-            //   4. Method with "getField" style getter
-            //   5. Method with "get" style getter with the field name converted from snake_case to camelCased. ex: key_ops -> getKeyOps()
             return listOfNotNull(
                 name,
                 if (isBoolean(field.type)) "is$capitalizedName" else null,
@@ -281,8 +265,6 @@ internal class ResolverPlan private constructor(
                 .asSequence()
                 .filter { !it.isSynthetic }
                 .filter { !Modifier.isPrivate(it.modifiers) }
-                // discard any methods that are coming off the root of the class hierarchy
-                // to avoid issues with duplicate method declarations
                 .filter { it.declaringClass != Any::class.java }
                 .filter { !search.isSubscription || returnsPublisher(it.returnType, it.genericReturnType, options.genericWrappers) }
                 .toList()
@@ -296,7 +278,6 @@ internal class ResolverPlan private constructor(
                     it.eraseUnboundedWildcards() == search.requiredFirstParameterType || method.declaringClass.typeParameters.contains(it)
                 } ?: false
             } else {
-                // an extension receiver can only take the source object
                 !isExtensionFunction(method)
             }
 
@@ -378,18 +359,12 @@ internal class ResolverPlan private constructor(
     }
 }
 
-/**
- * The kinds of Java member a field can resolve to. The [ResolverPlan.Finder] looks for them in this order.
- */
 internal enum class ResolverKind(val noun: String, val holdCompletionStage: String) {
     METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."),
     FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead."),
     MAP_VALUE("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.")
 }
 
-/**
- * The parameters a resolver method may have after its arguments, listed in the order the missing-resolver error names them.
- */
 internal enum class ExtraParameter(private val bindingPrecedence: Int) {
     ENVIRONMENT(bindingPrecedence = 2) {
         override fun type(options: SchemaParserOptions): Class<*> = DataFetchingEnvironment::class.java
@@ -404,7 +379,6 @@ internal enum class ExtraParameter(private val bindingPrecedence: Int) {
     CONTEXT_CLASS(bindingPrecedence = 1) {
         override fun type(options: SchemaParserOptions): Class<*>? = options.contextClass
 
-        // the context class can also be an argument's type (e.g. a Map for an input object), so only spec scalars count for it
         override fun takesArgumentSlotOf(argument: InputValueDefinition) =
             argument.type.unwrap().name in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS
 
@@ -429,11 +403,9 @@ internal enum class ExtraParameter(private val bindingPrecedence: Int) {
 
         fun types(options: SchemaParserOptions): List<Class<*>> = entries.mapNotNull { it.type(options) }
 
-        // a class can be the type of more than one entry, e.g. a context class of DataFetchingEnvironment
         fun of(parameterType: Class<*>, options: SchemaParserOptions): ExtraParameter? =
             byBindingPrecedence.find { it.type(options) == parameterType }
 
-        // whether a parameter of this type in an argument's position is an extra parameter rather than the argument's
         fun takesArgumentSlot(parameterType: Class<*>, argument: InputValueDefinition, options: SchemaParserOptions): Boolean {
             val matching = entries.filter { it.type(options) == parameterType }
             return matching.isNotEmpty() && matching.all { it.takesArgumentSlotOf(argument) }
@@ -476,19 +448,15 @@ private class MethodMember(
             return resolveTypeVariables(declaredType, search.type)
         }
 
-    val arguments: List<Argument> = field.inputValueDefinitions.mapIndexed { index, definition ->
-        val type = resolveTypeVariables(method.genericParameterTypes[index + search.firstArgumentIndex], search.type)
-        Argument(definition, type, lazy { TypeShape.parameterType(definition.type, type, search.type, options, ScanDictionary.MethodParameterReference(method, index)) })
+    val arguments: List<ResolverPlan.ArgumentTarget> = field.inputValueDefinitions.mapIndexed { index, definition ->
+        ResolverPlan.ArgumentTarget(definition, resolveTypeVariables(method.genericParameterTypes[index + search.firstArgumentIndex], search.type))
     }
 
-    class Argument(val definition: InputValueDefinition, val type: JavaType, private val lazyShape: Lazy<TypeShape>) {
-        val shape by lazyShape
+    fun parameterShapes(): Sequence<TypeShape> = arguments.asSequence().mapIndexed { index, (definition, type) ->
+        TypeShape.parameterType(definition.type, type, search.type, options, ScanDictionary.MethodParameterReference(method, index))
     }
 
-    /**
-     * What to pass for each parameter in the method's order, leaving out the Continuation of a suspend function.
-     */
-    fun slots(mapper: ObjectMapper): List<(DataFetchingEnvironment) -> Any?> {
+    fun slots(mapper: ObjectMapper): Array<(DataFetchingEnvironment) -> Any?> {
         val slots = mutableListOf<(DataFetchingEnvironment) -> Any?>()
 
         search.requiredFirstParameterType?.let { expectedType ->
@@ -509,10 +477,10 @@ private class MethodMember(
             slots.add(ExtraParameter.of(parameterType, options)!!.bind(parameterType, method))
         }
 
-        return slots
+        return slots.toTypedArray()
     }
 
-    private fun argumentSlot(argument: Argument, mapper: ObjectMapper): (DataFetchingEnvironment) -> Any? {
+    private fun argumentSlot(argument: ResolverPlan.ArgumentTarget, mapper: ObjectMapper): (DataFetchingEnvironment) -> Any? {
         val definition = argument.definition
         val isNonNull = definition.type is NonNullType
         val isOptional = isOptionalParameter(argument.type, search.type)
@@ -568,7 +536,6 @@ private class PropertyMember(private val property: Field) : Member() {
 private class MapMember(field: FieldDefinition, private val search: ResolverSearch) : Member() {
     private val key = field.name
 
-    // Classmate keeps the value type a Map subclass fixes, e.g. a class extending HashMap<String, Foo>
     override val declaredValueType: JavaType =
         TypeResolver().resolve(search.type.unwrap()).typeParametersFor(Map::class.java).elementAtOrElse(1) { Any::class.java }
 
@@ -583,8 +550,7 @@ private class MapMember(field: FieldDefinition, private val search: ResolverSear
     override fun toString() = "MapFieldResolver{key=$key}"
 
     companion object {
-        // the light data fetcher reads any Map it's given, without checking its class against the search type
-        val sourceResolver = SourceResolver { _, source ->
+        val anyMap = SourceResolver { _, source ->
             source as? Map<*, *> ?: throw RuntimeException("MapFieldResolver attempt to fetch a field from an object instance that was not a map")
         }
     }
@@ -595,7 +561,7 @@ private val noArguments = emptyArray<Any?>()
 private class Fetcher(
     private val source: SourceResolver,
     private val member: MethodMember,
-    private val slots: List<(DataFetchingEnvironment) -> Any?>,
+    private val slots: Array<(DataFetchingEnvironment) -> Any?>,
     private val options: SchemaParserOptions,
     private val unwrapper: TypeShape.Unwrapper
 ) : DataFetcher<Any?> {
@@ -603,7 +569,9 @@ private class Fetcher(
     override fun get(environment: DataFetchingEnvironment): Any? {
         val target = source.resolve(environment, null)
         val arguments = arrayOfNulls<Any?>(if (member.isSuspend) slots.size + 1 else slots.size)
-        slots.forEachIndexed { index, slot -> arguments[index] = slot(environment) }
+        for (index in slots.indices) {
+            arguments[index] = slots[index](environment)
+        }
 
         return if (member.isSuspend) {
             // start undispatched so DataLoader loads are queued before graphql-java dispatches them,
@@ -617,16 +585,10 @@ private class Fetcher(
         }
     }
 
-    /**
-     * Function that returns the object used to fetch the data. It can be a DataFetcher or an entity.
-     */
     @Suppress("unused")
     fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any = source.resolve(environment, null)
 }
 
-/**
- * For a member without parameters, which needs the environment only if a generic wrapper's transformer asks for it.
- */
 private class LightFetcher(
     private val source: SourceResolver,
     private val lightSource: SourceResolver,
@@ -642,9 +604,6 @@ private class LightFetcher(
     override fun get(environment: DataFetchingEnvironment): Any? =
         get(environment.fieldDefinition, source.resolve(environment, null)) { environment }
 
-    /**
-     * Function that returns the object used to fetch the data. It can be a DataFetcher or an entity.
-     */
     @Suppress("unused")
     fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any = source.resolve(environment, null)
 }
@@ -665,6 +624,5 @@ private fun Method.isSuspendFunction(): Boolean {
     }
 }
 
-// the trailing Continuation of a suspend function isn't a resolver argument
 private fun Method.parameterCountWithoutContinuation(): Int =
     if (isSuspendFunction()) parameterCount - 1 else parameterCount

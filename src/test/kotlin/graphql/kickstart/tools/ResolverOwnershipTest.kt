@@ -67,7 +67,6 @@ class ResolverOwnershipTest {
         )
     )
 
-    // input-object field types are guessed from getters until they come from the mapping Jackson uses
     private val guessesInputFieldTypes = object : DescribedPredicate<JavaAccess<*>>("is in ScanDictionary.findInputValueTypeInType") {
         override fun test(access: JavaAccess<*>) =
             access.origin.owner.isEquivalentTo(ScanDictionary::class.java) && access.origin.name.startsWith("findInputValueTypeInType")

@@ -122,6 +122,29 @@ class ResolverPlanTest {
         assertEquals(methodName("count", "Int"), "getFieldCount")
     }
 
+    @Test
+    fun `finder takes a method before a field and a field before a Map key`() {
+        fun reference(dataClass: Class<*>) = finder.find(FieldDefinition("value", TypeName("String")), DataClassResolverInfo(dataClass)).reference()
+
+        assertEquals(reference(MapWithMethod::class.java), "return type of method ${MapWithMethod::class.java.getMethod("getValue")}")
+        assertEquals(reference(MapWithField::class.java), "type of field ${MapWithField::class.java.getField("value")}")
+        assertEquals(reference(PlainMap::class.java), "type of field value")
+    }
+
+    class PlainMap : HashMap<String, String>()
+
+    class MapWithField : HashMap<String, String>() {
+        @JvmField
+        val value: String = "field"
+    }
+
+    class MapWithMethod : HashMap<String, String>() {
+        @JvmField
+        val value: String = "field"
+
+        fun getValue(): String = "method"
+    }
+
     class RootQuery1 : GraphQLQueryResolver {
         fun field1() {}
     }

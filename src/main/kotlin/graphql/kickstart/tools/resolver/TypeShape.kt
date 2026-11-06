@@ -283,11 +283,6 @@ private fun GenericWrapper.canTransformToPublisher() =
 internal fun isOptionalParameter(parameterType: JavaType, containingType: JavaType): Boolean =
     TypeUtils.getRawType(parameterType, containingType) == Optional::class.java
 
-/**
- * A concrete scalar type is a scalar type where values always coerce to the same Java type. The ID scalar type is not concrete
- * because values can be coerced to multiple different Java types (eg. String, Long, UUID). All values of a non-concrete scalar
- * type must be converted to the target method parameter type.
- */
 internal fun isConcreteScalarType(type: GraphQLLangType, parameterType: JavaType, scalarNames: Set<String>): Boolean =
     when (type) {
         is ListType -> parameterType.typeArgument(List::class.java)
