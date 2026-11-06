@@ -5,8 +5,12 @@ import com.tngtech.archunit.base.DescribedPredicate.and
 import com.tngtech.archunit.base.DescribedPredicate.not
 import com.tngtech.archunit.core.domain.JavaAccess
 import com.tngtech.archunit.core.domain.JavaClass
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
 import com.tngtech.archunit.core.domain.JavaClasses
 import com.tngtech.archunit.core.importer.ClassFileImporter
+import com.tngtech.archunit.lang.conditions.ArchConditions.be
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import graphql.execution.DataFetcherResult
@@ -30,6 +34,7 @@ import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Parameter
 import java.nio.file.Paths
 
 class ResolverOwnershipTest {
@@ -63,18 +68,27 @@ class ResolverOwnershipTest {
 
     private class Calls(description: String, private val targets: Map<String, Set<String>>) : DescribedPredicate<JavaAccess<*>>(description) {
         override fun test(access: JavaAccess<*>) =
-            targets.any { (owner, names) -> access.target.owner.isAssignableTo(owner) && access.target.name in names }
+            targets.any { (owner, names) -> access.target.name in names && access.target.owner.isAssignableTo(owner) }
     }
+
+    // KCallable only from kotlin.reflect itself, since Kotlin compiles a callable reference such as Type::name into a class implementing it
+    private val kotlinReflection = resideInAnyPackage("kotlin.reflect.full", "kotlin.reflect.jvm")
+        .or(resideInAPackage("kotlin.reflect").and(assignableTo("kotlin.reflect.KCallable")))
+        .`as`("are kotlin-reflect's member lookups and JVM mappings, or a KFunction, a KProperty or their getters and setters")
 
     private val memberReflection = Calls(
         "reads, invokes or opens a Java or Kotlin member by reflection",
         mapOf(
             Method::class.java.name to setOf("invoke"),
             Field::class.java.name to setOf(
-                "get", "getBoolean", "getByte", "getChar", "getShort", "getInt", "getLong", "getFloat", "getDouble", "getGenericType",
-                "set", "setBoolean", "setByte", "setChar", "setShort", "setInt", "setLong", "setFloat", "setDouble"
+                "get", "getBoolean", "getByte", "getChar", "getShort", "getInt", "getLong", "getFloat", "getDouble", "getType", "getGenericType",
+                "getAnnotatedType", "set", "setBoolean", "setByte", "setChar", "setShort", "setInt", "setLong", "setFloat", "setDouble"
             ),
-            Executable::class.java.name to setOf("getGenericParameterTypes", "getGenericReturnType", "getParameterTypes", "getParameterCount"),
+            Executable::class.java.name to setOf(
+                "getGenericParameterTypes", "getGenericReturnType", "getParameterTypes", "getParameterCount", "getAnnotatedReturnType",
+                "getAnnotatedParameterTypes"
+            ),
+            Parameter::class.java.name to setOf("getType", "getParameterizedType", "getAnnotatedType"),
             AccessibleObject::class.java.name to setOf("setAccessible", "trySetAccessible"),
             MethodHandles::class.java.name to setOf("privateLookupIn"),
             MethodHandles.Lookup::class.java.name to setOf(
@@ -82,11 +96,7 @@ class ResolverOwnershipTest {
                 "findGetter", "findSetter", "findStaticGetter", "findStaticSetter", "findVarHandle", "findStaticVarHandle"
             ),
             MethodHandle::class.java.name to setOf("invoke", "invokeExact", "invokeWithArguments"),
-            "kotlin.reflect.KCallable" to setOf("call", "callBy", "getReturnType"),
-            "kotlin.reflect.KProperty" to setOf("get", "set", "invoke", "getDelegate"),
-            "kotlin.reflect.jvm.ReflectJvmMapping" to setOf(
-                "getKotlinFunction", "getKotlinProperty", "getJavaType", "getJavaMethod", "getJavaField", "getJavaGetter", "getJavaSetter"
-            ),
+            "kotlin.reflect.KClass" to setOf("getMembers", "getConstructors"),
             FieldUtils::class.java.name to setOf(
                 "getAllFields", "getAllFieldsList", "getField", "getDeclaredField", "readField", "readDeclaredField", "readStaticField",
                 "readDeclaredStaticField", "writeField", "writeDeclaredField", "writeStaticField", "writeDeclaredStaticField"
@@ -103,8 +113,9 @@ class ResolverOwnershipTest {
             mapOf(Executable::class.java.name to setOf("getGenericReturnType", "getParameterCount"), Field::class.java.name to setOf("getGenericType"))
         )
 
-        override fun test(access: JavaAccess<*>) =
-            access.origin.owner.isEquivalentTo(ScanDictionary::class.java) && access.origin.name == "findInputValueTypeInType" && reads.test(access)
+        private val exempt = "${ScanDictionary::class.java.name}.findInputValueTypeInType(${String::class.java.name}, ${Class::class.java.name})"
+
+        override fun test(access: JavaAccess<*>) = access.origin.fullName == exempt && reads.test(access)
     }
 
     private val tokenBufferConversion = Calls(
@@ -152,6 +163,7 @@ class ResolverOwnershipTest {
     fun `only the resolver plan reflects on resolver members`() {
         noClasses().that(not(resolverPlanFile))
             .should().accessTargetWhere(and(memberReflection, not(readsInputFieldTypes)))
+            .orShould().dependOnClassesThat(kotlinReflection)
             .because("ResolverPlan.kt reads each field's member once, at schema build, and is the only place that invokes it. " +
                 "Read what you need from the ResolverPlan, such as its argument targets or type shapes, or add it there")
             .check(classes)
@@ -168,9 +180,10 @@ class ResolverOwnershipTest {
     }
 
     @Test
-    fun `every library data fetcher is a ResolverDataFetcher`() {
+    fun `every library data fetcher is a ResolverDataFetcher in ResolverPlan kt`() {
         classes().that().implement(DataFetcher::class.java)
             .should().beAssignableTo(ResolverDataFetcher::class.java)
+            .andShould(be(resolverPlanFile.`as`("declared in ${resolverPlanFile.fileName}")))
             .because("ResolverDataFetcher's constructor takes the TypeShape.Unwrapper the scan matched, so a resolver's value reaches graphql-java " +
                 "fully unwrapped. Add the member to ResolverPlan and its fetcher as a ResolverDataFetcher in ResolverPlan.kt instead of a new fetcher")
             .check(classes)
