@@ -46,7 +46,7 @@ internal class TypeShape private constructor(
 
     fun error(msg: String) = matchError(graphQLType, reference, javaType, msg)
 
-    class Unwrapper(shape: TypeShape, resolverKind: String, resolverName: String, isSuspendFunction: Boolean = false) {
+    class Unwrapper(shape: TypeShape, resolverKind: ResolverKind, resolverName: String, isSuspendFunction: Boolean = false) {
         private val wrappers = shape.wrappers
         private val awaitable: Awaitable
         private val isOutermostFuture: Boolean
@@ -391,10 +391,16 @@ private fun List<Any?>.awaitAll(): Any {
 private fun Any?.asCompletionStage(): CompletionStage<Any?> =
     this as? CompletionStage<Any?> ?: CompletableFuture.completedFuture(this)
 
+internal enum class ResolverKind(val noun: String, val holdCompletionStage: String) {
+    METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."),
+    FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead."),
+    MAP_VALUE("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.")
+}
+
 // graphql-java only waits on a CompletionStage returned by a data fetcher, so any other future, or a future
 // that a suspend function completes with, would reach it as the field value
 private class Awaitable(
-    private val resolverKind: String,
+    private val resolverKind: ResolverKind,
     private val resolverName: String,
     private val valueClass: Class<*>?,
     private val isSuspendFunction: Boolean
@@ -410,8 +416,8 @@ private class Awaitable(
         if (isSuspendFunction) {
             "Suspend function '$resolverName' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. Return its value instead."
         } else {
-            "Resolver $resolverKind '$resolverName' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
-                "Return a CompletionStage, such as a CompletableFuture, from the $resolverKind or its generic wrapper transformer instead."
+            "Resolver ${resolverKind.noun} '$resolverName' resolved to a ${value.javaClass.name}, which graphql-java can't wait on. " +
+                resolverKind.holdCompletionStage
         }
     )
 }

@@ -271,11 +271,11 @@ class ResolverCompatibilityTest {
         .replace("${ResolverCompatibilityTest::class.java.name}$", "")
         .replace("java.util.concurrent.", "")
 
-    enum class Kind(val resolverKind: String, val holder: (Shape) -> Any) {
-        METHOD("method", { MethodHolder() }),
-        JVM_FIELD("field", { JvmFieldHolder() }),
-        TYPED_MAP("map value", { shape -> shape.typedMap(JvmFieldHolder()) }),
-        UNTYPED_MAP("map value", { shape -> hashMapOf(shape.name to shape.value()) })
+    enum class Kind(val resolverKind: String, val holdCompletionStage: String, val holder: (Shape) -> Any) {
+        METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.", { MethodHolder() }),
+        JVM_FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead.", { JvmFieldHolder() }),
+        TYPED_MAP("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.", { shape -> shape.typedMap(JvmFieldHolder()) }),
+        UNTYPED_MAP("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.", { shape -> hashMapOf(shape.name to shape.value()) })
     }
 
     class Shape(val name: String, val type: String, private val expected: String, val typedMap: (JvmFieldHolder) -> Map<String, *>) {
@@ -283,7 +283,7 @@ class ResolverCompatibilityTest {
 
         fun value(): Any? = JvmFieldHolder::class.java.getField(name).get(JvmFieldHolder())
 
-        fun expected(kind: Kind) = expected.replace("HOLDER", kind.holder(this).javaClass.simpleName).replace("KIND", kind.resolverKind)
+        fun expected(kind: Kind) = expected.replace("HOLDER", kind.holder(this).javaClass.simpleName).replace("KIND", kind.resolverKind).replace("HOLD_COMPLETION_STAGE", kind.holdCompletionStage)
     }
 
     class Foo(val name: String)
@@ -395,7 +395,7 @@ class ResolverCompatibilityTest {
             Shape(
                 "plainFuture", "Foo",
                 "null\nerror: Exception while fetching data (/holder/plainFuture) : Resolver KIND 'HOLDER.plainFuture' resolved to a FutureTask, " +
-                    "which graphql-java can't wait on. Return a CompletionStage, such as a CompletableFuture, from the KIND or its generic wrapper transformer instead."
+                    "which graphql-java can't wait on. HOLD_COMPLETION_STAGE"
             ) { PlainFutureMap().apply { put("plainFuture", it.plainFuture) } },
             Shape("box", "Foo", "{name=a}") { BoxMap().apply { put("box", it.box) } },
             Shape("optionalResult", "Foo", "{name=a}") { OptionalResultMap().apply { put("optionalResult", it.optionalResult) } },

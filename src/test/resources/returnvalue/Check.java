@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -101,18 +102,23 @@ public final class Check {
     }
 
     enum Kind {
-        METHOD("method", "method", List.of(Nullability.values()), List.of(Timing.values())),
-        PROPERTY("property", "field", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER)),
-        MAP("map", "map value", List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER));
+        METHOD("method", "method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead.",
+            List.of(Nullability.values()), List.of(Timing.values())),
+        PROPERTY("property", "field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead.",
+            List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER)),
+        MAP("map", "map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.",
+            List.of(Nullability.NULLABLE), List.of(Timing.DONE, Timing.PENDING_IN_ORDER));
 
         final String label;
         final String resolverKind;
+        final String holdCompletionStage;
         final List<Nullability> nullabilities;
         final List<Timing> timings;
 
-        Kind(String label, String resolverKind, List<Nullability> nullabilities, List<Timing> timings) {
+        Kind(String label, String resolverKind, String holdCompletionStage, List<Nullability> nullabilities, List<Timing> timings) {
             this.label = label;
             this.resolverKind = resolverKind;
+            this.holdCompletionStage = holdCompletionStage;
             this.nullabilities = nullabilities;
             this.timings = timings;
         }
@@ -307,6 +313,13 @@ public final class Check {
         "java.util.List<graphql.execution.DataFetcherResult<unwrapcheck.Fixtures.Try<java.lang.Object>>> [Item!]!"
     );
 
+    private static final List<String> pinnedCoverage = List.of(
+        "7020 return types",
+        "method: 861 rejected, 171693 executions",
+        "property: 252 rejected, 27292 executions",
+        "map: 252 rejected, 27292 executions"
+    );
+
     public static boolean check(String[] args, String classpath, PrintStream out) throws Exception {
         int depth = intArg(args, "--depth", DEPTH);
         int budget = intArg(args, "--budget", BUDGET);
@@ -328,8 +341,8 @@ public final class Check {
         List<Case> cases = cases(depth);
         Map<String, Class<?>> resolvers = compile(cases, classpath);
 
-        int rejected = 0;
-        int runs = 0;
+        Map<Kind, Integer> rejectedByKind = new EnumMap<>(Kind.class);
+        Map<Kind, Integer> runsByKind = new EnumMap<>(Kind.class);
         boolean blocked = false;
         Set<String> accepted = new LinkedHashSet<>();
         Set<String> acceptedReturnTypes = new LinkedHashSet<>();
@@ -341,7 +354,7 @@ public final class Check {
             try {
                 schema = schema(testCase, instance);
             } catch (RuntimeException e) {
-                rejected++;
+                rejectedByKind.merge(testCase.kind, 1, Integer::sum);
                 if (flag(args, "--rejected")) {
                     out.println("rejected " + testCase.describe() + ": " + e.getMessage().lines().findFirst().orElse(""));
                 }
@@ -356,7 +369,7 @@ public final class Check {
             plans:
             for (Plan plan : plansWithinBudget(testCase, 0, testCase.kind == Kind.METHOD ? budget : propertyBudget)) {
                 for (Timing timing : timings) {
-                    runs++;
+                    runsByKind.merge(testCase.kind, 1, Integer::sum);
                     Violation violation = run(testCase, plan, timing, actual, oracle, returning);
                     if (violation != null) {
                         violations.computeIfAbsent(testCase, c -> new ArrayList<>()).add(violation);
@@ -375,6 +388,8 @@ public final class Check {
                 .map(it -> kind.label + " " + it))
             .filter(it -> !accepted.contains(it))
             .collect(Collectors.toList());
+        int rejected = rejectedByKind.values().stream().mapToInt(Integer::intValue).sum();
+        int runs = runsByKind.values().stream().mapToInt(Integer::intValue).sum();
         out.printf("depth %d, budget %d (%d for properties and Maps): %d return types, %d rejected by the schema build, %d accepted, %d executions, %.1fs%n",
             depth, budget, propertyBudget, cases.size(), rejected, accepted.size(), runs, (System.nanoTime() - started) / 1e9);
         if (blocked) {
@@ -415,12 +430,34 @@ public final class Check {
             passed = false;
         }
         if (depth == DEPTH && budget == BUDGET && propertyBudget == PROPERTY_BUDGET) {
+            List<String> coverage = new ArrayList<>(List.of(cases.size() + " return types"));
+            for (Kind kind : Kind.values()) {
+                coverage.add(kind.label + ": " + rejectedByKind.getOrDefault(kind, 0) + " rejected, " + runsByKind.getOrDefault(kind, 0) + " executions");
+            }
+            passed &= coverageIsPinned(coverage, out);
             passed &= knownFindingsAreExact(known, failing.keySet(), show, out);
         }
         if (passed) {
             out.println(violations.isEmpty() ? "PASS" : "\nPASS apart from the known findings above");
         }
         return passed;
+    }
+
+    private static boolean coverageIsPinned(List<String> coverage, PrintStream out) {
+        if (coverage.equals(pinnedCoverage)) {
+            return true;
+        }
+        out.println("\nSTALE: this run's coverage differs from pinnedCoverage in Check.java. More rejected return types or fewer executions "
+            + "means the check stopped exercising something, which no other line of this report fails on:");
+        for (int i = 0; i < coverage.size(); i++) {
+            if (!coverage.get(i).equals(pinnedCoverage.get(i))) {
+                out.println("  pinned " + pinnedCoverage.get(i) + ", got " + coverage.get(i));
+            }
+        }
+        out.println("Diff --rejected output against the last commit to see which return types the build now rejects or accepts, "
+            + "and confirm the change is intended. Then set pinnedCoverage to these counts in the same diff:");
+        coverage.forEach(it -> out.println("  \"" + it + "\""));
+        return false;
     }
 
     private static boolean knownFindingsAreExact(List<KnownFinding> known, Set<String> failing, int show, PrintStream out) {
@@ -592,9 +629,8 @@ public final class Check {
                 }
             }
             case FUTURE_TASK: {
-                String kind = testCase.kind.resolverKind;
-                context.failures.add("Resolver " + kind + " '" + context.resolverName + "' resolved to a " + FutureTask.class.getName() + ", which graphql-java can't wait on. "
-                    + "Return a CompletionStage, such as a CompletableFuture, from the " + kind + " or its generic wrapper transformer instead.");
+                context.failures.add("Resolver " + testCase.kind.resolverKind + " '" + context.resolverName + "' resolved to a " + FutureTask.class.getName()
+                    + ", which graphql-java can't wait on. " + testCase.kind.holdCompletionStage);
                 FutureTask<Object> task = new FutureTask<>(() -> null);
                 task.run();
                 return new Built(task, null, "FutureTask");

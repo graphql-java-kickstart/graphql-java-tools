@@ -25,7 +25,7 @@ internal class PropertyFieldResolver(
     }
 
     override fun createDataFetcher(): DataFetcher<*> {
-        val unwrapper = TypeShape.Unwrapper(returnShape, "field", "${property.declaringClass.name}.${property.name}")
+        val unwrapper = TypeShape.Unwrapper(returnShape, ResolverKind.FIELD, "${property.declaringClass.name}.${property.name}")
         return PropertyFieldResolverDataFetcher(createSourceResolver(), property, unwrapper)
     }
 

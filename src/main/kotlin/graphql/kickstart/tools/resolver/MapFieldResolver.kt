@@ -46,7 +46,7 @@ internal class MapFieldResolver(
     private val hasTypedValues get() = resolveTypeVariables(mapGenericValue, search.type) != Any::class.java
 
     override fun createDataFetcher(): DataFetcher<*> {
-        val unwrapper = if (hasTypedValues) TypeShape.Unwrapper(returnShape, "map value", "${search.type.unwrap().name}.${field.name}") else null
+        val unwrapper = if (hasTypedValues) TypeShape.Unwrapper(returnShape, ResolverKind.MAP_VALUE, "${search.type.unwrap().name}.${field.name}") else null
         return MapFieldResolverDataFetcher(createSourceResolver(), field.name, unwrapper)
     }
 
