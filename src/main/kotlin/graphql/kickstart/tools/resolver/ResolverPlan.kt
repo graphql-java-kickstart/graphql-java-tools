@@ -69,23 +69,24 @@ internal class ResolverPlan private constructor(
         returnShape?.let { yield(it) }
     }
 
-    fun dataFetcher(): DataFetcher<*> {
-        val member = member
-            ?: return (options.missingResolverDataFetcherProvider ?: notImplemented).createDataFetcher(field, options)
+    fun dataFetcher(): DataFetcher<*> =
+        member?.let(::fetcherOf) ?: (options.missingResolverDataFetcherProvider ?: notImplemented).createDataFetcher(field, options)
+
+    private fun fetcherOf(member: Member): ResolverDataFetcher {
         val source = sourceResolver()
+        val unwrapper = TypeShape.Unwrapper(returnShape!!, member.kind, member.name, member.isSuspend)
         return when (member) {
             is MethodMember -> {
                 val slots = member.slots(objectMapper)
-                val unwrapper = TypeShape.Unwrapper(returnShape!!, ResolverKind.METHOD, member.name, member.isSuspend)
-                if (slots.isNotEmpty() || member.isSuspend) Fetcher(source, member, slots, options, unwrapper) else LightFetcher(source, source, member, unwrapper)
+                if (slots.isNotEmpty() || member.isSuspend) {
+                    MethodFieldResolverDataFetcher(source, member.method, slots, member.isSuspend, options, unwrapper)
+                } else {
+                    LightMethodFieldResolverDataFetcher(source, member.method, unwrapper)
+                }
             }
 
-            is PropertyMember -> LightFetcher(source, source, member, TypeShape.Unwrapper(returnShape!!, ResolverKind.FIELD, member.name))
-
-            is MapMember -> {
-                val unwrapper = if (member.hasTypedValues) TypeShape.Unwrapper(returnShape!!, ResolverKind.MAP_VALUE, member.name) else null
-                LightFetcher(source, MapMember.anyMap, member, unwrapper)
-            }
+            is PropertyMember -> PropertyFieldResolverDataFetcher(source, member.property, unwrapper)
+            is MapMember -> MapFieldResolverDataFetcher(source, member.key, unwrapper)
         }
     }
 
@@ -360,10 +361,15 @@ internal class ResolverPlan private constructor(
     }
 }
 
-internal enum class ResolverKind(val noun: String, val holdCompletionStage: String) {
+internal enum class ResolverKind(val noun: String, val holdCompletionStage: String, val unwrapsObjectValues: Boolean = true) {
     METHOD("method", "Return a CompletionStage, such as a CompletableFuture, from the method or its generic wrapper transformer instead."),
     FIELD("field", "Assign a CompletionStage, such as a CompletableFuture, to the field, or return one from its generic wrapper transformer instead."),
-    MAP_VALUE("map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.")
+
+    // an untyped Map declares no value type, so unwrapping its values would mean inspecting each one at runtime
+    MAP_VALUE(
+        "map value", "Put a CompletionStage, such as a CompletableFuture, in the map, or return one from its generic wrapper transformer instead.",
+        unwrapsObjectValues = false
+    )
 }
 
 internal enum class ExtraParameter(private val bindingPrecedence: Int) {
@@ -380,6 +386,7 @@ internal enum class ExtraParameter(private val bindingPrecedence: Int) {
     CONTEXT_CLASS(bindingPrecedence = 1) {
         override fun type(options: SchemaParserOptions): Class<*>? = options.contextClass
 
+        // the context class can also be an argument's type (e.g. a Map for an input object), so only spec scalars count for it
         override fun takesArgumentSlotOf(argument: InputValueDefinition) =
             argument.type.unwrap().name in ScalarInfo.GRAPHQL_SPECIFICATION_SCALARS_DEFINITIONS
 
@@ -416,13 +423,12 @@ internal enum class ExtraParameter(private val bindingPrecedence: Int) {
 
 internal class FieldResolverError(msg: String) : RuntimeException(msg)
 
-private sealed class Member {
+private sealed class Member(val kind: ResolverKind) {
     abstract val name: String
     abstract val declaredValueType: JavaType
     abstract val reference: ScanDictionary.Reference
     abstract val javaMember: java.lang.reflect.Member?
-
-    abstract fun read(target: Any, arguments: Array<Any?>): Any?
+    open val isSuspend get() = false
 }
 
 private class MethodMember(
@@ -431,9 +437,8 @@ private class MethodMember(
     val method: Method,
     private val options: SchemaParserOptions,
     private val scalarNames: Set<String>
-) : Member() {
-    val isSuspend = method.isSuspendFunction()
-    private val parameterCount = if (isSuspend) method.parameterCount - 1 else method.parameterCount
+) : Member(ResolverKind.METHOD) {
+    override val isSuspend = method.isSuspendFunction()
 
     override val name get() = "${method.declaringClass.name}.${method.name}"
     override val javaMember get() = method
@@ -474,7 +479,7 @@ private class MethodMember(
 
         arguments.forEach { slots.add(argumentSlot(it, mapper)) }
 
-        method.parameterTypes.slice(slots.size until parameterCount).forEach { parameterType ->
+        method.parameterTypes.slice(slots.size until method.parameterCountWithoutContinuation()).forEach { parameterType ->
             slots.add(ExtraParameter.of(parameterType, options)!!.bind(parameterType, method))
         }
 
@@ -512,102 +517,126 @@ private class MethodMember(
         }
     }
 
-    override fun read(target: Any, arguments: Array<Any?>): Any? = invoke(method, target, arguments)
-
-    suspend fun readSuspending(target: Any, arguments: Array<Any?>): Any? =
-        suspendCoroutineUninterceptedOrReturn { continuation ->
-            arguments[arguments.lastIndex] = continuation
-            invoke(method, target, arguments)
-        }
-
+    // the build error for a field more than one root resolver serves lists the resolvers by these names
     override fun toString() = "MethodFieldResolver{method=$method}"
 }
 
-private class PropertyMember(private val property: Field) : Member() {
+private class PropertyMember(val property: Field) : Member(ResolverKind.FIELD) {
     override val name get() = "${property.declaringClass.name}.${property.name}"
     override val javaMember get() = property
     override val declaredValueType: JavaType get() = property.genericType
     override val reference get() = ScanDictionary.FieldTypeReference(property.toString())
 
-    override fun read(target: Any, arguments: Array<Any?>): Any? = property.get(target)
-
     override fun toString() = "PropertyFieldResolver{property=$property}"
 }
 
-private class MapMember(field: FieldDefinition, private val search: ResolverSearch) : Member() {
-    private val key = field.name
+private class MapMember(field: FieldDefinition, private val search: ResolverSearch) : Member(ResolverKind.MAP_VALUE) {
+    val key: String = field.name
 
     override val declaredValueType: JavaType =
         TypeResolver().resolve(search.type.unwrap()).typeParametersFor(Map::class.java).elementAtOrElse(1) { Any::class.java }
-
-    val hasTypedValues get() = resolveTypeVariables(declaredValueType, search.type) != Any::class.java
 
     override val name get() = "${search.type.unwrap().name}.$key"
     override val javaMember: java.lang.reflect.Member? get() = null
     override val reference get() = ScanDictionary.FieldTypeReference(key)
 
-    override fun read(target: Any, arguments: Array<Any?>): Any? = (target as Map<*, *>)[key]
-
     override fun toString() = "MapFieldResolver{key=$key}"
-
-    companion object {
-        val anyMap = SourceResolver { _, source ->
-            source as? Map<*, *> ?: throw RuntimeException("MapFieldResolver attempt to fetch a field from an object instance that was not a map")
-        }
-    }
 }
 
-private val noArguments = emptyArray<Any?>()
+// the only data fetchers a member gets, so every resolver value goes through the unwrapper the scan matched for its field
+internal sealed class ResolverDataFetcher(protected val source: SourceResolver, protected val unwrapper: TypeShape.Unwrapper) : DataFetcher<Any?>
 
-private class Fetcher(
-    private val source: SourceResolver,
-    private val member: MethodMember,
+internal class MethodFieldResolverDataFetcher(
+    source: SourceResolver,
+    private val method: Method,
     private val slots: Array<(DataFetchingEnvironment) -> Any?>,
+    private val isSuspend: Boolean,
     private val options: SchemaParserOptions,
-    private val unwrapper: TypeShape.Unwrapper
-) : DataFetcher<Any?> {
+    unwrapper: TypeShape.Unwrapper
+) : ResolverDataFetcher(source, unwrapper) {
 
     override fun get(environment: DataFetchingEnvironment): Any? {
         val target = source.resolve(environment, null)
-        val arguments = arrayOfNulls<Any?>(if (member.isSuspend) slots.size + 1 else slots.size)
+        val arguments = arrayOfNulls<Any?>(if (isSuspend) slots.size + 1 else slots.size)
         for (index in slots.indices) {
             arguments[index] = slots[index](environment)
         }
 
-        return if (member.isSuspend) {
+        return if (isSuspend) {
             // start undispatched so DataLoader loads are queued before graphql-java dispatches them,
             // which runs the block even if the context is already cancelled, hence ensureActive
             environment.coroutineScope().future(options.coroutineContextProvider.provide(), CoroutineStart.UNDISPATCHED) {
                 ensureActive()
-                member.readSuspending(target, arguments)?.let { unwrapper.unwrapSuspending(it) { environment } }
+                invokeSuspending(method, target, arguments)?.let { unwrapper.unwrapSuspending(it) { environment } }
             }
         } else {
-            member.read(target, arguments)?.let { unwrapper.unwrap(it) { environment } }
+            invoke(method, target, arguments)?.let { unwrapper.unwrap(it) { environment } }
         }
     }
 
-    @Suppress("unused")
+    /**
+     * The object the method is called on, the resolver or the source object. Apps call this by reflection from graphql-java's
+     * `Instrumentation.instrumentDataFetcher` to reach the resolver behind a field.
+     */
     fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any = source.resolve(environment, null)
 }
 
-private class LightFetcher(
-    private val source: SourceResolver,
-    private val lightSource: SourceResolver,
-    private val member: Member,
-    private val unwrapper: TypeShape.Unwrapper?
-) : LightDataFetcher<Any?> {
+/**
+ * [MethodFieldResolverDataFetcher] for a method without parameters, which graphql-java calls without building an environment.
+ */
+internal class LightMethodFieldResolverDataFetcher(
+    source: SourceResolver,
+    private val method: Method,
+    unwrapper: TypeShape.Unwrapper
+) : ResolverDataFetcher(source, unwrapper), LightDataFetcher<Any?> {
 
-    override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
-        val value = member.read(lightSource.resolve(null, sourceObject), noArguments)
-        return if (value == null || unwrapper == null) value else unwrapper.unwrap(value, environmentSupplier)
-    }
+    override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
+        invoke(method, source.resolve(null, sourceObject), noArguments)?.let { unwrapper.unwrap(it, environmentSupplier) }
 
     override fun get(environment: DataFetchingEnvironment): Any? =
         get(environment.fieldDefinition, source.resolve(environment, null)) { environment }
 
-    @Suppress("unused")
+    /**
+     * See [MethodFieldResolverDataFetcher.getWrappedFetchingObject].
+     */
     fun getWrappedFetchingObject(environment: DataFetchingEnvironment): Any = source.resolve(environment, null)
 }
+
+internal class PropertyFieldResolverDataFetcher(
+    source: SourceResolver,
+    private val property: Field,
+    unwrapper: TypeShape.Unwrapper
+) : ResolverDataFetcher(source, unwrapper), LightDataFetcher<Any?> {
+
+    override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? =
+        property.get(source.resolve(null, sourceObject))?.let { unwrapper.unwrap(it, environmentSupplier) }
+
+    override fun get(environment: DataFetchingEnvironment): Any? =
+        get(environment.fieldDefinition, source.resolve(environment, null)) { environment }
+}
+
+internal class MapFieldResolverDataFetcher(
+    source: SourceResolver,
+    private val key: String,
+    unwrapper: TypeShape.Unwrapper
+) : ResolverDataFetcher(source, unwrapper), LightDataFetcher<Any?> {
+
+    override fun get(fieldDefinition: GraphQLFieldDefinition?, sourceObject: Any?, environmentSupplier: Supplier<DataFetchingEnvironment>): Any? {
+        val map = sourceObject as? Map<*, *> ?: throw RuntimeException("MapFieldResolver attempt to fetch a field from an object instance that was not a map")
+        return map[key]?.let { unwrapper.unwrap(it, environmentSupplier) }
+    }
+
+    override fun get(environment: DataFetchingEnvironment): Any? =
+        get(environment.fieldDefinition, source.resolve(environment, null)) { environment }
+}
+
+private val noArguments = emptyArray<Any?>()
+
+private suspend fun invokeSuspending(method: Method, instance: Any, arguments: Array<Any?>): Any? =
+    suspendCoroutineUninterceptedOrReturn { continuation ->
+        arguments[arguments.lastIndex] = continuation
+        invoke(method, instance, arguments)
+    }
 
 private fun invoke(method: Method, instance: Any, arguments: Array<Any?>): Any? {
     try {

@@ -7,12 +7,15 @@ import graphql.GraphQLContext
 import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.resolver.ExtraParameter
+import graphql.kickstart.tools.resolver.FieldResolverError
 import graphql.kickstart.tools.resolver.ResolverKind
 import graphql.schema.DataFetchingEnvironment
+import graphql.schema.FieldCoordinates
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactive.publish
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertThrows
 import org.junit.Assert.fail
 import org.junit.Test
 import org.reactivestreams.Publisher
@@ -94,24 +97,39 @@ class ResolverCompatibilityTest {
     }
 
     @Test
-    fun `every resolver kind serves a field`() {
+    fun `every resolver kind gets its own data fetcher, which unwraps the value`() {
         ResolverKind.entries.forEach { kind ->
-            val holder: Any = when (kind) {
-                ResolverKind.METHOD -> NounMethodHolder(kind.noun)
-                ResolverKind.FIELD -> NounFieldHolder(kind.noun)
-                ResolverKind.MAP_VALUE -> hashMapOf("value" to kind.noun)
-            }
+            val fixture = kindFixtures[kind]
+                ?: throw AssertionError("ResolverKind.$kind has no entry in ResolverCompatibilityTest.kindFixtures. Add a holder whose 'value' resolves through it as a Box, and the name of the data fetcher it gets")
+            val holder = fixture.holder(kind.noun)
             val schema = SchemaParser.newParser()
                 .schemaString("type Query { holder: Holder } type Holder { value: String }")
                 .resolvers(object : GraphQLQueryResolver {
                     fun holder(): Any = holder
                 })
                 .dictionary("Holder", holder.javaClass)
+                .options(SchemaParserOptions.newOptions().genericWrappers(boxWrapper).build())
                 .build()
                 .makeExecutableSchema()
+            val holderType = schema.getObjectType("Holder")!!
+            val dataFetcher = schema.codeRegistry.getDataFetcher(FieldCoordinates.coordinates(holderType, "value"), holderType.getFieldDefinition("value"))
 
+            assertEquals(dataFetcher.javaClass.simpleName, fixture.dataFetcher)
             assertEquals(GraphQL.newGraphQL(schema).build().execute("{ holder { value } }").render(), "{holder={value=${kind.noun}}}")
         }
+    }
+
+    @Test
+    fun `a field more than one root resolver serves fails the build, naming each resolver`() {
+        val error = assertThrows(FieldResolverError::class.java) {
+            SchemaParser.newParser().schemaString("type Query { value: String }").resolvers(ValueMethodRoot(), ValueFieldRoot()).build().makeExecutableSchema()
+        }
+
+        assertEquals(
+            error.message!!.substringAfter("': "),
+            "[MethodFieldResolver{method=public final java.lang.String ${ValueMethodRoot::class.java.name}.value()}, " +
+                "PropertyFieldResolver{property=public final java.lang.String ${ValueFieldRoot::class.java.name}.value}]"
+        )
     }
 
     @Test
@@ -120,19 +138,8 @@ class ResolverCompatibilityTest {
         val context = mapOf<Any, Any>(AppContext::class.java to AppContext("ann"), "key" to "k")
 
         ExtraParameter.entries.forEach { parameter ->
-            val (resolver, expected) = when (parameter) {
-                ExtraParameter.ENVIRONMENT -> object : GraphQLQueryResolver {
-                    fun value(first: String, env: DataFetchingEnvironment) = "$first ${env.field.name}"
-                } to "x value"
-
-                ExtraParameter.GRAPHQL_CONTEXT -> object : GraphQLQueryResolver {
-                    fun value(first: String, context: GraphQLContext) = "$first ${context.get<String>("key")}"
-                } to "x k"
-
-                ExtraParameter.CONTEXT_CLASS -> object : GraphQLQueryResolver {
-                    fun value(first: String, context: AppContext) = "$first ${context.user}"
-                } to "x ann"
-            }
+            val (resolver, expected) = extraParameterFixtures[parameter]
+                ?: throw AssertionError("ExtraParameter.$parameter has no entry in ResolverCompatibilityTest.extraParameterFixtures. Add a resolver whose value(first) takes it last, and what it returns")
 
             assertEquals(
                 execute("type Query { value(first: String!): String }", "{ value(first: \"x\") }", resolver, options = options, context = context),
@@ -400,10 +407,24 @@ class ResolverCompatibilityTest {
     class AppContext(val user: String)
 
     class NounMethodHolder(private val noun: String) {
-        fun value() = noun
+        fun value() = Box(noun)
     }
 
-    class NounFieldHolder(@JvmField val value: String)
+    class NounFieldHolder(noun: String) {
+        @JvmField val value = Box(noun)
+    }
+
+    class NounMap : HashMap<String, Box<String>>()
+
+    class KindFixture(val holder: (String) -> Any, val dataFetcher: String)
+
+    class ValueMethodRoot : GraphQLQueryResolver {
+        fun value() = "method"
+    }
+
+    class ValueFieldRoot : GraphQLQueryResolver {
+        @JvmField val value = "field"
+    }
 
     class ContextResolver : GraphQLQueryResolver {
         fun extras(first: String, env: DataFetchingEnvironment, context: AppContext, graphQLContext: GraphQLContext, again: DataFetchingEnvironment) =
@@ -442,6 +463,24 @@ class ResolverCompatibilityTest {
         val specialBoxWrapper = GenericWrapper.withTransformer(SpecialBox::class, 0, { box -> "${box.content} special" })
         val leftWrapper = GenericWrapper.withTransformer(Left::class, 0, { wrapper -> wrapper.left })
         val rightWrapper = GenericWrapper.withTransformer(Right::class, 0, { wrapper -> wrapper.right })
+
+        val kindFixtures = mapOf(
+            ResolverKind.METHOD to KindFixture(::NounMethodHolder, "LightMethodFieldResolverDataFetcher"),
+            ResolverKind.FIELD to KindFixture(::NounFieldHolder, "PropertyFieldResolverDataFetcher"),
+            ResolverKind.MAP_VALUE to KindFixture({ noun -> NounMap().apply { put("value", Box(noun)) } }, "MapFieldResolverDataFetcher")
+        )
+
+        val extraParameterFixtures = mapOf(
+            ExtraParameter.ENVIRONMENT to (object : GraphQLQueryResolver {
+                fun value(first: String, env: DataFetchingEnvironment) = "$first ${env.field.name}"
+            } to "x value"),
+            ExtraParameter.GRAPHQL_CONTEXT to (object : GraphQLQueryResolver {
+                fun value(first: String, context: GraphQLContext) = "$first ${context.get<String>("key")}"
+            } to "x k"),
+            ExtraParameter.CONTEXT_CLASS to (object : GraphQLQueryResolver {
+                fun value(first: String, context: AppContext) = "$first ${context.user}"
+            } to "x ann")
+        )
 
         val shapes = listOf(
             Shape("future", "Foo", "{name=a}") { FutureMap().apply { put("future", it.future) } },
