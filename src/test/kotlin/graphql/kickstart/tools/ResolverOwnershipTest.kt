@@ -5,23 +5,25 @@ import com.tngtech.archunit.core.domain.JavaAccess
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
 import com.tngtech.archunit.core.importer.ClassFileImporter
-import com.tngtech.archunit.lang.ArchCondition
-import com.tngtech.archunit.lang.ConditionEvents
-import com.tngtech.archunit.lang.SimpleConditionEvent
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import graphql.execution.DataFetcherResult
 import graphql.kickstart.tools.SchemaParserOptions.GenericWrapper
 import graphql.kickstart.tools.resolver.ArgumentConverter
+import graphql.kickstart.tools.resolver.ResolverDataFetcher
 import graphql.kickstart.tools.resolver.ResolverPlan
 import graphql.kickstart.tools.resolver.TypeShape
 import graphql.schema.DataFetcher
 import org.apache.commons.lang3.reflect.FieldUtils
+import org.apache.commons.lang3.reflect.MethodUtils
 import org.junit.Test
+import tools.jackson.core.JsonParser
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.ObjectReader
 import tools.jackson.databind.ObjectWriter
 import tools.jackson.databind.util.TokenBuffer
+import java.lang.invoke.MethodHandle
+import java.lang.invoke.MethodHandles
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
@@ -35,20 +37,33 @@ class ResolverOwnershipTest {
             .importPath(Paths.get(ResolverPlan::class.java.protectionDomain.codeSource.location.toURI()))
 
         private val resolverPackage = ResolverPlan::class.java.packageName
-        private const val MEMBER = "graphql.kickstart.tools.resolver.Member"
+        private val MEMBER = "$resolverPackage.Member"
+
+        private val resolverPlanFile = OwningFile(
+            "ResolverPlan.kt", "ResolverPlan", "ResolverPlanKt", "ResolverKind", "ExtraParameter", "FieldResolverError", "Member", "MethodMember",
+            "PropertyMember", "MapMember", "ResolverDataFetcher", "MethodFieldResolverDataFetcher", "LightMethodFieldResolverDataFetcher",
+            "PropertyFieldResolverDataFetcher", "MapFieldResolverDataFetcher"
+        )
+        private val typeShapeFile = OwningFile(
+            "TypeShape.kt", "TypeShape", "TypeShapeKt", "Position", "Walk", "GenericWrappers", "CompareGenericWrappers", "Layer", "ContainerKind", "Step",
+            "Await", "Peel", "EachElement", "DataOf", "ValueOf", "Awaitable"
+        )
+        private val argumentConverterFile = OwningFile("ArgumentConverter.kt", "ArgumentConverter", "ArgumentConverterKt")
+        private val owningFiles = listOf(resolverPlanFile, typeShapeFile, argumentConverterFile)
     }
 
-    private fun declaredIn(fileName: String) = object : DescribedPredicate<JavaClass>("are declared in $resolverPackage's $fileName") {
-        override fun test(javaClass: JavaClass) =
-            javaClass.packageName == resolverPackage && javaClass.source.flatMap { it.fileName }.orElse(null) == fileName
+    // A nested, anonymous or lambda class belongs to the class that encloses it. Neither the file name a class was compiled from
+    // nor a '$' in its name makes it one of these, since any file can declare either
+    private class OwningFile(val fileName: String, vararg topLevelClasses: String) :
+        DescribedPredicate<JavaClass>("are declared in $fileName") {
+        val names = topLevelClasses.map { "${ResolverPlan::class.java.packageName}.$it" }.toSet()
+
+        override fun test(javaClass: JavaClass) = generateSequence(javaClass) { it.enclosingClass.orElse(null) }.last().name in names
     }
 
-    private fun DescribedPredicate<JavaClass>.orOwnerOf(vararg allowed: Class<*>): DescribedPredicate<JavaClass> {
-        val names = allowed.map { it.name }
-        return object : DescribedPredicate<JavaClass>("${this@orOwnerOf.description} or are ${names.joinToString()}") {
-            override fun test(javaClass: JavaClass) = this@orOwnerOf.test(javaClass) || javaClass.name.substringBefore('$') in names
-        }
-    }
+    private fun not(predicate: DescribedPredicate<JavaClass>) = DescribedPredicate.not(predicate)
+
+    private fun DescribedPredicate<JavaClass>.or(other: DescribedPredicate<JavaClass>) = DescribedPredicate.or(this, other)
 
     private class Calls(description: String, private val targets: Map<String, Set<String>>) : DescribedPredicate<JavaAccess<*>>(description) {
         override fun test(access: JavaAccess<*>) =
@@ -56,20 +71,43 @@ class ResolverOwnershipTest {
     }
 
     private val memberReflection = Calls(
-        "reads, invokes or opens a Java member by reflection",
+        "reads, invokes or opens a Java or Kotlin member by reflection",
         mapOf(
             Method::class.java.name to setOf("invoke"),
-            Field::class.java.name to setOf("get", "getGenericType"),
+            Field::class.java.name to setOf(
+                "get", "getBoolean", "getByte", "getChar", "getShort", "getInt", "getLong", "getFloat", "getDouble", "getGenericType",
+                "set", "setBoolean", "setByte", "setChar", "setShort", "setInt", "setLong", "setFloat", "setDouble"
+            ),
             Executable::class.java.name to setOf("getGenericParameterTypes", "getGenericReturnType", "getParameterTypes", "getParameterCount"),
             AccessibleObject::class.java.name to setOf("setAccessible", "trySetAccessible"),
-            "kotlin.reflect.jvm.ReflectJvmMapping" to setOf("getKotlinFunction"),
-            FieldUtils::class.java.name to setOf("getAllFields", "getAllFieldsList"),
+            MethodHandles::class.java.name to setOf("privateLookupIn"),
+            MethodHandles.Lookup::class.java.name to setOf(
+                "unreflect", "unreflectGetter", "unreflectSetter", "unreflectSpecial", "unreflectVarHandle", "findVirtual", "findStatic", "findSpecial",
+                "findGetter", "findSetter", "findStaticGetter", "findStaticSetter", "findVarHandle", "findStaticVarHandle"
+            ),
+            MethodHandle::class.java.name to setOf("invoke", "invokeExact", "invokeWithArguments"),
+            "kotlin.reflect.KCallable" to setOf("call", "callBy", "getReturnType"),
+            "kotlin.reflect.KProperty" to setOf("get", "set", "invoke", "getDelegate"),
+            "kotlin.reflect.jvm.ReflectJvmMapping" to setOf(
+                "getKotlinFunction", "getKotlinProperty", "getJavaType", "getJavaMethod", "getJavaField", "getJavaGetter", "getJavaSetter"
+            ),
+            FieldUtils::class.java.name to setOf(
+                "getAllFields", "getAllFieldsList", "getField", "getDeclaredField", "readField", "readDeclaredField", "readStaticField",
+                "readDeclaredStaticField", "writeField", "writeDeclaredField", "writeStaticField", "writeDeclaredStaticField"
+            ),
+            MethodUtils::class.java.name to setOf("invokeMethod", "invokeExactMethod", "invokeStaticMethod", "invokeExactStaticMethod"),
         )
     )
 
-    private val guessesInputFieldTypes = object : DescribedPredicate<JavaAccess<*>>("is in ScanDictionary.findInputValueTypeInType") {
+    // an input object's field types come from its class's getters and fields, which ScanDictionary finds before any ResolverPlan exists
+    private val readsInputFieldTypes = object : DescribedPredicate<JavaAccess<*>>("is ScanDictionary.findInputValueTypeInType reading a member's type") {
+        private val reads = Calls(
+            "reads a member's declared type",
+            mapOf(Executable::class.java.name to setOf("getGenericReturnType", "getParameterCount"), Field::class.java.name to setOf("getGenericType"))
+        )
+
         override fun test(access: JavaAccess<*>) =
-            access.origin.owner.isEquivalentTo(ScanDictionary::class.java) && access.origin.name.startsWith("findInputValueTypeInType")
+            access.origin.owner.isEquivalentTo(ScanDictionary::class.java) && access.origin.name == "findInputValueTypeInType" && reads.test(access)
     }
 
     private val tokenBufferConversion = Calls(
@@ -77,8 +115,9 @@ class ResolverOwnershipTest {
         mapOf(
             TokenBuffer::class.java.name to setOf("<init>", "forInputParsing", "forGeneration", "asParser"),
             ObjectWriter::class.java.name to setOf("writeValueIntoBuffer"),
-            ObjectMapper::class.java.name to setOf("readValue", "convertValue", "treeToValue", "valueToTree"),
+            ObjectMapper::class.java.name to setOf("readValue", "convertValue", "updateValue", "treeToValue", "valueToTree"),
             ObjectReader::class.java.name to setOf("readValue", "readValues", "treeToValue"),
+            JsonParser::class.java.name to setOf("readValueAs", "readValueAsTree"),
         )
     )
 
@@ -92,55 +131,56 @@ class ResolverOwnershipTest {
         mapOf(GenericWrapper::class.java.name to setOf("getType", "getIndex", "getSchemaWrapper", "getTransformer", "getTransformerReturnsCompletionStage"))
     )
 
-    private val buildsAnUnwrapper = object : DescribedPredicate<JavaAccess<*>>("builds a TypeShape.Unwrapper") {
-        override fun test(access: JavaAccess<*>) =
-            access.target.owner.isEquivalentTo(TypeShape.Unwrapper::class.java) && access.target.name == "<init>"
-    }
-
-    private val holdsAnUnwrapper =object : ArchCondition<JavaClass>("hold a TypeShape.Unwrapper") {
-        override fun check(javaClass: JavaClass, events: ConditionEvents) {
-            if (javaClass.allFields.none { it.rawType.isEquivalentTo(TypeShape.Unwrapper::class.java) }) {
-                events.add(SimpleConditionEvent.violated(javaClass, "${javaClass.name} implements DataFetcher without a TypeShape.Unwrapper field"))
-            }
-        }
-    }
+    private val buildsAnUnwrapper = Calls("builds a TypeShape.Unwrapper", mapOf(TypeShape.Unwrapper::class.java.name to setOf("<init>")))
 
     @Test
-    fun `imports the compiled resolver classes`() {
-        assert(classes.contain(MEMBER)) { "expected $MEMBER, the member variants' base class in ResolverPlan.kt, among ${classes.size} classes" }
-        assert(classes.any { declaredIn("ResolverPlan.kt").test(it) }) { "no class compiled from ResolverPlan.kt was imported" }
+    fun `each owning file lists exactly the top-level classes it declares`() {
+        val notCompiled = owningFiles.flatMap { file -> file.names.filter { !classes.contain(it) } }
+        assert(notCompiled.isEmpty()) { "ResolverOwnershipTest lists classes that weren't compiled: $notCompiled. Remove or rename them in its OwningFile lists" }
+
+        val unlisted = owningFiles.flatMap { file ->
+            classes.filter { it.packageName == resolverPackage && !it.enclosingClass.isPresent && it.source.flatMap { source -> source.fileName }.orElse(null) == file.fileName }
+                .map { it.name }
+                .filter { it !in file.names }
+        }
+        assert(unlisted.isEmpty()) {
+            "These classes were compiled from a file named like an owning file but aren't in its OwningFile list in ResolverOwnershipTest: $unlisted. " +
+                "Add a class declared in that file to its list. Rename any other file, since only one file in $resolverPackage owns each name"
+        }
+        assert(classes.contain(MEMBER)) { "expected $MEMBER, the member variants' base class in ResolverPlan.kt" }
     }
 
     @Test
     fun `only the resolver plan reflects on resolver members`() {
-        noClasses().that(DescribedPredicate.not(declaredIn("ResolverPlan.kt")))
-            .should().accessTargetWhere(DescribedPredicate.and(memberReflection, DescribedPredicate.not(guessesInputFieldTypes)))
+        noClasses().that(not(resolverPlanFile))
+            .should().accessTargetWhere(DescribedPredicate.and(memberReflection, DescribedPredicate.not(readsInputFieldTypes)))
             .because("ResolverPlan.kt reads each field's member once, at schema build, and is the only place that invokes it. " +
                 "Read what you need from the ResolverPlan, such as its argument targets or type shapes, or add it there")
             .check(classes)
     }
 
     @Test
-    fun `member variants expose raw invocation, never a data fetcher`() {
+    fun `member variants never build a data fetcher`() {
         noClasses().that().areAssignableTo(MEMBER)
             .should().dependOnClassesThat().areAssignableTo(DataFetcher::class.java)
             .orShould().dependOnClassesThat().areAssignableTo(TypeShape.Unwrapper::class.java)
-            .because("ResolverPlan builds every data fetcher around a member's read and unwraps its value with TypeShape.Unwrapper, " +
-                "so a member that builds its own fetcher skips the unwrapping. Give the member a read and let ResolverPlan.dataFetcher wrap it")
+            .because("ResolverPlan builds every data fetcher for a member and unwraps its value with TypeShape.Unwrapper, " +
+                "so a member that builds its own fetcher skips the unwrapping. Give the member what its fetcher needs and let ResolverPlan.dataFetcher build it")
             .check(classes)
     }
 
     @Test
-    fun `every library data fetcher unwraps through TypeShape`() {
+    fun `every library data fetcher is a ResolverDataFetcher`() {
         classes().that().implement(DataFetcher::class.java)
-            .should(holdsAnUnwrapper)
-            .because("a resolver's value reaches graphql-java fully unwrapped only through TypeShape.Unwrapper. Add the member to ResolverPlan instead of a new fetcher")
+            .should().beAssignableTo(ResolverDataFetcher::class.java)
+            .because("ResolverDataFetcher's constructor takes the TypeShape.Unwrapper the scan matched, so a resolver's value reaches graphql-java " +
+                "fully unwrapped. Add the member to ResolverPlan and its fetcher as a ResolverDataFetcher in ResolverPlan.kt instead of a new fetcher")
             .check(classes)
     }
 
     @Test
     fun `only the resolver plan builds an unwrapper`() {
-        noClasses().that(DescribedPredicate.not(declaredIn("ResolverPlan.kt").orOwnerOf(TypeShape::class.java)))
+        noClasses().that(not(resolverPlanFile.or(typeShapeFile)))
             .should().accessTargetWhere(buildsAnUnwrapper)
             .because("ResolverPlan.dataFetcher builds one unwrapper per field from the type shape the scan matched")
             .check(classes)
@@ -148,7 +188,7 @@ class ResolverOwnershipTest {
 
     @Test
     fun `only TypeShape dispatches on containers`() {
-        noClasses().that(DescribedPredicate.not(declaredIn("TypeShape.kt").orOwnerOf(GenericWrapper::class.java)))
+        noClasses().that(not(typeShapeFile))
             .should().accessTargetWhere(genericWrapperDispatch)
             .orShould().dependOnClassesThat().areAssignableTo(DataFetcherResult::class.java)
             .because("TypeShape.kt walks a declared type once and unwraps values by the same layers, so a container handled anywhere else " +
@@ -158,7 +198,7 @@ class ResolverOwnershipTest {
 
     @Test
     fun `only the argument converter converts through a TokenBuffer`() {
-        noClasses().that(DescribedPredicate.not(declaredIn("ArgumentConverter.kt")))
+        noClasses().that(not(argumentConverterFile))
             .should().accessTargetWhere(tokenBufferConversion)
             .orShould().dependOnClassesThat().areAssignableTo(TokenBuffer::class.java)
             .because("ArgumentConverter is the one entry point that turns a coerced argument into a parameter's type, with its fallbacks for scalars Jackson can't convert. Use the ResolverPlan's ArgumentConverter")
@@ -167,7 +207,7 @@ class ResolverOwnershipTest {
 
     @Test
     fun `only the resolver plan converts arguments`() {
-        noClasses().that(DescribedPredicate.not(declaredIn("ResolverPlan.kt").orOwnerOf(ArgumentConverter::class.java)))
+        noClasses().that(not(resolverPlanFile.or(argumentConverterFile)))
             .should().accessTargetWhere(argumentConversion)
             .because("ResolverPlan builds one ArgumentConverter per argument at schema build, next to the argument's Optional and scalar handling. Read the plan's argument targets instead")
             .check(classes)
